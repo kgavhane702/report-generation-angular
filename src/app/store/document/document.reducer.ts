@@ -1,9 +1,10 @@
 import { createReducer, on } from '@ngrx/store';
 
-import { DocumentModel } from '../../models/document.model';
+import { DocumentModel, SubsectionModel } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
 import { DocumentActions } from './document.actions';
 import { createInitialDocument } from '../../core/utils/document.factory';
+import { PageModel } from '../../models/page.model';
 
 export const documentFeatureKey = 'document';
 
@@ -40,6 +41,45 @@ export const documentReducer = createReducer(
   on(DocumentActions.updateWidget, (state, payload) => ({
     ...state,
     document: updateWidget(state.document, payload),
+  })),
+  on(DocumentActions.addSection, (state, { section }) => ({
+    ...state,
+    document: {
+      ...state.document,
+      sections: [...state.document.sections, section],
+    },
+  })),
+  on(DocumentActions.addSubsection, (state, { sectionId, subsection }) => ({
+    ...state,
+    document: addSubsection(state.document, sectionId, subsection),
+  })),
+  on(DocumentActions.addPage, (state, { subsectionId, page }) => ({
+    ...state,
+    document: addPage(state.document, subsectionId, page),
+  })),
+  on(DocumentActions.renameSection, (state, { sectionId, title }) => ({
+    ...state,
+    document: renameSection(state.document, sectionId, title),
+  })),
+  on(DocumentActions.renameSubsection, (state, { subsectionId, title }) => ({
+    ...state,
+    document: renameSubsection(state.document, subsectionId, title),
+  })),
+  on(DocumentActions.renamePage, (state, { subsectionId, pageId, title }) => ({
+    ...state,
+    document: renamePage(state.document, subsectionId, pageId, title),
+  })),
+  on(DocumentActions.deleteSection, (state, { sectionId }) => ({
+    ...state,
+    document: deleteSection(state.document, sectionId),
+  })),
+  on(DocumentActions.deleteSubsection, (state, { sectionId, subsectionId }) => ({
+    ...state,
+    document: deleteSubsection(state.document, sectionId, subsectionId),
+  })),
+  on(DocumentActions.deletePage, (state, { subsectionId, pageId }) => ({
+    ...state,
+    document: deletePage(state.document, subsectionId, pageId),
   }))
 );
 
@@ -161,5 +201,151 @@ function findLocation(
   });
 
   return { sectionIndex, subsectionIndex, pageIndex };
+}
+
+function addSubsection(
+  doc: DocumentModel,
+  sectionId: string,
+  subsection: SubsectionModel
+): DocumentModel {
+  const sections = doc.sections.map((section) =>
+    section.id === sectionId
+      ? {
+          ...section,
+          subsections: [...section.subsections, subsection],
+        }
+      : section
+  );
+
+  return {
+    ...doc,
+    sections,
+  };
+}
+
+function addPage(
+  doc: DocumentModel,
+  subsectionId: string,
+  page: PageModel
+): DocumentModel {
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    subsections: section.subsections.map((subsection) =>
+      subsection.id === subsectionId
+        ? {
+            ...subsection,
+            pages: [...subsection.pages, page],
+          }
+        : subsection
+    ),
+  }));
+
+  return {
+    ...doc,
+    sections,
+  };
+}
+
+function renameSection(
+  doc: DocumentModel,
+  sectionId: string,
+  title: string
+): DocumentModel {
+  const sections = doc.sections.map((section) =>
+    section.id === sectionId ? { ...section, title } : section
+  );
+  return { ...doc, sections };
+}
+
+function renameSubsection(
+  doc: DocumentModel,
+  subsectionId: string,
+  title: string
+): DocumentModel {
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    subsections: section.subsections.map((subsection) =>
+      subsection.id === subsectionId ? { ...subsection, title } : subsection
+    ),
+  }));
+  return { ...doc, sections };
+}
+
+function renamePage(
+  doc: DocumentModel,
+  subsectionId: string,
+  pageId: string,
+  title: string
+): DocumentModel {
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    subsections: section.subsections.map((subsection) =>
+      subsection.id === subsectionId
+        ? {
+            ...subsection,
+            pages: subsection.pages.map((page) =>
+              page.id === pageId ? { ...page, title } : page
+            ),
+          }
+        : subsection
+    ),
+  }));
+
+  return { ...doc, sections };
+}
+
+function deleteSection(
+  doc: DocumentModel,
+  sectionId: string
+): DocumentModel {
+  return {
+    ...doc,
+    sections: doc.sections.filter((section) => section.id !== sectionId),
+  };
+}
+
+function deleteSubsection(
+  doc: DocumentModel,
+  sectionId: string,
+  subsectionId: string
+): DocumentModel {
+  const sections = doc.sections.map((section) =>
+    section.id === sectionId
+      ? {
+          ...section,
+          subsections: section.subsections.filter(
+            (subsection) => subsection.id !== subsectionId
+          ),
+        }
+      : section
+  );
+
+  return {
+    ...doc,
+    sections,
+  };
+}
+
+function deletePage(
+  doc: DocumentModel,
+  subsectionId: string,
+  pageId: string
+): DocumentModel {
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    subsections: section.subsections.map((subsection) =>
+      subsection.id === subsectionId
+        ? {
+            ...subsection,
+            pages: subsection.pages.filter((page) => page.id !== pageId),
+          }
+        : subsection
+    ),
+  }));
+
+  return {
+    ...doc,
+    sections,
+  };
 }
 

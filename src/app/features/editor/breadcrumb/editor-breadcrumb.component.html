@@ -1,24 +1,88 @@
 <div class="breadcrumb">
-  <div class="breadcrumb__sections">
-    <button
-      *ngFor="let section of sections"
-      type="button"
-      [class.breadcrumb__item--active]="editorState.activeSectionId() === section.id"
-      (click)="selectSection(section.id)"
-    >
-      {{ section.title }}
-    </button>
+  <div class="breadcrumb__group">
+    <div class="breadcrumb__header">
+      <span>Sections</span>
+      <button type="button" (click)="addSection()">+ Section</button>
+    </div>
+    <div class="breadcrumb__list">
+      <div
+        class="breadcrumb__chip"
+        *ngFor="let section of sections"
+        [class.breadcrumb__chip--active]="editorState.activeSectionId() === section.id"
+        (click)="selectSection(section.id)"
+      >
+        <ng-container *ngIf="editingSectionId === section.id; else sectionLabel">
+          <input
+            class="breadcrumb__input"
+            [value]="editingSectionValue"
+            (click)="$event.stopPropagation()"
+            (input)="editingSectionValue = $any($event.target).value"
+            (blur)="saveSectionTitle(section.id)"
+            (keydown.enter)="saveSectionTitle(section.id)"
+            (keydown.escape)="cancelSectionEdit()"
+          />
+        </ng-container>
+        <ng-template #sectionLabel>
+          <span class="breadcrumb__label">{{ section.title }}</span>
+          <span class="breadcrumb__actions">
+            <button type="button" (click)="startSectionEdit(section, $event)">✎</button>
+            <button
+              type="button"
+              (click)="deleteSection(section.id, $event)"
+              [disabled]="sections.length <= 1"
+            >
+              ✕
+            </button>
+          </span>
+        </ng-template>
+      </div>
+    </div>
   </div>
 
-  <div class="breadcrumb__subsections">
-    <button
-      *ngFor="let subsection of subsections"
-      type="button"
-      [class.breadcrumb__item--active]="editorState.activeSubsectionId() === subsection.id"
-      (click)="selectSubsection(subsection.id)"
-    >
-      {{ subsection.title }}
-    </button>
+  <div class="breadcrumb__group">
+    <div class="breadcrumb__header">
+      <span>Subsections</span>
+      <button
+        type="button"
+        (click)="addSubsection()"
+        [disabled]="!editorState.activeSectionId()"
+      >
+        + Subsection
+      </button>
+    </div>
+    <div class="breadcrumb__list">
+      <div
+        class="breadcrumb__chip"
+        *ngFor="let subsection of subsections"
+        [class.breadcrumb__chip--active]="editorState.activeSubsectionId() === subsection.id"
+        (click)="selectSubsection(subsection.id)"
+      >
+        <ng-container *ngIf="editingSubsectionId === subsection.id; else subsectionLabel">
+          <input
+            class="breadcrumb__input"
+            [value]="editingSubsectionValue"
+            (click)="$event.stopPropagation()"
+            (input)="editingSubsectionValue = $any($event.target).value"
+            (blur)="saveSubsectionTitle(subsection.id)"
+            (keydown.enter)="saveSubsectionTitle(subsection.id)"
+            (keydown.escape)="cancelSubsectionEdit()"
+          />
+        </ng-container>
+        <ng-template #subsectionLabel>
+          <span class="breadcrumb__label">{{ subsection.title }}</span>
+          <span class="breadcrumb__actions">
+            <button type="button" (click)="startSubsectionEdit(subsection, $event)">✎</button>
+            <button
+              type="button"
+              (click)="deleteSubsection(subsection.id, $event)"
+              [disabled]="subsections.length <= 1"
+            >
+              ✕
+            </button>
+          </span>
+        </ng-template>
+      </div>
+    </div>
   </div>
 </div>
 

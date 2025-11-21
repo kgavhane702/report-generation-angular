@@ -6,26 +6,83 @@
   gap: 0.5rem;
 }
 
-.breadcrumb__sections,
-.breadcrumb__subsections {
+.breadcrumb__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.breadcrumb__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.breadcrumb__header button {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.breadcrumb__list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.breadcrumb button {
+.breadcrumb__chip {
   border: 1px solid transparent;
   background: #f4f6fb;
   border-radius: 999px;
-  padding: 0.3rem 0.75rem;
+  padding: 0.25rem 0.85rem;
   font-size: 0.85rem;
   cursor: pointer;
   transition: background 150ms ease, border-color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.breadcrumb__item--active,
-.breadcrumb button:hover {
+.breadcrumb__chip--active,
+.breadcrumb__chip:hover {
   background: #fff;
   border-color: rgba(15, 23, 42, 0.2);
+}
+
+.breadcrumb__label {
+  white-space: nowrap;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb__actions {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.breadcrumb__actions button {
+  border: none;
+  background: transparent;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.breadcrumb__actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.breadcrumb__input {
+  border: 1px solid rgba(15, 23, 42, 0.3);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+  min-width: 120px;
 }
 

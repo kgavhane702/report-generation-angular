@@ -1,15 +1,45 @@
 <div class="page-outline">
-  <h3>Pages</h3>
+  <div class="page-outline__header">
+    <h3>Pages</h3>
+    <button type="button" (click)="addPage()" [disabled]="!editorState.activeSubsectionId()">
+      + Page
+    </button>
+  </div>
   <div class="page-outline__list" *ngIf="editorState.activeSubsection() as subsection">
-    <button
+    <div
+      class="page-outline__item"
       *ngFor="let page of subsection.pages"
-      type="button"
       [class.page-outline__item--active]="editorState.activePageId() === page.id"
       (click)="selectPage(page.id)"
     >
-      Page {{ page.number }}
-      <span class="page-outline__widgets">{{ page.widgets.length }} widgets</span>
-    </button>
+      <ng-container *ngIf="editingPageId === page.id; else pageLabel">
+        <input
+          class="page-outline__input"
+          [value]="editingPageValue"
+          (click)="$event.stopPropagation()"
+          (input)="editingPageValue = $any($event.target).value"
+          (blur)="savePageTitle(subsection.id, page.id)"
+          (keydown.enter)="savePageTitle(subsection.id, page.id)"
+          (keydown.escape)="cancelPageEdit()"
+        />
+      </ng-container>
+      <ng-template #pageLabel>
+        <div class="page-outline__title">
+          {{ displayTitle(page) }}
+        </div>
+        <div class="page-outline__meta">
+          <span class="page-outline__widgets">{{ page.widgets.length }} widgets</span>
+          <button type="button" (click)="startPageEdit(page, $event)">✎</button>
+          <button
+            type="button"
+            (click)="deletePage(subsection.id, page.id, $event, subsection.pages.length)"
+            [disabled]="subsection.pages.length <= 1"
+          >
+            ✕
+          </button>
+        </div>
+      </ng-template>
+    </div>
   </div>
 </div>
 

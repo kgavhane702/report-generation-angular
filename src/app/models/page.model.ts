@@ -4,6 +4,7 @@ import { WidgetModel } from './widget.model';
 export interface PageModel {
   id: UUID;
   number: number;
+  title?: string;
   widgets: WidgetModel[];
   background?: BackgroundSpec;
 }

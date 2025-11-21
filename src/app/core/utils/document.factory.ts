@@ -9,26 +9,9 @@ import {
 import { PageModel } from '../../models/page.model';
 
 export function createInitialDocument(): DocumentModel {
-  const section: SectionModel = {
-    id: uuid(),
-    title: 'Executive Summary',
-    subsections: [],
-  };
-
-  const subsection: SubsectionModel = {
-    id: uuid(),
-    title: 'Overview',
-    pages: [],
-  };
-
-  const page: PageModel = {
-    id: uuid(),
-    number: 1,
-    widgets: [],
-  };
-
-  subsection.pages.push(page);
-  section.subsections.push(subsection);
+  const page = createPageModel(1);
+  const subsection = createSubsectionModel('Overview', [page]);
+  const section = createSectionModel('Executive Summary', [subsection]);
 
   return {
     id: uuid(),
@@ -45,6 +28,37 @@ export function defaultPageSize(): PageSize {
     heightMm: 190.5, // 7.5 inches
     orientation: 'landscape',
     dpi: 96,
+  };
+}
+
+export function createSectionModel(
+  title: string,
+  subsections: SubsectionModel[] = []
+): SectionModel {
+  return {
+    id: uuid(),
+    title,
+    subsections,
+  };
+}
+
+export function createSubsectionModel(
+  title: string,
+  pages: PageModel[] = []
+): SubsectionModel {
+  return {
+    id: uuid(),
+    title,
+    pages,
+  };
+}
+
+export function createPageModel(pageNumber: number): PageModel {
+  return {
+    id: uuid(),
+    number: pageNumber,
+    title: `Page ${pageNumber}`,
+    widgets: [],
   };
 }
 
