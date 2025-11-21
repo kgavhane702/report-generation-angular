@@ -1,0 +1,28 @@
+<table class="table-widget">
+  <thead>
+    <tr>
+      <th *ngFor="let column of columns" [style.width.px]="column.widthPx">
+        <span class="table-widget__col">
+          <span class="table-widget__col-label">{{ column.title }}</span>
+          <span class="table-widget__col-icon" *ngIf="column.icon">
+            <span
+              class="table-widget__icon"
+              [innerHTML]="column.icon.svg || column.icon.name"
+            ></span>
+          </span>
+        </span>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let row of rows">
+      <td *ngFor="let cell of row.cells; let colIndex = index">
+        <ng-container [ngSwitch]="columns[colIndex].cellType">
+          <span *ngSwitchCase="'icon'" class="table-widget__icon" [innerHTML]="cell"></span>
+          <span *ngSwitchDefault>{{ cell }}</span>
+        </ng-container>
+      </td>
+    </tr>
+  </tbody>
+</table>
+

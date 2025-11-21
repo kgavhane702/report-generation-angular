@@ -1,0 +1,43 @@
+.page-outline {
+  padding: 1rem;
+  flex: 1;
+  overflow: auto;
+}
+
+.page-outline h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.page-outline__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.page-outline__list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.page-outline__item--active,
+.page-outline__list button:hover {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.15);
+}
+
+.page-outline__widgets {
+  font-size: 0.75rem;
+  color: #475569;
+}
+

@@ -1,0 +1,62 @@
+.editor-toolbar {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.editor-toolbar__group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.editor-toolbar__group--page select {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  padding: 0.35rem 0.75rem;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.editor-toolbar__label {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.editor-toolbar button {
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.editor-toolbar button:hover {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.3);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.editor-toolbar__toggle {
+  display: inline-flex;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.editor-toolbar__toggle button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.4rem 0.9rem;
+}
+
+.editor-toolbar__toggle-button--active {
+  background: #312e81;
+  color: #fff;
+}
+

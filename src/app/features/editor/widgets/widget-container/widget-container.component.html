@@ -1,0 +1,67 @@
+<div
+  class="widget-container"
+  cdkDrag
+  [cdkDragDisabled]="isEditing || isResizing"
+  [cdkDragBoundary]="dragBoundarySelector"
+  (cdkDragEnded)="onDragEnded($event)"
+  [style.left.px]="frame.x"
+  [style.top.px]="frame.y"
+  [style.width.px]="frame.width"
+  [style.height.px]="frame.height"
+  [style.zIndex]="widget.zIndex"
+>
+  <ng-container [ngSwitch]="widget.type">
+    <app-text-widget
+      *ngSwitchCase="'text'"
+      [widget]="widget"
+      (editingChange)="onEditingChange($event)"
+      (propsChange)="onContentChange($event)"
+    ></app-text-widget>
+
+    <app-chart-widget
+      *ngSwitchCase="'chart'"
+      [widget]="widget"
+    ></app-chart-widget>
+
+    <app-table-widget
+      *ngSwitchCase="'table'"
+      [widget]="widget"
+    ></app-table-widget>
+
+    <app-image-widget
+      *ngSwitchCase="'image'"
+      [widget]="widget"
+    ></app-image-widget>
+
+    <div *ngSwitchDefault class="widget-container__placeholder">
+      {{ widget.type }} widget
+    </div>
+  </ng-container>
+
+  <button
+    class="widget-container__resize widget-container__resize--right"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'right')"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--bottom"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'bottom')"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--corner"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'corner')"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--left"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'left')"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--top"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'top')"
+  ></button>
+</div>
+

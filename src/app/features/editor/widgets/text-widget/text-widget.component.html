@@ -1,0 +1,17 @@
+<div class="text-widget" (dblclick)="enterEditMode()">
+  <div class="text-widget__toolbar" *ngIf="editing">
+    <button type="button" (click)="toggleBold()">Bold</button>
+    <button type="button" (click)="toggleItalic()">Italic</button>
+    <button type="button" (click)="exitEditMode()">Done</button>
+  </div>
+
+  <div
+    #editable
+    class="text-widget__content"
+    [attr.contenteditable]="editing"
+    [class.text-widget__content--editing]="editing"
+    (blur)="exitEditMode()"
+    (keydown.enter)="editing ? $event.stopPropagation() : null"
+  ></div>
+</div>
+

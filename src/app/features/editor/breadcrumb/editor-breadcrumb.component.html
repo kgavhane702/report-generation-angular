@@ -1,0 +1,24 @@
+<div class="breadcrumb">
+  <div class="breadcrumb__sections">
+    <button
+      *ngFor="let section of sections"
+      type="button"
+      [class.breadcrumb__item--active]="editorState.activeSectionId() === section.id"
+      (click)="selectSection(section.id)"
+    >
+      {{ section.title }}
+    </button>
+  </div>
+
+  <div class="breadcrumb__subsections">
+    <button
+      *ngFor="let subsection of subsections"
+      type="button"
+      [class.breadcrumb__item--active]="editorState.activeSubsectionId() === subsection.id"
+      (click)="selectSubsection(subsection.id)"
+    >
+      {{ subsection.title }}
+    </button>
+  </div>
+</div>
+

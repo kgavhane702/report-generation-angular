@@ -1,0 +1,15 @@
+<div class="page-outline">
+  <h3>Pages</h3>
+  <div class="page-outline__list" *ngIf="editorState.activeSubsection() as subsection">
+    <button
+      *ngFor="let page of subsection.pages"
+      type="button"
+      [class.page-outline__item--active]="editorState.activePageId() === page.id"
+      (click)="selectPage(page.id)"
+    >
+      Page {{ page.number }}
+      <span class="page-outline__widgets">{{ page.widgets.length }} widgets</span>
+    </button>
+  </div>
+</div>
+

@@ -1,0 +1,46 @@
+<div class="editor-toolbar" *ngIf="document$ | async as document">
+  <div class="editor-toolbar__group editor-toolbar__group--widgets">
+    <span class="editor-toolbar__label">Add widget</span>
+    <button type="button" (click)="addWidget('text')">Text</button>
+    <button type="button" (click)="addWidget('chart')">Chart</button>
+    <button type="button" (click)="addWidget('table')">Table</button>
+    <button type="button" (click)="addWidget('image')">Image</button>
+  </div>
+
+  <div class="editor-toolbar__group editor-toolbar__group--page">
+    <label class="editor-toolbar__label" for="preset-select">Page preset</label>
+    <select
+      id="preset-select"
+      [value]="getPresetId(document.pageSize)"
+      (change)="applyPreset($any($event.target).value)"
+    >
+      <option value="custom" *ngIf="getPresetId(document.pageSize) === 'custom'">
+        Custom size
+      </option>
+      <option *ngFor="let preset of pageSizePresets" [value]="preset.id">
+        {{ preset.label }}
+      </option>
+    </select>
+  </div>
+
+  <div class="editor-toolbar__group editor-toolbar__group--orientation">
+    <span class="editor-toolbar__label">Orientation</span>
+    <div class="editor-toolbar__toggle">
+      <button
+        type="button"
+        [class.editor-toolbar__toggle-button--active]="document.pageSize.orientation === 'landscape'"
+        (click)="setOrientation('landscape')"
+      >
+        Landscape
+      </button>
+      <button
+        type="button"
+        [class.editor-toolbar__toggle-button--active]="document.pageSize.orientation === 'portrait'"
+        (click)="setOrientation('portrait')"
+      >
+        Portrait
+      </button>
+    </div>
+  </div>
+</div>
+

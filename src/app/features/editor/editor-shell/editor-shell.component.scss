@@ -1,0 +1,46 @@
+.editor-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f4f6fb;
+  color: #1a1f36;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.editor-shell__toolbar {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+}
+
+.editor-shell__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.editor-shell__sidebar {
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.editor-shell__canvas {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 2rem 3rem;
+  box-sizing: border-box;
+  background: #e2e8f0;
+}
+
+

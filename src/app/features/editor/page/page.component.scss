@@ -1,0 +1,19 @@
+.page {
+  position: relative;
+}
+
+.page__surface {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.15);
+  border-radius: 1.5rem;
+  padding: 0;
+  border: 2px solid transparent;
+  max-width: 100%;
+}
+
+.page__surface--active {
+  border-color: #6366f1;
+  box-shadow: 0 16px 36px rgba(79, 70, 229, 0.25);
+}
+

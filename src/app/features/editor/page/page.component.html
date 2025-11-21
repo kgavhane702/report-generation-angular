@@ -1,0 +1,19 @@
+<div
+  class="page__surface"
+  [class.page__surface--active]="isActive"
+  [style.width.px]="widthPx"
+  [style.height.px]="heightPx"
+  [attr.id]="surfaceId"
+>
+  <app-widget-container
+    *ngFor="let widget of page.widgets"
+    [widget]="widget"
+    [pageSize]="pageSize"
+    [pageId]="page.id"
+    [subsectionId]="subsectionId"
+    [pageWidth]="widthPx"
+    [pageHeight]="heightPx"
+    [dragBoundarySelector]="surfaceSelector"
+  ></app-widget-container>
+</div>
+
