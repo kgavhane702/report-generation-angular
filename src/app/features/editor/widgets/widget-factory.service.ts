@@ -9,6 +9,7 @@ import {
   TextWidgetProps,
   WidgetProps,
 } from '../../../models/widget.model';
+import { createDefaultChartData } from '../../../models/chart-data.model';
 
 @Injectable({
   providedIn: 'root',
@@ -44,6 +45,8 @@ export class WidgetFactoryService {
   }
 
   private createChartWidget(): WidgetModel<ChartWidgetProps> {
+    const defaultChartData = createDefaultChartData('column');
+    
     return {
       id: uuid(),
       type: 'chart',
@@ -51,12 +54,9 @@ export class WidgetFactoryService {
       size: { width: 360, height: 240 },
       zIndex: 1,
       props: {
-        provider: 'placeholder',
-        chartType: 'pie',
-        data: {
-          labels: ['A', 'B', 'C'],
-          values: [30, 45, 25],
-        },
+        provider: 'highcharts',
+        chartType: defaultChartData.chartType,
+        data: defaultChartData,
         renderMode: 'svg',
       },
     };

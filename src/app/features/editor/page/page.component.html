@@ -6,7 +6,7 @@
   [attr.id]="surfaceId"
 >
   <app-widget-container
-    *ngFor="let widget of page.widgets"
+    *ngFor="let widget of page.widgets; trackBy: trackByWidgetId"
     [widget]="widget"
     [pageSize]="pageSize"
     [pageId]="page.id"

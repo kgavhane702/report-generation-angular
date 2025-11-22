@@ -1,2 +1,15 @@
-<div #container class="chart-widget"></div>
+<div
+  #container
+  class="chart-widget"
+  (dblclick)="onDoubleClick($event)"
+  style="width: 100%; height: 100%; cursor: pointer;"
+  title="Double-click to configure chart"
+>
+</div>
+
+<app-chart-config-dialog
+  *ngIf="showDialog && dialogData"
+  [data]="dialogData"
+  (closed)="closeConfigDialog($event)"
+></app-chart-config-dialog>
 

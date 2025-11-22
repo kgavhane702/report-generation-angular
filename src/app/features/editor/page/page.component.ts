@@ -38,6 +38,10 @@ export class PageComponent {
     return `#${this.surfaceId}`;
   }
 
+  trackByWidgetId(index: number, widget: any): string {
+    return widget.id;
+  }
+
   private convertMmToPx(mm: number): number {
     const dpi = this.pageSize.dpi ?? 96;
     const inches = mm / 25.4;

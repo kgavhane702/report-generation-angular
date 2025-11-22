@@ -17,6 +17,7 @@ import { TableWidgetComponent } from './widgets/table-widget/table-widget.compon
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
 import { InspectorPanelComponent } from './inspector/inspector-panel.component';
 import { ChartRegistryInitializer } from './widgets/chart/chart-registry.initializer';
+import { ChartConfigDialogComponent } from './widgets/chart/chart-config-dialog.component';
 
 @NgModule({
   declarations: [
@@ -33,7 +34,14 @@ import { ChartRegistryInitializer } from './widgets/chart/chart-registry.initial
     ImageWidgetComponent,
     InspectorPanelComponent,
   ],
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, DragDropModule, CKEditorModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    ReactiveFormsModule,
+    DragDropModule,
+    CKEditorModule,
+    ChartConfigDialogComponent,
+  ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],
 })

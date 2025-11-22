@@ -104,6 +104,10 @@ export class WidgetContainerComponent {
     });
   }
 
+  onChartPropsChange(props: Partial<WidgetModel['props']>): void {
+    this.onContentChange(props);
+  }
+
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
     event.stopPropagation();
     this.isResizing = true;
