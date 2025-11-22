@@ -2,14 +2,18 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  HostBinding,
   HostListener,
   Input,
+  effect,
+  inject,
 } from '@angular/core';
 import { CdkDragEnd } from '@angular/cdk/drag-drop';
 
 import { WidgetModel, WidgetPosition } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
+import { EditorStateService } from '../../../../core/services/editor-state.service';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'left' | 'top';
 
@@ -30,6 +34,7 @@ export class WidgetContainerComponent {
 
   isEditing = false;
   isResizing = false;
+  protected readonly editorState = inject(EditorStateService);
   private activeHandle: ResizeHandle | null = null;
   private resizeStart?: {
     width: number;
@@ -44,7 +49,17 @@ export class WidgetContainerComponent {
   constructor(
     private readonly documentService: DocumentService,
     private readonly cdr: ChangeDetectorRef
-  ) {}
+  ) {
+    effect(() => {
+      this.editorState.activeWidgetId();
+      this.cdr.markForCheck();
+    });
+  }
+
+  @HostBinding('class.widget-container--selected')
+  get isSelected(): boolean {
+    return this.editorState.activeWidgetId() === this.widget?.id;
+  }
 
   get frame(): WidgetFrame {
     if (this.previewFrame) {
@@ -143,6 +158,10 @@ export class WidgetContainerComponent {
 
     this.previewFrame = frame;
     this.cdr.markForCheck();
+  }
+
+  onWidgetPointerDown(): void {
+    this.editorState.setActiveWidget(this.widget.id);
   }
 
   @HostListener('document:pointerup', ['$event'])

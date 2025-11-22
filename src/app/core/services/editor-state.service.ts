@@ -3,6 +3,7 @@ import { Injectable, computed, signal } from '@angular/core';
 import { DocumentService } from './document.service';
 import { DocumentModel, SubsectionModel } from '../../models/document.model';
 import { PageModel } from '../../models/page.model';
+import { WidgetModel } from '../../models/widget.model';
 
 @Injectable({
   providedIn: 'root',
@@ -11,10 +12,12 @@ export class EditorStateService {
   private readonly sectionId = signal<string | null>(null);
   private readonly subsectionId = signal<string | null>(null);
   private readonly pageId = signal<string | null>(null);
+  private readonly widgetId = signal<string | null>(null);
 
   readonly activeSectionId = this.sectionId.asReadonly();
   readonly activeSubsectionId = this.subsectionId.asReadonly();
   readonly activePageId = this.pageId.asReadonly();
+  readonly activeWidgetId = this.widgetId.asReadonly();
 
   readonly document = computed<DocumentModel>(() => this.documentService.document);
 
@@ -41,6 +44,27 @@ export class EditorStateService {
     return subsection.pages.find((p) => p.id === pageId) ?? null;
   });
 
+  readonly activeWidgetContext = computed<WidgetContext | null>(() => {
+    const selectedId = this.widgetId();
+    const subsection = this.activeSubsection();
+    if (!selectedId || !subsection) {
+      return null;
+    }
+
+    for (const page of subsection.pages) {
+      const widget = page.widgets.find((w) => w.id === selectedId);
+      if (widget) {
+        return { widget, pageId: page.id, subsectionId: subsection.id };
+      }
+    }
+
+    return null;
+  });
+
+  readonly activeWidget = computed<WidgetModel | null>(
+    () => this.activeWidgetContext()?.widget ?? null
+  );
+
   constructor(private readonly documentService: DocumentService) {
     const doc = this.documentService.document;
     const firstSection = doc.sections[0];
@@ -54,6 +78,7 @@ export class EditorStateService {
 
   setActiveSection(sectionId: string): void {
     this.sectionId.set(sectionId);
+    this.widgetId.set(null);
     const section = this.documentService.document.sections.find(
       (s) => s.id === sectionId
     );
@@ -66,6 +91,7 @@ export class EditorStateService {
 
   setActiveSubsection(subsectionId: string): void {
     this.subsectionId.set(subsectionId);
+    this.widgetId.set(null);
     const subsection = this.documentService.document.sections
       .flatMap((section) => section.subsections)
       .find((sub) => sub.id === subsectionId);
@@ -74,6 +100,17 @@ export class EditorStateService {
 
   setActivePage(pageId: string): void {
     this.pageId.set(pageId);
+    this.widgetId.set(null);
   }
+
+  setActiveWidget(widgetId: string | null): void {
+    this.widgetId.set(widgetId);
+  }
+}
+
+interface WidgetContext {
+  widget: WidgetModel;
+  pageId: string;
+  subsectionId: string;
 }
 

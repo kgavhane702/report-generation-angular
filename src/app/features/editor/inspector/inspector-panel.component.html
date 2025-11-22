@@ -1,8 +1,76 @@
 <div class="inspector">
   <h3>Inspector</h3>
-  <div *ngIf="editorState.activePage() as page">
+  <div class="inspector__summary" *ngIf="editorState.activePage() as page">
     <p class="inspector__title">Page {{ page.number }}</p>
-    <p>{{ page.widgets.length }} widgets</p>
+    <p class="inspector__meta">{{ page.widgets.length }} widgets</p>
   </div>
+
+  <section class="inspector__section">
+    <div class="inspector__section-header">
+      <span>Widget</span>
+      <button
+        type="button"
+        class="inspector__clear"
+        *ngIf="hasWidgetSelected()"
+        (click)="clearSelection()"
+      >
+        Clear
+      </button>
+    </div>
+
+    <ng-container *ngIf="hasWidgetSelected(); else inspectorEmpty">
+      <form [formGroup]="propertiesForm" class="inspector__form">
+        <div class="inspector__group inspector__group--grid">
+          <label>
+            X
+            <input type="number" formControlName="x" />
+          </label>
+          <label>
+            Y
+            <input type="number" formControlName="y" />
+          </label>
+        </div>
+
+        <div class="inspector__group inspector__group--grid">
+          <label>
+            Width
+            <input type="number" formControlName="width" />
+          </label>
+          <label>
+            Height
+            <input type="number" formControlName="height" />
+          </label>
+        </div>
+
+        <div class="inspector__group inspector__group--grid">
+          <label>
+            Rotation°
+            <input type="number" formControlName="rotation" />
+          </label>
+          <label>
+            Z-Index
+            <input type="number" formControlName="zIndex" />
+          </label>
+        </div>
+
+        <div class="inspector__group inspector__group--grid">
+          <label>
+            Font size
+            <input type="number" formControlName="fontSize" />
+          </label>
+          <label class="inspector__color">
+            Color
+            <input type="color" formControlName="fontColor" />
+          </label>
+        </div>
+      </form>
+    </ng-container>
+
+    <ng-template #inspectorEmpty>
+      <p class="inspector__empty">
+        Select a widget to edit its position, size, and typography.
+      </p>
+    </ng-template>
+  </section>
 </div>
 

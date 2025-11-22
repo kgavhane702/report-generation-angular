@@ -1,6 +1,8 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { DragDropModule } from '@angular/cdk/drag-drop';
+import { CKEditorModule } from '@ckeditor/ckeditor5-angular';
 
 import { EditorShellComponent } from './editor-shell/editor-shell.component';
 import { EditorToolbarComponent } from './toolbar/editor-toolbar.component';
@@ -31,7 +33,7 @@ import { ChartRegistryInitializer } from './widgets/chart/chart-registry.initial
     ImageWidgetComponent,
     InspectorPanelComponent,
   ],
-  imports: [CommonModule, DragDropModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, DragDropModule, CKEditorModule],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],
 })

@@ -1,5 +1,4 @@
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   EventEmitter,
@@ -7,62 +6,65 @@ import {
   OnChanges,
   Output,
   SimpleChanges,
-  ViewChild,
-  ElementRef,
+  inject,
+  OnInit,
 } from '@angular/core';
-import { DomSanitizer } from '@angular/platform-browser';
-import { SecurityContext } from '@angular/core';
 
 import {
   TextWidgetProps,
   WidgetModel,
 } from '../../../../models/widget.model';
+import { RichTextEditorService } from '../../../../core/services/rich-text-editor.interface';
+import { CkEditorRichTextEditorService } from '../../../../core/services/ckeditor-rich-text-editor.service';
 
 @Component({
   selector: 'app-text-widget',
   templateUrl: './text-widget.component.html',
   styleUrls: ['./text-widget.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    { provide: RichTextEditorService, useClass: CkEditorRichTextEditorService },
+  ],
 })
-export class TextWidgetComponent implements AfterViewInit, OnChanges {
+export class TextWidgetComponent implements OnInit, OnChanges {
   @Input({ required: true }) widget!: WidgetModel;
 
   @Output() editingChange = new EventEmitter<boolean>();
   @Output() propsChange = new EventEmitter<Partial<TextWidgetProps>>();
 
-  @ViewChild('editable', { static: true }) editableRef!: ElementRef<HTMLDivElement>;
+  private readonly editorService = inject(RichTextEditorService);
+  private editorInstance = this.editorService.createEditor();
+
+  readonly Editor = this.editorInstance.Editor;
+  readonly editorConfig = this.editorInstance.config;
 
   editing = false;
-  private viewInitialized = false;
+  editorData = '';
 
-  constructor(private readonly sanitizer: DomSanitizer) {}
-
-  ngAfterViewInit(): void {
-    this.viewInitialized = true;
-    this.syncContent();
+  ngOnInit(): void {
+    // Initialize with widget content
+    this.editorData = this.textProps.contentHtml ?? '';
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['widget'] && this.viewInitialized && !this.editing) {
-      this.syncContent();
+    if (changes['widget'] && !this.editing) {
+      this.editorData = this.textProps.contentHtml ?? '';
     }
   }
 
-  enterEditMode(): void {
-    this.editing = true;
-    this.editingChange.emit(true);
-    this.setEditableHtml(this.textProps.contentHtml);
-    queueMicrotask(() => {
-      this.editableRef.nativeElement.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        selection.selectAllChildren(this.editableRef.nativeElement);
-        selection.collapseToEnd();
-      }
-    });
+  handleEditorReady(): void {
+    // Editor is ready - it will be editable on first click
+    // No need to do anything special, CKEditor handles click-to-focus automatically
   }
 
-  exitEditMode(): void {
+  handleEditorFocus(): void {
+    if (!this.editing) {
+      this.editing = true;
+      this.editingChange.emit(true);
+    }
+  }
+
+  handleEditorBlur(): void {
     if (!this.editing) {
       return;
     }
@@ -70,26 +72,10 @@ export class TextWidgetComponent implements AfterViewInit, OnChanges {
     this.editing = false;
     this.editingChange.emit(false);
 
-    const html = this.editableRef.nativeElement.innerHTML;
-    this.propsChange.emit({ contentHtml: html });
-  }
-
-  toggleBold(): void {
-    document.execCommand('bold');
-  }
-
-  toggleItalic(): void {
-    document.execCommand('italic');
-  }
-
-  private setEditableHtml(html: string): void {
-    const sanitized =
-      this.sanitizer.sanitize(SecurityContext.HTML, html) ?? '';
-    this.editableRef.nativeElement.innerHTML = sanitized;
-  }
-
-  private syncContent(): void {
-    this.setEditableHtml(this.textProps.contentHtml);
+    const nextHtml = this.editorData ?? '';
+    if (nextHtml !== this.textProps.contentHtml) {
+      this.propsChange.emit({ contentHtml: nextHtml });
+    }
   }
 
   private get textProps(): TextWidgetProps {

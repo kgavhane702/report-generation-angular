@@ -4,6 +4,7 @@
   [cdkDragDisabled]="isEditing || isResizing"
   [cdkDragBoundary]="dragBoundarySelector"
   (cdkDragEnded)="onDragEnded($event)"
+  (pointerdown)="onWidgetPointerDown()"
   [style.left.px]="frame.x"
   [style.top.px]="frame.y"
   [style.width.px]="frame.width"

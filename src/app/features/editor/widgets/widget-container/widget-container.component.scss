@@ -6,6 +6,11 @@
   will-change: transform;
 }
 
+.widget-container--selected {
+  border-color: rgba(99, 102, 241, 0.9);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
 .widget-container:focus-within,
 .widget-container:hover {
   border-color: rgba(99, 102, 241, 0.6);
