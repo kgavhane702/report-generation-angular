@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { ChartRegistryInitializer } from '../widgets/chart/chart-registry.initializer';
+import { TableRegistryInitializer } from '../widgets/table/table-registry.initializer';
 
 @Component({
   selector: 'app-editor-shell',
@@ -12,7 +13,8 @@ import { ChartRegistryInitializer } from '../widgets/chart/chart-registry.initia
 export class EditorShellComponent {
   protected readonly editorState = inject(EditorStateService);
   
-  // Inject ChartRegistryInitializer to ensure it's instantiated and registers chart adapters
+  // Inject registry initializers to ensure they're instantiated and register adapters
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
+  private readonly tableRegistryInitializer = inject(TableRegistryInitializer);
 }
 

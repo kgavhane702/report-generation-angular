@@ -53,6 +53,7 @@ export interface ChartWidgetProps {
 }
 
 export interface TableWidgetProps {
+  provider?: string; // 'html-table' | 'ag-grid' | 'datatable' | etc.
   columns: TableColumn[];
   rows: TableRow[];
   allowIconsInColumns?: boolean;

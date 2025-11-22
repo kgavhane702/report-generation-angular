@@ -1,0 +1,243 @@
+<div class="table-config-dialog">
+  <div class="table-config-dialog__overlay" (click)="closeDialog()"></div>
+  <div class="table-config-dialog__content">
+    <div class="table-config-dialog__header">
+      <h2 class="table-config-dialog__title">Table Configuration</h2>
+      <button
+        type="button"
+        class="table-config-dialog__close"
+        (click)="closeDialog()"
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+
+    <form [formGroup]="form" class="table-config-dialog__body" (ngSubmit)="save()">
+      <!-- General Settings -->
+      <div class="table-config-dialog__section">
+        <label class="table-config-dialog__label">
+          <input
+            type="checkbox"
+            formControlName="allowIconsInColumns"
+            class="table-config-dialog__checkbox"
+          />
+          Allow icons in columns
+        </label>
+      </div>
+
+      <!-- CSV Import/Export -->
+      <div class="table-config-dialog__section">
+        <div class="table-config-dialog__actions">
+          <button
+            type="button"
+            class="table-config-dialog__button table-config-dialog__button--secondary"
+            (click)="showCsvImport = !showCsvImport"
+          >
+            {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
+          </button>
+        </div>
+
+        <div *ngIf="showCsvImport" class="table-config-dialog__csv-section">
+          <label class="table-config-dialog__label">CSV Data</label>
+          <textarea
+            [formControl]="csvFormControl"
+            class="table-config-dialog__textarea"
+            rows="8"
+            placeholder="Column1,Column2,Column3&#10;Value1,Value2,Value3&#10;Value4,Value5,Value6"
+          ></textarea>
+          <div class="table-config-dialog__actions">
+            <button
+              type="button"
+              class="table-config-dialog__button table-config-dialog__button--secondary"
+              (click)="importFromCsv()"
+            >
+              Import from CSV
+            </button>
+            <button
+              type="button"
+              class="table-config-dialog__button table-config-dialog__button--secondary"
+              (click)="csvFormControl.setValue(exportToCsv())"
+            >
+              Export to CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columns -->
+      <div class="table-config-dialog__section">
+        <div class="table-config-dialog__section-header">
+          <label class="table-config-dialog__label">Columns</label>
+          <button
+            type="button"
+            class="table-config-dialog__button table-config-dialog__button--small"
+            (click)="addColumn()"
+          >
+            + Add Column
+          </button>
+        </div>
+        <div formArrayName="columns" class="table-config-dialog__columns-list">
+          <div
+            *ngFor="let columnGroup of columnsFormArray.controls; let i = index"
+            formGroupName="{{ i }}"
+            class="table-config-dialog__column-item"
+          >
+            <div class="table-config-dialog__column-header">
+              <input
+                type="text"
+                formControlName="title"
+                class="table-config-dialog__input table-config-dialog__input--column-title"
+                placeholder="Column title"
+              />
+              <input
+                type="number"
+                formControlName="widthPx"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                placeholder="Width"
+                min="50"
+                style="width: 100px;"
+              />
+              <select formControlName="align" class="table-config-dialog__select" style="width: 100px;">
+                <option *ngFor="let align of alignments" [value]="align">
+                  {{ align | titlecase }}
+                </option>
+              </select>
+              <select formControlName="cellType" class="table-config-dialog__select" style="width: 120px;">
+                <option *ngFor="let type of cellTypes" [value]="type">
+                  {{ type | titlecase }}
+                </option>
+              </select>
+              <div formGroupName="icon" class="table-config-dialog__icon-group">
+                <input
+                  type="text"
+                  formControlName="svg"
+                  class="table-config-dialog__input table-config-dialog__input--icon"
+                  placeholder="SVG icon"
+                />
+              </div>
+              <div class="table-config-dialog__column-actions">
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small"
+                  (click)="moveColumn(i, i - 1)"
+                  [disabled]="i === 0"
+                  title="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small"
+                  (click)="moveColumn(i, i + 1)"
+                  [disabled]="i === columnsFormArray.length - 1"
+                  title="Move down"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
+                  (click)="removeColumn(i)"
+                  [disabled]="columnsFormArray.length <= 1"
+                  title="Remove column"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rows & Data -->
+      <div class="table-config-dialog__section">
+        <div class="table-config-dialog__section-header">
+          <label class="table-config-dialog__label">Data Rows</label>
+          <button
+            type="button"
+            class="table-config-dialog__button table-config-dialog__button--small"
+            (click)="addRow()"
+          >
+            + Add Row
+          </button>
+        </div>
+        <div class="table-config-dialog__table-wrapper">
+          <table class="table-config-dialog__preview-table">
+            <thead>
+              <tr>
+                <th *ngFor="let col of columnsFormArray.controls; let i = index">
+                  {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
+                </th>
+                <th style="width: 60px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody formArrayName="rows">
+              <tr
+                *ngFor="let rowGroup of rowsFormArray.controls; let rowIndex = index"
+                formGroupName="{{ rowIndex }}"
+              >
+                <td
+                  *ngFor="let cellControl of getRowCellsArray(rowIndex).controls; let cellIndex = index"
+                  class="table-config-dialog__cell"
+                >
+                  <ng-container *ngIf="editingCellId === (rowIndex + '-' + cellIndex); else cellDisplay">
+                    <input
+                      type="text"
+                      [(ngModel)]="editingCellValue"
+                      [ngModelOptions]="{standalone: true}"
+                      class="table-config-dialog__input table-config-dialog__input--cell"
+                      (blur)="saveCellEdit(rowIndex, cellIndex)"
+                      (keydown.enter)="saveCellEdit(rowIndex, cellIndex)"
+                      (keydown.escape)="cancelCellEdit()"
+                      #cellInput
+                      (click)="$event.stopPropagation()"
+                    />
+                  </ng-container>
+                  <ng-template #cellDisplay>
+                    <span
+                      (click)="startCellEdit(rowIndex, cellIndex)"
+                      class="table-config-dialog__cell-value"
+                      title="Click to edit"
+                    >
+                      {{ cellControl.value || '—' }}
+                    </span>
+                  </ng-template>
+                </td>
+                <td class="table-config-dialog__cell-actions">
+                  <button
+                    type="button"
+                    class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
+                    (click)="removeRow(rowIndex)"
+                    title="Remove row"
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </form>
+
+    <div class="table-config-dialog__footer">
+      <button
+        type="button"
+        class="table-config-dialog__button table-config-dialog__button--secondary"
+        (click)="cancel()"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="table-config-dialog__button table-config-dialog__button--primary"
+        (click)="save()"
+        [disabled]="form.invalid"
+      >
+        Save
+      </button>
+    </div>
+  </div>
+</div>
+

@@ -10,6 +10,7 @@ import {
   WidgetProps,
 } from '../../../models/widget.model';
 import { createDefaultChartData } from '../../../models/chart-data.model';
+import { createDefaultTableData } from '../../../models/table-data.model';
 
 @Injectable({
   providedIn: 'root',
@@ -63,6 +64,8 @@ export class WidgetFactoryService {
   }
 
   private createTableWidget(): WidgetModel<TableWidgetProps> {
+    const defaultTableData = createDefaultTableData();
+    
     return {
       id: uuid(),
       type: 'table',
@@ -70,31 +73,9 @@ export class WidgetFactoryService {
       size: { width: 520, height: 200 },
       zIndex: 1,
       props: {
+        provider: 'html-table',
         allowIconsInColumns: true,
-        columns: [
-          {
-            id: uuid(),
-            title: 'Metric',
-            widthPx: 160,
-            align: 'left',
-            cellType: 'text',
-          },
-          {
-            id: uuid(),
-            title: 'Value',
-            widthPx: 120,
-            align: 'center',
-            cellType: 'number',
-            icon: {
-              name: 'sparkline-up',
-              svg: '<svg viewBox="0 0 24 24"><polyline points="2,12 9,5 15,11 22,4" stroke="currentColor" fill="none"/></svg>',
-            },
-          },
-        ],
-        rows: [
-          { id: uuid(), cells: ['Revenue', 120000] },
-          { id: uuid(), cells: ['Net profit', 48000] },
-        ],
+        ...defaultTableData,
       },
     };
   }

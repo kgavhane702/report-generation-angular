@@ -28,6 +28,7 @@
     <app-table-widget
       *ngSwitchCase="'table'"
       [widget]="widget"
+      (tablePropsChange)="onTablePropsChange($event)"
     ></app-table-widget>
 
     <app-image-widget
