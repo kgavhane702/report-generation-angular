@@ -1,0 +1,130 @@
+<div class="hierarchy-tree">
+  <div class="hierarchy-tree__header">
+    <h3>Document Structure</h3>
+    <button mat-stroked-button color="primary" (click)="addSection()">
+      <mat-icon>add</mat-icon>
+      Section
+    </button>
+  </div>
+
+  <mat-tree
+    class="hierarchy-tree__tree"
+    [dataSource]="dataSource"
+    [treeControl]="treeControl"
+  >
+    <mat-tree-node
+      *matTreeNodeDef="let node"
+      matTreeNodePadding
+      [class.hierarchy-tree__node--active]="isActive(node)"
+      (click)="selectNode(node)"
+    >
+      <div class="hierarchy-tree__node">
+        <div class="hierarchy-tree__node-content">
+          <ng-container *ngIf="editingNodeId === node.id; else nodeLabel">
+            <input
+              matInput
+              class="hierarchy-tree__input"
+              [value]="editingValue"
+              (click)="$event.stopPropagation()"
+              (input)="editingValue = $any($event.target).value"
+              (blur)="saveTitle(node)"
+              (keydown.enter)="saveTitle(node)"
+              (keydown.escape)="cancelEdit()"
+            />
+          </ng-container>
+          <ng-template #nodeLabel>
+            <mat-icon class="hierarchy-tree__icon">
+              {{ node.type === 'section' ? 'folder' : node.type === 'subsection' ? 'subdirectory_arrow_right' : 'description' }}
+            </mat-icon>
+            <span class="hierarchy-tree__label">{{ node.title }}</span>
+          </ng-template>
+        </div>
+        <div class="hierarchy-tree__actions">
+          <button
+            mat-icon-button
+            *ngIf="node.type !== 'page'"
+            (click)="addChild(node, $event)"
+            [matTooltip]="node.type === 'section' ? 'Add subsection' : 'Add page'"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+          <button mat-icon-button (click)="startEdit(node, $event)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            color="warn"
+            (click)="deleteNode(node, $event)"
+            [disabled]="
+              (node.type === 'section' && !canDeleteSection(node.sectionId)) ||
+              (node.type === 'subsection' && !canDeleteSubsection(node.sectionId)) ||
+              (node.type === 'page' && node.subsectionId && !canDeletePage(node.subsectionId))
+            "
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </div>
+    </mat-tree-node>
+
+    <mat-tree-node
+      *matTreeNodeDef="let node; when: hasChild"
+      matTreeNodePadding
+      [class.hierarchy-tree__node--active]="isActive(node)"
+      (click)="selectNode(node)"
+    >
+      <button mat-icon-button matTreeNodeToggle (click)="$event.stopPropagation()">
+        <mat-icon class="mat-icon-rtl-mirror">
+          {{ treeControl.isExpanded(node) ? 'expand_more' : 'chevron_right' }}
+        </mat-icon>
+      </button>
+      <div class="hierarchy-tree__node hierarchy-tree__node--parent">
+        <div class="hierarchy-tree__node-content">
+          <ng-container *ngIf="editingNodeId === node.id; else parentLabel">
+            <input
+              matInput
+              class="hierarchy-tree__input"
+              [value]="editingValue"
+              (click)="$event.stopPropagation()"
+              (input)="editingValue = $any($event.target).value"
+              (blur)="saveTitle(node)"
+              (keydown.enter)="saveTitle(node)"
+              (keydown.escape)="cancelEdit()"
+            />
+          </ng-container>
+          <ng-template #parentLabel>
+            <mat-icon class="hierarchy-tree__icon">
+              {{ node.type === 'section' ? 'folder' : 'subdirectory_arrow_right' }}
+            </mat-icon>
+            <span class="hierarchy-tree__label">{{ node.title }}</span>
+          </ng-template>
+        </div>
+        <div class="hierarchy-tree__actions">
+          <button
+            mat-icon-button
+            *ngIf="node.type !== 'page'"
+            (click)="addChild(node, $event)"
+            [matTooltip]="node.type === 'section' ? 'Add subsection' : 'Add page'"
+          >
+            <mat-icon>add</mat-icon>
+          </button>
+          <button mat-icon-button (click)="startEdit(node, $event)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button
+            mat-icon-button
+            color="warn"
+            (click)="deleteNode(node, $event)"
+            [disabled]="
+              (node.type === 'section' && !canDeleteSection(node.sectionId)) ||
+              (node.type === 'subsection' && !canDeleteSubsection(node.sectionId))
+            "
+          >
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </div>
+    </mat-tree-node>
+  </mat-tree>
+</div>
+
