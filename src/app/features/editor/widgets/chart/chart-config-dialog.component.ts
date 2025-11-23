@@ -38,6 +38,7 @@ export class ChartConfigDialogComponent implements OnDestroy {
   @Input() data?: ChartConfigDialogData;
   @Output() closed = new EventEmitter<ChartConfigDialogResult>();
 
+
   readonly chartTypes: ChartType[] = [
     'column',
     'bar',
@@ -78,6 +79,7 @@ export class ChartConfigDialogComponent implements OnDestroy {
   ngOnInit(): void {
     const chartData = this.data?.chartData || createDefaultChartData();
     this.initializeForm(chartData);
+    
   }
 
   ngOnDestroy(): void {
@@ -286,8 +288,17 @@ export class ChartConfigDialogComponent implements OnDestroy {
     });
   }
 
-  closeDialog(): void {
-    this.cancel();
+  closeDialog(event?: MouseEvent): void {
+    // Only close if clicking directly on overlay, not if event came from content
+    if (event) {
+      const target = event.target as HTMLElement;
+      // Check if the click was on the overlay itself (not on content or its children)
+      if (target.classList.contains('chart-config-dialog__overlay')) {
+        this.cancel();
+      }
+    } else {
+      this.cancel();
+    }
   }
 }
 

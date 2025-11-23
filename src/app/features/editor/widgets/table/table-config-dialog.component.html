@@ -1,6 +1,6 @@
 <div class="table-config-dialog">
-  <div class="table-config-dialog__overlay" (click)="closeDialog()"></div>
-  <div class="table-config-dialog__content">
+  <div class="table-config-dialog__overlay" (click)="closeDialog($event)"></div>
+  <div class="table-config-dialog__content" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
     <div class="table-config-dialog__header">
       <h2 class="table-config-dialog__title">Table Configuration</h2>
       <button
@@ -14,210 +14,1093 @@
     </div>
 
     <form [formGroup]="form" class="table-config-dialog__body" (ngSubmit)="save()">
-      <!-- General Settings -->
-      <div class="table-config-dialog__section">
-        <label class="table-config-dialog__label">
-          <input
-            type="checkbox"
-            formControlName="allowIconsInColumns"
-            class="table-config-dialog__checkbox"
-          />
-          Allow icons in columns
-        </label>
+      <!-- Tabs Navigation -->
+      <div class="table-config-dialog__tabs">
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'data'"
+          (click)="setActiveTab('data')"
+        >
+          Data
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'templates'"
+          (click)="setActiveTab('templates')"
+        >
+          Templates
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'table-style'"
+          (click)="setActiveTab('table-style')"
+        >
+          Table Style
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'header-style'"
+          (click)="setActiveTab('header-style')"
+        >
+          Header Style
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'column-style'"
+          (click)="setActiveTab('column-style')"
+        >
+          Column Style
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'row-style'"
+          (click)="setActiveTab('row-style')"
+        >
+          Row Style
+        </button>
+        <button
+          type="button"
+          class="table-config-dialog__tab"
+          [class.table-config-dialog__tab--active]="activeTab === 'icons'"
+          (click)="setActiveTab('icons')"
+        >
+          Icons
+        </button>
       </div>
 
-      <!-- CSV Import/Export -->
-      <div class="table-config-dialog__section">
-        <div class="table-config-dialog__actions">
-          <button
-            type="button"
-            class="table-config-dialog__button table-config-dialog__button--secondary"
-            (click)="showCsvImport = !showCsvImport"
-          >
-            {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
-          </button>
+      <!-- Tab Content: Data -->
+      <div *ngIf="activeTab === 'data'" class="table-config-dialog__tab-content">
+        <!-- General Settings -->
+        <div class="table-config-dialog__section">
+          <label class="table-config-dialog__label">
+            <input
+              type="checkbox"
+              formControlName="allowIconsInColumns"
+              class="table-config-dialog__checkbox"
+            />
+            Allow icons in columns
+          </label>
         </div>
 
-        <div *ngIf="showCsvImport" class="table-config-dialog__csv-section">
-          <label class="table-config-dialog__label">CSV Data</label>
-          <textarea
-            [formControl]="csvFormControl"
-            class="table-config-dialog__textarea"
-            rows="8"
-            placeholder="Column1,Column2,Column3&#10;Value1,Value2,Value3&#10;Value4,Value5,Value6"
-          ></textarea>
+        <!-- CSV Import/Export -->
+        <div class="table-config-dialog__section">
           <div class="table-config-dialog__actions">
             <button
               type="button"
               class="table-config-dialog__button table-config-dialog__button--secondary"
-              (click)="importFromCsv()"
+              (click)="showCsvImport = !showCsvImport"
             >
-              Import from CSV
+              {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
             </button>
+          </div>
+
+          <div *ngIf="showCsvImport" class="table-config-dialog__csv-section">
+            <label class="table-config-dialog__label">CSV Data</label>
+            <textarea
+              [formControl]="csvFormControl"
+              class="table-config-dialog__textarea"
+              rows="8"
+              placeholder="Column1,Column2,Column3&#10;Value1,Value2,Value3&#10;Value4,Value5,Value6"
+            ></textarea>
+            <div class="table-config-dialog__actions">
+              <button
+                type="button"
+                class="table-config-dialog__button table-config-dialog__button--secondary"
+                (click)="importFromCsv()"
+              >
+                Import from CSV
+              </button>
+              <button
+                type="button"
+                class="table-config-dialog__button table-config-dialog__button--secondary"
+                (click)="csvFormControl.setValue(exportToCsv())"
+              >
+                Export to CSV
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columns -->
+        <div class="table-config-dialog__section">
+          <div class="table-config-dialog__section-header">
+            <label class="table-config-dialog__label">Columns</label>
             <button
               type="button"
-              class="table-config-dialog__button table-config-dialog__button--secondary"
-              (click)="csvFormControl.setValue(exportToCsv())"
+              class="table-config-dialog__button table-config-dialog__button--small"
+              (click)="addColumn()"
             >
-              Export to CSV
+              + Add Column
             </button>
+          </div>
+          <div formArrayName="columns" class="table-config-dialog__columns-list">
+            <div
+              *ngFor="let columnGroup of columnsFormArray.controls; let i = index"
+              formGroupName="{{ i }}"
+              class="table-config-dialog__column-item"
+            >
+              <div class="table-config-dialog__column-header">
+                <input
+                  type="text"
+                  formControlName="title"
+                  class="table-config-dialog__input table-config-dialog__input--column-title"
+                  placeholder="Column title"
+                />
+                <input
+                  type="number"
+                  formControlName="widthPx"
+                  class="table-config-dialog__input table-config-dialog__input--number"
+                  placeholder="Width"
+                  min="50"
+                  style="width: 100px;"
+                />
+                <select formControlName="align" class="table-config-dialog__select" style="width: 100px;">
+                  <option *ngFor="let align of alignments" [value]="align">
+                    {{ align | titlecase }}
+                  </option>
+                </select>
+                <select formControlName="cellType" class="table-config-dialog__select" style="width: 120px;">
+                  <option *ngFor="let type of cellTypes" [value]="type">
+                    {{ type | titlecase }}
+                  </option>
+                </select>
+                <label class="table-config-dialog__label table-config-dialog__label--checkbox">
+                  <input
+                    type="checkbox"
+                    formControlName="isHeader"
+                    class="table-config-dialog__checkbox"
+                  />
+                  Row Header
+                </label>
+                <div class="table-config-dialog__column-actions">
+                  <button
+                    type="button"
+                    class="table-config-dialog__button table-config-dialog__button--small"
+                    (click)="moveColumn(i, i - 1)"
+                    [disabled]="i === 0"
+                    title="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    class="table-config-dialog__button table-config-dialog__button--small"
+                    (click)="moveColumn(i, i + 1)"
+                    [disabled]="i === columnsFormArray.length - 1"
+                    title="Move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
+                    (click)="removeColumn(i)"
+                    [disabled]="columnsFormArray.length <= 1"
+                    title="Remove column"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rows & Data -->
+        <div class="table-config-dialog__section">
+          <div class="table-config-dialog__section-header">
+            <label class="table-config-dialog__label">Data Rows</label>
+            <button
+              type="button"
+              class="table-config-dialog__button table-config-dialog__button--small"
+              (click)="addRow()"
+            >
+              + Add Row
+            </button>
+          </div>
+          <div class="table-config-dialog__table-wrapper">
+            <table class="table-config-dialog__preview-table">
+              <thead>
+                <tr>
+                  <th *ngFor="let col of columnsFormArray.controls; let i = index">
+                    {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
+                  </th>
+                  <th style="width: 60px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody formArrayName="rows">
+                <tr
+                  *ngFor="let rowGroup of rowsFormArray.controls; let rowIndex = index"
+                  formGroupName="{{ rowIndex }}"
+                >
+                  <td
+                    *ngFor="let cellControl of getRowCellsArray(rowIndex).controls; let cellIndex = index"
+                    class="table-config-dialog__cell"
+                  >
+                    <ng-container *ngIf="editingCellId === (rowIndex + '-' + cellIndex); else cellDisplay">
+                      <input
+                        type="text"
+                        [(ngModel)]="editingCellValue"
+                        [ngModelOptions]="{standalone: true}"
+                        class="table-config-dialog__input table-config-dialog__input--cell"
+                        (blur)="saveCellEdit(rowIndex, cellIndex)"
+                        (keydown.enter)="saveCellEdit(rowIndex, cellIndex)"
+                        (keydown.escape)="cancelCellEdit()"
+                        #cellInput
+                        (click)="$event.stopPropagation()"
+                      />
+                    </ng-container>
+                    <ng-template #cellDisplay>
+                      <span
+                        (click)="startCellEdit(rowIndex, cellIndex)"
+                        class="table-config-dialog__cell-value"
+                        title="Click to edit"
+                      >
+                        {{ cellControl.value || '—' }}
+                      </span>
+                    </ng-template>
+                  </td>
+                  <td class="table-config-dialog__cell-actions">
+                    <button
+                      type="button"
+                      class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
+                      (click)="removeRow(rowIndex)"
+                      title="Remove row"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <!-- Columns -->
-      <div class="table-config-dialog__section">
-        <div class="table-config-dialog__section-header">
-          <label class="table-config-dialog__label">Columns</label>
-          <button
-            type="button"
-            class="table-config-dialog__button table-config-dialog__button--small"
-            (click)="addColumn()"
-          >
-            + Add Column
-          </button>
-        </div>
-        <div formArrayName="columns" class="table-config-dialog__columns-list">
-          <div
-            *ngFor="let columnGroup of columnsFormArray.controls; let i = index"
-            formGroupName="{{ i }}"
-            class="table-config-dialog__column-item"
-          >
-            <div class="table-config-dialog__column-header">
-              <input
-                type="text"
-                formControlName="title"
-                class="table-config-dialog__input table-config-dialog__input--column-title"
-                placeholder="Column title"
-              />
-              <input
-                type="number"
-                formControlName="widthPx"
-                class="table-config-dialog__input table-config-dialog__input--number"
-                placeholder="Width"
-                min="50"
-                style="width: 100px;"
-              />
-              <select formControlName="align" class="table-config-dialog__select" style="width: 100px;">
-                <option *ngFor="let align of alignments" [value]="align">
-                  {{ align | titlecase }}
-                </option>
-              </select>
-              <select formControlName="cellType" class="table-config-dialog__select" style="width: 120px;">
-                <option *ngFor="let type of cellTypes" [value]="type">
-                  {{ type | titlecase }}
-                </option>
-              </select>
-              <div formGroupName="icon" class="table-config-dialog__icon-group">
-                <input
-                  type="text"
-                  formControlName="svg"
-                  class="table-config-dialog__input table-config-dialog__input--icon"
-                  placeholder="SVG icon"
-                />
-              </div>
-              <div class="table-config-dialog__column-actions">
-                <button
-                  type="button"
-                  class="table-config-dialog__button table-config-dialog__button--small"
-                  (click)="moveColumn(i, i - 1)"
-                  [disabled]="i === 0"
-                  title="Move up"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  class="table-config-dialog__button table-config-dialog__button--small"
-                  (click)="moveColumn(i, i + 1)"
-                  [disabled]="i === columnsFormArray.length - 1"
-                  title="Move down"
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
-                  (click)="removeColumn(i)"
-                  [disabled]="columnsFormArray.length <= 1"
-                  title="Remove column"
-                >
-                  ×
-                </button>
-              </div>
+      <!-- Tab Content: Templates -->
+      <div *ngIf="activeTab === 'templates'" class="table-config-dialog__tab-content">
+        <div class="table-config-dialog__section">
+          <label class="table-config-dialog__label">Table Templates</label>
+          <div class="table-config-dialog__templates-grid">
+            <div
+              *ngFor="let template of templates"
+              class="table-config-dialog__template-card"
+              [class.table-config-dialog__template-card--selected]="selectedTemplate === template.id"
+              (click)="applyTemplate(template.id)"
+            >
+              <div class="table-config-dialog__template-name">{{ template.name }}</div>
+              <div class="table-config-dialog__template-description">{{ template.description }}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Rows & Data -->
-      <div class="table-config-dialog__section">
-        <div class="table-config-dialog__section-header">
-          <label class="table-config-dialog__label">Data Rows</label>
-          <button
-            type="button"
-            class="table-config-dialog__button table-config-dialog__button--small"
-            (click)="addRow()"
+      <!-- Tab Content: Table Style -->
+      <div *ngIf="activeTab === 'table-style'" class="table-config-dialog__tab-content">
+        <div formGroupName="tableStyle" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Global Table Styling</h3>
+          
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Background Color
+              <input
+                type="color"
+                formControlName="backgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Text Color
+              <input
+                type="color"
+                formControlName="textColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="fontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="fontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+          </div>
+
+          <h3 class="table-config-dialog__subsection-title">Borders</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Border Color
+              <input
+                type="color"
+                formControlName="borderColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Width (px)
+              <input
+                type="number"
+                formControlName="borderWidth"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="10"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Style
+              <select formControlName="borderStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of borderStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <h3 class="table-config-dialog__subsection-title">Spacing</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Cell Padding (px)
+              <input
+                type="number"
+                formControlName="cellPadding"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="50"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Cell Spacing (px)
+              <input
+                type="number"
+                formControlName="cellSpacing"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="20"
+              />
+            </label>
+          </div>
+        </div>
+
+        <!-- Alternating Colors -->
+        <div formGroupName="alternatingColors" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Alternating Colors</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Alternate Row Color
+              <input
+                type="color"
+                formControlName="alternateRowColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Alternate Column Color
+              <input
+                type="color"
+                formControlName="alternateColumnColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Header Style -->
+      <div *ngIf="activeTab === 'header-style'" class="table-config-dialog__tab-content">
+        <div formGroupName="headerStyle" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Header Styling</h3>
+          
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Header Background Color
+              <input
+                type="color"
+                formControlName="headerBackgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Header Text Color
+              <input
+                type="color"
+                formControlName="headerTextColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Header Border Color
+              <input
+                type="color"
+                formControlName="headerBorderColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Header Border Width (px)
+              <input
+                type="number"
+                formControlName="headerBorderWidth"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="10"
+              />
+            </label>
+          </div>
+
+          <h3 class="table-config-dialog__subsection-title">Header Typography</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="headerFontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="headerFontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Weight
+              <select formControlName="headerFontWeight" class="table-config-dialog__select">
+                <option *ngFor="let weight of fontWeights" [value]="weight">
+                  {{ weight }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Font Style
+              <select formControlName="headerFontStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of fontStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Text Align
+              <select formControlName="headerTextAlign" class="table-config-dialog__select">
+                <option *ngFor="let align of alignments" [value]="align">
+                  {{ align | titlecase }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Vertical Align
+              <select formControlName="headerVerticalAlign" class="table-config-dialog__select">
+                <option *ngFor="let valign of verticalAlignments" [value]="valign">
+                  {{ valign | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <!-- Row Headers -->
+        <div formGroupName="headerStyle" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Row Headers</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              <input
+                type="checkbox"
+                formControlName="showRowHeaders"
+                class="table-config-dialog__checkbox"
+              />
+              Show Row Headers (First Column)
+            </label>
+            <label class="table-config-dialog__label" *ngIf="form.get('headerStyle.showRowHeaders')?.value">
+              Row Header Width (px)
+              <input
+                type="number"
+                formControlName="rowHeaderWidth"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="50"
+                max="500"
+              />
+            </label>
+          </div>
+        </div>
+
+        <!-- Row Header Styling -->
+        <div formGroupName="rowHeaderStyle" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Row Header Styling</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Background Color
+              <input
+                type="color"
+                formControlName="rowHeaderBackgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Text Color
+              <input
+                type="color"
+                formControlName="rowHeaderTextColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="rowHeaderFontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="rowHeaderFontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Weight
+              <select formControlName="rowHeaderFontWeight" class="table-config-dialog__select">
+                <option *ngFor="let weight of fontWeights" [value]="weight">
+                  {{ weight }}
+                </option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Column Style -->
+      <div *ngIf="activeTab === 'column-style'" class="table-config-dialog__tab-content">
+        <div class="table-config-dialog__section">
+          <label class="table-config-dialog__label">Select Column to Style</label>
+          <select
+            class="table-config-dialog__select"
+            #columnSelector
+            (change)="selectedColumnIndex = +columnSelector.value"
           >
-            + Add Row
-          </button>
+            <option *ngFor="let col of columnsFormArray.controls; let i = index" [value]="i">
+              {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
+            </option>
+          </select>
         </div>
-        <div class="table-config-dialog__table-wrapper">
-          <table class="table-config-dialog__preview-table">
-            <thead>
-              <tr>
-                <th *ngFor="let col of columnsFormArray.controls; let i = index">
-                  {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
-                </th>
-                <th style="width: 60px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody formArrayName="rows">
-              <tr
-                *ngFor="let rowGroup of rowsFormArray.controls; let rowIndex = index"
-                formGroupName="{{ rowIndex }}"
-              >
-                <td
-                  *ngFor="let cellControl of getRowCellsArray(rowIndex).controls; let cellIndex = index"
-                  class="table-config-dialog__cell"
-                >
-                  <ng-container *ngIf="editingCellId === (rowIndex + '-' + cellIndex); else cellDisplay">
-                    <input
-                      type="text"
-                      [(ngModel)]="editingCellValue"
-                      [ngModelOptions]="{standalone: true}"
-                      class="table-config-dialog__input table-config-dialog__input--cell"
-                      (blur)="saveCellEdit(rowIndex, cellIndex)"
-                      (keydown.enter)="saveCellEdit(rowIndex, cellIndex)"
-                      (keydown.escape)="cancelCellEdit()"
-                      #cellInput
-                      (click)="$event.stopPropagation()"
-                    />
-                  </ng-container>
-                  <ng-template #cellDisplay>
-                    <span
-                      (click)="startCellEdit(rowIndex, cellIndex)"
-                      class="table-config-dialog__cell-value"
-                      title="Click to edit"
-                    >
-                      {{ cellControl.value || '—' }}
-                    </span>
-                  </ng-template>
-                </td>
-                <td class="table-config-dialog__cell-actions">
-                  <button
-                    type="button"
-                    class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--danger"
-                    (click)="removeRow(rowIndex)"
-                    title="Remove row"
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+
+        <ng-container *ngIf="selectedColumnIndex !== null && selectedColumnIndex >= 0">
+          <div
+            *ngIf="getColumnFormGroup(selectedColumnIndex) as columnFormGroup"
+            [formGroup]="columnFormGroup"
+            class="table-config-dialog__section"
+          >
+          <h3 class="table-config-dialog__subsection-title">Column Styling</h3>
+          
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Background Color
+              <input
+                type="color"
+                formControlName="backgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Text Color
+              <input
+                type="color"
+                formControlName="textColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="fontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="fontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Weight
+              <select formControlName="fontWeight" class="table-config-dialog__select">
+                <option *ngFor="let weight of fontWeights" [value]="weight">
+                  {{ weight }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Font Style
+              <select formControlName="fontStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of fontStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <h3 class="table-config-dialog__subsection-title">Borders</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Border Color
+              <input
+                type="color"
+                formControlName="borderColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Width (px)
+              <input
+                type="number"
+                formControlName="borderWidth"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="10"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Style
+              <select formControlName="borderStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of borderStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Padding (px)
+              <input
+                type="number"
+                formControlName="padding"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="50"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Vertical Align
+              <select formControlName="verticalAlign" class="table-config-dialog__select">
+                <option *ngFor="let valign of verticalAlignments" [value]="valign">
+                  {{ valign | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
         </div>
+        </ng-container>
+      </div>
+
+      <!-- Tab Content: Row Style -->
+      <div *ngIf="activeTab === 'row-style'" class="table-config-dialog__tab-content">
+        <div formGroupName="bodyStyle" class="table-config-dialog__section">
+          <h3 class="table-config-dialog__subsection-title">Body Row Styling</h3>
+          
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="bodyFontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="bodyFontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Weight
+              <select formControlName="bodyFontWeight" class="table-config-dialog__select">
+                <option *ngFor="let weight of fontWeights" [value]="weight">
+                  {{ weight }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Text Color
+              <input
+                type="color"
+                formControlName="bodyTextColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Background Color
+              <input
+                type="color"
+                formControlName="bodyBackgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div class="table-config-dialog__section">
+          <label class="table-config-dialog__label">Select Row to Style</label>
+          <select
+            class="table-config-dialog__select"
+            #rowSelector
+            (change)="selectedRowIndex = +rowSelector.value"
+          >
+            <option *ngFor="let row of rowsFormArray.controls; let i = index" [value]="i">
+              Row {{ i + 1 }}
+            </option>
+          </select>
+        </div>
+
+        <ng-container *ngIf="selectedRowIndex !== null && selectedRowIndex >= 0">
+          <div
+            *ngIf="getRowFormGroup(selectedRowIndex) as rowFormGroup"
+            [formGroup]="rowFormGroup"
+            class="table-config-dialog__section"
+          >
+          <h3 class="table-config-dialog__subsection-title">Individual Row Styling</h3>
+          
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              <input
+                type="checkbox"
+                formControlName="isHeader"
+                class="table-config-dialog__checkbox"
+              />
+              Mark as Header Row
+            </label>
+            <label class="table-config-dialog__label">
+              Height (px)
+              <input
+                type="number"
+                formControlName="height"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="20"
+                max="200"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Min Height (px)
+              <input
+                type="number"
+                formControlName="minHeight"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="20"
+                max="200"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Background Color
+              <input
+                type="color"
+                formControlName="backgroundColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Text Color
+              <input
+                type="color"
+                formControlName="textColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Family
+              <input
+                type="text"
+                formControlName="fontFamily"
+                class="table-config-dialog__input"
+                placeholder="Arial, sans-serif"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Font Size (px)
+              <input
+                type="number"
+                formControlName="fontSize"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="8"
+                max="72"
+              />
+            </label>
+          </div>
+
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Font Weight
+              <select formControlName="fontWeight" class="table-config-dialog__select">
+                <option *ngFor="let weight of fontWeights" [value]="weight">
+                  {{ weight }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Font Style
+              <select formControlName="fontStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of fontStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Vertical Align
+              <select formControlName="verticalAlign" class="table-config-dialog__select">
+                <option *ngFor="let valign of verticalAlignments" [value]="valign">
+                  {{ valign | titlecase }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <h3 class="table-config-dialog__subsection-title">Row Borders</h3>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              Border Color
+              <input
+                type="color"
+                formControlName="borderColor"
+                class="table-config-dialog__input table-config-dialog__input--color"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Width (px)
+              <input
+                type="number"
+                formControlName="borderWidth"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="10"
+              />
+            </label>
+            <label class="table-config-dialog__label">
+              Border Style
+              <select formControlName="borderStyle" class="table-config-dialog__select">
+                <option *ngFor="let style of borderStyles" [value]="style">
+                  {{ style | titlecase }}
+                </option>
+              </select>
+            </label>
+            <label class="table-config-dialog__label">
+              Padding (px)
+              <input
+                type="number"
+                formControlName="padding"
+                class="table-config-dialog__input table-config-dialog__input--number"
+                min="0"
+                max="50"
+              />
+            </label>
+          </div>
+        </div>
+        </ng-container>
+      </div>
+
+      <!-- Tab Content: Icons -->
+      <div *ngIf="activeTab === 'icons'" class="table-config-dialog__tab-content">
+        <div class="table-config-dialog__section">
+          <label class="table-config-dialog__label">Select Column for Icon Configuration</label>
+          <select
+            class="table-config-dialog__select"
+            #iconColumnSelector
+            (change)="selectedIconColumnIndex = +iconColumnSelector.value"
+          >
+            <option *ngFor="let col of columnsFormArray.controls; let i = index" [value]="i">
+              {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
+            </option>
+          </select>
+        </div>
+
+        <ng-container *ngIf="selectedIconColumnIndex !== null && selectedIconColumnIndex >= 0">
+          <div
+            *ngIf="getColumnFormGroup(selectedIconColumnIndex) as columnFormGroup"
+            [formGroup]="columnFormGroup"
+            class="table-config-dialog__section"
+          >
+          <div formGroupName="icon" class="table-config-dialog__section">
+            <h3 class="table-config-dialog__subsection-title">Icon Configuration</h3>
+            
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Icon SVG
+                <textarea
+                  formControlName="svg"
+                  class="table-config-dialog__textarea"
+                  rows="3"
+                  placeholder="<svg>...</svg>"
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Icon Name/Text
+                <input
+                  type="text"
+                  formControlName="name"
+                  class="table-config-dialog__input"
+                  placeholder="Icon name or text"
+                />
+              </label>
+              <label class="table-config-dialog__label">
+                Icon URL
+                <input
+                  type="url"
+                  formControlName="url"
+                  class="table-config-dialog__input"
+                  placeholder="https://example.com/icon.png"
+                />
+              </label>
+            </div>
+
+            <h3 class="table-config-dialog__subsection-title">Icon Positioning</h3>
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Position
+                <select formControlName="position" class="table-config-dialog__select">
+                  <option *ngFor="let pos of iconPositions" [value]="pos">
+                    {{ pos | titlecase }}
+                  </option>
+                </select>
+              </label>
+              <label class="table-config-dialog__label">
+                Margin from Text (px)
+                <input
+                  type="number"
+                  formControlName="margin"
+                  class="table-config-dialog__input table-config-dialog__input--number"
+                  min="0"
+                  max="50"
+                />
+              </label>
+            </div>
+
+            <h3 class="table-config-dialog__subsection-title">Icon Styling</h3>
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Icon Size (px)
+                <input
+                  type="number"
+                  formControlName="size"
+                  class="table-config-dialog__input table-config-dialog__input--number"
+                  min="8"
+                  max="100"
+                />
+              </label>
+              <label class="table-config-dialog__label">
+                Icon Color
+                <input
+                  type="color"
+                  formControlName="color"
+                  class="table-config-dialog__input table-config-dialog__input--color"
+                />
+              </label>
+            </div>
+
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Background Color
+                <input
+                  type="color"
+                  formControlName="backgroundColor"
+                  class="table-config-dialog__input table-config-dialog__input--color"
+                />
+              </label>
+              <label class="table-config-dialog__label">
+                Border Radius (px)
+                <input
+                  type="number"
+                  formControlName="borderRadius"
+                  class="table-config-dialog__input table-config-dialog__input--number"
+                  min="0"
+                  max="50"
+                />
+              </label>
+              <label class="table-config-dialog__label">
+                Padding (px)
+                <input
+                  type="number"
+                  formControlName="padding"
+                  class="table-config-dialog__input table-config-dialog__input--number"
+                  min="0"
+                  max="20"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+        </ng-container>
       </div>
     </form>
 

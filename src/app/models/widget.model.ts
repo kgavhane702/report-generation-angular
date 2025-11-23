@@ -52,32 +52,53 @@ export interface ChartWidgetProps {
   renderMode?: 'svg' | 'canvas';
 }
 
+import { TableStyleSettings, IconStyle, ColumnStyle, RowStyle, CellStyle } from './table-style.model';
+
 export interface TableWidgetProps {
   provider?: string; // 'html-table' | 'ag-grid' | 'datatable' | etc.
   columns: TableColumn[];
   rows: TableRow[];
   allowIconsInColumns?: boolean;
-  styleSettings?: Record<string, unknown>;
+  styleSettings?: TableStyleSettings;
+  template?: string; // Template ID for quick styling
 }
 
-export interface TableColumn {
+export interface TableColumn extends ColumnStyle {
   id: string;
   title: string;
   widthPx?: number;
-  align?: 'left' | 'center' | 'right';
+  minWidth?: number;
+  maxWidth?: number;
+  align?: 'left' | 'center' | 'right' | 'justify';
   icon?: TableColumnIcon | null;
   cellType?: 'text' | 'number' | 'currency' | 'icon';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  // Mark as header column (first column can be row header)
+  isHeader?: boolean;
 }
 
 export interface TableColumnIcon {
   name?: string;
   svg?: string;
   url?: string;
+  // Enhanced icon properties (using IconStyle from table-style.model)
+  position?: 'before' | 'after' | 'below' | 'above' | 'only'; // Relative to text
+  size?: number; // px (width and height)
+  color?: string; // For SVG fill/stroke color
+  margin?: number; // px (gap between icon and text)
+  backgroundColor?: string; // Icon background
+  borderRadius?: number; // Icon border radius
+  padding?: number; // Icon padding
 }
 
-export interface TableRow {
+export interface TableRow extends RowStyle {
   id: string;
   cells: unknown[];
+  // Mark row as header row (like first row or any row)
+  isHeader?: boolean;
+  height?: number; // px
+  minHeight?: number;
+  verticalAlign?: 'top' | 'middle' | 'bottom';
 }
 
 export interface ImageWidgetProps {

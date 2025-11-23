@@ -1,12 +1,12 @@
 <div class="chart-config-dialog">
-  <div class="chart-config-dialog__overlay" (click)="closeDialog()"></div>
-  <div class="chart-config-dialog__content">
+  <div class="chart-config-dialog__overlay" (click)="closeDialog($event)"></div>
+  <div class="chart-config-dialog__content" (click)="$event.stopPropagation()" (mousedown)="$event.stopPropagation()">
     <div class="chart-config-dialog__header">
       <h2 class="chart-config-dialog__title">Chart Configuration</h2>
       <button
         type="button"
         class="chart-config-dialog__close"
-        (click)="closeDialog()"
+        (click)="cancel()"
         aria-label="Close"
       >
         ×
