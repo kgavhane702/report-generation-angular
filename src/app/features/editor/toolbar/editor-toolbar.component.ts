@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone } from '@angular/core';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { ExportService } from '../../../core/services/export.service';
 import { ImportService } from '../../../core/services/import.service';
+import { PdfService } from '../../../core/services/pdf.service';
 import { WidgetType } from '../../../models/widget.model';
 import { PageSize } from '../../../models/document.model';
 
@@ -27,6 +28,9 @@ export class EditorToolbarComponent {
   private readonly editorState = inject(EditorStateService);
   private readonly exportService = inject(ExportService);
   private readonly importService = inject(ImportService);
+  private readonly pdfService = inject(PdfService);
+  private readonly appRef = inject(ApplicationRef);
+  private readonly ngZone = inject(NgZone);
 
   readonly document$ = this.documentService.document$;
   
@@ -117,6 +121,35 @@ export class EditorToolbarComponent {
   }
 
   /**
+   * Force all chart components to re-render
+   * This is needed after import to ensure charts are properly initialized
+   */
+  private async forceChartsReRender(): Promise<void> {
+    // Wait for Angular to process the document change
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Trigger change detection
+    this.ngZone.run(() => {
+      this.appRef.tick();
+    });
+    
+    // Find all chart widget containers and trigger re-render
+    const chartContainers = document.querySelectorAll('.chart-widget__container');
+    console.log(`Found ${chartContainers.length} chart containers to re-render`);
+    
+    // Wait a bit more for components to initialize
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Trigger another change detection cycle
+    this.ngZone.run(() => {
+      this.appRef.tick();
+    });
+    
+    // Additional wait for Highcharts to initialize
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
+  /**
    * Import document from file
    */
   async importDocument(file: File): Promise<void> {
@@ -129,7 +162,24 @@ export class EditorToolbarComponent {
       );
       
       if (confirmed) {
+        // Replace the document
         this.documentService.replaceDocument(result.document);
+        
+        // Set active subsection to first one to ensure pages are rendered
+        const firstSection = result.document.sections[0];
+        const firstSubsection = firstSection?.subsections[0];
+        if (firstSubsection) {
+          this.ngZone.run(() => {
+            this.editorState.setActiveSubsection(firstSubsection.id);
+            this.appRef.tick();
+          });
+        }
+        
+        // Wait for Angular to render the new document
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Force all charts to re-render
+        await this.forceChartsReRender();
         
         let message = 'Document imported successfully!';
         if (result.warnings && result.warnings.length > 0) {
@@ -145,6 +195,32 @@ export class EditorToolbarComponent {
       }
     } else {
       alert(`Import failed: ${result.error || 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Download document as PDF
+   */
+  async downloadPDF(): Promise<void> {
+    const document = this.documentService.document;
+    
+    if (!document) {
+      alert('No document to export');
+      return;
+    }
+
+    try {
+      // Show loading message
+      const loadingMessage = 'Generating PDF... This may take a moment.';
+      console.log(loadingMessage);
+      
+      // Generate and download PDF
+      await this.pdfService.downloadPDF(document);
+      
+      console.log('PDF downloaded successfully');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure the PDF backend server is running on http://localhost:3000`);
     }
   }
 }

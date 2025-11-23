@@ -50,6 +50,7 @@ export interface ChartWidgetProps {
   chartType?: string;
   data: unknown;
   renderMode?: 'svg' | 'canvas';
+  exportedImage?: string;
 }
 
 import { TableStyleSettings, IconStyle, ColumnStyle, RowStyle, CellStyle } from './table-style.model';
