@@ -63,8 +63,14 @@ export class HtmlTableAdapter implements TableAdapter {
         const column = tableProps.columns[cellIndex];
         if (!column) return;
 
-        // Create cell - use th for first column if it's a row header, or if row is marked as header
-        const isRowHeaderCell = (showRowHeaders && cellIndex === 0) || (row.isHeader && cellIndex === 0);
+        // Create cell - use th for row header if:
+        // 1. showRowHeaders is true AND it's the first column, OR
+        // 2. The column itself is marked as isHeader, OR
+        // 3. The row is marked as header AND it's the first column
+        const isRowHeaderCell = 
+          (showRowHeaders && cellIndex === 0) || 
+          (column.isHeader === true) || 
+          (row.isHeader && cellIndex === 0);
         const cellElement = isRowHeaderCell ? document.createElement('th') : document.createElement('td');
 
         this.applyCellStyles(cellElement, column, row, cellIndex, rowIndex, tableProps, styleSettings);
@@ -140,15 +146,18 @@ export class HtmlTableAdapter implements TableAdapter {
       th.style.maxWidth = `${column.maxWidth}px`;
     }
 
-    // Background (column-specific or header style or alternate)
+    // Background - priority: column-specific > headerStyle.backgroundColor > headerBackgroundColor > default
     const bgColor = column.backgroundColor || 
                    headerStyle.backgroundColor || 
                    styleSettings.headerBackgroundColor ||
                    '#f3f4f6';
     th.style.backgroundColor = bgColor;
 
-    // Text color
-    const textColor = column.textColor || headerStyle.textColor || '#111827';
+    // Text color - priority: column-specific > headerStyle.textColor > headerTextColor > default
+    const textColor = column.textColor || 
+                     headerStyle.textColor || 
+                     styleSettings.headerTextColor || 
+                     '#111827';
     th.style.color = textColor;
 
     // Font
@@ -319,7 +328,11 @@ export class HtmlTableAdapter implements TableAdapter {
   ): void {
     const cellPadding = styleSettings.cellPadding || 8;
     const showRowHeaders = styleSettings.showRowHeaders === true;
-    const isRowHeaderCell = (showRowHeaders && cellIndex === 0) || (row.isHeader && cellIndex === 0);
+    // column is already passed as parameter, no need to redeclare
+    const isRowHeaderCell = 
+      (showRowHeaders && cellIndex === 0) || 
+      (column?.isHeader === true) || 
+      (row.isHeader && cellIndex === 0);
 
     // Width
     if (column.widthPx) {

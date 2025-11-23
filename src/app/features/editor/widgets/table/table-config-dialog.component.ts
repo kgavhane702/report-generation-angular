@@ -446,6 +446,7 @@ export class TableConfigDialogComponent implements OnDestroy {
       if (styleSettings.rowHeaderWidth !== undefined) headerStyleUpdates.rowHeaderWidth = styleSettings.rowHeaderWidth;
       
       // Apply nested headerStyle properties
+      // Note: headerStyle.textColor takes precedence over headerTextColor if both exist
       if (styleSettings.headerStyle) {
         if (styleSettings.headerStyle.fontFamily !== undefined) headerStyleUpdates.headerFontFamily = styleSettings.headerStyle.fontFamily;
         if (styleSettings.headerStyle.fontSize !== undefined) headerStyleUpdates.headerFontSize = styleSettings.headerStyle.fontSize;
@@ -453,7 +454,10 @@ export class TableConfigDialogComponent implements OnDestroy {
         if (styleSettings.headerStyle.fontStyle !== undefined) headerStyleUpdates.headerFontStyle = styleSettings.headerStyle.fontStyle;
         if (styleSettings.headerStyle.textAlign !== undefined) headerStyleUpdates.headerTextAlign = styleSettings.headerStyle.textAlign;
         if (styleSettings.headerStyle.verticalAlign !== undefined) headerStyleUpdates.headerVerticalAlign = styleSettings.headerStyle.verticalAlign;
-        if (styleSettings.headerStyle.textColor !== undefined) headerStyleUpdates.headerTextColor = styleSettings.headerStyle.textColor;
+        // Only override headerTextColor if headerStyle.textColor is explicitly set
+        if (styleSettings.headerStyle.textColor !== undefined) {
+          headerStyleUpdates.headerTextColor = styleSettings.headerStyle.textColor;
+        }
       }
       
       headerStyleGroup.patchValue(headerStyleUpdates);

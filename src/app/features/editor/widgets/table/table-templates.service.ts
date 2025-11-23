@@ -177,7 +177,7 @@ export class TableTemplatesService {
         borderStyle: 'solid',
         cellPadding: 12,
         headerBackgroundColor: '#f9fafb',
-        headerTextColor: '#111827',
+        headerTextColor: '#6b7280', // Use consistent gray color
         headerBorderColor: '#e5e7eb',
         headerBorderWidth: 0,
         backgroundColor: '#ffffff',
@@ -190,7 +190,7 @@ export class TableTemplatesService {
           fontSize: 13,
           textAlign: 'left',
           verticalAlign: 'middle',
-          textColor: '#6b7280',
+          textColor: '#6b7280', // Consistent with headerTextColor
         },
         bodyStyle: {
           fontFamily: 'system-ui, -apple-system, sans-serif',
