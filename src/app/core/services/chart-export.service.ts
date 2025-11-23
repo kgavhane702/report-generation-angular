@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject, ApplicationRef, NgZone } from '@angular/core';
 import * as Highcharts from 'highcharts';
 import { ChartWidgetProps, WidgetModel } from '../../models/widget.model';
 import { DocumentModel } from '../../models/document.model';
+import { EditorStateService } from './editor-state.service';
 
 /**
  * Service for exporting charts to base64 images
@@ -10,6 +11,9 @@ import { DocumentModel } from '../../models/document.model';
   providedIn: 'root',
 })
 export class ChartExportService {
+  private readonly editorState = inject(EditorStateService);
+  private readonly appRef = inject(ApplicationRef);
+  private readonly ngZone = inject(NgZone);
   /**
    * Export chart widget to base64 image
    * @param widget Chart widget model
@@ -254,51 +258,107 @@ export class ChartExportService {
   /**
    * Export all charts in a document to base64
    * This should be called before exporting the document
+   * Temporarily activates each subsection to ensure all pages are rendered in the DOM
    */
   async exportAllCharts(document: DocumentModel): Promise<DocumentModel> {
     // Deep clone the document to avoid modifying frozen objects
     const updatedDocument = this.deepClone(document);
     
-    // Process all sections, subsections, and pages
+    // Store current active subsection to restore later
+    const currentSubsectionId = this.editorState.activeSubsectionId();
+    
+    // Collect all subsections that have charts
+    const subsectionsWithCharts: Array<{ sectionId: string; subsectionId: string }> = [];
+    
     if (updatedDocument.sections) {
       for (const section of updatedDocument.sections) {
         if (section.subsections) {
           for (const subsection of section.subsections) {
+            // Check if this subsection has any charts
+            let hasCharts = false;
             if (subsection.pages) {
               for (const page of subsection.pages) {
                 if (page.widgets) {
                   for (const widget of page.widgets) {
                     if (widget.type === 'chart') {
-                      console.log('Exporting chart widget:', widget.id);
-                      // Export chart to base64
-                      const base64Image = await this.exportChartToBase64(widget);
-                      if (base64Image) {
-                        console.log('Successfully exported chart to base64 for widget:', widget.id, 'Length:', base64Image.length);
-                        // Update widget props with exported image (on cloned object)
-                        const props = widget.props as ChartWidgetProps;
-                        // Create new props object with exportedImage
-                        widget.props = {
-                          ...props,
-                          exportedImage: base64Image,
-                        } as ChartWidgetProps;
-                        // Verify it was set
-                        const updatedProps = widget.props as ChartWidgetProps;
-                        if (updatedProps.exportedImage) {
-                          console.log('exportedImage successfully set on widget:', widget.id);
-                        } else {
-                          console.error('Failed to set exportedImage on widget:', widget.id);
-                        }
-                      } else {
-                        console.warn('Failed to export chart to base64 for widget:', widget.id);
-                      }
+                      hasCharts = true;
+                      break;
                     }
                   }
+                }
+                if (hasCharts) break;
+              }
+            }
+            
+            if (hasCharts) {
+              subsectionsWithCharts.push({
+                sectionId: section.id,
+                subsectionId: subsection.id
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Process charts subsection by subsection
+    // This ensures each subsection's pages are rendered in the DOM before we try to export
+    for (const { subsectionId } of subsectionsWithCharts) {
+      // Activate this subsection to render its pages
+      this.ngZone.run(() => {
+        this.editorState.setActiveSubsection(subsectionId);
+        this.appRef.tick();
+      });
+      
+      // Wait for pages to render
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Now export charts from this subsection
+      const section = updatedDocument.sections.find(s => 
+        s.subsections.some(sub => sub.id === subsectionId)
+      );
+      const subsection = section?.subsections.find(sub => sub.id === subsectionId);
+      
+      if (subsection && subsection.pages) {
+        for (const page of subsection.pages) {
+          if (page.widgets) {
+            for (const widget of page.widgets) {
+              if (widget.type === 'chart') {
+                console.log('Exporting chart widget:', widget.id);
+                // Export chart to base64
+                const base64Image = await this.exportChartToBase64(widget);
+                if (base64Image) {
+                  console.log('Successfully exported chart to base64 for widget:', widget.id, 'Length:', base64Image.length);
+                  // Update widget props with exported image (on cloned object)
+                  const props = widget.props as ChartWidgetProps;
+                  // Create new props object with exportedImage
+                  widget.props = {
+                    ...props,
+                    exportedImage: base64Image,
+                  } as ChartWidgetProps;
+                  // Verify it was set
+                  const updatedProps = widget.props as ChartWidgetProps;
+                  if (updatedProps.exportedImage) {
+                    console.log('exportedImage successfully set on widget:', widget.id);
+                  } else {
+                    console.error('Failed to set exportedImage on widget:', widget.id);
+                  }
+                } else {
+                  console.warn('Failed to export chart to base64 for widget:', widget.id);
                 }
               }
             }
           }
         }
       }
+    }
+    
+    // Restore original active subsection
+    if (currentSubsectionId) {
+      this.ngZone.run(() => {
+        this.editorState.setActiveSubsection(currentSubsectionId);
+        this.appRef.tick();
+      });
     }
 
     return updatedDocument;
