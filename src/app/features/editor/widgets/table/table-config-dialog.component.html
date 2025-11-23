@@ -151,6 +151,7 @@
                   formControlName="title"
                   class="table-config-dialog__input table-config-dialog__input--column-title"
                   placeholder="Column title"
+                  (blur)="autoSuggestIconForColumn(i)"
                 />
                 <input
                   type="number"
@@ -989,20 +990,112 @@
             class="table-config-dialog__section"
           >
           <div formGroupName="icon" class="table-config-dialog__section">
-            <h3 class="table-config-dialog__subsection-title">Icon Configuration</h3>
+            <h3 class="table-config-dialog__subsection-title">Icon & Image Configuration</h3>
             
+            <!-- Quick Actions -->
+            <div class="table-config-dialog__form-row">
+              <div class="table-config-dialog__button-group">
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--secondary"
+                  (click)="autoSuggestIconForColumn(selectedIconColumnIndex!)"
+                  title="Auto-suggest icon based on column name"
+                >
+                  ✨ Auto-Suggest Icon
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--secondary"
+                  (click)="showIconPicker = !showIconPicker"
+                  title="Choose from icon library"
+                >
+                  🎨 Icon Picker
+                </button>
+              </div>
+            </div>
+
+            <!-- Icon Picker Grid -->
+            <div *ngIf="showIconPicker" class="table-config-dialog__icon-picker">
+              <div class="table-config-dialog__icon-grid">
+                <button
+                  *ngFor="let iconName of availableIcons"
+                  type="button"
+                  class="table-config-dialog__icon-button"
+                  (click)="applyIconToColumn(iconName)"
+                  [innerHTML]="getIconSvg(iconName)"
+                  [title]="iconName"
+                  [attr.aria-label]="iconName"
+                ></button>
+              </div>
+            </div>
+
+            <!-- Placeholder Images -->
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">Use Placeholder Image:</label>
+              <div class="table-config-dialog__button-group">
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--secondary"
+                  (click)="applyPlaceholderImage('avatar')"
+                  title="Avatar placeholder"
+                >
+                  👤 Avatar
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--secondary"
+                  (click)="applyPlaceholderImage('product')"
+                  title="Product placeholder"
+                >
+                  📦 Product
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--secondary"
+                  (click)="applyPlaceholderImage('logo')"
+                  title="Logo placeholder"
+                >
+                  🏢 Logo
+                </button>
+                <button
+                  type="button"
+                  class="table-config-dialog__button table-config-dialog__button--small table-config-dialog__button--secondary"
+                  (click)="applyPlaceholderImage('banner')"
+                  title="Banner placeholder"
+                >
+                  🖼️ Banner
+                </button>
+              </div>
+            </div>
+
+            <!-- Image URL Input -->
             <div class="table-config-dialog__form-row">
               <label class="table-config-dialog__label">
-                Icon SVG
+                Image URL
+                <input
+                  type="url"
+                  formControlName="url"
+                  class="table-config-dialog__input"
+                  placeholder="https://example.com/image.png or data:image/..."
+                />
+                <small class="table-config-dialog__hint">Supports URLs and base64 images</small>
+              </label>
+            </div>
+
+            <!-- Icon SVG Input -->
+            <div class="table-config-dialog__form-row">
+              <label class="table-config-dialog__label">
+                Icon SVG (or use Icon Picker above)
                 <textarea
                   formControlName="svg"
                   class="table-config-dialog__textarea"
                   rows="3"
-                  placeholder="<svg>...</svg>"
+                  placeholder="<svg>...</svg> or use Icon Picker"
                 ></textarea>
               </label>
             </div>
 
+            <!-- Icon Name/Text -->
             <div class="table-config-dialog__form-row">
               <label class="table-config-dialog__label">
                 Icon Name/Text
@@ -1010,16 +1103,7 @@
                   type="text"
                   formControlName="name"
                   class="table-config-dialog__input"
-                  placeholder="Icon name or text"
-                />
-              </label>
-              <label class="table-config-dialog__label">
-                Icon URL
-                <input
-                  type="url"
-                  formControlName="url"
-                  class="table-config-dialog__input"
-                  placeholder="https://example.com/icon.png"
+                  placeholder="Icon name or text (optional)"
                 />
               </label>
             </div>

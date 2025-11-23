@@ -182,45 +182,62 @@ export class HtmlTableAdapter implements TableAdapter {
     column: TableColumn,
     styleSettings: TableStyleSettings
   ): void {
-    if (!column.icon || column.icon.position === 'only') {
-      // Icon only mode
-      if (column.icon) {
-        const iconElement = this.createIconElement(column.icon, styleSettings);
-        th.appendChild(iconElement);
-        return;
-      }
-      // No icon, just text
-      th.textContent = column.title;
+    // Always show text, even if icon is present (unless position is 'only')
+    const hasIcon = column.icon && (column.icon.svg || column.icon.url || column.icon.name);
+    const iconPosition = column.icon?.position || 'before';
+    
+    if (hasIcon && iconPosition === 'only') {
+      // Icon only mode - no text
+      const iconElement = this.createIconElement(column.icon, styleSettings);
+      th.appendChild(iconElement);
       return;
     }
 
+    // Create container for icon + text
     const container = document.createElement('div');
     container.style.display = 'flex';
     container.style.alignItems = 'center';
-    container.style.gap = `${column.icon.margin || 8}px`;
+    container.style.gap = `${column.icon?.margin || 8}px`;
 
-    const iconElement = this.createIconElement(column.icon, styleSettings);
+    // Always create text span
     const textSpan = document.createElement('span');
-    textSpan.textContent = column.title;
+    textSpan.textContent = column.title || '';
+    textSpan.style.flex = '1';
 
-    const position = column.icon.position || 'before';
-    
-    switch (position) {
-      case 'before':
-      case 'above':
-        container.style.flexDirection = position === 'above' ? 'column' : 'row';
-        container.appendChild(iconElement);
-        container.appendChild(textSpan);
-        break;
-      case 'after':
-      case 'below':
-        container.style.flexDirection = position === 'below' ? 'column' : 'row';
-        container.appendChild(textSpan);
-        container.appendChild(iconElement);
-        break;
-      default:
-        container.appendChild(textSpan);
-        if (iconElement) container.appendChild(iconElement);
+    // Add icon if present
+    if (hasIcon) {
+      const iconElement = this.createIconElement(column.icon, styleSettings);
+      
+      switch (iconPosition) {
+        case 'before':
+          container.style.flexDirection = 'row';
+          container.appendChild(iconElement);
+          container.appendChild(textSpan);
+          break;
+        case 'after':
+          container.style.flexDirection = 'row';
+          container.appendChild(textSpan);
+          container.appendChild(iconElement);
+          break;
+        case 'above':
+          container.style.flexDirection = 'column';
+          container.appendChild(iconElement);
+          container.appendChild(textSpan);
+          break;
+        case 'below':
+          container.style.flexDirection = 'column';
+          container.appendChild(textSpan);
+          container.appendChild(iconElement);
+          break;
+        default:
+          // Default to before
+          container.style.flexDirection = 'row';
+          container.appendChild(iconElement);
+          container.appendChild(textSpan);
+      }
+    } else {
+      // No icon, just text
+      container.appendChild(textSpan);
     }
 
     th.appendChild(container);

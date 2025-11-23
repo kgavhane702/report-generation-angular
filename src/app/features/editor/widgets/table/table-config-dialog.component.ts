@@ -16,6 +16,7 @@ import {
 } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Subject, takeUntil } from 'rxjs';
 
 import {
@@ -59,6 +60,7 @@ export interface TableConfigDialogResult {
 export class TableConfigDialogComponent implements OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly templatesService = inject(TableTemplatesService);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly destroy$ = new Subject<void>();
 
   @Input() data?: TableConfigDialogData;
@@ -78,6 +80,7 @@ export class TableConfigDialogComponent implements OnDestroy {
   readonly fontStyles: Array<'normal' | 'italic' | 'oblique'> = ['normal', 'italic', 'oblique'];
   readonly borderStyles: Array<'solid' | 'dashed' | 'dotted' | 'none'> = ['solid', 'dashed', 'dotted', 'none'];
   readonly templates = this.templatesService.getTemplates();
+  readonly availableIcons = this.templatesService.getAvailableIcons();
   
   form!: FormGroup;
   csvFormControl = this.fb.control('');
@@ -89,6 +92,7 @@ export class TableConfigDialogComponent implements OnDestroy {
   selectedColumnIndex: number | null = 0;
   selectedRowIndex: number | null = 0;
   selectedIconColumnIndex: number | null = 0;
+  showIconPicker = false;
 
   ngOnInit(): void {
     const tableProps = this.data?.tableProps || {
@@ -97,6 +101,11 @@ export class TableConfigDialogComponent implements OnDestroy {
       allowIconsInColumns: true,
     };
     this.initializeForm(tableProps);
+    
+    // Initialize selected template if one exists
+    if (tableProps.template) {
+      this.selectedTemplate = tableProps.template;
+    }
     
     // Initialize selected indices
     if (this.columnsFormArray.length > 0) {
@@ -397,45 +406,302 @@ export class TableConfigDialogComponent implements OnDestroy {
   }
 
   applyTemplate(templateId: string): void {
-    const template = this.templatesService.getTemplate(templateId);
-    if (!template) {
-      return;
-    }
+    const { styleSettings, columnSuggestions } = this.templatesService.applyTemplateWithColumns(templateId);
 
     this.selectedTemplate = templateId;
-    const styleSettings = template.styleSettings;
+    
+    // Update the template form control
+    this.form.patchValue({ template: templateId });
     
     // Apply template styles to form
     const tableStyleGroup = this.form.get('tableStyle') as FormGroup;
     const headerStyleGroup = this.form.get('headerStyle') as FormGroup;
+    const rowHeaderStyleGroup = this.form.get('rowHeaderStyle') as FormGroup;
     const alternatingColorsGroup = this.form.get('alternatingColors') as FormGroup;
+    const bodyStyleGroup = this.form.get('bodyStyle') as FormGroup;
 
+    // Apply table-level styles
     if (tableStyleGroup) {
-      if (styleSettings.backgroundColor) tableStyleGroup.patchValue({ backgroundColor: styleSettings.backgroundColor });
-      if (styleSettings.borderColor) tableStyleGroup.patchValue({ borderColor: styleSettings.borderColor });
-      if (styleSettings.borderWidth !== undefined) tableStyleGroup.patchValue({ borderWidth: styleSettings.borderWidth });
-      if (styleSettings.borderStyle) tableStyleGroup.patchValue({ borderStyle: styleSettings.borderStyle });
-      if (styleSettings.cellPadding !== undefined) tableStyleGroup.patchValue({ cellPadding: styleSettings.cellPadding });
-      if (styleSettings.fontFamily) tableStyleGroup.patchValue({ fontFamily: styleSettings.fontFamily });
-      if (styleSettings.fontSize !== undefined) tableStyleGroup.patchValue({ fontSize: styleSettings.fontSize });
-      if (styleSettings.textColor) tableStyleGroup.patchValue({ textColor: styleSettings.textColor });
+      const tableStyleUpdates: any = {};
+      if (styleSettings.backgroundColor !== undefined) tableStyleUpdates.backgroundColor = styleSettings.backgroundColor;
+      if (styleSettings.borderColor !== undefined) tableStyleUpdates.borderColor = styleSettings.borderColor;
+      if (styleSettings.borderWidth !== undefined) tableStyleUpdates.borderWidth = styleSettings.borderWidth;
+      if (styleSettings.borderStyle !== undefined) tableStyleUpdates.borderStyle = styleSettings.borderStyle;
+      if (styleSettings.cellPadding !== undefined) tableStyleUpdates.cellPadding = styleSettings.cellPadding;
+      if (styleSettings.cellSpacing !== undefined) tableStyleUpdates.cellSpacing = styleSettings.cellSpacing;
+      if (styleSettings.fontFamily !== undefined) tableStyleUpdates.fontFamily = styleSettings.fontFamily;
+      if (styleSettings.fontSize !== undefined) tableStyleUpdates.fontSize = styleSettings.fontSize;
+      if (styleSettings.textColor !== undefined) tableStyleUpdates.textColor = styleSettings.textColor;
+      tableStyleGroup.patchValue(tableStyleUpdates);
     }
 
-    if (headerStyleGroup && styleSettings.headerStyle) {
-      if (styleSettings.headerBackgroundColor) headerStyleGroup.patchValue({ headerBackgroundColor: styleSettings.headerBackgroundColor });
-      if (styleSettings.headerTextColor) headerStyleGroup.patchValue({ headerTextColor: styleSettings.headerTextColor });
-      if (styleSettings.headerBorderColor) headerStyleGroup.patchValue({ headerBorderColor: styleSettings.headerBorderColor });
-      if (styleSettings.headerBorderWidth !== undefined) headerStyleGroup.patchValue({ headerBorderWidth: styleSettings.headerBorderWidth });
-      if (styleSettings.headerStyle.fontFamily) headerStyleGroup.patchValue({ headerFontFamily: styleSettings.headerStyle.fontFamily });
-      if (styleSettings.headerStyle.fontSize !== undefined) headerStyleGroup.patchValue({ headerFontSize: styleSettings.headerStyle.fontSize });
-      if (styleSettings.headerStyle.fontWeight) headerStyleGroup.patchValue({ headerFontWeight: styleSettings.headerStyle.fontWeight });
-      if (styleSettings.headerStyle.fontStyle) headerStyleGroup.patchValue({ headerFontStyle: styleSettings.headerStyle.fontStyle });
+    // Apply header styles
+    if (headerStyleGroup) {
+      const headerStyleUpdates: any = {};
+      if (styleSettings.headerBackgroundColor !== undefined) headerStyleUpdates.headerBackgroundColor = styleSettings.headerBackgroundColor;
+      if (styleSettings.headerTextColor !== undefined) headerStyleUpdates.headerTextColor = styleSettings.headerTextColor;
+      if (styleSettings.headerBorderColor !== undefined) headerStyleUpdates.headerBorderColor = styleSettings.headerBorderColor;
+      if (styleSettings.headerBorderWidth !== undefined) headerStyleUpdates.headerBorderWidth = styleSettings.headerBorderWidth;
+      if (styleSettings.showRowHeaders !== undefined) headerStyleUpdates.showRowHeaders = styleSettings.showRowHeaders;
+      if (styleSettings.rowHeaderWidth !== undefined) headerStyleUpdates.rowHeaderWidth = styleSettings.rowHeaderWidth;
+      
+      // Apply nested headerStyle properties
+      if (styleSettings.headerStyle) {
+        if (styleSettings.headerStyle.fontFamily !== undefined) headerStyleUpdates.headerFontFamily = styleSettings.headerStyle.fontFamily;
+        if (styleSettings.headerStyle.fontSize !== undefined) headerStyleUpdates.headerFontSize = styleSettings.headerStyle.fontSize;
+        if (styleSettings.headerStyle.fontWeight !== undefined) headerStyleUpdates.headerFontWeight = styleSettings.headerStyle.fontWeight;
+        if (styleSettings.headerStyle.fontStyle !== undefined) headerStyleUpdates.headerFontStyle = styleSettings.headerStyle.fontStyle;
+        if (styleSettings.headerStyle.textAlign !== undefined) headerStyleUpdates.headerTextAlign = styleSettings.headerStyle.textAlign;
+        if (styleSettings.headerStyle.verticalAlign !== undefined) headerStyleUpdates.headerVerticalAlign = styleSettings.headerStyle.verticalAlign;
+        if (styleSettings.headerStyle.textColor !== undefined) headerStyleUpdates.headerTextColor = styleSettings.headerStyle.textColor;
+      }
+      
+      headerStyleGroup.patchValue(headerStyleUpdates);
     }
 
+    // Apply row header styles
+    if (rowHeaderStyleGroup && styleSettings.rowHeaderStyle) {
+      const rowHeaderStyleUpdates: any = {};
+      if (styleSettings.rowHeaderBackgroundColor !== undefined) rowHeaderStyleUpdates.rowHeaderBackgroundColor = styleSettings.rowHeaderBackgroundColor;
+      if (styleSettings.rowHeaderStyle.fontFamily !== undefined) rowHeaderStyleUpdates.rowHeaderFontFamily = styleSettings.rowHeaderStyle.fontFamily;
+      if (styleSettings.rowHeaderStyle.fontSize !== undefined) rowHeaderStyleUpdates.rowHeaderFontSize = styleSettings.rowHeaderStyle.fontSize;
+      if (styleSettings.rowHeaderStyle.fontWeight !== undefined) rowHeaderStyleUpdates.rowHeaderFontWeight = styleSettings.rowHeaderStyle.fontWeight;
+      if (styleSettings.rowHeaderStyle.textColor !== undefined) rowHeaderStyleUpdates.rowHeaderTextColor = styleSettings.rowHeaderStyle.textColor;
+      rowHeaderStyleGroup.patchValue(rowHeaderStyleUpdates);
+    }
+
+    // Apply alternating colors
     if (alternatingColorsGroup) {
-      if (styleSettings.alternateRowColor) alternatingColorsGroup.patchValue({ alternateRowColor: styleSettings.alternateRowColor });
-      if (styleSettings.alternateColumnColor) alternatingColorsGroup.patchValue({ alternateColumnColor: styleSettings.alternateColumnColor });
+      const alternatingColorsUpdates: any = {};
+      if (styleSettings.alternateRowColor !== undefined) alternatingColorsUpdates.alternateRowColor = styleSettings.alternateRowColor;
+      if (styleSettings.alternateColumnColor !== undefined) alternatingColorsUpdates.alternateColumnColor = styleSettings.alternateColumnColor;
+      alternatingColorsGroup.patchValue(alternatingColorsUpdates);
     }
+
+    // Apply body styles
+    if (bodyStyleGroup && styleSettings.bodyStyle) {
+      const bodyStyleUpdates: any = {};
+      if (styleSettings.bodyStyle.fontFamily !== undefined) bodyStyleUpdates.bodyFontFamily = styleSettings.bodyStyle.fontFamily;
+      if (styleSettings.bodyStyle.fontSize !== undefined) bodyStyleUpdates.bodyFontSize = styleSettings.bodyStyle.fontSize;
+      if (styleSettings.bodyStyle.fontWeight !== undefined) bodyStyleUpdates.bodyFontWeight = styleSettings.bodyStyle.fontWeight;
+      if (styleSettings.bodyStyle.textColor !== undefined) bodyStyleUpdates.bodyTextColor = styleSettings.bodyStyle.textColor;
+      if (styleSettings.bodyStyle.backgroundColor !== undefined) bodyStyleUpdates.bodyBackgroundColor = styleSettings.bodyStyle.backgroundColor;
+      bodyStyleGroup.patchValue(bodyStyleUpdates);
+    }
+
+    // Apply column suggestions with icons
+    if (columnSuggestions && columnSuggestions.length > 0) {
+      // Clear existing columns
+      this.columnsFormArray.clear();
+      this.rowsFormArray.clear();
+
+      // Add suggested columns with icons
+      columnSuggestions.forEach((suggestion) => {
+        const iconConfig = suggestion.icon 
+          ? this.templatesService.getIconConfigForTemplate(templateId, suggestion.icon as any)
+          : null;
+
+        const columnGroup = this.fb.group({
+          id: [uuid()],
+          title: [suggestion.title, Validators.required],
+          widthPx: [suggestion.widthPx || 120, [Validators.required, Validators.min(50)]],
+          align: [suggestion.align || 'left', Validators.required],
+          cellType: [suggestion.cellType || 'text', Validators.required],
+          verticalAlign: ['middle'],
+          isHeader: [false],
+          backgroundColor: [''],
+          textColor: [''],
+          fontFamily: [''],
+          fontSize: [14],
+          fontWeight: ['normal'],
+          fontStyle: ['normal'],
+          borderColor: [''],
+          borderWidth: [0],
+          borderStyle: ['none'],
+          padding: [8],
+          icon: this.fb.group({
+            name: [iconConfig?.svg ? '' : ''],
+            svg: [iconConfig?.svg || ''],
+            url: [suggestion.supportsImage ? '' : ''],
+            position: ['before'], // Always 'before' to show text with icon
+            size: [iconConfig?.size || 18],
+            color: [iconConfig?.color || ''],
+            margin: [iconConfig?.margin || 6],
+            backgroundColor: [iconConfig?.backgroundColor || ''],
+            borderRadius: [iconConfig?.borderRadius || 0],
+            padding: [iconConfig?.padding || 0],
+          }),
+        });
+
+        this.columnsFormArray.push(columnGroup);
+      });
+
+      // Add default rows
+      for (let i = 0; i < 3; i++) {
+        const rowCells = Array(columnSuggestions.length).fill('');
+        this.rowsFormArray.push(
+          this.createRowFormGroup({ id: uuid(), cells: rowCells })
+        );
+      }
+    }
+  }
+
+  /**
+   * Get icon SVG by name as SafeHtml for rendering
+   */
+  getIconSvg(iconName: string): SafeHtml {
+    const svg = this.templatesService.getIcon(iconName as any) || '';
+    if (!svg) {
+      return this.sanitizer.bypassSecurityTrustHtml('');
+    }
+    
+    // Ensure SVG has proper viewBox and explicit width/height for rendering
+    let processedSvg = svg;
+    
+    // Add viewBox if missing
+    if (!processedSvg.includes('viewBox')) {
+      processedSvg = processedSvg.replace('<svg', '<svg viewBox="0 0 24 24"');
+    }
+    
+    // Add explicit width and height if not present (for better rendering)
+    if (!processedSvg.includes('width=') && !processedSvg.includes('width="')) {
+      processedSvg = processedSvg.replace('<svg', '<svg width="24" height="24"');
+    }
+    
+    // Ensure color is set for stroke-based icons
+    if (processedSvg.includes('stroke="currentColor"') || processedSvg.includes('stroke=\'currentColor\'')) {
+      // Color will be inherited from parent via CSS
+    }
+    
+    // Bypass security to allow SVG rendering
+    return this.sanitizer.bypassSecurityTrustHtml(processedSvg);
+  }
+
+  /**
+   * Apply icon to selected column
+   */
+  applyIconToColumn(iconName: string): void {
+    if (this.selectedIconColumnIndex === null || this.selectedIconColumnIndex < 0) {
+      return;
+    }
+
+    const columnGroup = this.getColumnFormGroup(this.selectedIconColumnIndex);
+    if (!columnGroup) {
+      return;
+    }
+
+    const iconGroup = columnGroup.get('icon') as FormGroup;
+    if (!iconGroup) {
+      return;
+    }
+
+    const svg = this.templatesService.getIcon(iconName as any);
+    const iconConfig = this.selectedTemplate
+      ? this.templatesService.getIconConfigForTemplate(this.selectedTemplate, iconName as any)
+      : {
+          svg,
+          position: 'before' as const,
+          size: 18,
+          color: '#6366f1',
+          margin: 6,
+        };
+
+    // Ensure position is 'before' (not 'only') so text is visible
+    iconGroup.patchValue({
+      svg: iconConfig.svg,
+      position: 'before', // Always show text with icon
+      size: iconConfig.size,
+      color: iconConfig.color,
+      margin: iconConfig.margin,
+      backgroundColor: iconConfig.backgroundColor || '',
+      borderRadius: iconConfig.borderRadius || 0,
+      padding: iconConfig.padding || 0,
+      url: '', // Clear URL when setting SVG icon
+    });
+
+    this.showIconPicker = false;
+  }
+
+  /**
+   * Apply placeholder image to selected column
+   */
+  applyPlaceholderImage(type: 'avatar' | 'product' | 'logo' | 'banner'): void {
+    if (this.selectedIconColumnIndex === null || this.selectedIconColumnIndex < 0) {
+      return;
+    }
+
+    const columnGroup = this.getColumnFormGroup(this.selectedIconColumnIndex);
+    if (!columnGroup) {
+      return;
+    }
+
+    const iconGroup = columnGroup.get('icon') as FormGroup;
+    if (!iconGroup) {
+      return;
+    }
+
+    const placeholderUrl = this.templatesService.getPlaceholderImageUrl(type);
+    
+    // Set image URL but keep position as 'before' so text shows alongside
+    iconGroup.patchValue({
+      url: placeholderUrl,
+      svg: '',
+      name: '',
+      position: 'before', // Ensure text is visible
+    });
+
+    // Don't change cell type - keep it as text so text is visible
+    // Images in headers work with any cell type
+  }
+
+  /**
+   * Auto-suggest icon for a column based on its title
+   */
+  autoSuggestIconForColumn(columnIndex: number): void {
+    const columnGroup = this.getColumnFormGroup(columnIndex);
+    if (!columnGroup) {
+      return;
+    }
+
+    const title = columnGroup.get('title')?.value || '';
+    const suggestion = this.templatesService.getIconSuggestion(title);
+    
+    if (suggestion) {
+      const iconGroup = columnGroup.get('icon') as FormGroup;
+      if (iconGroup) {
+        const iconConfig = this.selectedTemplate
+          ? this.templatesService.getIconConfigForTemplate(this.selectedTemplate, this.getIconNameFromSuggestion(title) as any)
+          : suggestion;
+
+        iconGroup.patchValue({
+          svg: iconConfig.svg,
+          position: iconConfig.position,
+          size: iconConfig.size,
+          color: iconConfig.color,
+          margin: iconConfig.margin,
+        });
+      }
+    }
+  }
+
+  /**
+   * Get icon name from column title suggestion
+   */
+  private getIconNameFromSuggestion(title: string): string {
+    const suggestion = this.templatesService.getIconSuggestion(title);
+    if (!suggestion) {
+      return '';
+    }
+
+    // Find which icon matches the SVG
+    for (const iconName of this.availableIcons) {
+      const iconSvg = this.templatesService.getIcon(iconName as any);
+      if (iconSvg === suggestion.svg) {
+        return iconName;
+      }
+    }
+
+    return '';
   }
 
   save(): void {
