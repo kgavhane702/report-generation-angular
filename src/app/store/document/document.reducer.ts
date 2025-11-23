@@ -69,6 +69,10 @@ export const documentReducer = createReducer(
     ...state,
     document: renamePage(state.document, subsectionId, pageId, title),
   })),
+  on(DocumentActions.updatePageOrientation, (state, { subsectionId, pageId, orientation }) => ({
+    ...state,
+    document: updatePageOrientation(state.document, subsectionId, pageId, orientation),
+  })),
   on(DocumentActions.deleteSection, (state, { sectionId }) => ({
     ...state,
     document: deleteSection(state.document, sectionId),
@@ -285,6 +289,29 @@ function renamePage(
             ...subsection,
             pages: subsection.pages.map((page) =>
               page.id === pageId ? { ...page, title } : page
+            ),
+          }
+        : subsection
+    ),
+  }));
+
+  return { ...doc, sections };
+}
+
+function updatePageOrientation(
+  doc: DocumentModel,
+  subsectionId: string,
+  pageId: string,
+  orientation: 'portrait' | 'landscape'
+): DocumentModel {
+  const sections = doc.sections.map((section) => ({
+    ...section,
+    subsections: section.subsections.map((subsection) =>
+      subsection.id === subsectionId
+        ? {
+            ...subsection,
+            pages: subsection.pages.map((page) =>
+              page.id === pageId ? { ...page, orientation } : page
             ),
           }
         : subsection

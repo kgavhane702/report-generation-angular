@@ -88,6 +88,48 @@
   color: #475569;
 }
 
+.page-outline__orientation {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.3rem;
+  padding: 0.1rem;
+  background: #fff;
+}
+
+.page-outline__orientation-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.2rem;
+  transition: background 120ms ease;
+  color: #64748b;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+
+  &:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  &--active {
+    background: #312e81;
+    color: #fff;
+
+    &:hover {
+      background: #4338ca;
+      color: #fff;
+    }
+  }
+}
+
 .page-outline__input {
   width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.3);

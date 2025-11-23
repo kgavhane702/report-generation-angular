@@ -23,24 +23,26 @@
     </select>
   </div>
 
-  <div class="editor-toolbar__group editor-toolbar__group--orientation">
-    <span class="editor-toolbar__label">Orientation</span>
-    <div class="editor-toolbar__toggle">
-      <button
-        type="button"
-        [class.editor-toolbar__toggle-button--active]="document.pageSize.orientation === 'landscape'"
-        (click)="setOrientation('landscape')"
-      >
-        Landscape
-      </button>
-      <button
-        type="button"
-        [class.editor-toolbar__toggle-button--active]="document.pageSize.orientation === 'portrait'"
-        (click)="setOrientation('portrait')"
-      >
-        Portrait
-      </button>
-    </div>
+  <div class="editor-toolbar__group editor-toolbar__group--export">
+    <span class="editor-toolbar__label">Document</span>
+    <button
+      type="button"
+      class="editor-toolbar__button editor-toolbar__button--export"
+      (click)="exportDocument()"
+      title="Export document as JSON file"
+    >
+      <span class="editor-toolbar__button-icon">⬇</span>
+      <span class="editor-toolbar__button-text">Export</span>
+    </button>
+    <button
+      type="button"
+      class="editor-toolbar__button editor-toolbar__button--import"
+      (click)="triggerImport()"
+      title="Import document from JSON file"
+    >
+      <span class="editor-toolbar__button-icon">⬆</span>
+      <span class="editor-toolbar__button-text">Import</span>
+    </button>
   </div>
 </div>
 

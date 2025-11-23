@@ -29,6 +29,26 @@
         </div>
         <div class="page-outline__meta">
           <span class="page-outline__widgets">{{ page.widgets.length }} widgets</span>
+          <div class="page-outline__orientation">
+            <button
+              type="button"
+              class="page-outline__orientation-btn"
+              [class.page-outline__orientation-btn--active]="page.orientation === 'landscape' || !page.orientation"
+              (click)="setPageOrientation(subsection.id, page.id, 'landscape', $event)"
+              title="Landscape (wider)"
+            >
+              ⬌
+            </button>
+            <button
+              type="button"
+              class="page-outline__orientation-btn"
+              [class.page-outline__orientation-btn--active]="page.orientation === 'portrait'"
+              (click)="setPageOrientation(subsection.id, page.id, 'portrait', $event)"
+              title="Portrait (taller)"
+            >
+              ⬍
+            </button>
+          </div>
           <button type="button" (click)="startPageEdit(page, $event)">✎</button>
           <button
             type="button"

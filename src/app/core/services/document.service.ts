@@ -147,6 +147,20 @@ export class DocumentService {
     );
   }
 
+  updatePageOrientation(
+    subsectionId: string,
+    pageId: string,
+    orientation: 'portrait' | 'landscape'
+  ): void {
+    this.store.dispatch(
+      DocumentActions.updatePageOrientation({
+        subsectionId,
+        pageId,
+        orientation,
+      })
+    );
+  }
+
   deleteSection(sectionId: string): HierarchySelection | null {
     const sections = this.document.sections;
     const index = sections.findIndex((section) => section.id === sectionId);

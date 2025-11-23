@@ -7,6 +7,7 @@ export interface PageModel {
   title?: string;
   widgets: WidgetModel[];
   background?: BackgroundSpec;
+  orientation?: 'portrait' | 'landscape';
 }
 
 export interface BackgroundSpec {

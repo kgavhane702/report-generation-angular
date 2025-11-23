@@ -26,7 +26,6 @@ export function defaultPageSize(): PageSize {
   return {
     widthMm: 254, // 10 inches
     heightMm: 190.5, // 7.5 inches
-    orientation: 'landscape',
     dpi: 96,
   };
 }
@@ -53,12 +52,13 @@ export function createSubsectionModel(
   };
 }
 
-export function createPageModel(pageNumber: number): PageModel {
+export function createPageModel(pageNumber: number, orientation: 'portrait' | 'landscape' = 'landscape'): PageModel {
   return {
     id: uuid(),
     number: pageNumber,
     title: `Page ${pageNumber}`,
     widgets: [],
+    orientation,
   };
 }
 

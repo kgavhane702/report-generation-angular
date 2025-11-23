@@ -14,7 +14,6 @@ export interface DocumentModel {
 export interface PageSize {
   widthMm: number;
   heightMm: number;
-  orientation: 'portrait' | 'landscape';
   dpi?: number;
 }
 

@@ -37,6 +37,7 @@ export const DocumentActions = createActionGroup({
     'Rename Section': props<{ sectionId: string; title: string }>(),
     'Rename Subsection': props<{ subsectionId: string; title: string }>(),
     'Rename Page': props<{ subsectionId: string; pageId: string; title: string }>(),
+    'Update Page Orientation': props<{ subsectionId: string; pageId: string; orientation: 'portrait' | 'landscape' }>(),
     'Delete Section': props<{ sectionId: string }>(),
     'Delete Subsection': props<{ sectionId: string; subsectionId: string }>(),
     'Delete Page': props<{ subsectionId: string; pageId: string }>(),

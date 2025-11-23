@@ -64,4 +64,14 @@ export class PageOutlineComponent {
   displayTitle(page: PageModel): string {
     return page.title ?? `Page ${page.number}`;
   }
+
+  setPageOrientation(
+    subsectionId: string,
+    pageId: string,
+    orientation: 'portrait' | 'landscape',
+    event: MouseEvent
+  ): void {
+    event.stopPropagation();
+    this.documentService.updatePageOrientation(subsectionId, pageId, orientation);
+  }
 }

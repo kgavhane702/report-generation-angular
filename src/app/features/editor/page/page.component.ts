@@ -49,20 +49,34 @@ export class PageComponent {
   }
 
   private getOrientedSize(): { widthMm: number; heightMm: number } {
-    const { widthMm, heightMm, orientation = 'landscape' } = this.pageSize;
-    const normalizedHeight = heightMm;
+    const { widthMm, heightMm } = this.pageSize;
+    const orientation = this.page.orientation || 'landscape';
 
+    // Landscape: width > height (wider)
+    // Portrait: height > width (taller)
     if (orientation === 'portrait') {
-      return {
-        widthMm: Math.min(widthMm, heightMm),
-        heightMm: normalizedHeight,
-      };
+      // Portrait: height should be greater than width (taller)
+      // If current width > height, swap them
+      if (widthMm > heightMm) {
+        return {
+          widthMm: heightMm,
+          heightMm: widthMm,
+        };
+      }
+      // Already in portrait orientation
+      return { widthMm, heightMm };
     }
 
-    return {
-      widthMm: Math.max(widthMm, heightMm),
-      heightMm: normalizedHeight,
-    };
+    // Landscape: width should be greater than height (wider)
+    // If current height > width, swap them
+    if (heightMm > widthMm) {
+      return {
+        widthMm: heightMm,
+        heightMm: widthMm,
+      };
+    }
+    // Already in landscape orientation
+    return { widthMm, heightMm };
   }
 }
 
