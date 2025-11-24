@@ -7,22 +7,6 @@
     <button type="button" (click)="addWidget('image')">Image</button>
   </div>
 
-  <div class="editor-toolbar__group editor-toolbar__group--page">
-    <label class="editor-toolbar__label" for="preset-select">Page preset</label>
-    <select
-      id="preset-select"
-      [value]="getPresetId(document.pageSize)"
-      (change)="applyPreset($any($event.target).value)"
-    >
-      <option value="custom" *ngIf="getPresetId(document.pageSize) === 'custom'">
-        Custom size
-      </option>
-      <option *ngFor="let preset of pageSizePresets" [value]="preset.id">
-        {{ preset.label }}
-      </option>
-    </select>
-  </div>
-
   <div class="editor-toolbar__group editor-toolbar__group--export">
     <span class="editor-toolbar__label">Document</span>
     <button

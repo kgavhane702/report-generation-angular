@@ -1,5 +1,7 @@
 .page-canvas {
-  width: min(100%, 1100px);
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
   max-height: calc(100vh - 160px);
   padding: 2rem 2.5rem;
   border-radius: 32px;
@@ -15,10 +17,12 @@
   align-items: center;
   gap: 2rem;
   overflow: auto;
+  margin: 0 auto;
 }
 
 .page-canvas__viewport {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
