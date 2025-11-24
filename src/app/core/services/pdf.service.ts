@@ -11,7 +11,8 @@ import { ChartExportService } from './chart-export.service';
   providedIn: 'root',
 })
 export class PdfService {
-  private readonly apiUrl = 'http://localhost:3000/api/generate-pdf';
+  // private readonly apiUrl = 'http://localhost:3000/api/generate-pdf';
+  private readonly apiUrl = 'http://localhost:8080/api/generate-pdf';
   private readonly chartExportService = inject(ChartExportService);
 
   constructor(private http: HttpClient) {}
