@@ -1,0 +1,24 @@
+{
+  "name": "report-pdf-playwright-backend",
+  "version": "1.0.0",
+  "description": "Playwright-based Node.js backend for converting report documents to PDF",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "pdf",
+    "report",
+    "playwright"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "playwright": "^1.47.0"
+  }
+}
+
