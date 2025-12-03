@@ -4,8 +4,10 @@ import 'highcharts/modules/exporting';
 import 'highcharts/modules/export-data';
 import 'highcharts/modules/accessibility';
 import { ChartAdapter, ChartInstance } from './chart-adapter';
-import { ChartWidgetProps } from '../../../../models/widget.model';
-import { ChartData, ChartSeries } from '../../../../models/chart-data.model';
+import { ChartWidgetProps } from '../../../../../models/widget.model';
+import { ChartData } from '../../../../../models/chart-data.model';
+import { getChartTypeRegistry } from '../highcharts-charts/highcharts-chart-type.registry';
+import { HighchartsChartTypeHandler } from '../highcharts-charts/highcharts-chart-type.interface';
 
 /**
  * Highcharts adapter implementing ChartAdapter interface.
@@ -15,6 +17,7 @@ import { ChartData, ChartSeries } from '../../../../models/chart-data.model';
 export class HighchartsChartAdapter implements ChartAdapter {
   readonly id = 'highcharts';
   readonly label = 'Highcharts';
+  private readonly chartTypeRegistry = getChartTypeRegistry();
 
   render(container: HTMLElement, props: unknown): ChartInstance {
     const chartProps = props as ChartWidgetProps;
@@ -58,11 +61,33 @@ export class HighchartsChartAdapter implements ChartAdapter {
     width: number,
     height: number
   ): Highcharts.Options {
-    const chartType = this.mapChartType(data.chartType);
+    // Get the chart type handler for this chart type
+    const handler = this.chartTypeRegistry.getHandler(data.chartType);
     
+    if (!handler) {
+      // Fallback to column chart if handler not found
+      const defaultHandler = this.chartTypeRegistry.getHandler('column');
+      if (!defaultHandler) {
+        throw new Error(`No chart handler found for type: ${data.chartType}`);
+      }
+      return this.buildOptions(data, defaultHandler, width, height);
+    }
+
+    return this.buildOptions(data, handler, width, height);
+  }
+
+  /**
+   * Build Highcharts options using the provided chart type handler
+   */
+  private buildOptions(
+    data: ChartData,
+    handler: HighchartsChartTypeHandler,
+    width: number,
+    height: number
+  ): Highcharts.Options {
     const options: Highcharts.Options = {
       chart: {
-        type: chartType,
+        type: handler.highchartsType,
         width: width,
         height: height,
         backgroundColor: 'transparent',
@@ -116,144 +141,14 @@ export class HighchartsChartAdapter implements ChartAdapter {
           text: data.yAxisLabel || '',
         },
       },
-      series: this.convertSeries(data.series, chartType, data.chartType),
-      plotOptions: this.getPlotOptions(chartType),
+      series: handler.convertSeries(data.series, data.chartType),
+      plotOptions: handler.getPlotOptions(),
       colors: data.colors || this.getDefaultColors(),
     };
 
     return options;
   }
 
-  /**
-   * Map provider-agnostic chart type to Highcharts chart type
-   */
-  private mapChartType(type: string): Highcharts.ChartOptions['type'] {
-    const typeMap: Record<string, Highcharts.ChartOptions['type']> = {
-      bar: 'bar',
-      column: 'column',
-      line: 'line',
-      area: 'area',
-      pie: 'pie',
-      donut: 'pie', // Highcharts handles donut via innerSize in pie
-      scatter: 'scatter',
-      bubble: 'bubble',
-      stackedBar: 'bar',
-      stackedColumn: 'column',
-    };
-
-    return typeMap[type] || 'column';
-  }
-
-  /**
-   * Convert provider-agnostic series to Highcharts series format
-   */
-  private convertSeries(
-    series: ChartSeries[],
-    mappedChartType: Highcharts.ChartOptions['type'],
-    originalChartType: string
-  ): Highcharts.SeriesOptionsType[] {
-    const isStacked = originalChartType === 'stackedBar' || originalChartType === 'stackedColumn';
-    
-    return series.map((s) => {
-      const seriesType = (s.type ? this.mapChartType(s.type) : mappedChartType) as any;
-      
-      let baseSeries: Highcharts.SeriesOptionsType;
-
-      // Handle pie/donut charts specially
-      if (seriesType === 'pie') {
-        const pieSeries: Highcharts.SeriesPieOptions = {
-          name: s.name,
-          data: s.data,
-          type: 'pie',
-        };
-        
-        if (s.color) {
-          pieSeries.color = s.color;
-        }
-        
-        // Handle donut chart (pie with innerSize)
-        if (s.type === 'donut' || originalChartType === 'donut') {
-          pieSeries.innerSize = '60%';
-        }
-        
-        baseSeries = pieSeries;
-      } else if (seriesType === 'bar' || seriesType === 'column') {
-        // Handle bar/column charts with optional stacking
-        const barColumnSeries: Highcharts.SeriesBarOptions | Highcharts.SeriesColumnOptions = {
-          name: s.name,
-          data: s.data,
-          type: seriesType,
-        };
-        
-        if (s.color) {
-          barColumnSeries.color = s.color;
-        }
-        
-        // Handle stacked charts
-        if (isStacked) {
-          barColumnSeries.stacking = 'normal';
-        }
-        
-        baseSeries = barColumnSeries;
-      } else {
-        // Handle other chart types (line, area, scatter, etc.)
-        const otherSeries: any = {
-          name: s.name,
-          data: s.data,
-          type: seriesType,
-        };
-
-        if (s.color) {
-          otherSeries.color = s.color;
-        }
-        
-        baseSeries = otherSeries as Highcharts.SeriesOptionsType;
-      }
-
-      return baseSeries;
-    });
-  }
-
-  /**
-   * Get plot options for specific chart types
-   */
-  private getPlotOptions(
-    chartType: Highcharts.ChartOptions['type']
-  ): Highcharts.PlotOptions {
-    const plotOptions: Highcharts.PlotOptions = {};
-
-    if (chartType === 'pie' || chartType === 'donut') {
-      plotOptions.pie = {
-        allowPointSelect: true,
-        cursor: 'pointer',
-        dataLabels: {
-          enabled: true,
-          format: '<b>{point.name}</b>: {point.percentage:.1f} %',
-        },
-      };
-    }
-
-    if (chartType === 'bar' || chartType === 'column') {
-      plotOptions.column = {
-        dataLabels: {
-          enabled: false,
-        },
-      };
-      plotOptions.bar = {
-        dataLabels: {
-          enabled: false,
-        },
-      };
-    }
-
-    if (chartType === 'area') {
-      plotOptions.area = {
-        fillOpacity: 0.5,
-      };
-    }
-
-    return plotOptions;
-  }
 
   /**
    * Get default color palette

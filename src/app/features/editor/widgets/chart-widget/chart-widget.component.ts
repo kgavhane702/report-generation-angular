@@ -19,8 +19,8 @@ import {
   ChartWidgetProps,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { ChartRegistryService } from '../chart/chart-registry.service';
-import { ChartInstance } from '../chart/chart-adapter';
+import { ChartRegistryService } from '../chart/registry/chart-registry.service';
+import { ChartInstance } from '../chart/adapters/chart-adapter';
 import { ChartData } from '../../../../models/chart-data.model';
 import {
   ChartConfigDialogComponent,
