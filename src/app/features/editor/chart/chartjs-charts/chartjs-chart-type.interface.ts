@@ -1,16 +1,13 @@
 import { ChartConfiguration } from 'chart.js';
 import { ChartSeries } from '../../../../models/chart-data.model';
+import { ChartTypeHandler } from '../chart-type-registries/chart-type-handler.interface';
 
 /**
  * Interface for Chart.js chart type handlers.
  * Each chart type (bar, column, line, pie, etc.) implements this interface
  * to provide its specific chart configuration conversion.
  */
-export interface ChartJsChartTypeHandler {
-  /**
-   * The chart type identifier (e.g., 'bar', 'column', 'pie')
-   */
-  readonly chartType: string;
+export interface ChartJsChartTypeHandler extends ChartTypeHandler {
 
   /**
    * The mapped Chart.js chart type
