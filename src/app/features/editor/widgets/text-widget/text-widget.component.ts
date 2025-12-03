@@ -14,8 +14,8 @@ import {
   TextWidgetProps,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { RichTextEditorService } from '../../../../core/services/rich-text-editor.interface';
-import { CkEditorRichTextEditorService } from '../../../../core/services/ckeditor-rich-text-editor.service';
+import { RichTextEditorService } from '../../../../core/services/rich-text-editor/rich-text-editor.interface';
+import { CkEditorRichTextEditorService } from '../../../../core/services/rich-text-editor/ckeditor-rich-text-editor.service';
 
 @Component({
   selector: 'app-text-widget',
