@@ -5,13 +5,14 @@ import {
   inject,
   Input,
   OnDestroy,
+  OnInit,
   Output,
 } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 
-import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../models/chart-data.model';
+import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../models/chart-data.model';
 
 export interface ChartConfigDialogData {
   chartData: ChartData;
@@ -31,7 +32,7 @@ export interface ChartConfigDialogResult {
   styleUrls: ['./chart-config-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChartConfigDialogComponent implements OnDestroy {
+export class ChartConfigDialogComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly destroy$ = new Subject<void>();
 

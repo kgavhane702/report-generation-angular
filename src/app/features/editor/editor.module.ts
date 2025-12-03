@@ -17,7 +17,7 @@ import { TableWidgetComponent } from './widgets/table-widget/table-widget.compon
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
 import { InspectorPanelComponent } from './inspector/inspector-panel.component';
 import { ChartRegistryInitializer } from './widgets/chart/registry/chart-registry.initializer';
-import { ChartConfigDialogComponent } from './widgets/chart/chart-config-dialog.component';
+import { ChartConfigDialogComponent } from './widgets/chart/chart-config/chart-config-dialog.component';
 import { TableRegistryInitializer } from './widgets/table/table-registry.initializer';
 import { TableConfigDialogComponent } from './widgets/table/table-config-dialog.component';
 
