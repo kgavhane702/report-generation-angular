@@ -12,8 +12,8 @@ import { ChartExportService } from './chart-export.service';
 })
 export class PdfService {
   // private readonly apiUrl = 'http://localhost:3000/api/generate-pdf'; // Puppeteer Node backend
-  // private readonly apiUrl = 'http://localhost:8080/api/generate-pdf'; // Java Playwright backend
-  private readonly apiUrl = 'http://localhost:4000/api/generate-pdf'; // Node Playwright backend
+  private readonly apiUrl = 'http://localhost:8080/api/generate-pdf'; // Java Playwright backend
+  // private readonly apiUrl = 'http://localhost:4000/api/generate-pdf'; // Node Playwright backend
   private readonly chartExportService = inject(ChartExportService);
 
   constructor(private http: HttpClient) {}
