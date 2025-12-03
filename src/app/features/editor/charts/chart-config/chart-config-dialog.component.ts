@@ -214,7 +214,6 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       this.showCsvImport = false;
     } catch (error) {
       alert('Failed to parse CSV. Please check the format.');
-      console.error('CSV import error:', error);
     }
   }
 

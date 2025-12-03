@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { ChartAdapter } from '../adapters';
+import { ChartAdapter } from '../interfaces';
 
 @Injectable({
   providedIn: 'root',

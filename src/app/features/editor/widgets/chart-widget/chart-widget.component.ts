@@ -18,10 +18,9 @@ import {
   WidgetModel,
 } from '../../../../models/widget.model';
 import { ChartRegistryService } from '../../charts/registry';
-import { ChartInstance } from '../../charts/adapters';
+import { ChartInstance } from '../../charts/interfaces';
 import { ChartData } from '../../../../models/chart-data.model';
 import {
-  ChartConfigDialogComponent,
   ChartConfigDialogData,
   ChartConfigDialogResult,
 } from '../../charts/chart-config/chart-config-dialog.component';
