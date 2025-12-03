@@ -6,7 +6,6 @@ import { AreaChartHandler } from './area-chart.handler';
 import { PieChartHandler } from './pie-chart.handler';
 import { DonutChartHandler } from './donut-chart.handler';
 import { ScatterChartHandler } from './scatter-chart.handler';
-import { BubbleChartHandler } from './bubble-chart.handler';
 import { StackedBarChartHandler } from './stacked-bar-chart.handler';
 import { StackedColumnChartHandler } from './stacked-column-chart.handler';
 
@@ -26,7 +25,6 @@ export class HighchartsChartTypeRegistry {
     this.register(new PieChartHandler());
     this.register(new DonutChartHandler());
     this.register(new ScatterChartHandler());
-    this.register(new BubbleChartHandler());
     this.register(new StackedBarChartHandler());
     this.register(new StackedColumnChartHandler());
   }

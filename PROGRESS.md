@@ -19,7 +19,7 @@
   - Widget container with drag (CDK) + custom resize handles, dispatching NgRx mutations.
   - Text widget with CKEditor integration for rich text editing.
   - Chart/table/image widgets wired through a pluggable adapter architecture.
-  - Highcharts adapter fully implemented with support for multiple chart types (bar, column, line, area, pie, donut, scatter, bubble, stacked).
+  - Highcharts adapter fully implemented with support for multiple chart types (bar, column, line, area, pie, donut, scatter, stacked).
 - **Section/subsection/page management**
   - Full CRUD operations: add/delete sections, subsections, and pages.
   - Breadcrumb navigation with add/delete controls.

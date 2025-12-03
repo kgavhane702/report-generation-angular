@@ -48,7 +48,6 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     'pie',
     'donut',
     'scatter',
-    'bubble',
     'stackedColumn',
     'stackedBar',
   ];
@@ -61,7 +60,6 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     pie: 'Pie',
     donut: 'Donut',
     scatter: 'Scatter',
-    bubble: 'Bubble',
     stackedColumn: 'Stacked Column',
     stackedBar: 'Stacked Bar',
   };

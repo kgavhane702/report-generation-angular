@@ -57,7 +57,6 @@ export type ChartType =
   | 'pie'
   | 'donut'
   | 'scatter'
-  | 'bubble'
   | 'stackedBar'
   | 'stackedColumn';
 
