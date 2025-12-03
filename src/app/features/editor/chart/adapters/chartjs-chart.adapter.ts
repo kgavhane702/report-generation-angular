@@ -2,7 +2,7 @@ import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import { ChartAdapter, ChartInstance } from './chart-adapter';
 import { ChartWidgetProps } from '../../../../models/widget.model';
 import { ChartData } from '../../../../models/chart-data.model';
-import { getChartJsChartTypeRegistry } from '../chartjs-charts/chartjs-chart-type.registry';
+import { getChartJsChartTypeRegistry } from '../chart-type-registries/chartjs-chart-type.registry';
 
 // Register all Chart.js components
 Chart.register(...registerables);

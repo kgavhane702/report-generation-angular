@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 
 import { ChartRegistryService } from './chart-registry.service';
-import { PlaceholderChartAdapter } from '../adapters/placeholder-chart.adapter';
-import { HighchartsChartAdapter } from '../adapters/highcharts-chart.adapter';
-import { ChartJsChartAdapter } from '../adapters/chartjs-chart.adapter';
+import {
+  PlaceholderChartAdapter,
+  HighchartsChartAdapter,
+  ChartJsChartAdapter,
+} from '../adapters';
 
 @Injectable({
   providedIn: 'root',

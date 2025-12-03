@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
-import { ChartRegistryInitializer } from '../chart/registry/chart-registry.initializer';
+import { ChartRegistryInitializer } from '../chart/registry';
 import { TableRegistryInitializer } from '../widgets/table/table-registry.initializer';
 
 @Component({

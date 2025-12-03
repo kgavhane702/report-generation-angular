@@ -1,16 +1,13 @@
 import * as Highcharts from 'highcharts';
 import { ChartSeries } from '../../../../models/chart-data.model';
+import { ChartTypeHandler } from '../chart-type-registries/chart-type-handler.interface';
 
 /**
  * Interface for Highcharts chart type handlers.
  * Each chart type (bar, column, pie, etc.) implements this interface
  * to provide its specific series conversion and plot options.
  */
-export interface HighchartsChartTypeHandler {
-  /**
-   * The chart type identifier (e.g., 'bar', 'column', 'pie')
-   */
-  readonly chartType: string;
+export interface HighchartsChartTypeHandler extends ChartTypeHandler {
 
   /**
    * The mapped Highcharts chart type

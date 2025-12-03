@@ -3,11 +3,11 @@ import * as Highcharts from 'highcharts';
 import 'highcharts/modules/exporting';
 import 'highcharts/modules/export-data';
 import 'highcharts/modules/accessibility';
-import { ChartAdapter, ChartInstance } from './chart-adapter';
+import { ChartAdapter, ChartInstance } from './chart-adapter'; // Keep direct import to avoid circular dependency
 import { ChartWidgetProps } from '../../../../models/widget.model';
 import { ChartData } from '../../../../models/chart-data.model';
-import { getChartTypeRegistry } from '../highcharts-charts/highcharts-chart-type.registry';
-import { HighchartsChartTypeHandler } from '../highcharts-charts/highcharts-chart-type.interface';
+import { getHighchartsChartTypeRegistry } from '../chart-type-registries/highcharts-chart-type.registry';
+import { HighchartsChartTypeHandler } from '../highcharts-charts';
 
 /**
  * Highcharts adapter implementing ChartAdapter interface.
@@ -17,7 +17,7 @@ import { HighchartsChartTypeHandler } from '../highcharts-charts/highcharts-char
 export class HighchartsChartAdapter implements ChartAdapter {
   readonly id = 'highcharts';
   readonly label = 'Highcharts';
-  private readonly chartTypeRegistry = getChartTypeRegistry();
+  private readonly chartTypeRegistry = getHighchartsChartTypeRegistry();
 
   render(container: HTMLElement, props: unknown): ChartInstance {
     const chartProps = props as ChartWidgetProps;
