@@ -4,8 +4,8 @@ import 'highcharts/modules/exporting';
 import 'highcharts/modules/export-data';
 import 'highcharts/modules/accessibility';
 import { ChartAdapter, ChartInstance } from './chart-adapter';
-import { ChartWidgetProps } from '../../../../../models/widget.model';
-import { ChartData } from '../../../../../models/chart-data.model';
+import { ChartWidgetProps } from '../../../../models/widget.model';
+import { ChartData } from '../../../../models/chart-data.model';
 import { getChartTypeRegistry } from '../highcharts-charts/highcharts-chart-type.registry';
 import { HighchartsChartTypeHandler } from '../highcharts-charts/highcharts-chart-type.interface';
 

@@ -1,5 +1,5 @@
 import * as Highcharts from 'highcharts';
-import { ChartSeries } from '../../../../../models/chart-data.model';
+import { ChartSeries } from '../../../../models/chart-data.model';
 import { HighchartsChartTypeHandler } from './highcharts-chart-type.interface';
 
 export class ScatterChartHandler implements HighchartsChartTypeHandler {

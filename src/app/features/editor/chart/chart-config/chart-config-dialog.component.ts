@@ -12,7 +12,7 @@ import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } fr
 import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 
-import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../models/chart-data.model';
+import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../models/chart-data.model';
 
 export interface ChartConfigDialogData {
   chartData: ChartData;

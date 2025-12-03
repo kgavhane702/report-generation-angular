@@ -1,33 +1,33 @@
 import * as Highcharts from 'highcharts';
-import { ChartSeries } from '../../../../../models/chart-data.model';
+import { ChartSeries } from '../../../../models/chart-data.model';
 import { HighchartsChartTypeHandler } from './highcharts-chart-type.interface';
 
-export class ColumnChartHandler implements HighchartsChartTypeHandler {
-  readonly chartType = 'column';
-  readonly highchartsType: Highcharts.ChartOptions['type'] = 'column';
+export class BarChartHandler implements HighchartsChartTypeHandler {
+  readonly chartType = 'bar';
+  readonly highchartsType: Highcharts.ChartOptions['type'] = 'bar';
 
   convertSeries(
     series: ChartSeries[],
     originalChartType: string
   ): Highcharts.SeriesOptionsType[] {
     return series.map((s) => {
-      const columnSeries: Highcharts.SeriesColumnOptions = {
+      const barSeries: Highcharts.SeriesBarOptions = {
         name: s.name,
         data: s.data,
-        type: 'column',
+        type: 'bar',
       };
 
       if (s.color) {
-        columnSeries.color = s.color;
+        barSeries.color = s.color;
       }
 
-      return columnSeries;
+      return barSeries;
     });
   }
 
   getPlotOptions(): Highcharts.PlotOptions {
     return {
-      column: {
+      bar: {
         dataLabels: {
           enabled: false,
         },

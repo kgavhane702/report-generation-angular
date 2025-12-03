@@ -1,34 +1,34 @@
 import * as Highcharts from 'highcharts';
-import { ChartSeries } from '../../../../../models/chart-data.model';
+import { ChartSeries } from '../../../../models/chart-data.model';
 import { HighchartsChartTypeHandler } from './highcharts-chart-type.interface';
 
-export class StackedColumnChartHandler implements HighchartsChartTypeHandler {
-  readonly chartType = 'stackedColumn';
-  readonly highchartsType: Highcharts.ChartOptions['type'] = 'column';
+export class StackedBarChartHandler implements HighchartsChartTypeHandler {
+  readonly chartType = 'stackedBar';
+  readonly highchartsType: Highcharts.ChartOptions['type'] = 'bar';
 
   convertSeries(
     series: ChartSeries[],
     originalChartType: string
   ): Highcharts.SeriesOptionsType[] {
     return series.map((s) => {
-      const columnSeries: Highcharts.SeriesColumnOptions = {
+      const barSeries: Highcharts.SeriesBarOptions = {
         name: s.name,
         data: s.data,
-        type: 'column',
+        type: 'bar',
         stacking: 'normal',
       };
 
       if (s.color) {
-        columnSeries.color = s.color;
+        barSeries.color = s.color;
       }
 
-      return columnSeries;
+      return barSeries;
     });
   }
 
   getPlotOptions(): Highcharts.PlotOptions {
     return {
-      column: {
+      bar: {
         dataLabels: {
           enabled: false,
         },

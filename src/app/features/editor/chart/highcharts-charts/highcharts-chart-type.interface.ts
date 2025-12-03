@@ -1,5 +1,5 @@
 import * as Highcharts from 'highcharts';
-import { ChartSeries } from '../../../../../models/chart-data.model';
+import { ChartSeries } from '../../../../models/chart-data.model';
 
 /**
  * Interface for Highcharts chart type handlers.
