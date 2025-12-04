@@ -172,6 +172,16 @@ export class WidgetContainerComponent {
     this.editorState.setActiveWidget(this.widget.id);
   }
 
+  onDeleteClick(event: MouseEvent): void {
+    event.stopPropagation();
+    this.documentService.deleteWidget(
+      this.subsectionId,
+      this.pageId,
+      this.widget.id
+    );
+    this.editorState.setActiveWidget(null);
+  }
+
   @HostListener('document:pointerup', ['$event'])
   onResizePointerUp(event: PointerEvent): void {
     if (!this.isResizing) {

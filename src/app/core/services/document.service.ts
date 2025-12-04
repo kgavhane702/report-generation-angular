@@ -226,6 +226,16 @@ export class DocumentService {
 
     return fallback?.id ?? null;
   }
+
+  deleteWidget(
+    subsectionId: string,
+    pageId: string,
+    widgetId: string
+  ): void {
+    this.store.dispatch(
+      DocumentActions.deleteWidget({ subsectionId, pageId, widgetId })
+    );
+  }
 }
 
 interface HierarchySelection {

@@ -41,6 +41,11 @@ export const DocumentActions = createActionGroup({
     'Delete Section': props<{ sectionId: string }>(),
     'Delete Subsection': props<{ sectionId: string; subsectionId: string }>(),
     'Delete Page': props<{ subsectionId: string; pageId: string }>(),
+    'Delete Widget': props<{
+      subsectionId: string;
+      pageId: string;
+      widgetId: string;
+    }>(),
   },
 });
 

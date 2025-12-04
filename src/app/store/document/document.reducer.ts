@@ -84,6 +84,10 @@ export const documentReducer = createReducer(
   on(DocumentActions.deletePage, (state, { subsectionId, pageId }) => ({
     ...state,
     document: deletePage(state.document, subsectionId, pageId),
+  })),
+  on(DocumentActions.deleteWidget, (state, payload) => ({
+    ...state,
+    document: deleteWidget(state.document, payload),
   }))
 );
 
@@ -369,6 +373,46 @@ function deletePage(
         : subsection
     ),
   }));
+
+  return {
+    ...doc,
+    sections,
+  };
+}
+
+function deleteWidget(
+  doc: DocumentModel,
+  params: {
+    subsectionId: string;
+    pageId: string;
+    widgetId: string;
+  }
+): DocumentModel {
+  const { subsectionId, pageId, widgetId } = params;
+  const location = findLocation(doc, subsectionId, pageId);
+
+  if (
+    location.sectionIndex === -1 ||
+    location.subsectionIndex === -1 ||
+    location.pageIndex === -1
+  ) {
+    return doc;
+  }
+
+  const sections = [...doc.sections];
+  const section = { ...sections[location.sectionIndex] };
+  const subsections = [...section.subsections];
+  const subsection = { ...subsections[location.subsectionIndex] };
+  const pages = [...subsection.pages];
+  const page = { ...pages[location.pageIndex] };
+
+  page.widgets = page.widgets.filter((w) => w.id !== widgetId);
+
+  pages[location.pageIndex] = page;
+  subsection.pages = pages;
+  subsections[location.subsectionIndex] = subsection;
+  section.subsections = subsections;
+  sections[location.sectionIndex] = section;
 
   return {
     ...doc,
