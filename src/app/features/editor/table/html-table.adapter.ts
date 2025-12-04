@@ -1,6 +1,6 @@
+import { TableStyleSettings } from 'src/app/models/table-style.model';
+import { TableWidgetProps, TableColumn, TableRow } from 'src/app/models/widget.model';
 import { TableAdapter, TableInstance } from './table-adapter';
-import { TableWidgetProps, TableColumn, TableRow } from '../../../../models/widget.model';
-import { TableStyleSettings } from '../../../../models/table-style.model';
 
 /**
  * Default HTML table adapter - uses native HTML table elements.

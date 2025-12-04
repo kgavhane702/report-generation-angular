@@ -18,13 +18,10 @@ import {
   TableWidgetProps,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { TableRegistryService } from '../table/table-registry.service';
-import { TableInstance } from '../table/table-adapter';
-import {
-  TableConfigDialogComponent,
-  TableConfigDialogData,
-  TableConfigDialogResult,
-} from '../table/table-config-dialog.component';
+import { TableInstance } from '../../table/table-adapter';
+import { TableConfigDialogData, TableConfigDialogResult } from '../../table/table-config-dialog.component';
+import { TableRegistryService } from '../../table/table-registry.service';
+
 
 @Component({
   selector: 'app-table-widget',

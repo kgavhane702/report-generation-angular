@@ -19,25 +19,14 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Subject, takeUntil } from 'rxjs';
 
-import {
-  TableWidgetProps,
-  TableColumn,
-  TableRow,
-} from '../../../../models/widget.model';
-import {
-  TableStyleSettings,
-  CellStyle,
-  IconStyle,
-  ColumnStyle,
-  RowStyle,
-} from '../../../../models/table-style.model';
+
+
 import { TableTemplatesService } from './table-templates.service';
-import {
-  createDefaultTableData,
-  parseCsvToTableData,
-  tableDataToCsv,
-} from '../../../../models/table-data.model';
+
 import { v4 as uuid } from 'uuid';
+import { createDefaultTableData, parseCsvToTableData, tableDataToCsv } from 'src/app/models/table-data.model';
+import { TableStyleSettings } from 'src/app/models/table-style.model';
+import { TableWidgetProps, TableColumn, TableRow } from 'src/app/models/widget.model';
 
 export interface TableConfigDialogData {
   tableProps: TableWidgetProps;

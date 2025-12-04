@@ -18,8 +18,8 @@ import { ImageWidgetComponent } from './widgets/image-widget/image-widget.compon
 import { InspectorPanelComponent } from './inspector/inspector-panel.component';
 import { ChartRegistryInitializer } from './charts/registry';
 import { ChartConfigDialogComponent } from './charts/chart-config/chart-config-dialog.component';
-import { TableRegistryInitializer } from './widgets/table/table-registry.initializer';
-import { TableConfigDialogComponent } from './widgets/table/table-config-dialog.component';
+import { TableConfigDialogComponent } from './table/table-config-dialog.component';
+import { TableRegistryInitializer } from './table/table-registry.initializer';
 
 @NgModule({
   declarations: [

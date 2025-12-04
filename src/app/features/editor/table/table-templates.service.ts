@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
+import { TableTemplate, TableStyleSettings } from 'src/app/models/table-style.model';
 
-import { TableTemplate, TableStyleSettings } from '../../../../models/table-style.model';
 
 /**
  * Service providing table templates/presets similar to MS Word/PowerPoint
