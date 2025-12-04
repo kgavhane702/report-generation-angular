@@ -17,13 +17,13 @@ import {
   ChartWidgetProps,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { ChartRegistryService } from '../../charts/registry';
-import { ChartInstance } from '../../charts/interfaces';
+import { ChartRegistryService } from '../providers/charts/registry';
+import { ChartInstance } from '../providers/charts/interfaces';
 import { ChartData } from '../../../../models/chart-data.model';
 import {
   ChartConfigDialogData,
   ChartConfigDialogResult,
-} from '../../charts/chart-config/chart-config-dialog.component';
+} from '../providers/charts/chart-config/chart-config-dialog.component';
 
 @Component({
   selector: 'app-chart-widget',

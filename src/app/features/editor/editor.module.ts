@@ -16,10 +16,10 @@ import { ChartWidgetComponent } from './widgets/chart-widget/chart-widget.compon
 import { TableWidgetComponent } from './widgets/table-widget/table-widget.component';
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
 import { InspectorPanelComponent } from './inspector/inspector-panel.component';
-import { ChartRegistryInitializer } from './charts/registry';
-import { ChartConfigDialogComponent } from './charts/chart-config/chart-config-dialog.component';
-import { TableConfigDialogComponent } from './table/table-config-dialog.component';
-import { TableRegistryInitializer } from './table/table-registry.initializer';
+import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
+import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
+import { TableConfigDialogComponent } from './widgets/providers/table/table-config-dialog.component';
+import { TableRegistryInitializer } from './widgets/providers/table/table-registry.initializer';
 
 @NgModule({
   declarations: [
