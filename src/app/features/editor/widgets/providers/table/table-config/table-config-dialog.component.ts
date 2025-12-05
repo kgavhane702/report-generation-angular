@@ -21,7 +21,7 @@ import { Subject, takeUntil } from 'rxjs';
 
 
 
-import { TableTemplatesService } from './table-templates.service';
+import { TableTemplatesService } from '../services/table-templates.service';
 
 import { v4 as uuid } from 'uuid';
 import { createDefaultTableData, parseCsvToTableData, tableDataToCsv } from 'src/app/models/table-data.model';

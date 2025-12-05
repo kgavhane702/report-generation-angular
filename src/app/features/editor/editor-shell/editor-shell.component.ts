@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { ChartRegistryInitializer } from '../widgets/providers/charts/registry';
-import { TableRegistryInitializer } from '../widgets/providers/table/table-registry.initializer';
+import { TableRegistryInitializer } from '../widgets/providers/table/registry';
 
 @Component({
   selector: 'app-editor-shell',

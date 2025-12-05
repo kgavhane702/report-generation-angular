@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-import { TableAdapter } from './table-adapter';
+import { TableAdapter } from '../interfaces';
 
 /**
  * Service for managing and retrieving table adapters.

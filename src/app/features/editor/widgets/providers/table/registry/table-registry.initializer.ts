@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
 import { TableRegistryService } from './table-registry.service';
-import { HtmlTableAdapter } from './html-table.adapter';
+import { HtmlTableAdapter } from '../implementations';
 
 /**
  * Service to initialize table adapters on app startup.

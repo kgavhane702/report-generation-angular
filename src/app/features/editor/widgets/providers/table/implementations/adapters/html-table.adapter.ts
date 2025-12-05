@@ -1,6 +1,6 @@
 import { TableStyleSettings } from 'src/app/models/table-style.model';
 import { TableWidgetProps, TableColumn, TableRow } from 'src/app/models/widget.model';
-import { TableAdapter, TableInstance } from './table-adapter';
+import { TableAdapter, TableInstance } from '../../interfaces';
 
 /**
  * Default HTML table adapter - uses native HTML table elements.
@@ -531,3 +531,4 @@ export class HtmlTableAdapter implements TableAdapter {
     return iconContainer;
   }
 }
+

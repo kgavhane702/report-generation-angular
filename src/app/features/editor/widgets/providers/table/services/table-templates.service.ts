@@ -849,4 +849,3 @@ export class TableTemplatesService {
     };
   }
 }
-
