@@ -1,8 +1,7 @@
 .page-canvas {
   flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  max-height: calc(100vh - 160px);
+  width: 100%;
+  min-width: 100%;
   padding: 2rem 2.5rem;
   border-radius: 32px;
   background: radial-gradient(
@@ -15,8 +14,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2rem;
-  overflow: auto;
+  justify-content: flex-start;
+  box-sizing: border-box;
   margin: 0 auto;
 }
 
@@ -27,5 +26,9 @@
   flex-direction: column;
   align-items: center;
   gap: 2rem;
+  padding: 2rem 0;
+  box-sizing: border-box;
+  // Ensure viewport can extend beyond visible area when zoomed
+  position: relative;
 }
 

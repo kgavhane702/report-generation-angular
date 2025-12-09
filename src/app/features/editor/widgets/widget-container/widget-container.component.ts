@@ -77,14 +77,15 @@ export class WidgetContainerComponent {
     const position = event.source.getFreeDragPosition();
     const newX = this.frame.x + position.x;
     const newY = this.frame.y + position.y;
-    const clamped = this.clampPosition(newX, newY, this.frame.width, this.frame.height);
+    // Allow widgets to go outside page boundaries (like PowerPoint)
+    const newPosition = { x: newX, y: newY };
 
     this.documentService.updateWidget(
       this.subsectionId,
       this.pageId,
       this.widget.id,
       {
-        position: clamped,
+        position: newPosition,
       }
     );
 
@@ -200,13 +201,11 @@ export class WidgetContainerComponent {
     }
   }
 
+  // Deprecated: No longer clamping position to allow widgets outside page boundaries
+  // Keeping method for backwards compatibility but it now returns position as-is
   private clampPosition(x: number, y: number, width: number, height: number) {
-    const maxX = Math.max(0, this.pageWidth - width);
-    const maxY = Math.max(0, this.pageHeight - height);
-    return {
-      x: Math.min(Math.max(0, x), maxX),
-      y: Math.min(Math.max(0, y), maxY),
-    };
+    // Allow widgets to go outside page boundaries (like PowerPoint)
+    return { x, y };
   }
 
   private clampFrame(width: number, height: number, x: number, y: number) {
@@ -218,6 +217,7 @@ export class WidgetContainerComponent {
     let newX = x;
     let newY = y;
 
+    // Only enforce minimum size constraints, allow widgets to go outside page boundaries
     if (newWidth < minWidth) {
       if (this.activeHandle === 'left' || this.activeHandle === 'corner') {
         newX -= minWidth - newWidth;
@@ -232,32 +232,7 @@ export class WidgetContainerComponent {
       newHeight = minHeight;
     }
 
-    if (newX < 0) {
-      newWidth += newX;
-      newX = 0;
-    }
-    if (newY < 0) {
-      newHeight += newY;
-      newY = 0;
-    }
-
-    const maxWidth = this.pageWidth - newX;
-    const maxHeight = this.pageHeight - newY;
-
-    if (newWidth > maxWidth) {
-      if (this.activeHandle === 'left' || this.activeHandle === 'corner') {
-        newX += newWidth - maxWidth;
-      }
-      newWidth = maxWidth;
-    }
-
-    if (newHeight > maxHeight) {
-      if (this.activeHandle === 'top' || this.activeHandle === 'corner') {
-        newY += newHeight - maxHeight;
-      }
-      newHeight = maxHeight;
-    }
-
+    // No boundary constraints - widgets can extend beyond page edges (like PowerPoint)
     return { width: newWidth, height: newHeight, x: newX, y: newY };
   }
 }

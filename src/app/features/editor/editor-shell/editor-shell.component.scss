@@ -19,28 +19,54 @@
 .editor-shell__body {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  display: flex;
+  overflow: hidden;
 }
 
 .editor-shell__sidebar {
+  flex: 0 0 280px;
   border-right: 1px solid rgba(15, 23, 42, 0.08);
   background: #fff;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .editor-shell__canvas {
+  flex: 1;
   position: relative;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 2rem 3rem;
+  // Add extra left padding to allow scrolling to show content that extends into sidebar area when zoomed
+  padding: 2rem 3rem 2rem calc(3rem + 280px);
   box-sizing: border-box;
   background: #e2e8f0;
+  
+  // Ensure scroll container can accommodate zoomed content
+  &::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.05);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.2);
+    border-radius: 6px;
+    
+    &:hover {
+      background: rgba(15, 23, 42, 0.3);
+    }
+  }
 }
 
 
