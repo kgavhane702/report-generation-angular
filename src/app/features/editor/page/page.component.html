@@ -5,6 +5,16 @@
   [style.height.px]="heightPx"
   [attr.id]="surfaceId"
 >
+  <!-- Fixed Logo at Top Right -->
+  <div class="page__logo-placeholder">
+    <img
+      [src]="displayLogoUrl"
+      alt="Logo"
+      class="page__logo-image"
+    />
+  </div>
+
+  <!-- Widgets Container -->
   <app-widget-container
     *ngFor="let widget of page.widgets; trackBy: trackByWidgetId"
     [widget]="widget"
@@ -14,5 +24,28 @@
     [pageWidth]="widthPx"
     [pageHeight]="heightPx"
   ></app-widget-container>
+
+  <!-- Fixed Footer Elements at Bottom -->
+  <div class="page__footer">
+    <!-- Bottom Left Text - Blue -->
+    <div class="page__footer-left">
+      {{ footerLeftText || 'Deutsche Bank Chief Risk Office' }}
+    </div>
+    
+    <!-- Bottom Middle Text -->
+    <div class="page__footer-center">
+      <div class="page__footer-center-line">
+        {{ footerCenterText || 'Strictly Confidential' }}
+      </div>
+      <div class="page__footer-center-line" *ngIf="footerSubText">
+        {{ footerSubText }}
+      </div>
+    </div>
+    
+    <!-- Bottom Right - Page Number -->
+    <div class="page__footer-right">
+      {{ page.number }}
+    </div>
+  </div>
 </div>
 

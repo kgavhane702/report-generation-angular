@@ -19,6 +19,10 @@ export class PageComponent {
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) subsectionId!: string;
   @Input() isActive = false;
+  @Input() logoUrl?: string;
+  @Input() footerLeftText?: string;
+  @Input() footerCenterText?: string;
+  @Input() footerSubText?: string;
 
   @HostBinding('class.page') hostClass = true;
 
@@ -36,6 +40,10 @@ export class PageComponent {
 
   get surfaceSelector(): string {
     return `#${this.surfaceId}`;
+  }
+
+  get displayLogoUrl(): string {
+    return this.logoUrl || '/assets/logo.png';
   }
 
   trackByWidgetId(index: number, widget: any): string {
