@@ -61,6 +61,24 @@
   cursor: nwse-resize;
 }
 
+.widget-container__resize--corner-top-right {
+  right: -9px;
+  top: -9px;
+  cursor: nesw-resize;
+}
+
+.widget-container__resize--corner-top-left {
+  left: -9px;
+  top: -9px;
+  cursor: nwse-resize;
+}
+
+.widget-container__resize--corner-bottom-left {
+  left: -9px;
+  bottom: -9px;
+  cursor: nesw-resize;
+}
+
 .widget-container__resize--right {
   right: -9px;
   top: 50%;
@@ -93,10 +111,22 @@
   transform: scale(1.1);
 }
 
+// Preserve transform for handles that already have transforms
+.widget-container__resize--right:hover,
+.widget-container__resize--left:hover {
+  transform: translateY(-50%) scale(1.1);
+}
+
+.widget-container__resize--bottom:hover,
+.widget-container__resize--top:hover {
+  transform: translateX(-50%) scale(1.1);
+}
+
 .widget-container__delete {
   position: absolute;
   top: -12px;
-  right: -12px;
+  right: 25%; /* Centered between middle (50%) and right side (0%) */
+  transform: translateX(50%); /* Center the button on the calculated position */
   width: 28px;
   height: 28px;
   border-radius: 999px;
@@ -122,7 +152,7 @@
 .widget-container__delete:hover {
   background: #dc2626;
   color: #ffffff;
-  transform: scale(1.1);
+  transform: translateX(50%) scale(1.1);
   box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
 }
 

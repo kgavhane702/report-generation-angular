@@ -55,10 +55,10 @@ export class WidgetFactoryService {
       size: { width: 360, height: 240 },
       zIndex: 1,
       props: {
-        provider: 'highcharts',
+        provider: 'chartjs',
         chartType: defaultChartData.chartType,
         data: defaultChartData,
-        renderMode: 'svg',
+        renderMode: 'canvas',
       },
     };
   }

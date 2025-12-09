@@ -15,7 +15,7 @@ import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 
-type ResizeHandle = 'right' | 'bottom' | 'corner' | 'left' | 'top';
+type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
 @Component({
   selector: 'app-widget-container',
@@ -150,8 +150,28 @@ export class WidgetContainerComponent {
         nextHeight = this.resizeStart.height + deltaY;
         break;
       case 'corner':
+        // Bottom-right corner
         nextWidth = this.resizeStart.width + deltaX;
         nextHeight = this.resizeStart.height + deltaY;
+        break;
+      case 'corner-top-right':
+        // Top-right corner
+        nextWidth = this.resizeStart.width + deltaX;
+        nextHeight = this.resizeStart.height - deltaY;
+        nextY = this.resizeStart.positionY + deltaY;
+        break;
+      case 'corner-top-left':
+        // Top-left corner
+        nextWidth = this.resizeStart.width - deltaX;
+        nextHeight = this.resizeStart.height - deltaY;
+        nextX = this.resizeStart.positionX + deltaX;
+        nextY = this.resizeStart.positionY + deltaY;
+        break;
+      case 'corner-bottom-left':
+        // Bottom-left corner
+        nextWidth = this.resizeStart.width - deltaX;
+        nextHeight = this.resizeStart.height + deltaY;
+        nextX = this.resizeStart.positionX + deltaX;
         break;
       case 'left':
         nextWidth = this.resizeStart.width - deltaX;
@@ -219,14 +239,19 @@ export class WidgetContainerComponent {
 
     // Only enforce minimum size constraints, allow widgets to go outside page boundaries
     if (newWidth < minWidth) {
-      if (this.activeHandle === 'left' || this.activeHandle === 'corner') {
+      if (this.activeHandle === 'left' || 
+          this.activeHandle === 'corner' || 
+          this.activeHandle === 'corner-top-left' || 
+          this.activeHandle === 'corner-bottom-left') {
         newX -= minWidth - newWidth;
       }
       newWidth = minWidth;
     }
 
     if (newHeight < minHeight) {
-      if (this.activeHandle === 'top' || this.activeHandle === 'corner') {
+      if (this.activeHandle === 'top' || 
+          this.activeHandle === 'corner-top-right' || 
+          this.activeHandle === 'corner-top-left') {
         newY -= minHeight - newHeight;
       }
       newHeight = minHeight;

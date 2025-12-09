@@ -55,6 +55,25 @@
     class="widget-container__resize widget-container__resize--corner"
     type="button"
     (pointerdown)="onResizePointerDown($event, 'corner')"
+    title="Resize (bottom-right)"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--corner-top-right"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'corner-top-right')"
+    title="Resize (top-right)"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--corner-top-left"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'corner-top-left')"
+    title="Resize (top-left)"
+  ></button>
+  <button
+    class="widget-container__resize widget-container__resize--corner-bottom-left"
+    type="button"
+    (pointerdown)="onResizePointerDown($event, 'corner-bottom-left')"
+    title="Resize (bottom-left)"
   ></button>
   <button
     class="widget-container__resize widget-container__resize--left"
