@@ -195,6 +195,15 @@
                 class="chart-config-dialog__color-input"
                 title="Series color"
               />
+              <select
+                *ngIf="shouldShowSeriesTypeSelector"
+                formControlName="seriesType"
+                class="chart-config-dialog__select chart-config-dialog__select--series-type"
+                title="Chart type for this series"
+              >
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+              </select>
               <button
                 type="button"
                 class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"

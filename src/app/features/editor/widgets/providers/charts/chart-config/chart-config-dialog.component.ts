@@ -50,6 +50,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     'scatter',
     'stackedColumn',
     'stackedBar',
+    'stackedBarLine',
   ];
 
   readonly chartTypeLabels: Record<ChartType, string> = {
@@ -62,6 +63,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     scatter: 'Scatter',
     stackedColumn: 'Stacked Column',
     stackedBar: 'Stacked Bar',
+    stackedBarLine: 'Stacked Bar/Line',
   };
 
   readonly legendPositions: Array<'top' | 'bottom' | 'left' | 'right'> = [
@@ -79,6 +81,23 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     const chartData = this.data?.chartData || createDefaultChartData();
     this.initializeForm(chartData);
     
+    // Watch for chart type changes to update series types for stackedBarLine
+    this.form.get('chartType')?.valueChanges
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((chartType: ChartType) => {
+        if (chartType === 'stackedBarLine' && this.seriesFormArray.length > 1) {
+          // Update series types: first = bar, others = line
+          this.seriesFormArray.controls.forEach((seriesGroup, index) => {
+            const group = seriesGroup as FormGroup;
+            const seriesTypeControl = group.get('seriesType');
+            if (seriesTypeControl) {
+              seriesTypeControl.setValue(index === 0 ? 'bar' : 'line', { emitEvent: false });
+            } else {
+              group.addControl('seriesType', this.fb.control(index === 0 ? 'bar' : 'line'));
+            }
+          });
+        }
+      });
   }
 
   ngOnDestroy(): void {
@@ -98,7 +117,9 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
         (chartData.labels || []).map((label: string) => this.fb.control(label))
       ),
       series: this.fb.array(
-        chartData.series.map((series: ChartSeries) => this.createSeriesFormGroup(series))
+        chartData.series.map((series: ChartSeries, index: number) => 
+          this.createSeriesFormGroup(series, index, chartData.chartType)
+        )
       ),
     });
 
@@ -106,15 +127,25 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     this.csvFormControl.setValue(this.exportToCsv());
   }
 
-  private createSeriesFormGroup(series: ChartSeries = { name: '', data: [] }): FormGroup {
+  private createSeriesFormGroup(series: ChartSeries = { name: '', data: [] }, index: number = 0, chartType: ChartType = 'column'): FormGroup {
     const dataArray = this.fb.array(
       (series.data || []).map((value: number) => this.fb.control(value))
     );
+    
+    // For stackedBarLine charts, determine default series type
+    // First series defaults to 'bar', others to 'line'
+    const defaultSeriesType = chartType === 'stackedBarLine' 
+      ? (index === 0 ? 'bar' : 'line')
+      : undefined;
+    
+    // Use series.type if available, otherwise use default
+    const seriesType = series.type || defaultSeriesType;
     
     return this.fb.group({
       name: [series.name || '', Validators.required],
       color: [series.color || ''],
       data: dataArray,
+      seriesType: [seriesType], // 'bar' or 'line' for combo charts
     });
   }
 
@@ -124,6 +155,22 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
 
   get seriesFormArray(): FormArray {
     return this.form.get('series') as FormArray;
+  }
+
+  get currentChartType(): ChartType {
+    return this.form?.value?.chartType || 'column';
+  }
+
+  get isStackedBarLineChart(): boolean {
+    return this.currentChartType === 'stackedBarLine';
+  }
+
+  get hasMultipleSeries(): boolean {
+    return this.seriesFormArray.length > 1;
+  }
+
+  get shouldShowSeriesTypeSelector(): boolean {
+    return this.isStackedBarLineChart && this.hasMultipleSeries;
   }
 
   addLabel(): void {
@@ -144,7 +191,9 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
   addSeries(): void {
     const dataLength = this.labelsFormArray.length || 4;
     const emptyData = Array(dataLength).fill(0);
-    this.seriesFormArray.push(this.createSeriesFormGroup({ name: 'New Series', data: emptyData }));
+    const chartType = this.form.value.chartType;
+    const newIndex = this.seriesFormArray.length;
+    this.seriesFormArray.push(this.createSeriesFormGroup({ name: 'New Series', data: emptyData }, newIndex, chartType));
   }
 
   removeSeries(index: number): void {
@@ -226,6 +275,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
         name: s.name,
         data: s.data || [],
         color: s.color || undefined,
+        type: s.seriesType || undefined, // Include series type for combo charts
       })),
       title: formValue.title,
       xAxisLabel: formValue.xAxisLabel,
@@ -265,6 +315,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
         name: s.name,
         data: s.data || [],
         color: s.color || undefined,
+        type: s.seriesType || undefined, // Include series type for combo charts
       })),
       title: formValue.title || undefined,
       xAxisLabel: formValue.xAxisLabel || undefined,

@@ -10,6 +10,7 @@ import {
   ChartJsScatterChartHandler,
   ChartJsStackedBarChartHandler,
   ChartJsStackedColumnChartHandler,
+  ChartJsStackedBarLineChartHandler,
 } from '../handlers/chartjs';
 
 export class ChartJsChartTypeRegistry extends BaseChartTypeRegistry<ChartJsChartTypeHandler> {
@@ -24,6 +25,7 @@ export class ChartJsChartTypeRegistry extends BaseChartTypeRegistry<ChartJsChart
     this.register(new ChartJsScatterChartHandler());
     this.register(new ChartJsStackedBarChartHandler());
     this.register(new ChartJsStackedColumnChartHandler());
+    this.register(new ChartJsStackedBarLineChartHandler());
   }
 }
 

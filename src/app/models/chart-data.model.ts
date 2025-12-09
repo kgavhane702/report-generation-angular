@@ -58,7 +58,8 @@ export type ChartType =
   | 'donut'
   | 'scatter'
   | 'stackedBar'
-  | 'stackedColumn';
+  | 'stackedColumn'
+  | 'stackedBarLine';
 
 export interface ChartSeries {
   /**
