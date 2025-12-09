@@ -22,6 +22,7 @@ export function createInitialDocument(): DocumentModel {
     footer: {
       leftText: 'dummy text',
       centerText: 'Fixed text',
+      centerSubText: 'Subtext',
       showPageNumber: true,
     },
     logo: {

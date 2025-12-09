@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { DocumentModel } from '../../models/document.model';
+import { convertDocumentLogo } from '../utils/image-converter.util';
 
 /**
  * Export metadata included in exported JSON
@@ -35,57 +36,21 @@ export class ExportService {
     exportedBy?: string;
     description?: string;
   }): Promise<string> {
-    const clonedDocument = this.deepClone(documentModel);
-    
-    // Convert logo image to base64 if it's a local asset
-    if (clonedDocument.logo?.url) {
-      const logoUrl = clonedDocument.logo.url;
-      if (logoUrl.startsWith('/assets/') || logoUrl.startsWith('assets/')) {
-        try {
-          const base64Url = await this.convertImageToBase64(logoUrl);
-          if (base64Url) {
-            clonedDocument.logo.url = base64Url;
-          }
-        } catch (error) {
-          console.warn('Failed to convert logo to base64:', error);
-        }
-      }
-    }
+    const clonedDocument = JSON.parse(JSON.stringify(documentModel)) as DocumentModel;
+    const documentWithLogo = await convertDocumentLogo(clonedDocument);
 
     const exportData: DocumentExport = {
       metadata: {
         exportedAt: new Date().toISOString(),
         exportedBy: options?.exportedBy,
-        version: clonedDocument.version || '1.0.0',
-        appVersion: '1.0.0', // Could be from environment
+        version: documentWithLogo.version || '1.0.0',
+        appVersion: '1.0.0',
         description: options?.description,
       },
-      document: clonedDocument,
+      document: documentWithLogo,
     };
 
     return JSON.stringify(exportData, null, 2);
-  }
-
-  /**
-   * Convert image URL to base64 data URL
-   */
-  private async convertImageToBase64(imageUrl: string): Promise<string | null> {
-    try {
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        return null;
-      }
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Error converting image to base64:', error);
-      return null;
-    }
   }
 
   /**
@@ -139,11 +104,5 @@ export class ExportService {
     return `${sanitized}-${timestamp}.json`;
   }
 
-  /**
-   * Deep clone object to avoid reference issues
-   */
-  private deepClone<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj));
-  }
 }
 

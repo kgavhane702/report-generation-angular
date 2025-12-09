@@ -517,24 +517,9 @@ public class DocumentRenderService {
                 style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
         }
 
-        // Escape HTML special characters in the URL (especially quotes for base64 data URLs)
-        String escapedUrl = escapeHtmlAttribute(logo.getUrl());
-
         return "<div class=\"page-logo\" style=\"" + style + "\">" +
-                "<img src=\"" + escapedUrl + "\" alt=\"Logo\" style=\"max-height: 40px; max-width: 120px; object-fit: contain; display: block;\" />" +
+                "<img src=\"" + logo.getUrl() + "\" alt=\"Logo\" style=\"max-height: 40px; max-width: 120px; object-fit: contain; display: block;\" />" +
                 "</div>";
-    }
-
-    private String escapeHtmlAttribute(String value) {
-        if (value == null) {
-            return "";
-        }
-        // Escape quotes and other special characters that could break HTML attributes
-        return value.replace("&", "&amp;")
-                    .replace("\"", "&quot;")
-                    .replace("'", "&#39;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;");
     }
 
     private String renderFooter(DocumentModel document, Page page, double pageWidth, double pageHeight) {
