@@ -3,10 +3,12 @@ import {
   Component,
   HostBinding,
   Input,
+  inject,
 } from '@angular/core';
 
 import { PageModel } from '../../../models/page.model';
 import { PageSize } from '../../../models/document.model';
+import { DocumentService } from '../../../core/services/document.service';
 
 @Component({
   selector: 'app-page',
@@ -19,10 +21,8 @@ export class PageComponent {
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) subsectionId!: string;
   @Input() isActive = false;
-  @Input() logoUrl?: string;
-  @Input() footerLeftText?: string;
-  @Input() footerCenterText?: string;
-  @Input() footerSubText?: string;
+
+  private readonly documentService = inject(DocumentService);
 
   @HostBinding('class.page') hostClass = true;
 
@@ -43,7 +43,24 @@ export class PageComponent {
   }
 
   get displayLogoUrl(): string {
-    return this.logoUrl || '/assets/logo.png';
+    const logo = this.documentService.document.logo;
+    return logo?.url || '/assets/logo.png';
+  }
+
+  get footerLeftText(): string | undefined {
+    return this.documentService.document.footer?.leftText;
+  }
+
+  get footerCenterText(): string | undefined {
+    return this.documentService.document.footer?.centerText;
+  }
+
+  get footerSubText(): string | undefined {
+    return this.documentService.document.footer?.centerSubText;
+  }
+
+  get showPageNumber(): boolean {
+    return this.documentService.document.footer?.showPageNumber !== false;
   }
 
   trackByWidgetId(index: number, widget: any): string {

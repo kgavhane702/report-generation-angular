@@ -19,6 +19,15 @@ export function createInitialDocument(): DocumentModel {
     version: '1.0.0',
     pageSize: defaultPageSize(),
     sections: [section],
+    footer: {
+      leftText: 'dummy text',
+      centerText: 'Fixed text',
+      showPageNumber: true,
+    },
+    logo: {
+      url: '/assets/logo.png',
+      position: 'top-right',
+    },
   };
 }
 

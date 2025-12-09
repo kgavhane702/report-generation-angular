@@ -6,21 +6,15 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DocumentModel {
-    private String title;
-    private PageSize pageSize = new PageSize();
-    private List<Section> sections = new ArrayList<>();
-    private FooterConfig footer;
-    private LogoConfig logo;
+public class FooterConfig {
+    private String leftText;
+    private String centerText;
+    private String centerSubText;
+    private Boolean showPageNumber;
 }
-
-
 

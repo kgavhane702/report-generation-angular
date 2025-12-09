@@ -45,7 +45,9 @@ export class EditorToolbarComponent {
    */
   exportDocument(): void {
     const document = this.documentService.document;
-    this.exportService.exportToFile(document);
+    this.exportService.exportToFile(document).catch(error => {
+      console.error('Failed to export file:', error);
+    });
   }
 
   /**

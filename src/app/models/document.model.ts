@@ -9,6 +9,20 @@ export interface DocumentModel {
   pageSize: PageSize;
   sections: SectionModel[];
   metadata?: Record<string, unknown>;
+  footer?: FooterConfig;
+  logo?: LogoConfig;
+}
+
+export interface FooterConfig {
+  leftText?: string;
+  centerText?: string;
+  centerSubText?: string;
+  showPageNumber?: boolean;
+}
+
+export interface LogoConfig {
+  url?: string;
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
 export interface PageSize {

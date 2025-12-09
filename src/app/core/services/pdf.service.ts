@@ -22,15 +22,18 @@ export class PdfService {
    * Generate PDF from document
    */
   async generatePDF(documentModel: DocumentModel): Promise<Observable<Blob>> {
-    console.log('Starting PDF generation, exporting charts...');
+    console.log('Starting PDF generation, exporting charts and logo...');
     // Export all charts to base64 before sending to backend
     const documentWithCharts = await this.chartExportService.exportAllCharts(documentModel);
+
+    // Convert logo image to base64 if it's a local asset
+    const documentWithLogo = await this.convertLogoToBase64(documentWithCharts);
 
     // Verify charts were exported
     let chartCount = 0;
     let exportedCount = 0;
-    if (documentWithCharts.sections) {
-      for (const section of documentWithCharts.sections) {
+    if (documentWithLogo.sections) {
+      for (const section of documentWithLogo.sections) {
         for (const subsection of section.subsections) {
           for (const page of subsection.pages) {
             for (const widget of page.widgets) {
@@ -51,18 +54,88 @@ export class PdfService {
     }
     console.log(`Chart export summary: ${exportedCount}/${chartCount} charts exported`);
 
+    // Verify logo was converted
+    if (documentWithLogo.logo?.url) {
+      if (documentWithLogo.logo.url.startsWith('data:')) {
+        console.log('Logo converted to base64 successfully');
+      } else {
+        console.warn('Logo URL is not a base64 data URL:', documentWithLogo.logo.url);
+      }
+    }
+
     const headers = new HttpHeaders({
       'Content-Type': 'application/json',
     });
 
     return this.http.post<Blob>(
       this.apiUrl,
-      { document: documentWithCharts },
+      { document: documentWithLogo },
       {
         headers,
         responseType: 'blob' as 'json',
       }
     );
+  }
+
+  /**
+   * Convert logo image to base64 data URL if it's a local asset
+   */
+  private async convertLogoToBase64(documentModel: DocumentModel): Promise<DocumentModel> {
+    const clonedDocument = JSON.parse(JSON.stringify(documentModel)) as DocumentModel;
+    
+    if (clonedDocument.logo?.url) {
+      const logoUrl = clonedDocument.logo.url;
+      // Convert if it's a local asset path (not already a data URL or external URL)
+      if (logoUrl.startsWith('/assets/') || logoUrl.startsWith('assets/')) {
+        try {
+          const base64Url = await this.convertImageToBase64(logoUrl);
+          if (base64Url) {
+            clonedDocument.logo.url = base64Url;
+            console.log('Logo converted to base64');
+          } else {
+            console.warn('Failed to convert logo to base64 - returned null');
+          }
+        } catch (error) {
+          console.error('Error converting logo to base64:', error);
+        }
+      } else if (logoUrl.startsWith('data:')) {
+        console.log('Logo is already a data URL');
+      } else {
+        console.warn('Logo URL is not a local asset, may not work in PDF:', logoUrl);
+      }
+    }
+    
+    return clonedDocument;
+  }
+
+  /**
+   * Convert image URL to base64 data URL
+   */
+  private async convertImageToBase64(imageUrl: string): Promise<string | null> {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        console.error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+        return null;
+      }
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          console.log(`Image converted to base64, length: ${result.length}`);
+          resolve(result);
+        };
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+          reject(error);
+        };
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      return null;
+    }
   }
 
   /**

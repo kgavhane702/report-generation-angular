@@ -16,6 +16,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Page {
     private String id;
+    private Integer number;
     private String orientation;
     private List<Widget> widgets = new ArrayList<>();
 }

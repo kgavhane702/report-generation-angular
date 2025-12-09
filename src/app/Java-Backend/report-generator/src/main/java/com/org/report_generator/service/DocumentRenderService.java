@@ -3,6 +3,8 @@ package com.org.report_generator.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.org.report_generator.model.document.DocumentModel;
+import com.org.report_generator.model.document.FooterConfig;
+import com.org.report_generator.model.document.LogoConfig;
 import com.org.report_generator.model.document.Page;
 import com.org.report_generator.model.document.PageSize;
 import com.org.report_generator.model.document.Section;
@@ -89,11 +91,18 @@ public class DocumentRenderService {
                 .append(pageName)
                 .append(";\"><div class=\"page-surface\">");
 
+        // Render logo if configured
+        builder.append(renderLogo(document, widthPx, heightPx));
+
+        // Render widgets
         if (page.getWidgets() != null) {
             for (Widget widget : page.getWidgets()) {
                 builder.append(renderWidget(widget));
             }
         }
+
+        // Render footer if configured
+        builder.append(renderFooter(document, page, widthPx, heightPx));
 
         builder.append("</div></div>");
         return builder.toString();
@@ -480,6 +489,98 @@ public class DocumentRenderService {
             return "";
         }
         return input.replaceAll("([a-z])([A-Z]+)", "$1-$2").toLowerCase(Locale.ROOT);
+    }
+
+    private String renderLogo(DocumentModel document, double pageWidth, double pageHeight) {
+        LogoConfig logo = document.getLogo();
+        if (logo == null || logo.getUrl() == null || logo.getUrl().isBlank()) {
+            return "";
+        }
+
+        String position = Optional.ofNullable(logo.getPosition()).orElse("top-right").toLowerCase(Locale.ROOT);
+        String style = "position: absolute; z-index: 1000; padding: 12px 16px; pointer-events: none;";
+
+        switch (position) {
+            case "top-left":
+                style += "top: 0; left: 0;";
+                break;
+            case "top-right":
+                style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
+                break;
+            case "bottom-left":
+                style += "bottom: 0; left: 0;";
+                break;
+            case "bottom-right":
+                style += "bottom: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
+                break;
+            default:
+                style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
+        }
+
+        // Escape HTML special characters in the URL (especially quotes for base64 data URLs)
+        String escapedUrl = escapeHtmlAttribute(logo.getUrl());
+
+        return "<div class=\"page-logo\" style=\"" + style + "\">" +
+                "<img src=\"" + escapedUrl + "\" alt=\"Logo\" style=\"max-height: 40px; max-width: 120px; object-fit: contain; display: block;\" />" +
+                "</div>";
+    }
+
+    private String escapeHtmlAttribute(String value) {
+        if (value == null) {
+            return "";
+        }
+        // Escape quotes and other special characters that could break HTML attributes
+        return value.replace("&", "&amp;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&#39;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;");
+    }
+
+    private String renderFooter(DocumentModel document, Page page, double pageWidth, double pageHeight) {
+        FooterConfig footer = document.getFooter();
+        if (footer == null) {
+            return "";
+        }
+
+        boolean hasContent = (footer.getLeftText() != null && !footer.getLeftText().isBlank()) ||
+                            (footer.getCenterText() != null && !footer.getCenterText().isBlank()) ||
+                            (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) ||
+                            (footer.getShowPageNumber() != null && footer.getShowPageNumber());
+
+        if (!hasContent) {
+            return "";
+        }
+
+        StringBuilder footerHtml = new StringBuilder();
+        footerHtml.append("<div class=\"page-footer\" style=\"position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000; display: flex; justify-content: space-between; align-items: flex-end; padding: 4px 20px; pointer-events: none; background: rgba(255, 255, 255, 0.95);\">");
+
+        // Left text
+        footerHtml.append("<div class=\"page-footer-left\" style=\"font-size: 12px; color: #1e40af; font-weight: 500; flex: 1; text-align: left; line-height: 1.2; padding-bottom: 2px;\">");
+        if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
+            footerHtml.append(footer.getLeftText());
+        }
+        footerHtml.append("</div>");
+
+        // Center text
+        footerHtml.append("<div class=\"page-footer-center\" style=\"font-size: 12px; color: #374151; font-weight: 500; flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1px; padding-bottom: 2px;\">");
+        if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
+            footerHtml.append("<div style=\"line-height: 1.2;\">").append(footer.getCenterText()).append("</div>");
+        }
+        if (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) {
+            footerHtml.append("<div style=\"line-height: 1.2;\">").append(footer.getCenterSubText()).append("</div>");
+        }
+        footerHtml.append("</div>");
+
+        // Right - Page number
+        footerHtml.append("<div class=\"page-footer-right\" style=\"font-size: 12px; color: #374151; font-weight: 500; flex: 1; text-align: right; line-height: 1.2; padding-bottom: 2px;\">");
+        if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
+            footerHtml.append(page.getNumber());
+        }
+        footerHtml.append("</div>");
+
+        footerHtml.append("</div>");
+        return footerHtml.toString();
     }
 }
 
