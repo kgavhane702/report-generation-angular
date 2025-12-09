@@ -25,8 +25,7 @@ import {
   RichTextEditorService,
 } from './rich-text-editor.interface';
 
-const LICENSE_KEY =
-  'eyJhbGciOiJFUzI1NiJ9.eyJleHAiOjE3NjUwNjU1OTksImp0aSI6Ijg1YWQ4MjAxLTc0YzctNDAzNi04MjMwLWE4MjQyMmI1N2JkZCIsInVzYWdlRW5kcG9pbnQiOiJodHRwczovL3Byb3h5LWV2ZW50LmNrZWRpdG9yLmNvbSIsImRpc3RyaWJ1dGlvbkNoYW5uZWwiOlsiY2xvdWQiLCJkcnVwYWwiLCJzaCJdLCJ3aGl0ZUxhYmVsIjp0cnVlLCJsaWNlbnNlVHlwZSI6InRyaWFsIiwiZmVhdHVyZXMiOlsiKiJdLCJ2YyI6ImY2MzhhZDBjIn0.AGy8x5nxrh4P7aw3QHRK_2OaIlYgL_ziwX5DjGkkUknBH97-8zgyRUZIq5JhegH2bOg0hAP1r7XQzgS2qMRJZg';
+const LICENSE_KEY = 'GPL';
 
 /**
  * CKEditor implementation of RichTextEditor
