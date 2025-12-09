@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 
@@ -17,6 +17,22 @@ import {
   createSectionModel,
   createSubsectionModel,
 } from '../utils/document.factory';
+import { UndoRedoService } from './undo-redo.service';
+import {
+  AddWidgetCommand,
+  UpdateWidgetCommand,
+  DeleteWidgetCommand,
+  UpdatePageSizeCommand,
+  AddSectionCommand,
+  DeleteSectionCommand,
+  AddSubsectionCommand,
+  DeleteSubsectionCommand,
+  AddPageCommand,
+  DeletePageCommand,
+  RenameSectionCommand,
+  RenameSubsectionCommand,
+  RenamePageCommand,
+} from './document-commands';
 
 @Injectable({
   providedIn: 'root',
@@ -26,6 +42,7 @@ export class DocumentService {
   private readonly documentSignal = toSignal(this.document$, {
     initialValue: createInitialDocument(),
   });
+  private readonly undoRedoService = inject(UndoRedoService);
 
   constructor(private readonly store: Store<AppState>) {}
 
@@ -34,9 +51,15 @@ export class DocumentService {
   }
 
   addWidget(subsectionId: string, pageId: string, widget: WidgetModel): void {
-    this.store.dispatch(
-      DocumentActions.addWidget({ subsectionId, pageId, widget })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new AddWidgetCommand(
+      this.store,
+      subsectionId,
+      pageId,
+      widget,
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   updateWidget(
@@ -45,14 +68,16 @@ export class DocumentService {
     widgetId: string,
     mutation: Partial<WidgetModel>
   ): void {
-    this.store.dispatch(
-      DocumentActions.updateWidget({
-        subsectionId,
-        pageId,
-        widgetId,
-        changes: mutation,
-      })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new UpdateWidgetCommand(
+      this.store,
+      subsectionId,
+      pageId,
+      widgetId,
+      mutation,
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   replaceDocument(document: DocumentModel): void {
@@ -60,7 +85,13 @@ export class DocumentService {
   }
 
   updatePageSize(pageSize: Partial<PageSize>): void {
-    this.store.dispatch(DocumentActions.updatePageSize({ pageSize }));
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new UpdatePageSizeCommand(
+      this.store,
+      pageSize,
+      previousDocument
+    );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   addSection(): HierarchySelection {
@@ -71,7 +102,9 @@ export class DocumentService {
     const subsection = createSubsectionModel(subsectionTitle, [page]);
     const section = createSectionModel(sectionTitle, [subsection]);
 
-    this.store.dispatch(DocumentActions.addSection({ section }));
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new AddSectionCommand(this.store, section, previousDocument);
+    this.undoRedoService.executeDocumentCommand(command);
 
     return {
       sectionId: section.id,
@@ -91,9 +124,14 @@ export class DocumentService {
     const page = createPageModel(1);
     const subsection = createSubsectionModel(subsectionTitle, [page]);
 
-    this.store.dispatch(
-      DocumentActions.addSubsection({ sectionId, subsection })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new AddSubsectionCommand(
+      this.store,
+      sectionId,
+      subsection,
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
 
     return {
       subsectionId: subsection.id,
@@ -109,7 +147,9 @@ export class DocumentService {
     const nextNumber = subsection.pages.length + 1;
     const page = createPageModel(nextNumber);
 
-    this.store.dispatch(DocumentActions.addPage({ subsectionId, page }));
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new AddPageCommand(this.store, subsectionId, page, previousDocument);
+    this.undoRedoService.executeDocumentCommand(command);
     return page.id;
   }
 
@@ -126,25 +166,37 @@ export class DocumentService {
   }
 
   renameSection(sectionId: string, title: string): void {
-    this.store.dispatch(
-      DocumentActions.renameSection({ sectionId, title: title.trim() })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new RenameSectionCommand(
+      this.store,
+      sectionId,
+      title.trim(),
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   renameSubsection(subsectionId: string, title: string): void {
-    this.store.dispatch(
-      DocumentActions.renameSubsection({ subsectionId, title: title.trim() })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new RenameSubsectionCommand(
+      this.store,
+      subsectionId,
+      title.trim(),
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   renamePage(subsectionId: string, pageId: string, title: string): void {
-    this.store.dispatch(
-      DocumentActions.renamePage({
-        subsectionId,
-        pageId,
-        title: title.trim(),
-      })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new RenamePageCommand(
+      this.store,
+      subsectionId,
+      pageId,
+      title.trim(),
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
   }
 
   updatePageOrientation(
@@ -172,7 +224,13 @@ export class DocumentService {
     const fallbackSubsection = fallback?.subsections[0] ?? null;
     const fallbackPage = fallbackSubsection?.pages[0] ?? null;
 
-    this.store.dispatch(DocumentActions.deleteSection({ sectionId }));
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new DeleteSectionCommand(
+      this.store,
+      sectionId,
+      previousDocument
+    );
+    this.undoRedoService.executeDocumentCommand(command);
 
     return {
       sectionId: fallback?.id ?? null,
@@ -198,9 +256,14 @@ export class DocumentService {
     const fallback = subsections[index + 1] ?? subsections[index - 1];
     const fallbackPage = fallback?.pages[0] ?? null;
 
-    this.store.dispatch(
-      DocumentActions.deleteSubsection({ sectionId, subsectionId })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new DeleteSubsectionCommand(
+      this.store,
+      sectionId,
+      subsectionId,
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
 
     return {
       subsectionId: fallback?.id ?? null,
@@ -222,7 +285,14 @@ export class DocumentService {
 
     const fallback = pages[index + 1] ?? pages[index - 1];
 
-    this.store.dispatch(DocumentActions.deletePage({ subsectionId, pageId }));
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new DeletePageCommand(
+      this.store,
+      subsectionId,
+      pageId,
+      previousDocument
+    );
+    this.undoRedoService.executeDocumentCommand(command);
 
     return fallback?.id ?? null;
   }
@@ -232,9 +302,22 @@ export class DocumentService {
     pageId: string,
     widgetId: string
   ): void {
-    this.store.dispatch(
-      DocumentActions.deleteWidget({ subsectionId, pageId, widgetId })
+    const previousDocument = this.deepCloneDocument(this.document);
+    const command = new DeleteWidgetCommand(
+      this.store,
+      subsectionId,
+      pageId,
+      widgetId,
+      previousDocument
     );
+    this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  /**
+   * Deep clone document for undo/redo history
+   */
+  private deepCloneDocument(doc: DocumentModel): DocumentModel {
+    return JSON.parse(JSON.stringify(doc));
   }
 }
 

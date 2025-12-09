@@ -1,0 +1,45 @@
+<div class="zoom-controls">
+  <button
+    type="button"
+    class="zoom-controls__button"
+    (click)="zoomOut()"
+    title="Zoom Out"
+    aria-label="Zoom Out"
+  >
+    <span>−</span>
+  </button>
+  <div class="zoom-controls__slider-container">
+    <input
+      type="range"
+      class="zoom-controls__slider"
+      [value]="zoom()"
+      (input)="onZoomChange(+$any($event.target).value)"
+      (change)="onZoomChange(+$any($event.target).value)"
+      min="10"
+      max="400"
+      step="1"
+      title="Zoom Level"
+      aria-label="Zoom Level"
+    />
+    <span class="zoom-controls__value">{{ zoom() }}%</span>
+  </div>
+  <button
+    type="button"
+    class="zoom-controls__button"
+    (click)="zoomIn()"
+    title="Zoom In"
+    aria-label="Zoom In"
+  >
+    <span>+</span>
+  </button>
+  <button
+    type="button"
+    class="zoom-controls__fit"
+    (click)="resetZoom()"
+    title="Fit to Window"
+    aria-label="Reset Zoom"
+  >
+    Fit
+  </button>
+</div>
+

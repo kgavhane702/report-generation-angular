@@ -1,0 +1,41 @@
+.undo-redo-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.undo-redo-controls__button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  color: #475569;
+  transition: all 120ms ease;
+  padding: 0;
+
+  &:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: rgba(15, 23, 42, 0.2);
+    color: #1e293b;
+  }
+
+  &:active:not(:disabled) {
+    background: #e2e8f0;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
