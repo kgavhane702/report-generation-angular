@@ -18,6 +18,7 @@ import {
   createSubsectionModel,
 } from '../utils/document.factory';
 import { UndoRedoService } from './undo-redo.service';
+import { ClipboardService } from './clipboard.service';
 import {
   AddWidgetCommand,
   UpdateWidgetCommand,
@@ -33,6 +34,7 @@ import {
   RenameSubsectionCommand,
   RenamePageCommand,
 } from './document-commands';
+import { WidgetFactoryService } from '../../features/editor/widgets/widget-factory.service';
 
 @Injectable({
   providedIn: 'root',
@@ -43,6 +45,8 @@ export class DocumentService {
     initialValue: createInitialDocument(),
   });
   private readonly undoRedoService = inject(UndoRedoService);
+  private readonly clipboardService = inject(ClipboardService);
+  private readonly widgetFactory = inject(WidgetFactoryService);
 
   constructor(private readonly store: Store<AppState>) {}
 
@@ -311,6 +315,90 @@ export class DocumentService {
       previousDocument
     );
     this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  /**
+   * Copy widget(s) to clipboard
+   */
+  copyWidget(subsectionId: string, pageId: string, widgetId: string): void {
+    const subsection = this.findSubsectionById(subsectionId);
+    if (!subsection) {
+      return;
+    }
+
+    const page = subsection.pages.find((p) => p.id === pageId);
+    if (!page) {
+      return;
+    }
+
+    const widget = page.widgets.find((w) => w.id === widgetId);
+    if (!widget) {
+      return;
+    }
+
+    this.clipboardService.copyWidgets([widget]);
+  }
+
+  /**
+   * Copy multiple widgets to clipboard
+   */
+  copyWidgets(subsectionId: string, pageId: string, widgetIds: string[]): void {
+    const subsection = this.findSubsectionById(subsectionId);
+    if (!subsection) {
+      return;
+    }
+
+    const page = subsection.pages.find((p) => p.id === pageId);
+    if (!page) {
+      return;
+    }
+
+    const widgets = page.widgets.filter((w) => widgetIds.includes(w.id));
+    if (widgets.length > 0) {
+      this.clipboardService.copyWidgets(widgets);
+    }
+  }
+
+  /**
+   * Paste widgets from clipboard to the specified page
+   * Widgets are offset by a small amount to avoid overlapping with originals
+   * @returns Array of pasted widget IDs
+   */
+  pasteWidgets(subsectionId: string, pageId: string): string[] {
+    const copiedWidgets = this.clipboardService.getCopiedWidgets();
+    if (copiedWidgets.length === 0) {
+      return [];
+    }
+
+    const subsection = this.findSubsectionById(subsectionId);
+    if (!subsection) {
+      return [];
+    }
+
+    const page = subsection.pages.find((p) => p.id === pageId);
+    if (!page) {
+      return [];
+    }
+
+    // Offset for pasted widgets (20px down and right)
+    const offset = { x: 20, y: 20 };
+
+    // Clone and paste each widget, collecting their IDs
+    const pastedWidgetIds: string[] = [];
+    copiedWidgets.forEach((widget) => {
+      const clonedWidget = this.widgetFactory.cloneWidget(widget, offset);
+      pastedWidgetIds.push(clonedWidget.id);
+      this.addWidget(subsectionId, pageId, clonedWidget);
+    });
+
+    return pastedWidgetIds;
+  }
+
+  /**
+   * Check if there are widgets in the clipboard
+   */
+  canPaste(): boolean {
+    return this.clipboardService.hasCopiedWidgets();
   }
 
   /**

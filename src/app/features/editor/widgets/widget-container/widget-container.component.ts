@@ -193,8 +193,9 @@ export class WidgetContainerComponent {
     this.editorState.setActiveWidget(this.widget.id);
   }
 
-  onDeleteClick(event: MouseEvent): void {
+  onDeleteClick(event: MouseEvent | PointerEvent): void {
     event.stopPropagation();
+    event.preventDefault();
     this.documentService.deleteWidget(
       this.subsectionId,
       this.pageId,

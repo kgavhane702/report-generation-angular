@@ -104,5 +104,31 @@ export class WidgetFactoryService {
       props: {} as WidgetProps,
     };
   }
+
+  /**
+   * Clone a widget with a new ID and optionally offset position
+   */
+  cloneWidget(widget: WidgetModel, positionOffset?: { x: number; y: number }): WidgetModel {
+    const clonedWidget: WidgetModel = {
+      ...widget,
+      id: uuid(),
+      position: positionOffset
+        ? {
+            x: widget.position.x + positionOffset.x,
+            y: widget.position.y + positionOffset.y,
+          }
+        : { ...widget.position },
+    };
+
+    // Deep clone props to avoid reference issues
+    clonedWidget.props = JSON.parse(JSON.stringify(widget.props));
+
+    // Deep clone style if it exists
+    if (widget.style) {
+      clonedWidget.style = { ...widget.style };
+    }
+
+    return clonedWidget;
+  }
 }
 
