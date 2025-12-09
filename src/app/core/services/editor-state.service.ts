@@ -13,11 +13,13 @@ export class EditorStateService {
   private readonly subsectionId = signal<string | null>(null);
   private readonly pageId = signal<string | null>(null);
   private readonly widgetId = signal<string | null>(null);
+  private readonly zoomLevel = signal<number>(100); // Zoom level in percentage (100 = 100%)
 
   readonly activeSectionId = this.sectionId.asReadonly();
   readonly activeSubsectionId = this.subsectionId.asReadonly();
   readonly activePageId = this.pageId.asReadonly();
   readonly activeWidgetId = this.widgetId.asReadonly();
+  readonly zoom = this.zoomLevel.asReadonly();
 
   readonly document = computed<DocumentModel>(() => this.documentService.document);
 
@@ -105,6 +107,56 @@ export class EditorStateService {
 
   setActiveWidget(widgetId: string | null): void {
     this.widgetId.set(widgetId);
+  }
+
+  setZoom(zoom: number): void {
+    // Clamp zoom between 10% and 400%
+    const clampedZoom = Math.max(10, Math.min(400, zoom));
+    this.zoomLevel.set(clampedZoom);
+  }
+
+  zoomIn(): void {
+    const currentZoom = this.zoomLevel();
+    const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400];
+    const nextZoom = zoomSteps.find(step => step > currentZoom) || 400;
+    this.setZoom(nextZoom);
+  }
+
+  zoomOut(): void {
+    const currentZoom = this.zoomLevel();
+    const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400];
+    const previousZoom = [...zoomSteps].reverse().find(step => step < currentZoom) || 25;
+    this.setZoom(previousZoom);
+  }
+
+  resetZoom(): void {
+    this.setZoom(100);
+  }
+
+  /**
+   * Calculate zoom level to fit page within viewport
+   * This should be called from a component that has access to DOM measurements
+   */
+  calculateFitToWindowZoom(
+    pageWidth: number,
+    pageHeight: number,
+    viewportWidth: number,
+    viewportHeight: number,
+    padding: { top: number; right: number; bottom: number; left: number }
+  ): number {
+    // Calculate available space (viewport minus padding)
+    const availableWidth = viewportWidth - padding.left - padding.right;
+    const availableHeight = viewportHeight - padding.top - padding.bottom;
+
+    // Calculate zoom ratios for width and height
+    const widthRatio = (availableWidth / pageWidth) * 100;
+    const heightRatio = (availableHeight / pageHeight) * 100;
+
+    // Use the smaller ratio to ensure the page fits completely
+    const fitZoom = Math.min(widthRatio, heightRatio);
+
+    // Clamp between 10% and 400%
+    return Math.max(10, Math.min(400, Math.floor(fitZoom)));
   }
 }
 

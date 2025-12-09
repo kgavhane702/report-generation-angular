@@ -3,7 +3,6 @@
   [attr.data-widget-id]="widget.id"
   cdkDrag
   [cdkDragDisabled]="isEditing || isResizing"
-  [cdkDragBoundary]="dragBoundarySelector"
   (cdkDragEnded)="onDragEnded($event)"
   (pointerdown)="onWidgetPointerDown()"
   [style.left.px]="frame.x"

@@ -7,6 +7,50 @@
     <button type="button" (click)="addWidget('image')">Image</button>
   </div>
 
+  <div class="editor-toolbar__group editor-toolbar__group--zoom">
+    <button
+      type="button"
+      class="editor-toolbar__zoom-button"
+      (click)="zoomOut()"
+      title="Zoom Out"
+      aria-label="Zoom Out"
+    >
+      <span>−</span>
+    </button>
+    <div class="editor-toolbar__zoom-control">
+      <input
+        type="range"
+        class="editor-toolbar__zoom-slider"
+        [value]="zoom()"
+        (input)="onZoomChange(+$any($event.target).value)"
+        min="10"
+        max="400"
+        step="1"
+        title="Zoom Level"
+        aria-label="Zoom Level"
+      />
+      <span class="editor-toolbar__zoom-value">{{ zoom() }}%</span>
+    </div>
+    <button
+      type="button"
+      class="editor-toolbar__zoom-button"
+      (click)="zoomIn()"
+      title="Zoom In"
+      aria-label="Zoom In"
+    >
+      <span>+</span>
+    </button>
+    <button
+      type="button"
+      class="editor-toolbar__zoom-reset"
+      (click)="resetZoom()"
+      title="Fit to Window"
+      aria-label="Reset Zoom"
+    >
+      Fit
+    </button>
+  </div>
+
   <div class="editor-toolbar__group editor-toolbar__group--export">
     <span class="editor-toolbar__label">Document</span>
     <button

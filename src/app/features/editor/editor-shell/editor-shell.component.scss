@@ -44,8 +44,8 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  // Add extra left padding to allow scrolling to show content that extends into sidebar area when zoomed
-  padding: 2rem 3rem 2rem calc(3rem + 280px);
+  // Equal padding on both sides for proper centering
+  padding: 2rem 3rem;
   box-sizing: border-box;
   background: #e2e8f0;
   

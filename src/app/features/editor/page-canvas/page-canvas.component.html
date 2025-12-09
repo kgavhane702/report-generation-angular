@@ -1,12 +1,18 @@
 <ng-container *ngIf="editorState.activeSubsection() as subsection">
-  <section class="page-canvas__viewport">
-    <app-page
-      *ngFor="let page of subsection.pages"
-      [page]="page"
-      [pageSize]="documentService.document.pageSize"
-      [subsectionId]="subsection.id"
-      [isActive]="editorState.activePageId() === page.id"
-    ></app-page>
-  </section>
+  <div class="page-canvas__wrapper">
+    <section
+      class="page-canvas__viewport"
+      [style.transform]="zoomTransform"
+      [style.transform-origin]="zoomOrigin"
+    >
+      <app-page
+        *ngFor="let page of subsection.pages"
+        [page]="page"
+        [pageSize]="documentService.document.pageSize"
+        [subsectionId]="subsection.id"
+        [isActive]="editorState.activePageId() === page.id"
+      ></app-page>
+    </section>
+  </div>
 </ng-container>
 

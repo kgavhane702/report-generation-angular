@@ -1,7 +1,7 @@
 .page-canvas {
   flex: 0 0 auto;
-  width: 100%;
-  min-width: 100%;
+  width: auto;
+  max-width: 100%;
   padding: 2rem 2.5rem;
   border-radius: 32px;
   background: radial-gradient(
@@ -19,9 +19,21 @@
   margin: 0 auto;
 }
 
+// Wrapper that extends leftward to allow scrolling to content behind sidebar
+.page-canvas__wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  // Extend leftward by sidebar width to allow scrolling
+  margin-left: -280px;
+  padding-left: 280px;
+  min-width: calc(100% + 280px);
+  box-sizing: border-box;
+}
+
 .page-canvas__viewport {
   width: max-content;
-  min-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -30,5 +42,8 @@
   box-sizing: border-box;
   // Ensure viewport can extend beyond visible area when zoomed
   position: relative;
+  // Maintain aspect ratio during zoom
+  transform-origin: top center;
+  will-change: transform;
 }
 

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ChangeDetectorRef, effect } from '@angular/core';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -22,8 +22,18 @@ export class EditorToolbarComponent {
   private readonly pdfService = inject(PdfService);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly document$ = this.documentService.document$;
+  readonly zoom = this.editorState.zoom;
+
+  constructor() {
+    // Trigger change detection when zoom changes
+    effect(() => {
+      this.editorState.zoom();
+      this.cdr.markForCheck();
+    });
+  }
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
@@ -183,6 +193,115 @@ export class EditorToolbarComponent {
       console.error('Error generating PDF:', error);
       alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure the PDF backend server is running on http://localhost:3000`);
     }
+  }
+
+  onZoomChange(value: number): void {
+    this.editorState.setZoom(value);
+  }
+
+  zoomIn(): void {
+    this.editorState.zoomIn();
+  }
+
+  zoomOut(): void {
+    this.editorState.zoomOut();
+  }
+
+  resetZoom(): void {
+    // Try to get fit zoom from page canvas component
+    // For now, we'll use a simpler approach - calculate based on viewport
+    this.calculateAndSetFitZoom();
+  }
+
+  private calculateAndSetFitZoom(): void {
+    // Get the canvas element
+    const canvasElement = window.document.querySelector('.editor-shell__canvas') as HTMLElement;
+    if (!canvasElement) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    // Get viewport dimensions
+    const viewportWidth = canvasElement.clientWidth;
+    const viewportHeight = canvasElement.clientHeight;
+
+    if (viewportWidth === 0 || viewportHeight === 0) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    // Get active page dimensions
+    const subsection = this.editorState.activeSubsection();
+    if (!subsection || subsection.pages.length === 0) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    const activePage = subsection.pages.find(
+      (p) => p.id === this.editorState.activePageId()
+    ) || subsection.pages[0];
+
+    if (!activePage) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    const doc = this.documentService.document;
+    const pageSize = doc.pageSize;
+    const orientation = activePage.orientation || 'landscape';
+    const { widthMm, heightMm } = pageSize;
+
+    // Get oriented dimensions
+    let pageWidthMm = widthMm;
+    let pageHeightMm = heightMm;
+    if (orientation === 'portrait' && widthMm > heightMm) {
+      pageWidthMm = heightMm;
+      pageHeightMm = widthMm;
+    } else if (orientation === 'landscape' && heightMm > widthMm) {
+      pageWidthMm = heightMm;
+      pageHeightMm = widthMm;
+    }
+
+    // Convert to pixels
+    const dpi = pageSize.dpi ?? 96;
+    const pageWidthPx = Math.round((pageWidthMm / 25.4) * dpi);
+    const pageHeightPx = Math.round((pageHeightMm / 25.4) * dpi);
+
+    if (pageWidthPx === 0 || pageHeightPx === 0) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    // Account for padding
+    // Canvas: 2rem (32px) top/bottom, 3rem (48px) left/right
+    // Page canvas: 2rem (32px) top/bottom, 2.5rem (40px) left/right
+    // Also account for gap between pages (2rem = 32px)
+    const totalPadding = {
+      top: 32 + 32,    // canvas top + page-canvas top
+      right: 48 + 40,  // canvas right + page-canvas right
+      bottom: 32 + 32, // canvas bottom + page-canvas bottom
+      left: 48 + 40,   // canvas left + page-canvas left
+    };
+
+    // Calculate available space
+    const availableWidth = viewportWidth - totalPadding.left - totalPadding.right;
+    const availableHeight = viewportHeight - totalPadding.top - totalPadding.bottom;
+
+    if (availableWidth <= 0 || availableHeight <= 0) {
+      this.editorState.setZoom(100);
+      return;
+    }
+
+    // Calculate zoom ratios
+    const widthRatio = (availableWidth / pageWidthPx) * 100;
+    const heightRatio = (availableHeight / pageHeightPx) * 100;
+
+    // Use the smaller ratio to ensure page fits completely
+    const fitZoom = Math.min(widthRatio, heightRatio);
+
+    // Clamp and set zoom (round to nearest integer for cleaner display)
+    const clampedZoom = Math.max(10, Math.min(400, Math.round(fitZoom)));
+    this.editorState.setZoom(clampedZoom);
   }
 }
 
