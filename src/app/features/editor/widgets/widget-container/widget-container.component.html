@@ -9,7 +9,7 @@
   [style.top.px]="frame.y"
   [style.width.px]="frame.width"
   [style.height.px]="frame.height"
-  [style.zIndex]="widget.zIndex"
+  [style.zIndex]="calculatedZIndex"
 >
   <ng-container [ngSwitch]="widget.type">
     <app-text-widget

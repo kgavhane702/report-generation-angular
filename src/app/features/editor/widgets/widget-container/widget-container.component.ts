@@ -61,6 +61,15 @@ export class WidgetContainerComponent {
     return this.editorState.activeWidgetId() === this.widget?.id;
   }
 
+  /**
+   * Calculate z-index to ensure widgets appear above footer/logo (z-index: 1000)
+   * Base z-index is 2000, plus widget's zIndex for relative ordering
+   */
+  get calculatedZIndex(): number {
+    const baseZIndex = 2000; // Higher than footer/logo (1000)
+    return baseZIndex + (this.widget?.zIndex ?? 1);
+  }
+
   get frame(): WidgetFrame {
     if (this.previewFrame) {
       return this.previewFrame;
