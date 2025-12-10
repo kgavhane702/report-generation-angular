@@ -11,35 +11,44 @@
   [style.height.px]="frame.height"
   [style.zIndex]="calculatedZIndex"
 >
-  <ng-container [ngSwitch]="widget.type">
-    <app-text-widget
-      *ngSwitchCase="'text'"
-      [widget]="widget"
-      (editingChange)="onEditingChange($event)"
-      (propsChange)="onContentChange($event)"
-    ></app-text-widget>
+  <!-- Border drag handles - only these areas allow dragging -->
+  <div class="widget-container__drag-handle widget-container__drag-handle--top" cdkDragHandle></div>
+  <div class="widget-container__drag-handle widget-container__drag-handle--bottom" cdkDragHandle></div>
+  <div class="widget-container__drag-handle widget-container__drag-handle--left" cdkDragHandle></div>
+  <div class="widget-container__drag-handle widget-container__drag-handle--right" cdkDragHandle></div>
 
-    <app-chart-widget
-      *ngSwitchCase="'chart'"
-      [widget]="widget"
-      (chartPropsChange)="onChartPropsChange($event)"
-    ></app-chart-widget>
+  <!-- Widget content - not draggable -->
+  <div class="widget-container__content">
+    <ng-container [ngSwitch]="widget.type">
+      <app-text-widget
+        *ngSwitchCase="'text'"
+        [widget]="widget"
+        (editingChange)="onEditingChange($event)"
+        (propsChange)="onContentChange($event)"
+      ></app-text-widget>
 
-    <app-table-widget
-      *ngSwitchCase="'table'"
-      [widget]="widget"
-      (tablePropsChange)="onTablePropsChange($event)"
-    ></app-table-widget>
+      <app-chart-widget
+        *ngSwitchCase="'chart'"
+        [widget]="widget"
+        (chartPropsChange)="onChartPropsChange($event)"
+      ></app-chart-widget>
 
-    <app-image-widget
-      *ngSwitchCase="'image'"
-      [widget]="widget"
-    ></app-image-widget>
+      <app-table-widget
+        *ngSwitchCase="'table'"
+        [widget]="widget"
+        (tablePropsChange)="onTablePropsChange($event)"
+      ></app-table-widget>
 
-    <div *ngSwitchDefault class="widget-container__placeholder">
-      {{ widget.type }} widget
-    </div>
-  </ng-container>
+      <app-image-widget
+        *ngSwitchCase="'image'"
+        [widget]="widget"
+      ></app-image-widget>
+
+      <div *ngSwitchDefault class="widget-container__placeholder">
+        {{ widget.type }} widget
+      </div>
+    </ng-container>
+  </div>
 
   <ng-container *ngIf="isSelected">
     <button

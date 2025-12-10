@@ -6,9 +6,70 @@
   will-change: transform;
 }
 
+.widget-container__content {
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+// Show background when widget is selected
+.widget-container--selected .widget-container__content {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+// Drag handles on the border - these are the only areas that allow dragging
+.widget-container__drag-handle {
+  position: absolute;
+  background: transparent;
+  z-index: 1;
+  pointer-events: none; // Disabled by default
+  cursor: default;
+  
+  // Enable pointer events and show move cursor only when widget is selected or hovered
+  .widget-container:hover &,
+  .widget-container--selected & {
+    pointer-events: auto;
+    cursor: move;
+  }
+}
+
+// Top border handle
+.widget-container__drag-handle--top {
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+// Bottom border handle
+.widget-container__drag-handle--bottom {
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+// Left border handle
+.widget-container__drag-handle--left {
+  top: 0;
+  left: -4px;
+  bottom: 0;
+  width: 8px;
+}
+
+// Right border handle
+.widget-container__drag-handle--right {
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 8px;
+}
+
 .widget-container--selected {
-  border-color: rgba(99, 102, 241, 0.9);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  border: 1px solid rgba(99, 102, 241, 0.6) !important;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3);
 }
 
 .widget-container:focus-within,
@@ -53,6 +114,8 @@
   align-items: center;
   justify-content: center;
   transition: transform 120ms ease;
+  z-index: 20; // Above drag handles
+  pointer-events: auto;
 }
 
 .widget-container__resize--corner {
@@ -139,7 +202,7 @@
   justify-content: center;
   color: #dc2626;
   transition: background-color 120ms ease, color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
-  z-index: 10;
+  z-index: 20; // Above drag handles
   opacity: 0;
   pointer-events: none;
   padding: 0;
