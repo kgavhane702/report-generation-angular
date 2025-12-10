@@ -39,7 +39,7 @@ export class WidgetFactoryService {
       size: { width: 320, height: 140 },
       zIndex: 1,
       props: {
-        contentHtml: '<p>Double click to edit text…</p>',
+        contentHtml: '<p></p>',
         flowEnabled: true,
       },
     };

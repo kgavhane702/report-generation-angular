@@ -77,6 +77,43 @@ export class ChartJsChartAdapter implements ChartAdapter {
       data.colors
     );
 
+    // Apply showAxisLines setting
+    const showAxisLines = data.showAxisLines === true;
+    if (config.options && config.options.scales) {
+      const xScale = config.options.scales['x'];
+      const yScale = config.options.scales['y'];
+      
+      if (xScale) {
+        xScale.grid = {
+          display: showAxisLines,
+          color: showAxisLines ? '#e6e6e6' : 'transparent',
+        };
+        // Axis line (border) is controlled through ticks.border
+        if (xScale.ticks) {
+          (xScale.ticks as any).drawBorder = showAxisLines;
+        } else {
+          xScale.ticks = {
+            drawBorder: showAxisLines,
+          } as any;
+        }
+      }
+      
+      if (yScale) {
+        yScale.grid = {
+          display: showAxisLines,
+          color: showAxisLines ? '#e6e6e6' : 'transparent',
+        };
+        // Axis line (border) is controlled through ticks.border
+        if (yScale.ticks) {
+          (yScale.ticks as any).drawBorder = showAxisLines;
+        } else {
+          yScale.ticks = {
+            drawBorder: showAxisLines,
+          } as any;
+        }
+      }
+    }
+
     return config;
   }
 }

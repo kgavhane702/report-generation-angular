@@ -63,6 +63,8 @@ export class HighchartsChartAdapter implements ChartAdapter {
     width: number,
     height: number
   ): Highcharts.Options {
+    const showAxisLines = data.showAxisLines === true;
+    
     const options: Highcharts.Options = {
       chart: {
         type: handler.highchartsType,
@@ -113,11 +115,17 @@ export class HighchartsChartAdapter implements ChartAdapter {
         title: {
           text: data.xAxisLabel || '',
         },
+        gridLineWidth: showAxisLines ? 1 : 0,
+        lineWidth: showAxisLines ? 1 : 0,
+        lineColor: showAxisLines ? '#e6e6e6' : 'transparent',
       },
       yAxis: {
         title: {
           text: data.yAxisLabel || '',
         },
+        gridLineWidth: showAxisLines ? 1 : 0,
+        lineWidth: showAxisLines ? 1 : 0,
+        lineColor: showAxisLines ? '#e6e6e6' : 'transparent',
       },
       series: handler.convertSeries(data.series, data.chartType),
       plotOptions: handler.getPlotOptions(),

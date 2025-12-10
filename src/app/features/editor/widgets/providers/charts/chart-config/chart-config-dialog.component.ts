@@ -113,6 +113,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       yAxisLabel: [chartData.yAxisLabel || ''],
       showLegend: [chartData.showLegend !== false],
       legendPosition: [chartData.legendPosition || 'top'],
+      showAxisLines: [chartData.showAxisLines === true],
       labels: this.fb.array(
         (chartData.labels || []).map((label: string) => this.fb.control(label))
       ),
@@ -282,6 +283,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       yAxisLabel: formValue.yAxisLabel,
       showLegend: formValue.showLegend,
       legendPosition: formValue.legendPosition,
+      showAxisLines: formValue.showAxisLines || false,
     };
     
     const headers = ['Category', ...chartData.series.map((s: ChartSeries) => s.name)];
@@ -322,6 +324,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       yAxisLabel: formValue.yAxisLabel || undefined,
       showLegend: formValue.showLegend,
       legendPosition: formValue.legendPosition,
+      showAxisLines: formValue.showAxisLines || false,
     };
 
     this.closed.emit({

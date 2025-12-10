@@ -47,6 +47,11 @@ export interface ChartData {
    * Chart colors palette (optional, adapter can use defaults)
    */
   colors?: string[];
+
+  /**
+   * Whether to show axis/grid lines
+   */
+  showAxisLines?: boolean;
 }
 
 export type ChartType =
@@ -99,6 +104,7 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
     title: 'Chart Title',
     showLegend: true,
     legendPosition: 'top',
+    showAxisLines: false,
   };
 }
 
@@ -148,6 +154,7 @@ export function parseCsvToChartData(csv: string, chartType: ChartType = 'column'
     title: 'Imported Chart',
     showLegend: true,
     legendPosition: 'top',
+    showAxisLines: false,
   };
 }
 
