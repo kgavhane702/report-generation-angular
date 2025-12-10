@@ -114,6 +114,9 @@ export class WidgetContainerComponent {
   }
 
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
+    if (!this.isSelected) {
+      return;
+    }
     event.stopPropagation();
     this.isResizing = true;
     this.activeHandle = handle;

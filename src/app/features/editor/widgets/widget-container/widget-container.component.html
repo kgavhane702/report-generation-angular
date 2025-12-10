@@ -41,50 +41,52 @@
     </div>
   </ng-container>
 
-  <button
-    class="widget-container__resize widget-container__resize--right"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'right')"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--bottom"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'bottom')"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--corner"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'corner')"
-    title="Resize (bottom-right)"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--corner-top-right"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'corner-top-right')"
-    title="Resize (top-right)"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--corner-top-left"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'corner-top-left')"
-    title="Resize (top-left)"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--corner-bottom-left"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'corner-bottom-left')"
-    title="Resize (bottom-left)"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--left"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'left')"
-  ></button>
-  <button
-    class="widget-container__resize widget-container__resize--top"
-    type="button"
-    (pointerdown)="onResizePointerDown($event, 'top')"
-  ></button>
+  <ng-container *ngIf="isSelected">
+    <button
+      class="widget-container__resize widget-container__resize--right"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'right')"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--bottom"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'bottom')"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--corner"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'corner')"
+      title="Resize (bottom-right)"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--corner-top-right"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'corner-top-right')"
+      title="Resize (top-right)"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--corner-top-left"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'corner-top-left')"
+      title="Resize (top-left)"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--corner-bottom-left"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'corner-bottom-left')"
+      title="Resize (bottom-left)"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--left"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'left')"
+    ></button>
+    <button
+      class="widget-container__resize widget-container__resize--top"
+      type="button"
+      (pointerdown)="onResizePointerDown($event, 'top')"
+    ></button>
+  </ng-container>
 
   <button
     class="widget-container__delete"
