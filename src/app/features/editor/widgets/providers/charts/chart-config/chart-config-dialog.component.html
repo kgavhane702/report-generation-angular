@@ -102,6 +102,32 @@
         </label>
       </div>
 
+      <!-- Value Labels -->
+      <div class="chart-config-dialog__row">
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label">
+            <input
+              type="checkbox"
+              formControlName="showValueLabels"
+              class="chart-config-dialog__checkbox"
+            />
+            Show Value Labels
+          </label>
+        </div>
+        <div class="chart-config-dialog__section" *ngIf="form.value.showValueLabels">
+          <label class="chart-config-dialog__label" for="valueLabelPosition">Label Position</label>
+          <select
+            id="valueLabelPosition"
+            formControlName="valueLabelPosition"
+            class="chart-config-dialog__select"
+          >
+            <option *ngFor="let pos of valueLabelPositions" [value]="pos">
+              {{ pos | titlecase }}
+            </option>
+          </select>
+        </div>
+      </div>
+
       <!-- CSV Import/Export -->
       <div class="chart-config-dialog__section">
         <div class="chart-config-dialog__actions">

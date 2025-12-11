@@ -94,7 +94,7 @@ export class EChartsAreaChartHandler implements EChartsChartTypeHandler {
             color: color,
           },
           label: {
-            show: showValueLabels === true,
+            show: showValueLabels !== false,
             position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
             formatter: '{c}',
           },

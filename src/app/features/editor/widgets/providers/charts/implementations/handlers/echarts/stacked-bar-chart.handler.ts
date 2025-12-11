@@ -89,8 +89,8 @@ export class EChartsStackedBarChartHandler implements EChartsChartTypeHandler {
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
         },
         label: {
-          show: showValueLabels === true,
-          position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
+          show: showValueLabels !== false,
+          position: this.getLabelPositionForStackedBar(valueLabelPosition) as any,
           formatter: '{c}',
         },
       })),
@@ -114,9 +114,25 @@ export class EChartsStackedBarChartHandler implements EChartsChartTypeHandler {
 
   private getLabelPosition(
     position?: 'inside' | 'top' | 'bottom' | 'left' | 'right',
-    defaultPosition: string = 'inside'
+    defaultPosition: string = 'right'
   ): string {
     if (!position) return defaultPosition;
+    return position;
+  }
+
+  private getLabelPositionForStackedBar(
+    position?: 'inside' | 'top' | 'bottom' | 'left' | 'right'
+  ): string | any {
+    if (!position) return 'right'; // Default for horizontal stacked bars
+    // For horizontal stacked bars, map positions appropriately
+    if (position === 'inside') {
+      return 'inside';
+    }
+    // Map other positions
+    if (position === 'top' || position === 'bottom') {
+      // For horizontal bars, 'top'/'bottom' don't make sense, use 'right'
+      return 'right';
+    }
     return position;
   }
 }

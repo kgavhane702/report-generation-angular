@@ -91,7 +91,7 @@ export class EChartsBarChartHandler implements EChartsChartTypeHandler {
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
         },
         label: {
-          show: showValueLabels === true,
+          show: showValueLabels !== false,
           position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
           formatter: '{c}',
         },

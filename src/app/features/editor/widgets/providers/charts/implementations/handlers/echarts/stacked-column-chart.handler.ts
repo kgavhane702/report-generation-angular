@@ -89,9 +89,13 @@ export class EChartsStackedColumnChartHandler implements EChartsChartTypeHandler
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
         },
         label: {
-          show: showValueLabels === true,
-          position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
+          show: showValueLabels !== false,
+          position: this.getLabelPositionForStackedColumn(valueLabelPosition),
           formatter: '{c}',
+          distance: valueLabelPosition === 'inside' ? 0 : 5,
+          // Ensure labels are visible when inside
+          color: valueLabelPosition === 'inside' ? '#fff' : undefined,
+          fontWeight: valueLabelPosition === 'inside' ? 'bold' : undefined,
         },
       })),
     };
@@ -114,9 +118,21 @@ export class EChartsStackedColumnChartHandler implements EChartsChartTypeHandler
 
   private getLabelPosition(
     position?: 'inside' | 'top' | 'bottom' | 'left' | 'right',
-    defaultPosition: string = 'inside'
+    defaultPosition: string = 'top'
   ): string {
     if (!position) return defaultPosition;
+    return position;
+  }
+
+  private getLabelPositionForStackedColumn(
+    position?: 'inside' | 'top' | 'bottom' | 'left' | 'right'
+  ): string | any {
+    if (!position) return 'top'; // Default for vertical stacked columns
+    // For vertical stacked columns, 'inside' works but may need special handling
+    if (position === 'inside') {
+      // Use 'inside' with proper configuration for stacked columns
+      return 'inside';
+    }
     return position;
   }
 }

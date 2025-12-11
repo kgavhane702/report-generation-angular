@@ -89,7 +89,7 @@ export class EChartsLineChartHandler implements EChartsChartTypeHandler {
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
         },
         label: {
-          show: showValueLabels === true,
+          show: showValueLabels !== false,
           position: this.getLabelPosition(valueLabelPosition, 'top') as any,
           formatter: '{c}',
         },
@@ -117,6 +117,10 @@ export class EChartsLineChartHandler implements EChartsChartTypeHandler {
     defaultPosition: string = 'top'
   ): string {
     if (!position) return defaultPosition;
+    // For line charts, if 'inside' is specified (default), use 'top' instead
+    if (position === 'inside') {
+      return 'top';
+    }
     return position;
   }
 }

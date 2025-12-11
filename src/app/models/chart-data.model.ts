@@ -102,6 +102,10 @@ export interface ChartSeries {
  * Helper to create default chart data structure
  */
 export function createDefaultChartData(chartType: ChartType = 'column'): ChartData {
+  // Line charts should default to 'top' position, others to 'inside'
+  // Note: stackedBarLine defaults to 'inside' but handler converts line series to 'top'
+  const defaultLabelPosition = chartType === 'line' ? 'top' : 'inside';
+  
   return {
     chartType,
     labels: ['Q1', 'Q2', 'Q3', 'Q4'],
@@ -115,6 +119,8 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
     showLegend: true,
     legendPosition: 'bottom',
     showAxisLines: false,
+    showValueLabels: true,
+    valueLabelPosition: defaultLabelPosition,
   };
 }
 
@@ -165,6 +171,8 @@ export function parseCsvToChartData(csv: string, chartType: ChartType = 'column'
     showLegend: true,
     legendPosition: 'bottom',
     showAxisLines: false,
+    showValueLabels: true,
+    valueLabelPosition: 'inside',
   };
 }
 

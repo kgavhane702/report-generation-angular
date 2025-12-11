@@ -96,8 +96,8 @@ export class EChartsStackedBarLineChartHandler implements EChartsChartTypeHandle
               color: color,
             },
             label: {
-              show: showValueLabels === true,
-              position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
+              show: showValueLabels !== false,
+              position: this.getLabelPosition(valueLabelPosition, 'inside', false) as any,
               formatter: '{c}',
             },
           };
@@ -116,8 +116,8 @@ export class EChartsStackedBarLineChartHandler implements EChartsChartTypeHandle
               color: this.addAlpha(color, 0.1),
             },
             label: {
-              show: showValueLabels === true,
-              position: this.getLabelPosition(valueLabelPosition, 'top') as any,
+              show: showValueLabels !== false,
+              position: this.getLabelPosition(valueLabelPosition, 'top', true) as any,
               formatter: '{c}',
             },
           };
@@ -143,9 +143,14 @@ export class EChartsStackedBarLineChartHandler implements EChartsChartTypeHandle
 
   private getLabelPosition(
     position?: 'inside' | 'top' | 'bottom' | 'left' | 'right',
-    defaultPosition: string = 'top'
+    defaultPosition: string = 'top',
+    isLineSeries: boolean = false
   ): string {
     if (!position) return defaultPosition;
+    // For line series, if 'inside' is specified (default), use 'top' instead
+    if (isLineSeries && position === 'inside') {
+      return 'top';
+    }
     return position;
   }
 

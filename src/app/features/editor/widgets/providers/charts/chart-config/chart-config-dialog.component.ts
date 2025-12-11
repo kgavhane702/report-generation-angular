@@ -73,6 +73,14 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     'right',
   ];
 
+  readonly valueLabelPositions: Array<'inside' | 'top' | 'bottom' | 'left' | 'right'> = [
+    'inside',
+    'top',
+    'bottom',
+    'left',
+    'right',
+  ];
+
   form!: FormGroup;
   csvFormControl = this.fb.control('');
   showCsvImport = false;
@@ -112,8 +120,10 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       xAxisLabel: [chartData.xAxisLabel || ''],
       yAxisLabel: [chartData.yAxisLabel || ''],
       showLegend: [chartData.showLegend !== false],
-      legendPosition: [chartData.legendPosition || 'top'],
+      legendPosition: [chartData.legendPosition || 'bottom'],
       showAxisLines: [chartData.showAxisLines === true],
+      showValueLabels: [chartData.showValueLabels !== false],
+      valueLabelPosition: [chartData.valueLabelPosition || 'inside'],
       labels: this.fb.array(
         (chartData.labels || []).map((label: string) => this.fb.control(label))
       ),
@@ -284,6 +294,8 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       showLegend: formValue.showLegend,
       legendPosition: formValue.legendPosition,
       showAxisLines: formValue.showAxisLines || false,
+      showValueLabels: formValue.showValueLabels || false,
+      valueLabelPosition: formValue.valueLabelPosition || undefined,
     };
     
     const headers = ['Category', ...chartData.series.map((s: ChartSeries) => s.name)];
@@ -325,6 +337,8 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       showLegend: formValue.showLegend,
       legendPosition: formValue.legendPosition,
       showAxisLines: formValue.showAxisLines || false,
+      showValueLabels: formValue.showValueLabels || false,
+      valueLabelPosition: formValue.valueLabelPosition || undefined,
     };
 
     this.closed.emit({

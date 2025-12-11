@@ -52,7 +52,7 @@ export class EChartsPieChartHandler implements EChartsChartTypeHandler {
             },
           })),
           label: {
-            show: showValueLabels === true,
+            show: showValueLabels !== false,
             position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
             formatter: '{b}: {c} ({d}%)',
           },

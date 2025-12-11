@@ -88,7 +88,7 @@ export class EChartsScatterChartHandler implements EChartsChartTypeHandler {
         },
         symbolSize: 8,
         label: {
-          show: showValueLabels === true,
+          show: showValueLabels !== false,
           position: this.getLabelPosition(valueLabelPosition, 'inside') as any,
           formatter: '{c}',
         },
