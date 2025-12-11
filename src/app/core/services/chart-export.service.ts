@@ -1,5 +1,4 @@
 import { Injectable, inject, ApplicationRef, NgZone } from '@angular/core';
-import * as Highcharts from 'highcharts';
 import { ChartWidgetProps, WidgetModel } from '../../models/widget.model';
 import { DocumentModel } from '../../models/document.model';
 import { EditorStateService } from './editor-state.service';
@@ -21,14 +20,7 @@ export class ChartExportService {
    */
   async exportChartToBase64(widget: WidgetModel): Promise<string | null> {
     try {
-      const props = widget.props as ChartWidgetProps;
-      const provider = props.provider || 'highcharts';
-
-      if (provider === 'highcharts') {
-        return await this.exportHighchartsToBase64(widget);
-      }
-
-      // For other providers, try to find the chart container and export
+      // For all providers, try to find the chart container and export
       return await this.exportGenericChartToBase64(widget);
     } catch (error) {
       console.error('Error exporting chart to base64:', error);
@@ -36,141 +28,6 @@ export class ChartExportService {
     }
   }
 
-  /**
-   * Export Highcharts chart to base64
-   */
-  private async exportHighchartsToBase64(widget: WidgetModel): Promise<string | null> {
-    try {
-      // Small delay to ensure DOM is ready
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Find the chart container element
-      const widgetElement = document.querySelector(`[data-widget-id="${widget.id}"]`) as HTMLElement;
-      
-      if (!widgetElement) {
-        console.warn(`Chart widget element not found: ${widget.id}`);
-        return null;
-      }
-
-      // Ensure widget is visible (scroll into view if needed)
-      const rect = widgetElement.getBoundingClientRect();
-      const isVisible = rect.width > 0 && rect.height > 0;
-      
-      if (!isVisible) {
-        // Scroll widget into view
-        widgetElement.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
-        // Wait for scroll to complete
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-
-      // Find the Highcharts container
-      let chartContainer = widgetElement.querySelector('.chart-widget__container') as HTMLElement;
-      
-      // If container not found, try the widget element itself
-      if (!chartContainer) {
-        chartContainer = widgetElement;
-      }
-      
-      if (!chartContainer) {
-        console.warn(`Chart container not found for widget: ${widget.id}`);
-        return null;
-      }
-
-      // Check if container has any content
-      const hasContent = chartContainer.children.length > 0 || 
-                        chartContainer.querySelector('svg') || 
-                        chartContainer.querySelector('canvas') ||
-                        chartContainer.querySelector('.highcharts-root');
-      
-      if (!hasContent) {
-        console.warn(`Chart container is empty for widget: ${widget.id}`);
-        return null;
-      }
-
-      // Method 1: Try to get Highcharts instance from the container (stored by component)
-      let highchartsInstance = (chartContainer as any).highchartsChart;
-      
-      // Method 2: Try to get from Highcharts internal registry
-      if (!highchartsInstance && Highcharts && Highcharts.charts) {
-        for (const chart of Highcharts.charts) {
-          if (chart) {
-            const chartAny = chart as any;
-            if (chartAny.renderTo === chartContainer || chart.container === chartContainer) {
-              highchartsInstance = chart;
-              break;
-            }
-          }
-        }
-      }
-
-      // Method 3: Try to get directly from container
-      if (!highchartsInstance) {
-        highchartsInstance = (chartContainer as any).chart;
-      }
-
-      // Method 4: Try to find by iterating through all Highcharts charts
-      if (!highchartsInstance && Highcharts && Highcharts.charts) {
-        for (let i = 0; i < Highcharts.charts.length; i++) {
-          const chart = Highcharts.charts[i];
-          if (chart) {
-            const chartAny = chart as any;
-            if (chart.container === chartContainer || chartAny.renderTo === chartContainer) {
-              highchartsInstance = chart;
-              break;
-            }
-          }
-        }
-      }
-
-      // Method 5: Check if widget element itself has the chart instance
-      if (!highchartsInstance) {
-        highchartsInstance = (widgetElement as any).highchartsChart;
-      }
-
-      // If we found the instance, use its getSVG method
-      if (highchartsInstance && typeof highchartsInstance.getSVG === 'function') {
-        try {
-          const svg = highchartsInstance.getSVG({
-            exporting: {
-              sourceWidth: widget.size.width || 400,
-              sourceHeight: widget.size.height || 300,
-            },
-          });
-
-          if (svg) {
-            return await this.svgToBase64(svg, widget.size.width || 400, widget.size.height || 300);
-          }
-        } catch (svgError) {
-          console.warn('Error getting SVG from Highcharts instance:', svgError);
-        }
-      }
-
-      // Alternative: Try to find Highcharts SVG element
-      const highchartsSvg = chartContainer.querySelector('svg.highcharts-root');
-      if (highchartsSvg) {
-        const svgString = new XMLSerializer().serializeToString(highchartsSvg);
-        return await this.svgToBase64(svgString, widget.size.width || 400, widget.size.height || 300);
-      }
-
-      // Fallback: try to find any SVG element in the container
-      const svgElement = chartContainer.querySelector('svg');
-      if (svgElement) {
-        const svgString = new XMLSerializer().serializeToString(svgElement);
-        return await this.svgToBase64(svgString, widget.size.width || 400, widget.size.height || 300);
-      }
-
-      // Last resort: try canvas if available
-      const canvas = chartContainer.querySelector('canvas');
-      if (canvas) {
-        return canvas.toDataURL('image/png');
-      }
-
-      return null;
-    } catch (error) {
-      console.error(`Error exporting Highcharts chart:`, error);
-      return null;
-    }
-  }
 
   /**
    * Export generic chart to base64 (fallback)

@@ -1,6 +1,6 @@
 /**
  * Provider-agnostic chart data model.
- * This structure can be converted to any chart library format (Highcharts, Chart.js, ECharts, etc.)
+ * This structure can be converted to any chart library format (Chart.js, ECharts, D3, etc.)
  */
 export interface ChartData {
   /**
@@ -52,6 +52,16 @@ export interface ChartData {
    * Whether to show axis/grid lines
    */
   showAxisLines?: boolean;
+
+  /**
+   * Whether to show value labels on chart elements
+   */
+  showValueLabels?: boolean;
+
+  /**
+   * Position of value labels (inside, top, bottom, left, right)
+   */
+  valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right';
 }
 
 export type ChartType =
@@ -103,7 +113,7 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
     ],
     title: 'Chart Title',
     showLegend: true,
-    legendPosition: 'top',
+    legendPosition: 'bottom',
     showAxisLines: false,
   };
 }
@@ -153,7 +163,7 @@ export function parseCsvToChartData(csv: string, chartType: ChartType = 'column'
     series,
     title: 'Imported Chart',
     showLegend: true,
-    legendPosition: 'top',
+    legendPosition: 'bottom',
     showAxisLines: false,
   };
 }

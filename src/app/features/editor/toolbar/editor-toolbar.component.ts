@@ -111,7 +111,7 @@ export class EditorToolbarComponent {
       this.appRef.tick();
     });
     
-    // Additional wait for Highcharts to initialize
+    // Additional wait for charts to initialize
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 

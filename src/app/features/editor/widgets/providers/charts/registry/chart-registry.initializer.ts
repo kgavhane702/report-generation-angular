@@ -3,8 +3,8 @@ import { Injectable } from '@angular/core';
 import { ChartRegistryService } from './chart-registry.service';
 import {
   PlaceholderChartAdapter,
-  HighchartsChartAdapter,
   ChartJsChartAdapter,
+  EChartsChartAdapter,
 } from '../implementations/adapters';
 
 @Injectable({
@@ -13,8 +13,8 @@ import {
 export class ChartRegistryInitializer {
   constructor(private readonly registry: ChartRegistryService) {
     this.registry.register(new PlaceholderChartAdapter());
-    this.registry.register(new HighchartsChartAdapter());
     this.registry.register(new ChartJsChartAdapter());
+    this.registry.register(new EChartsChartAdapter());
   }
 }
 

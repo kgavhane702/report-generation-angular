@@ -202,7 +202,7 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
       this.instance.destroy?.();
     }
 
-    const providerId = this.chartProps.provider || 'highcharts';
+    const providerId = this.chartProps.provider || 'echarts';
     const adapter = this.registry.getAdapter(providerId);
     
     if (!adapter) {

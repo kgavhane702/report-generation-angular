@@ -1,7 +1,7 @@
 /**
  * Interface for chart adapters.
  * Chart adapters bridge the gap between the generic chart system and
- * specific chart library implementations (Highcharts, Chart.js, etc.).
+ * specific chart library implementations (Chart.js, ECharts, D3, etc.).
  */
 export interface ChartAdapter {
   id: string;

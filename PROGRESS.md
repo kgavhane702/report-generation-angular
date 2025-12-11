@@ -19,7 +19,7 @@
   - Widget container with drag (CDK) + custom resize handles, dispatching NgRx mutations.
   - Text widget with CKEditor integration for rich text editing.
   - Chart/table/image widgets wired through a pluggable adapter architecture.
-  - Highcharts adapter fully implemented with support for multiple chart types (bar, column, line, area, pie, donut, scatter, stacked).
+  - Chart.js adapter fully implemented with support for multiple chart types (bar, column, line, area, pie, donut, scatter, stacked).
 - **Section/subsection/page management**
   - Full CRUD operations: add/delete sections, subsections, and pages.
   - Breadcrumb navigation with add/delete controls.
@@ -43,7 +43,7 @@
   - Text flow splitting across pages.
 - **Chart/table editors**
   - Enhanced chart config dialog with data entry, icon pickers, upload capabilities.
-  - Additional chart adapters (Chart.js, ECharts, D3) beyond Highcharts.
+  - Additional chart adapters (ECharts, D3) beyond Chart.js.
   - Table data editor with advanced styling options.
 - **Inspector panel enhancements**
   - Snapping guides and alignment tools.
@@ -73,7 +73,7 @@
 ## Next Suggested Milestones
 1. ✅ Section/subsection/page CRUD + breadcrumb updates. **(COMPLETED)**
 2. ✅ Basic text editor integration (CKEditor) and inspector basics. **(COMPLETED)**
-3. ✅ Chart adapter (Highcharts) and export pipeline. **(COMPLETED)**
+3. ✅ Chart adapter (Chart.js) and export pipeline. **(COMPLETED)**
 4. Enhanced chart/table data editors + additional chart adapters (Chart.js/ECharts).
 5. Inspector panel enhancements (snapping, zoom, keyboard nudging, grouping).
 6. Pagination & virtualization (page boundaries, auto create, viewport windowing).

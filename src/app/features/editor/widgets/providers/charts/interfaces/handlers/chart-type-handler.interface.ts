@@ -1,6 +1,6 @@
 /**
  * Base interface for chart type handlers.
- * Each chart library provider (Highcharts, Chart.js, etc.) extends this
+ * Each chart library provider (Chart.js, ECharts, D3, etc.) extends this
  * with provider-specific handler interfaces.
  */
 export interface ChartTypeHandler {
