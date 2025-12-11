@@ -1,0 +1,41 @@
+<div class="text-widget-color-picker" *ngIf="isTextWidgetSelected()">
+  <div class="text-widget-color-picker__trigger" (click)="toggleDropdown()">
+    <div
+      class="text-widget-color-picker__preview"
+      [style.background-color]="getDisplayColor()"
+      [class.text-widget-color-picker__preview--transparent]="!currentColor()"
+      [attr.title]="currentColor() || 'Transparent'"
+    >
+      <span *ngIf="!currentColor()" class="text-widget-color-picker__transparent-icon">×</span>
+    </div>
+    <span class="text-widget-color-picker__label">Background</span>
+  </div>
+
+  <div class="text-widget-color-picker__dropdown" *ngIf="showDropdown()">
+    <div class="text-widget-color-picker__custom">
+      <input
+        type="color"
+        [value]="currentColor() || '#ffffff'"
+        (change)="onCustomColorChange($event)"
+        class="text-widget-color-picker__color-input"
+        title="Custom Color"
+      />
+      <span class="text-widget-color-picker__color-value">{{ currentColor() || 'transparent' }}</span>
+    </div>
+    <div class="text-widget-color-picker__swatches">
+      <button
+        *ngFor="let color of colorPalette"
+        type="button"
+        class="text-widget-color-picker__swatch"
+        [style.background-color]="color.value || 'transparent'"
+        [class.text-widget-color-picker__swatch--active]="(currentColor() || '') === color.value"
+        [class.text-widget-color-picker__swatch--transparent]="!color.value"
+        [attr.title]="color.label"
+        (click)="selectColor(color.value)"
+      >
+        <span *ngIf="!color.value" class="text-widget-color-picker__transparent-icon">×</span>
+      </button>
+    </div>
+  </div>
+</div>
+

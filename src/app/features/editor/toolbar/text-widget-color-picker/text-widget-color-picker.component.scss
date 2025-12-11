@@ -1,0 +1,143 @@
+.text-widget-color-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.text-widget-color-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #f8fafc;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+
+  &:hover {
+    background: #fff;
+    border-color: rgba(15, 23, 42, 0.3);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+}
+
+.text-widget-color-picker__preview {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  border: 2px solid rgba(15, 23, 42, 0.15);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-widget-color-picker__preview--transparent {
+  background-image: 
+    linear-gradient(45deg, #ccc 25%, transparent 25%),
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+}
+
+.text-widget-color-picker__label {
+  font-size: 0.9rem;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.text-widget-color-picker__transparent-icon {
+  display: block;
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.text-widget-color-picker__dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 0.75rem;
+  z-index: 1000;
+  min-width: 200px;
+}
+
+.text-widget-color-picker__custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.text-widget-color-picker__color-input {
+  width: 2.5rem;
+  height: 2rem;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.35rem;
+  padding: 0.1rem;
+  cursor: pointer;
+}
+
+.text-widget-color-picker__color-value {
+  font-size: 0.75rem;
+  color: #475569;
+  font-family: monospace;
+  padding: 0.25rem 0.5rem;
+  background: #f8fafc;
+  border-radius: 0.25rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.text-widget-color-picker__swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.35rem;
+}
+
+.text-widget-color-picker__swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-widget-color-picker__swatch:hover {
+  transform: scale(1.1);
+  border-color: rgba(15, 23, 42, 0.3);
+  z-index: 1;
+}
+
+.text-widget-color-picker__swatch--active {
+  border-color: #3b82f6;
+  border-width: 3px;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.text-widget-color-picker__swatch--transparent {
+  background-image: 
+    linear-gradient(45deg, #ccc 25%, transparent 25%),
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  border: 2px solid rgba(15, 23, 42, 0.2);
+}
+

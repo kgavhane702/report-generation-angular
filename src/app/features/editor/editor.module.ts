@@ -15,9 +15,9 @@ import { TextWidgetComponent } from './widgets/text-widget/text-widget.component
 import { ChartWidgetComponent } from './widgets/chart-widget/chart-widget.component';
 import { TableWidgetComponent } from './widgets/table-widget/table-widget.component';
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
-import { InspectorPanelComponent } from './inspector/inspector-panel.component';
 import { ZoomControlsComponent } from './toolbar/zoom-controls/zoom-controls.component';
 import { UndoRedoControlsComponent } from './toolbar/undo-redo-controls/undo-redo-controls.component';
+import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-picker/text-widget-color-picker.component';
 import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
 import { TableConfigDialogComponent } from './widgets/providers/table/table-config';
@@ -37,9 +37,9 @@ import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-
     ChartWidgetComponent,
     TableWidgetComponent,
     ImageWidgetComponent,
-    InspectorPanelComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
+    TextWidgetColorPickerComponent,
   ],
   imports: [
     CommonModule,

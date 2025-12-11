@@ -173,7 +173,17 @@ public class DocumentRenderService {
             content = "<p></p>";
         }
         
-        return "<div class=\"widget widget-text\" style=\"" + style + "\">" + content + "</div>";
+        // Extract backgroundColor from props and add to style
+        StringBuilder finalStyle = new StringBuilder(style);
+        JsonNode backgroundColorNode = props.path("backgroundColor");
+        if (!backgroundColorNode.isMissingNode() && !backgroundColorNode.isNull() && backgroundColorNode.isTextual()) {
+            String backgroundColor = backgroundColorNode.asText("");
+            if (!backgroundColor.isBlank() && !backgroundColor.equals("transparent")) {
+                finalStyle.append("background-color: ").append(backgroundColor).append(";");
+            }
+        }
+        
+        return "<div class=\"widget widget-text\" style=\"" + finalStyle.toString() + "\">" + content + "</div>";
     }
 
     private String renderImageWidget(JsonNode props, String style) {
