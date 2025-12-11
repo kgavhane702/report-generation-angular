@@ -1,13 +1,2 @@
-<div class="text-widget" #editorContainer>
-  <ckeditor
-    class="text-widget__editor"
-    [class.text-widget__editor--editing]="editing"
-    [editor]="Editor"
-    [config]="editorConfig"
-    [(ngModel)]="editorData"
-    (focus)="handleEditorFocus($event)"
-    (blur)="handleEditorBlur()"
-    (ready)="handleEditorReady($event)"
-  ></ckeditor>
-</div>
+<div class="text-widget" #editorContainer [class.text-widget--editing]="editing"></div>
 

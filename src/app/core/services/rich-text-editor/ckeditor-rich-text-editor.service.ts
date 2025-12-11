@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import {
   Alignment,
   Bold,
-  ClassicEditor,
+  DecoupledEditor,
   EditorConfig,
   Essentials,
   FontBackgroundColor,
@@ -29,7 +29,7 @@ import {
  * CKEditor Rich Text Editor Implementation
  * 
  * A clean, smooth, and easy-to-use implementation of CKEditor5
- * that provides a comprehensive rich text editing experience.
+ * that provides a comprehensive rich text editing experience using DecoupledEditor.
  */
 @Injectable({
   providedIn: 'root',
@@ -50,13 +50,13 @@ export class CkEditorRichTextEditorService extends RichTextEditorService {
  * a clean interface for Angular components.
  */
 class CkEditorInstance implements RichTextEditor {
-  private static editorClass: typeof ClassicEditor | null = null;
+  private static editorClass: typeof DecoupledEditor | null = null;
   private static editorConfig: EditorConfig | null = null;
 
   /**
    * Gets the configured CKEditor class
    */
-  get Editor(): typeof ClassicEditor {
+  get Editor(): typeof DecoupledEditor {
     this.ensureInitialized();
     return CkEditorInstance.editorClass!;
   }
@@ -85,7 +85,7 @@ class CkEditorInstance implements RichTextEditor {
    */
   private initializeEditor(): void {
     // Create custom editor class with all required plugins
-    class CustomEditor extends ClassicEditor {}
+    class CustomEditor extends DecoupledEditor {}
 
     // Register all plugins
     CustomEditor.builtinPlugins = [
@@ -107,12 +107,35 @@ class CkEditorInstance implements RichTextEditor {
       TableToolbar,
     ];
 
-    // Configure editor settings
-    // Toolbar is removed - using shared toolbar instead
+    // Configure editor settings with toolbar configuration
+    // Toolbar will be rendered separately using decoupled editor
     const config: EditorConfig = {
       licenseKey: 'GPL',
       toolbar: {
-        items: [],
+        items: [
+          'undo',
+          'redo',
+          '|',
+          'heading',
+          '|',
+          'bold',
+          'italic',
+          'underline',
+          'strikethrough',
+          '|',
+          'link',
+          'bulletedList',
+          'numberedList',
+          '|',
+          'alignment',
+          '|',
+          'fontFamily',
+          'fontSize',
+          'fontColor',
+          'fontBackgroundColor',
+          '|',
+          'insertTable',
+        ],
         shouldNotGroupWhenFull: true,
       },
       heading: {
