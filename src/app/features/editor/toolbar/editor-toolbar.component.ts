@@ -38,6 +38,9 @@ export class EditorToolbarComponent {
 
     const widget = this.widgetFactory.createWidget(type);
     this.documentService.addWidget(subsectionId, pageId, widget);
+    
+    // Set the newly added widget as active
+    this.editorState.setActiveWidget(widget.id);
   }
 
   /**

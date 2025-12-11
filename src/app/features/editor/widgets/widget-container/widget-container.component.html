@@ -1,5 +1,6 @@
 <div
   class="widget-container"
+  [class.widget-container--selected]="isSelected"
   [attr.data-widget-id]="widget.id"
   cdkDrag
   [cdkDragDisabled]="isEditing || isResizing"

@@ -56,6 +56,7 @@ export class WidgetContainerComponent {
     });
   }
 
+  // Use both HostBinding and template binding to ensure class is applied
   @HostBinding('class.widget-container--selected')
   get isSelected(): boolean {
     return this.editorState.activeWidgetId() === this.widget?.id;
