@@ -261,7 +261,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     }, 150);
   }
 
-  private get textProps(): TextWidgetProps {
+  get textProps(): TextWidgetProps {
     return this.widget.props as TextWidgetProps;
   }
 }

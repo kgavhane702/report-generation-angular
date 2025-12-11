@@ -243,8 +243,8 @@ export class WidgetContainerComponent {
   }
 
   private clampFrame(width: number, height: number, x: number, y: number) {
-    const minWidth = 80;
-    const minHeight = 60;
+    const minWidth = 20;
+    const minHeight = 20;
 
     let newWidth = width;
     let newHeight = height;
