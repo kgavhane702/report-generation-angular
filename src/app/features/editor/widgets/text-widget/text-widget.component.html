@@ -5,9 +5,9 @@
     [editor]="Editor"
     [config]="editorConfig"
     [(ngModel)]="editorData"
-    (focus)="handleEditorFocus()"
+    (focus)="handleEditorFocus($event)"
     (blur)="handleEditorBlur()"
-    (ready)="handleEditorReady()"
+    (ready)="handleEditorReady($event)"
   ></ckeditor>
 </div>
 

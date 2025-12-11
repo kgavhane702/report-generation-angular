@@ -16,6 +16,14 @@
   min-height: 56px;
 }
 
+.editor-shell__rich-text-toolbar {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  background: #fff;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+}
+
 .editor-shell__body {
   flex: 1;
   min-height: 0;

@@ -22,6 +22,7 @@ import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
 import { TableConfigDialogComponent } from './widgets/providers/table/table-config';
 import { TableRegistryInitializer } from './widgets/providers/table/registry';
+import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
 
 @NgModule({
   declarations: [
@@ -48,6 +49,7 @@ import { TableRegistryInitializer } from './widgets/providers/table/registry';
     CKEditorModule,
     ChartConfigDialogComponent,
     TableConfigDialogComponent,
+    RichTextToolbarComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer, TableRegistryInitializer],

@@ -1,0 +1,210 @@
+<div class="rich-text-toolbar" *ngIf="hasActiveEditor">
+  <div class="rich-text-toolbar__group">
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isUndoEnabled"
+      [disabled]="!isUndoEnabled"
+      (mousedown)="handleButtonClick('undo', $event)"
+      title="Undo"
+    >
+      ↶ Undo
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isRedoEnabled"
+      [disabled]="!isRedoEnabled"
+      (mousedown)="handleButtonClick('redo', $event)"
+      title="Redo"
+    >
+      ↷ Redo
+    </button>
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <select
+      class="rich-text-toolbar__select"
+      [value]="headingValue || 'paragraph'"
+      (focus)="handleSelectFocus($event)"
+      (change)="handleSelectChange('heading', $event)"
+      (blur)="handleSelectBlur($event)"
+      title="Heading"
+    >
+      <option value="paragraph">Paragraph</option>
+      <option value="heading2">Heading 2</option>
+      <option value="heading3">Heading 3</option>
+    </select>
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isBoldActive"
+      [disabled]="!isBoldEnabled"
+      (mousedown)="handleButtonClick('bold', $event)"
+      title="Bold"
+    >
+      <strong>B</strong>
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isItalicActive"
+      [disabled]="!isItalicEnabled"
+      (mousedown)="handleButtonClick('italic', $event)"
+      title="Italic"
+    >
+      <em>I</em>
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isUnderlineActive"
+      [disabled]="!isUnderlineEnabled"
+      (mousedown)="handleButtonClick('underline', $event)"
+      title="Underline"
+    >
+      <u>U</u>
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      [class.rich-text-toolbar__button--active]="isStrikethroughActive"
+      [disabled]="!isStrikethroughEnabled"
+      (mousedown)="handleButtonClick('strikethrough', $event)"
+      title="Strikethrough"
+    >
+      <s>S</s>
+    </button>
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      (mousedown)="handleButtonClick('link', $event)"
+      title="Insert link"
+    >
+      🔗 Link
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      (mousedown)="handleButtonClick('bulletedList', $event)"
+      title="Bulleted list"
+    >
+      • List
+    </button>
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      (mousedown)="handleButtonClick('numberedList', $event)"
+      title="Numbered list"
+    >
+      1. List
+    </button>
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <select
+      class="rich-text-toolbar__select"
+      [value]="alignmentValue || 'left'"
+      (focus)="handleSelectFocus($event)"
+      (change)="handleSelectChange('alignment', $event)"
+      (blur)="handleSelectBlur($event)"
+      title="Alignment"
+    >
+      <option value="left">Left</option>
+      <option value="center">Center</option>
+      <option value="right">Right</option>
+      <option value="justify">Justify</option>
+    </select>
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <select
+      class="rich-text-toolbar__select"
+      [value]="fontFamilyValue || 'default'"
+      (focus)="handleSelectFocus($event)"
+      (change)="handleSelectChange('fontFamily', $event)"
+      (blur)="handleSelectBlur($event)"
+      title="Font Family"
+    >
+      <option value="default">Default</option>
+      <option value="Arial, Helvetica, sans-serif">Arial</option>
+      <option value="Courier New, Courier, monospace">Courier New</option>
+      <option value="Georgia, serif">Georgia</option>
+      <option value="Lucida Sans Unicode, Lucida Grande, sans-serif">Lucida Sans</option>
+      <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+      <option value="Times New Roman, Times, serif">Times New Roman</option>
+      <option value="Trebuchet MS, Helvetica, sans-serif">Trebuchet MS</option>
+      <option value="Verdana, Geneva, sans-serif">Verdana</option>
+    </select>
+    <select
+      class="rich-text-toolbar__select"
+      [value]="fontSizeValue || 'default'"
+      (focus)="handleSelectFocus($event)"
+      (change)="handleSelectChange('fontSize', $event)"
+      (blur)="handleSelectBlur($event)"
+      title="Font Size"
+    >
+      <option value="9">9</option>
+      <option value="11">11</option>
+      <option value="13">13</option>
+      <option value="default">Default</option>
+      <option value="17">17</option>
+      <option value="19">19</option>
+      <option value="21">21</option>
+      <option value="24">24</option>
+      <option value="28">28</option>
+      <option value="32">32</option>
+      <option value="36">36</option>
+      <option value="48">48</option>
+      <option value="60">60</option>
+      <option value="72">72</option>
+    </select>
+    <input
+      type="color"
+      class="rich-text-toolbar__color-input"
+      [value]="fontColorValue || '#000000'"
+      (focus)="handleColorFocus($event)"
+      (change)="handleColorChange('fontColor', $event, { value: $any($event.target).value })"
+      (blur)="handleColorBlur($event)"
+      title="Font Color"
+    />
+    <input
+      type="color"
+      class="rich-text-toolbar__color-input"
+      [value]="fontBackgroundColorValue || '#ffffff'"
+      (focus)="handleColorFocus($event)"
+      (change)="handleColorChange('fontBackgroundColor', $event, { value: $any($event.target).value })"
+      (blur)="handleColorBlur($event)"
+      title="Font Background Color"
+    />
+  </div>
+
+  <div class="rich-text-toolbar__separator"></div>
+
+  <div class="rich-text-toolbar__group">
+    <button
+      type="button"
+      class="rich-text-toolbar__button"
+      (mousedown)="handleButtonClick('insertTable', $event, { rows: 3, columns: 3 })"
+      title="Insert table"
+    >
+      ⧉ Table
+    </button>
+  </div>
+</div>

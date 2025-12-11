@@ -108,33 +108,12 @@ class CkEditorInstance implements RichTextEditor {
     ];
 
     // Configure editor settings
+    // Toolbar is removed - using shared toolbar instead
     const config: EditorConfig = {
       licenseKey: 'GPL',
       toolbar: {
-        items: [
-          'undo',
-          'redo',
-          '|',
-          'heading',
-          '|',
-          'bold',
-          'italic',
-          'underline',
-          'strikethrough',
-          '|',
-          'link',
-          'bulletedList',
-          'numberedList',
-          '|',
-          'alignment',
-          '|',
-          'fontFamily',
-          'fontSize',
-          'fontColor',
-          'fontBackgroundColor',
-          '|',
-          'insertTable',
-        ],
+        items: [],
+        shouldNotGroupWhenFull: true,
       },
       heading: {
         options: [
