@@ -471,6 +471,7 @@ public class DocumentRenderService {
                 .widget-text [style*="text-align: justify"] { text-align: justify; }
                 
                 /* Embedded tables in text widgets */
+                /* Default styles - inline styles will override these */
                 .widget-text table {
                     width: 100%; border-collapse: collapse; margin: 0.5em 0;
                     border: 1px solid #e5e7eb; font-size: inherit;
@@ -488,6 +489,14 @@ public class DocumentRenderService {
                 }
                 .widget-text table tbody tr:hover {
                     background-color: #f3f4f6;
+                }
+                /* Ensure inline styles from pasted content (e.g., PowerPoint) take precedence */
+                .widget-text table[style] {
+                    /* Inline styles will override defaults */
+                }
+                .widget-text table th[style],
+                .widget-text table td[style] {
+                    /* Inline styles will override defaults */
                 }
                 
                 /* Table alignment within text */

@@ -16,6 +16,8 @@ import {
   Paragraph,
   Strikethrough,
   Table,
+  TableProperties,
+  TableCellProperties,
   TableToolbar,
   Underline,
 } from 'ckeditor5';
@@ -104,6 +106,8 @@ class CkEditorInstance implements RichTextEditor {
       FontColor,
       FontBackgroundColor,
       Table,
+      TableProperties,
+      TableCellProperties,
       TableToolbar,
     ];
 
@@ -176,7 +180,21 @@ class CkEditorInstance implements RichTextEditor {
         options: [9, 11, 13, 'default', 17, 19, 21, 24, 28, 32, 36, 48, 60, 72],
       },
       table: {
-        contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells'],
+        contentToolbar: [
+          'tableColumn',
+          'tableRow',
+          'mergeTableCells',
+          'tableProperties',
+          'tableCellProperties',
+        ],
+        tableProperties: {
+          borderColors: ['#e5e7eb', '#d1d5db', '#9ca3af', '#6b7280', '#4b5563', '#374151'],
+          backgroundColors: ['#ffffff', '#f9fafb', '#f3f4f6', '#e5e7eb', '#d1d5db', '#9ca3af'],
+        },
+        tableCellProperties: {
+          borderColors: ['#e5e7eb', '#d1d5db', '#9ca3af', '#6b7280', '#4b5563', '#374151'],
+          backgroundColors: ['#ffffff', '#f9fafb', '#f3f4f6', '#e5e7eb', '#d1d5db', '#9ca3af'],
+        },
       },
       link: {
         decorators: {
