@@ -104,6 +104,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
   form!: FormGroup;
   csvFormControl = this.fb.control('');
   showCsvImport = false;
+  activeTab: 'basic' | 'data' | 'appearance' = 'basic';
 
   ngOnInit(): void {
     const chartData = this.data?.chartData || createDefaultChartData();
