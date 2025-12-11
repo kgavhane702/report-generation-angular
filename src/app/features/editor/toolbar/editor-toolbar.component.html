@@ -1,10 +1,38 @@
 <div class="editor-toolbar" *ngIf="document$ | async as document">
   <div class="editor-toolbar__group editor-toolbar__group--widgets">
     <span class="editor-toolbar__label">Add widget</span>
-    <button type="button" (click)="addWidget('text')">Text</button>
-    <button type="button" (click)="addWidget('chart')">Chart</button>
-    <button type="button" (click)="addWidget('table')">Table</button>
-    <button type="button" (click)="addWidget('image')">Image</button>
+    <button 
+      type="button" 
+      class="editor-toolbar__icon-button"
+      (click)="addWidget('text')"
+      title="Add Text Widget"
+    >
+      <span class="material-symbols-outlined">text_fields</span>
+    </button>
+    <button 
+      type="button" 
+      class="editor-toolbar__icon-button"
+      (click)="addWidget('chart')"
+      title="Add Chart Widget"
+    >
+      <span class="material-symbols-outlined">bar_chart</span>
+    </button>
+    <button 
+      type="button" 
+      class="editor-toolbar__icon-button"
+      (click)="addWidget('table')"
+      title="Add Table Widget"
+    >
+      <span class="material-symbols-outlined">table</span>
+    </button>
+    <button 
+      type="button" 
+      class="editor-toolbar__icon-button"
+      (click)="addWidget('image')"
+      title="Add Image Widget"
+    >
+      <span class="material-symbols-outlined">image</span>
+    </button>
   </div>
 
   <app-undo-redo-controls></app-undo-redo-controls>
@@ -21,8 +49,7 @@
       (click)="exportDocument()"
       title="Export document as JSON file"
     >
-      <span class="editor-toolbar__button-icon">⬇</span>
-      <span class="editor-toolbar__button-text">Export</span>
+      <span class="material-symbols-outlined">download</span>
     </button>
     <button
       type="button"
@@ -30,8 +57,7 @@
       (click)="triggerImport()"
       title="Import document from JSON file"
     >
-      <span class="editor-toolbar__button-icon">⬆</span>
-      <span class="editor-toolbar__button-text">Import</span>
+      <span class="material-symbols-outlined">upload</span>
     </button>
     <button
       type="button"
@@ -39,8 +65,7 @@
       (click)="downloadPDF()"
       title="Download document as PDF"
     >
-      <span class="editor-toolbar__button-icon">📄</span>
-      <span class="editor-toolbar__button-text">Download PDF</span>
+      <span class="material-symbols-outlined">picture_as_pdf</span>
     </button>
   </div>
 </div>
