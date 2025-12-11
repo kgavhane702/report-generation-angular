@@ -264,5 +264,10 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   get textProps(): TextWidgetProps {
     return this.widget.props as TextWidgetProps;
   }
+
+  get backgroundColor(): string {
+    const bgColor = this.textProps.backgroundColor;
+    return bgColor && bgColor.trim() !== '' ? bgColor : 'transparent';
+  }
 }
 

@@ -5,6 +5,7 @@
   flex-direction: column;
   cursor: text;
   position: relative;
+  // Background color is set dynamically via [style.background-color] binding
 }
 
 .text-widget--editing {
@@ -20,8 +21,8 @@
   padding: 0;
   font-size: 1rem;
   line-height: 1.4;
-  color: #0f172a;
-  background: transparent;
+  color: #0f172a; // Dark text for default transparent/light backgrounds
+  background: inherit; // Inherit background color from parent
   cursor: text;
   overflow-y: auto;
 }
@@ -33,8 +34,8 @@
 }
 
 :host ::ng-deep .ck.ck-editor__editable.ck-focused {
-  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.35); // Blue border for focus
   border-radius: 0.35rem;
-  background: transparent;
+  background: inherit; // Inherit background color from parent
 }
 

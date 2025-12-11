@@ -19,51 +19,83 @@
     </div>
 
     <ng-container *ngIf="hasWidgetSelected(); else inspectorEmpty">
-      <form [formGroup]="propertiesForm" class="inspector__form">
-        <div class="inspector__group inspector__group--grid">
-          <label>
-            X
-            <input type="number" formControlName="x" />
-          </label>
-          <label>
-            Y
-            <input type="number" formControlName="y" />
-          </label>
-        </div>
+      <!-- Text Widget - Show only color palette -->
+      <ng-container *ngIf="isTextWidget">
+        <form [formGroup]="propertiesForm" class="inspector__form">
+          <div class="inspector__group">
+            <label>Background Color</label>
+            <div class="inspector__color-palette">
+              <div class="inspector__color-picker">
+                <input type="color" formControlName="backgroundColor" class="inspector__color-input" />
+                <span class="inspector__color-value">{{ propertiesForm.get('backgroundColor')?.value || 'transparent' }}</span>
+              </div>
+              <div class="inspector__color-swatches">
+                <button
+                  *ngFor="let color of colorPalette"
+                  type="button"
+                  class="inspector__color-swatch"
+                  [style.background-color]="color.value || 'transparent'"
+                  [class.inspector__color-swatch--active]="(propertiesForm.get('backgroundColor')?.value || '') === color.value"
+                  [class.inspector__color-swatch--transparent]="!color.value"
+                  [attr.title]="color.label"
+                  (click)="selectColor(color.value)"
+                >
+                  <span *ngIf="!color.value" class="inspector__transparent-icon">×</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </ng-container>
 
-        <div class="inspector__group inspector__group--grid">
-          <label>
-            Width
-            <input type="number" formControlName="width" />
-          </label>
-          <label>
-            Height
-            <input type="number" formControlName="height" />
-          </label>
-        </div>
+      <!-- Other Widgets - Show full properties -->
+      <ng-container *ngIf="!isTextWidget">
+        <form [formGroup]="propertiesForm" class="inspector__form">
+          <div class="inspector__group inspector__group--grid">
+            <label>
+              X
+              <input type="number" formControlName="x" />
+            </label>
+            <label>
+              Y
+              <input type="number" formControlName="y" />
+            </label>
+          </div>
 
-        <div class="inspector__group inspector__group--grid">
-          <label>
-            Rotation°
-            <input type="number" formControlName="rotation" />
-          </label>
-          <label>
-            Z-Index
-            <input type="number" formControlName="zIndex" />
-          </label>
-        </div>
+          <div class="inspector__group inspector__group--grid">
+            <label>
+              Width
+              <input type="number" formControlName="width" />
+            </label>
+            <label>
+              Height
+              <input type="number" formControlName="height" />
+            </label>
+          </div>
 
-        <div class="inspector__group inspector__group--grid">
-          <label>
-            Font size
-            <input type="number" formControlName="fontSize" />
-          </label>
-          <label class="inspector__color">
-            Color
-            <input type="color" formControlName="fontColor" />
-          </label>
-        </div>
-      </form>
+          <div class="inspector__group inspector__group--grid">
+            <label>
+              Rotation°
+              <input type="number" formControlName="rotation" />
+            </label>
+            <label>
+              Z-Index
+              <input type="number" formControlName="zIndex" />
+            </label>
+          </div>
+
+          <div class="inspector__group inspector__group--grid">
+            <label>
+              Font size
+              <input type="number" formControlName="fontSize" />
+            </label>
+            <label class="inspector__color">
+              Color
+              <input type="color" formControlName="fontColor" />
+            </label>
+          </div>
+        </form>
+      </ng-container>
     </ng-container>
 
     <ng-template #inspectorEmpty>

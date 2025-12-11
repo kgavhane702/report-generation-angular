@@ -43,6 +43,7 @@ export interface TextWidgetProps {
   contentHtml: string;
   editorConfigId?: string;
   flowEnabled?: boolean;
+  backgroundColor?: string;
 }
 
 export interface ChartWidgetProps {
