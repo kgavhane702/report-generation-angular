@@ -81,6 +81,26 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
     'right',
   ];
 
+  readonly lineStyles: Array<'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'> = [
+    'solid',
+    'dashed',
+    'dotted',
+    'dashDot',
+    'longDash',
+    'longDashDot',
+    'longDashDotDot',
+  ];
+
+  readonly lineStyleLabels: Record<string, string> = {
+    'solid': 'Solid',
+    'dashed': 'Dashed',
+    'dotted': 'Dotted',
+    'dashDot': 'Dash Dot',
+    'longDash': 'Long Dash',
+    'longDashDot': 'Long Dash Dot',
+    'longDashDotDot': 'Long Dash Dot Dot',
+  };
+
   form!: FormGroup;
   csvFormControl = this.fb.control('');
   showCsvImport = false;
@@ -157,6 +177,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
       color: [series.color || ''],
       data: dataArray,
       seriesType: [seriesType], // 'bar' or 'line' for combo charts
+      lineStyle: [series.lineStyle || 'solid'], // Line style for line/area charts
     });
   }
 
@@ -182,6 +203,21 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
 
   get shouldShowSeriesTypeSelector(): boolean {
     return this.isStackedBarLineChart && this.hasMultipleSeries;
+  }
+
+  shouldShowLineStyle(seriesIndex: number): boolean {
+    const chartType = this.currentChartType;
+    // Show for line and area charts
+    if (chartType === 'line' || chartType === 'area') {
+      return true;
+    }
+    // Show for line series in stacked bar/line charts
+    if (chartType === 'stackedBarLine') {
+      const seriesGroup = this.seriesFormArray.at(seriesIndex) as FormGroup;
+      const seriesType = seriesGroup?.get('seriesType')?.value;
+      return seriesType === 'line';
+    }
+    return false;
   }
 
   addLabel(): void {
@@ -287,6 +323,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
         data: s.data || [],
         color: s.color || undefined,
         type: s.seriesType || undefined, // Include series type for combo charts
+        lineStyle: s.lineStyle || undefined, // Include line style for line/area charts
       })),
       title: formValue.title,
       xAxisLabel: formValue.xAxisLabel,
@@ -330,6 +367,7 @@ export class ChartConfigDialogComponent implements OnInit, OnDestroy {
         data: s.data || [],
         color: s.color || undefined,
         type: s.seriesType || undefined, // Include series type for combo charts
+        lineStyle: s.lineStyle || undefined, // Include line style for line/area charts
       })),
       title: formValue.title || undefined,
       xAxisLabel: formValue.xAxisLabel || undefined,

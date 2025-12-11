@@ -89,6 +89,7 @@ export class EChartsAreaChartHandler implements EChartsChartTypeHandler {
           },
           lineStyle: {
             color: color,
+            type: this.getLineStyleType(s.lineStyle) as any,
           },
           itemStyle: {
             color: color,
@@ -124,6 +125,24 @@ export class EChartsAreaChartHandler implements EChartsChartTypeHandler {
   ): string {
     if (!position) return defaultPosition;
     return position;
+  }
+
+  private getLineStyleType(
+    lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'
+  ): string | undefined {
+    if (!lineStyle || lineStyle === 'solid') {
+      return undefined; // ECharts default is solid
+    }
+    // Map to ECharts line style types
+    const styleMap: Record<string, string> = {
+      'dashed': 'dashed',
+      'dotted': 'dotted',
+      'dashDot': 'dashDot',
+      'longDash': 'longDash',
+      'longDashDot': 'longDashDot',
+      'longDashDotDot': 'longDashDotDot',
+    };
+    return styleMap[lineStyle] || undefined;
   }
 
   private addAlpha(color: string, alpha: number): string {

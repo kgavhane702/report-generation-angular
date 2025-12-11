@@ -96,6 +96,11 @@ export interface ChartSeries {
    * Chart type override for this series (for combo charts)
    */
   type?: ChartType;
+
+  /**
+   * Line style for line/area charts (solid, dashed, dotted, etc.)
+   */
+  lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot';
 }
 
 /**

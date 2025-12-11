@@ -242,6 +242,16 @@
                 <option value="bar">Bar</option>
                 <option value="line">Line</option>
               </select>
+              <select
+                *ngIf="shouldShowLineStyle(i)"
+                formControlName="lineStyle"
+                class="chart-config-dialog__select chart-config-dialog__select--line-style"
+                title="Line style"
+              >
+                <option *ngFor="let style of lineStyles" [value]="style">
+                  {{ lineStyleLabels[style] }}
+                </option>
+              </select>
               <button
                 type="button"
                 class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"

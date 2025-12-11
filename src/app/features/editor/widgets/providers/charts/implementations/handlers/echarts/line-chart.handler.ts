@@ -84,6 +84,7 @@ export class EChartsLineChartHandler implements EChartsChartTypeHandler {
         smooth: true,
         lineStyle: {
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
+          type: this.getLineStyleType(s.lineStyle) as any,
         },
         itemStyle: {
           color: s.color || colors?.[index] || defaultColors[index % defaultColors.length],
@@ -122,6 +123,24 @@ export class EChartsLineChartHandler implements EChartsChartTypeHandler {
       return 'top';
     }
     return position;
+  }
+
+  private getLineStyleType(
+    lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'
+  ): string | undefined {
+    if (!lineStyle || lineStyle === 'solid') {
+      return undefined; // ECharts default is solid
+    }
+    // Map to ECharts line style types
+    const styleMap: Record<string, string> = {
+      'dashed': 'dashed',
+      'dotted': 'dotted',
+      'dashDot': 'dashDot',
+      'longDash': 'longDash',
+      'longDashDot': 'longDashDot',
+      'longDashDotDot': 'longDashDotDot',
+    };
+    return styleMap[lineStyle] || undefined;
   }
 }
 
