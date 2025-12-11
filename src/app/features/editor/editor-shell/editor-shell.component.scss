@@ -2,26 +2,35 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #f4f6fb;
-  color: #1a1f36;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #0f172a;
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
 }
 
 .editor-shell__toolbar {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
-  background: #fff;
-  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: #ffffff;
+  padding: 0 2rem;
   display: flex;
   align-items: center;
-  min-height: 56px;
+  min-height: 64px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(10px);
+  position: relative;
+  z-index: 10;
 }
 
 .editor-shell__rich-text-toolbar {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
-  background: #fff;
-  min-height: 48px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: #ffffff;
+  min-height: 52px;
   display: flex;
   align-items: center;
+  padding: 0 2rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  position: relative;
+  z-index: 9;
 }
 
 .editor-shell__body {
@@ -29,16 +38,36 @@
   min-height: 0;
   display: flex;
   overflow: hidden;
+  gap: 0;
 }
 
 .editor-shell__sidebar {
-  flex: 0 0 280px;
-  border-right: 1px solid rgba(15, 23, 42, 0.08);
-  background: #fff;
+  flex: 0 0 300px;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   min-width: 0;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(148, 163, 184, 0.5);
+    }
+  }
 }
 
 .editor-shell__canvas {
@@ -52,27 +81,30 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  // Equal padding on both sides for proper centering
-  padding: 2rem 3rem;
+  padding: 3rem 4rem;
   box-sizing: border-box;
-  background: #e2e8f0;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
   
   // Ensure scroll container can accommodate zoomed content
   &::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
   
   &::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.05);
+    background: rgba(241, 245, 249, 0.5);
+    border-radius: 7px;
   }
   
   &::-webkit-scrollbar-thumb {
-    background: rgba(15, 23, 42, 0.2);
-    border-radius: 6px;
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 7px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
     
     &:hover {
-      background: rgba(15, 23, 42, 0.3);
+      background: rgba(148, 163, 184, 0.6);
+      background-clip: padding-box;
     }
   }
 }
