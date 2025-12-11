@@ -25,22 +25,70 @@ import {
   RichTextEditorService,
 } from './rich-text-editor.interface';
 
-const LICENSE_KEY = 'GPL';
+/**
+ * CKEditor Rich Text Editor Implementation
+ * 
+ * A clean, smooth, and easy-to-use implementation of CKEditor5
+ * that provides a comprehensive rich text editing experience.
+ */
+@Injectable({
+  providedIn: 'root',
+})
+export class CkEditorRichTextEditorService extends RichTextEditorService {
+  /**
+   * Creates a new CKEditor instance with optimized configuration
+   */
+  createEditor(): RichTextEditor {
+    return new CkEditorInstance();
+  }
+}
 
 /**
- * CKEditor implementation of RichTextEditor
+ * CKEditor Instance Wrapper
+ * 
+ * Encapsulates the CKEditor configuration and provides
+ * a clean interface for Angular components.
  */
 class CkEditorInstance implements RichTextEditor {
   private static editorClass: typeof ClassicEditor | null = null;
   private static editorConfig: EditorConfig | null = null;
 
-  static initialize(): void {
-    if (this.editorClass && this.editorConfig) {
+  /**
+   * Gets the configured CKEditor class
+   */
+  get Editor(): typeof ClassicEditor {
+    this.ensureInitialized();
+    return CkEditorInstance.editorClass!;
+  }
+
+  /**
+   * Gets the editor configuration
+   */
+  get config(): Record<string, unknown> {
+    this.ensureInitialized();
+    return CkEditorInstance.editorConfig! as Record<string, unknown>;
+  }
+
+  /**
+   * Ensures the editor is initialized (lazy initialization)
+   */
+  private ensureInitialized(): void {
+    if (CkEditorInstance.editorClass && CkEditorInstance.editorConfig) {
       return;
     }
 
-    class TextWidgetEditor extends ClassicEditor {}
-    TextWidgetEditor.builtinPlugins = [
+    this.initializeEditor();
+  }
+
+  /**
+   * Initializes the CKEditor with all plugins and configuration
+   */
+  private initializeEditor(): void {
+    // Create custom editor class with all required plugins
+    class CustomEditor extends ClassicEditor {}
+
+    // Register all plugins
+    CustomEditor.builtinPlugins = [
       Essentials,
       Paragraph,
       Heading,
@@ -59,8 +107,9 @@ class CkEditorInstance implements RichTextEditor {
       TableToolbar,
     ];
 
+    // Configure editor settings
     const config: EditorConfig = {
-      licenseKey: LICENSE_KEY,
+      licenseKey: 'GPL',
       toolbar: {
         items: [
           'undo',
@@ -89,42 +138,67 @@ class CkEditorInstance implements RichTextEditor {
       },
       heading: {
         options: [
-          { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
-          { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_heading2' },
-          { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_heading3' },
+          {
+            model: 'paragraph',
+            title: 'Paragraph',
+            class: 'ck-heading_paragraph',
+          },
+          {
+            model: 'heading2',
+            view: 'h2',
+            title: 'Heading 2',
+            class: 'ck-heading_heading2',
+          },
+          {
+            model: 'heading3',
+            view: 'h3',
+            title: 'Heading 3',
+            class: 'ck-heading_heading3',
+          },
         ],
+      },
+      fontFamily: {
+        options: [
+          'default',
+          'Arial, Helvetica, sans-serif',
+          'Courier New, Courier, monospace',
+          'Georgia, serif',
+          'Lucida Sans Unicode, Lucida Grande, sans-serif',
+          'Tahoma, Geneva, sans-serif',
+          'Times New Roman, Times, serif',
+          'Trebuchet MS, Helvetica, sans-serif',
+          'Verdana, Geneva, sans-serif',
+        ],
+      },
+      fontSize: {
+        options: [9, 11, 13, 'default', 17, 19, 21, 24, 28, 32, 36, 48, 60, 72],
       },
       table: {
         contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells'],
       },
+      link: {
+        decorators: {
+          openInNewTab: {
+            mode: 'manual',
+            label: 'Open in a new tab',
+            attributes: {
+              target: '_blank',
+              rel: 'noopener noreferrer',
+            },
+          },
+        },
+      },
+      // Performance optimizations
+      removePlugins: [],
+      // UI improvements
+      placeholder: 'Start typing...',
     };
 
-    TextWidgetEditor.defaultConfig = config;
-    this.editorClass = TextWidgetEditor;
-    this.editorConfig = config;
-  }
+    // Set default configuration
+    CustomEditor.defaultConfig = config;
 
-  get Editor(): typeof ClassicEditor {
-    CkEditorInstance.initialize();
-    return CkEditorInstance.editorClass!;
-  }
-
-  get config(): Record<string, unknown> {
-    CkEditorInstance.initialize();
-    return CkEditorInstance.editorConfig! as Record<string, unknown>;
+    // Cache the editor class and config
+    CkEditorInstance.editorClass = CustomEditor;
+    CkEditorInstance.editorConfig = config;
   }
 }
-
-/**
- * CKEditor implementation of RichTextEditorService
- */
-@Injectable({
-  providedIn: 'root',
-})
-export class CkEditorRichTextEditorService extends RichTextEditorService {
-  createEditor(): RichTextEditor {
-    return new CkEditorInstance();
-  }
-}
-
-
