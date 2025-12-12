@@ -15,7 +15,6 @@ import { CommonModule } from '@angular/common';
 import { WidgetModel, AdvancedTableCellStyle, AdvancedTableWidgetProps } from '../../../../models/widget.model';
 import { TableSelectionService } from '../../../../core/services/table-selection.service';
 import { TableOperationsService } from '../../../../core/services/table-operations.service';
-import { TableHistoryService } from '../../../../core/services/table-history.service';
 import { Subscription } from 'rxjs';
 
 interface CellPosition {
@@ -64,8 +63,7 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   constructor(
     private cdr: ChangeDetectorRef,
     private tableSelectionService: TableSelectionService,
-    private tableOperationsService: TableOperationsService,
-    private tableHistoryService: TableHistoryService
+    private tableOperationsService: TableOperationsService
   ) {}
 
   ngOnInit(): void {
@@ -73,8 +71,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       this.rows = this.widget.props.rows || 3;
       this.columns = this.widget.props.columns || 3;
       this.loadTableData();
-      // Save initial state
-      this.saveStateToHistory();
     }
 
     // Subscribe to table operations
@@ -106,12 +102,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
           break;
         case 'cutCells':
           this.cutSelectedCells();
-          break;
-        case 'undo':
-          this.undo();
-          break;
-        case 'redo':
-          this.redo();
           break;
       }
     });
@@ -333,21 +323,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       }
     }
 
-    // Handle Ctrl+Z (Undo)
-    if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
-      if (isTableFocused && !isTableInput) {
-        event.preventDefault();
-        this.undo();
-      }
-    }
-
-    // Handle Ctrl+Y or Ctrl+Shift+Z (Redo)
-    if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
-      if (isTableFocused && !isTableInput) {
-        event.preventDefault();
-        this.redo();
-      }
-    }
   }
 
   private stopSelection(): void {
@@ -469,8 +444,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     
     // Emit change event
     this.cellDataChange.emit(this.tableData.map(row => [...row]));
-    // Save state for undo/redo
-    this.saveStateToHistory();
   }
 
   // Style methods
@@ -483,7 +456,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       };
     });
     this.cellStylesChange.emit({ ...this.cellStyles });
-    this.saveStateToHistory();
     this.cdr.markForCheck();
   }
 
@@ -745,49 +717,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   }
 
   private emitStructureChange(): void {
-    this.structureChange.emit({
-      rows: this.rows,
-      columns: this.columns,
-      cellData: this.tableData.map(row => [...row]),
-      cellStyles: { ...this.cellStyles },
-      mergedCells: { ...this.mergedCells },
-    });
-    this.saveStateToHistory();
-    this.cdr.markForCheck();
-  }
-
-  private saveStateToHistory(): void {
-    this.tableHistoryService.saveState({
-      rows: this.rows,
-      columns: this.columns,
-      cellData: this.tableData.map(row => [...row]),
-      cellStyles: { ...this.cellStyles },
-      mergedCells: { ...this.mergedCells },
-    });
-  }
-
-  undo(): void {
-    const state = this.tableHistoryService.undo();
-    if (state) {
-      this.restoreState(state);
-    }
-  }
-
-  redo(): void {
-    const state = this.tableHistoryService.redo();
-    if (state) {
-      this.restoreState(state);
-    }
-  }
-
-  private restoreState(state: { rows: number; columns: number; cellData: string[][]; cellStyles: Record<string, any>; mergedCells?: Record<string, { rowspan: number; colspan: number }> }): void {
-    this.rows = state.rows;
-    this.columns = state.columns;
-    this.tableData = state.cellData.map(row => [...row]);
-    this.cellStyles = { ...state.cellStyles };
-    this.mergedCells = state.mergedCells ? { ...state.mergedCells } : {};
-
-    // Emit structure change but don't save to history (undo/redo operations shouldn't create new history entries)
     this.structureChange.emit({
       rows: this.rows,
       columns: this.columns,

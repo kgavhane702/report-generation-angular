@@ -1,6 +1,6 @@
 .table-toolbar {
   display: flex;
-  gap: 1.5rem;
+  gap: 0.5rem;
   align-items: center;
   padding: 0.75rem 1rem;
   background: #ffffff;
@@ -10,9 +10,9 @@
 
 .table-toolbar__group {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.25rem;
   align-items: center;
-  padding: 0 0.75rem;
+  padding: 0 0.5rem;
   border-left: 1px solid #e5e7eb;
 
   &:first-child {

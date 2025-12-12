@@ -10,9 +10,7 @@ export type TableOperation =
   | { type: 'unmergeCells' }
   | { type: 'copyCells' }
   | { type: 'pasteCells' }
-  | { type: 'cutCells' }
-  | { type: 'undo' }
-  | { type: 'redo' };
+  | { type: 'cutCells' };
 
 @Injectable({
   providedIn: 'root',
@@ -55,14 +53,6 @@ export class TableOperationsService {
 
   cutCells(): void {
     this.operationSubject.next({ type: 'cutCells' });
-  }
-
-  undo(): void {
-    this.operationSubject.next({ type: 'undo' });
-  }
-
-  redo(): void {
-    this.operationSubject.next({ type: 'redo' });
   }
 }
 

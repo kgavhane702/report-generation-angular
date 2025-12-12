@@ -316,14 +316,6 @@ export class TableToolbarComponent implements OnInit {
     this.tableOperationsService.cutCells();
   }
 
-  undo(): void {
-    this.tableOperationsService.undo();
-  }
-
-  redo(): void {
-    this.tableOperationsService.redo();
-  }
-
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.elementRef.nativeElement.contains(event.target)) {
