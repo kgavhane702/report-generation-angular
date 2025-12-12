@@ -5,13 +5,11 @@ import {
   WidgetModel,
   WidgetType,
   ChartWidgetProps,
-  TableWidgetProps,
   AdvancedTableWidgetProps,
   TextWidgetProps,
   WidgetProps,
 } from '../../../models/widget.model';
 import { createDefaultChartData } from '../../../models/chart-data.model';
-import { createDefaultTableData } from '../../../models/table-data.model';
 
 @Injectable({
   providedIn: 'root',
@@ -23,8 +21,6 @@ export class WidgetFactoryService {
         return this.createTextWidget();
       case 'chart':
         return this.createChartWidget();
-      case 'table':
-        return this.createTableWidget();
       case 'advanced-table':
         return this.createAdvancedTableWidget(options?.rows || 3, options?.columns || 3);
       case 'image':
@@ -62,23 +58,6 @@ export class WidgetFactoryService {
         chartType: defaultChartData.chartType,
         data: defaultChartData,
         renderMode: 'canvas',
-      },
-    };
-  }
-
-  private createTableWidget(): WidgetModel<TableWidgetProps> {
-    const defaultTableData = createDefaultTableData();
-    
-    return {
-      id: uuid(),
-      type: 'table',
-      position: { x: 100, y: 520 },
-      size: { width: 520, height: 200 },
-      zIndex: 1,
-      props: {
-        provider: 'html-table',
-        allowIconsInColumns: true,
-        ...defaultTableData,
       },
     };
   }

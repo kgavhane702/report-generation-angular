@@ -114,10 +114,6 @@ export class WidgetContainerComponent {
     this.onContentChange(props);
   }
 
-  onTablePropsChange(props: Partial<any>): void {
-    this.onContentChange(props);
-  }
-
   onAdvancedTableCellDataChange(cellData: string[][]): void {
     this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
       props: {

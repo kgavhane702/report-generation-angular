@@ -13,17 +13,14 @@ import { PageComponent } from './page/page.component';
 import { WidgetContainerComponent } from './widgets/widget-container/widget-container.component';
 import { TextWidgetComponent } from './widgets/text-widget/text-widget.component';
 import { ChartWidgetComponent } from './widgets/chart-widget/chart-widget.component';
-import { TableWidgetComponent } from './widgets/table-widget/table-widget.component';
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
 import { ZoomControlsComponent } from './toolbar/zoom-controls/zoom-controls.component';
 import { UndoRedoControlsComponent } from './toolbar/undo-redo-controls/undo-redo-controls.component';
 import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-picker/text-widget-color-picker.component';
 import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
-import { TableConfigDialogComponent } from './widgets/providers/table/table-config';
 import { TableGridSelectionDialogComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-dialog.component';
 import { TableGridSelectionInlineComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-inline.component';
-import { TableRegistryInitializer } from './widgets/providers/table/registry';
 import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
 import { TableToolbarComponent } from './toolbar/table-toolbar/table-toolbar.component';
 import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/advanced-table-widget.component';
@@ -39,7 +36,6 @@ import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/ad
     WidgetContainerComponent,
     TextWidgetComponent,
     ChartWidgetComponent,
-    TableWidgetComponent,
     ImageWidgetComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
@@ -52,7 +48,6 @@ import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/ad
     DragDropModule,
     CKEditorModule,
     ChartConfigDialogComponent,
-    TableConfigDialogComponent,
     TableGridSelectionDialogComponent,
     TableGridSelectionInlineComponent,
     AdvancedTableWidgetComponent,
@@ -60,7 +55,7 @@ import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/ad
     TableToolbarComponent,
   ],
   exports: [EditorShellComponent],
-  providers: [ChartRegistryInitializer, TableRegistryInitializer],
+  providers: [ChartRegistryInitializer],
 })
 export class EditorModule {}
 

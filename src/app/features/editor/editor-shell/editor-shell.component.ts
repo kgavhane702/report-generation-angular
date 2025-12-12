@@ -9,7 +9,6 @@ import {
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { DocumentService } from '../../../core/services/document.service';
 import { ChartRegistryInitializer } from '../widgets/providers/charts/registry';
-import { TableRegistryInitializer } from '../widgets/providers/table/registry';
 
 @Component({
   selector: 'app-editor-shell',
@@ -21,7 +20,6 @@ export class EditorShellComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
-  private readonly tableRegistryInitializer = inject(TableRegistryInitializer);
 
   // Computed signals to determine if toolbars should be shown
   readonly showRichTextToolbar = computed(() => {
