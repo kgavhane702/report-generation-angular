@@ -136,6 +136,25 @@ export class WidgetContainerComponent {
     });
   }
 
+  onAdvancedTableStructureChange(structure: {
+    rows: number;
+    columns: number;
+    cellData: string[][];
+    cellStyles: Record<string, any>;
+    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
+  }): void {
+    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
+      props: {
+        ...this.widget.props,
+        rows: structure.rows,
+        columns: structure.columns,
+        cellData: structure.cellData,
+        cellStyles: structure.cellStyles,
+        mergedCells: structure.mergedCells,
+      } as any,
+    });
+  }
+
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
     if (!this.isSelected) {
       return;

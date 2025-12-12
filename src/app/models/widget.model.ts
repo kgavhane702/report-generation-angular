@@ -128,6 +128,9 @@ export interface AdvancedTableWidgetProps {
   columns: number;
   cellData?: string[][]; // 2D array to store cell content [row][column]
   cellStyles?: Record<string, AdvancedTableCellStyle>; // Key format: "row-col" e.g., "0-0"
+  mergedCells?: Record<string, { rowspan: number; colspan: number }>; // Key format: "row-col" e.g., "0-0"
+  rowHeights?: number[]; // Optional row height overrides in pixels
+  columnWidths?: number[]; // Optional column width overrides in pixels
 }
 
 export interface AdvancedTableCellStyle {
@@ -138,6 +141,11 @@ export interface AdvancedTableCellStyle {
   fontSize?: number;
   color?: string;
   backgroundColor?: string;
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderWidth?: number;
+  borderColor?: string;
+  fontFamily?: string;
 }
 
 export interface MediaWidgetProps {
