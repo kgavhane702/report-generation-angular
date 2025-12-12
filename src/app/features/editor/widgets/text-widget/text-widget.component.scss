@@ -39,3 +39,23 @@
   background: inherit; // Inherit background color from parent
 }
 
+// Ensure list markers are visible inside the editor
+:host ::ng-deep .ck.ck-editor__editable ul,
+:host ::ng-deep .ck.ck-editor__editable ol {
+  padding-left: 1.25rem;
+  margin: 0.35rem 0;
+  list-style-position: outside;
+}
+
+:host ::ng-deep .ck.ck-editor__editable ul {
+  list-style-type: disc;
+}
+
+:host ::ng-deep .ck.ck-editor__editable ol {
+  list-style-type: decimal;
+}
+
+:host ::ng-deep .ck.ck-editor__editable li {
+  margin: 0.25rem 0;
+}
+
