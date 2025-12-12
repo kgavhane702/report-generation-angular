@@ -30,7 +30,7 @@
               *ngIf="!isCellEditing(i, j)"
               class="advanced-table-widget__cell-content"
             >
-              {{ getCellValue(i, j) || '&nbsp;' }}
+              {{ getCellValue(i, j) }}
             </div>
             <input
               *ngIf="isCellEditing(i, j)"

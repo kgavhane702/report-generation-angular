@@ -121,7 +121,10 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       } else {
         // Just update cell data and styles if they changed
         if (currentProps.cellData) {
-          this.tableData = currentProps.cellData.map(row => [...row]);
+          // Clean cell values when loading
+          this.tableData = currentProps.cellData.map(row => 
+            row.map(cell => this.cleanCellValue(cell || ''))
+          );
         }
         if (currentProps.cellStyles) {
           this.cellStyles = { ...currentProps.cellStyles };
@@ -147,8 +150,10 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     if (this.widget?.props?.cellData && 
         this.widget.props.cellData.length === this.rows &&
         this.widget.props.cellData[0]?.length === this.columns) {
-      // Deep copy to avoid reference issues
-      this.tableData = this.widget.props.cellData.map(row => [...row]);
+      // Deep copy and clean cell values
+      this.tableData = this.widget.props.cellData.map(row => 
+        row.map(cell => this.cleanCellValue(cell || ''))
+      );
     } else {
       this.initializeTableData();
     }
@@ -173,7 +178,9 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
 
   getCellValue(rowIndex: number, colIndex: number): string {
     if (this.tableData[rowIndex] && this.tableData[rowIndex][colIndex] !== undefined) {
-      return this.tableData[rowIndex][colIndex];
+      const value = this.tableData[rowIndex][colIndex];
+      // Clean the value for display (remove &nbsp;)
+      return this.cleanCellValue(value);
     }
     return '';
   }
@@ -440,10 +447,28 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     if (!this.tableData[rowIndex]) {
       this.tableData[rowIndex] = [];
     }
-    this.tableData[rowIndex][colIndex] = value;
+    // Clean the value - remove &nbsp; and trim whitespace
+    const cleanedValue = this.cleanCellValue(value);
+    this.tableData[rowIndex][colIndex] = cleanedValue;
     
-    // Emit change event
-    this.cellDataChange.emit(this.tableData.map(row => [...row]));
+    // Emit change event with cleaned values
+    const cleanedCellData = this.tableData.map(row => 
+      row.map(cell => this.cleanCellValue(cell || ''))
+    );
+    this.cellDataChange.emit(cleanedCellData);
+  }
+
+  private cleanCellValue(value: string): string {
+    if (!value) {
+      return '';
+    }
+    // Remove &nbsp; (both HTML entity and literal string)
+    let cleaned = value.replace(/&nbsp;/g, '');
+    cleaned = cleaned.replace(/&nbsp;/gi, ''); // Case insensitive
+    // Remove all whitespace-only content
+    cleaned = cleaned.trim();
+    // If result is empty or only whitespace, return empty string
+    return cleaned.length === 0 ? '' : cleaned;
   }
 
   // Style methods
@@ -717,10 +742,15 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   }
 
   private emitStructureChange(): void {
+    // Clean all cell values before emitting
+    const cleanedCellData = this.tableData.map(row => 
+      row.map(cell => this.cleanCellValue(cell || ''))
+    );
+    
     this.structureChange.emit({
       rows: this.rows,
       columns: this.columns,
-      cellData: this.tableData.map(row => [...row]),
+      cellData: cleanedCellData,
       cellStyles: { ...this.cellStyles },
       mergedCells: { ...this.mergedCells },
     });
@@ -771,7 +801,7 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     const minCol = Math.min(...cols);
     const maxCol = Math.max(...cols);
 
-    // Extract data from selected range
+    // Extract data from selected range (getCellValue already cleans the values)
     const copiedData: string[][] = [];
     for (let i = minRow; i <= maxRow; i++) {
       const row: string[] = [];
@@ -867,7 +897,8 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         }
 
         if (clipboardData.data[i] && clipboardData.data[i][j] !== undefined) {
-          this.tableData[targetRowIndex][targetColIndex] = clipboardData.data[i][j];
+          // Clean the pasted value
+          this.tableData[targetRowIndex][targetColIndex] = this.cleanCellValue(clipboardData.data[i][j]);
         }
       }
     }
