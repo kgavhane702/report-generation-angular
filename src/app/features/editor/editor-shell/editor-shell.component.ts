@@ -3,6 +3,7 @@ import {
   Component,
   inject,
   HostListener,
+  computed,
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
@@ -21,6 +22,17 @@ export class EditorShellComponent {
   private readonly documentService = inject(DocumentService);
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
   private readonly tableRegistryInitializer = inject(TableRegistryInitializer);
+
+  // Computed signals to determine if toolbars should be shown
+  readonly showRichTextToolbar = computed(() => {
+    const widget = this.editorState.activeWidget();
+    return widget?.type === 'text';
+  });
+
+  readonly showTableToolbar = computed(() => {
+    const widget = this.editorState.activeWidget();
+    return widget?.type === 'advanced-table';
+  });
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {

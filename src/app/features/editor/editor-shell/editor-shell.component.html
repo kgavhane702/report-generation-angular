@@ -3,11 +3,11 @@
     <app-editor-toolbar></app-editor-toolbar>
   </header>
 
-  <div class="editor-shell__rich-text-toolbar">
+  <div class="editor-shell__rich-text-toolbar" *ngIf="showRichTextToolbar()">
     <app-rich-text-toolbar></app-rich-text-toolbar>
   </div>
   
-  <div class="editor-shell__table-toolbar">
+  <div class="editor-shell__table-toolbar" *ngIf="showTableToolbar()">
     <app-table-toolbar></app-table-toolbar>
   </div>
 
