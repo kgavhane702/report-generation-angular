@@ -276,20 +276,16 @@ public class TextWidgetRenderer {
         
         if (!contentHtmlNode.isMissingNode() && !contentHtmlNode.isNull()) {
             if (contentHtmlNode.isTextual()) {
-                // Get HTML content directly - includes all inline styles from CKEditor
-                // Jackson's asText() properly unescapes HTML entities from JSON
                 content = contentHtmlNode.asText("");
             } else {
                 content = contentHtmlNode.toString();
             }
         }
-        
-        // Ensure content is not empty
+
         if (content.trim().isEmpty()) {
             content = "<p></p>";
         }
-        
-        // Extract backgroundColor from props and add to style
+
         StringBuilder finalStyle = new StringBuilder(widgetStyle);
         JsonNode backgroundColorNode = props.path("backgroundColor");
         if (!backgroundColorNode.isMissingNode() && !backgroundColorNode.isNull() && backgroundColorNode.isTextual()) {
@@ -298,8 +294,7 @@ public class TextWidgetRenderer {
                 finalStyle.append("background-color: ").append(backgroundColor).append(";");
             }
         }
-        
-        // HTML content is inserted directly - all inline styles from CKEditor are preserved
+
         return "<div class=\"widget widget-text\" style=\"" + finalStyle + "\">" + content + "</div>";
     }
     

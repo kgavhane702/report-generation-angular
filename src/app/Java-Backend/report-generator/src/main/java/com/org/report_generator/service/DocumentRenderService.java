@@ -69,7 +69,6 @@ public class DocumentRenderService {
                     continue;
                 }
                 for (Page page : subsection.getPages()) {
-                    // Ensure page numbers are set sequentially for PDF rendering
                     page.setNumber(pageNumber++);
                     flattened.add(page);
                 }
@@ -102,17 +101,14 @@ public class DocumentRenderService {
                 .append(pageName)
                 .append(";\"><div class=\"page__surface\">");
 
-        // Render logo if configured
         builder.append(renderLogo(document, widthPx, heightPx));
 
-        // Render widgets
         if (page.getWidgets() != null) {
             for (Widget widget : page.getWidgets()) {
                 builder.append(renderWidget(widget));
             }
         }
 
-        // Render footer if configured
         builder.append(renderFooter(document, page, widthPx, heightPx));
 
         builder.append("</div></div>");
@@ -166,7 +162,6 @@ public class DocumentRenderService {
         if (props == null) {
             return "<div class=\"widget widget-image\" style=\"" + style + "\"></div>";
         }
-        // Frontend uses 'src', but check both for backward compatibility
         String url = props.path("src").asText("");
         if (url.isBlank()) {
             url = props.path("url").asText("");
@@ -204,7 +199,6 @@ public class DocumentRenderService {
         html.append("<div class=\"widget widget-table\" style=\"").append(style).append("\">");
         html.append("<table class=\"table-adapter\" style=\"").append(getTableStyles(styleSettings)).append("\">");
 
-        // Header is always created from column titles (not from first row)
         html.append("<thead><tr>");
         for (int i = 0; i < columns.size(); i++) {
             JsonNode column = columns.has(i) ? columns.get(i) : MissingNode.getInstance();
@@ -216,7 +210,6 @@ public class DocumentRenderService {
         }
         html.append("</tr></thead>");
 
-        // All rows are data rows (first row is NOT the header)
         html.append("<tbody>");
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             JsonNode row = rows.has(rowIndex) ? rows.get(rowIndex) : MissingNode.getInstance();
@@ -227,7 +220,6 @@ public class DocumentRenderService {
                         ? columns.get(cellIndex)
                         : MissingNode.getInstance();
                 JsonNode cell = rowCells.has(cellIndex) ? rowCells.get(cellIndex) : MissingNode.getInstance();
-                // All body cells are td (header is in thead)
                 html.append("<td style=\"")
                         .append(getCellStyles(column, row, cellIndex, rowIndex, styleSettings))
                         .append("\">")
@@ -258,9 +250,7 @@ public class DocumentRenderService {
     private String getHeaderCellStyles(JsonNode column, JsonNode styleSettings) {
         StringBuilder styles = new StringBuilder();
         JsonNode headerStyle = styleSettings.path("headerStyle");
-        
-        // Background - Header border should NOT use column border settings
-        // Priority: headerStyle.backgroundColor > headerBackgroundColor > default
+
         String background = coalesce(
                 headerStyle.path("backgroundColor").asText(null),
                 styleSettings.path("headerBackgroundColor").asText(null),
@@ -268,7 +258,6 @@ public class DocumentRenderService {
         );
         styles.append("background-color: ").append(background).append(";");
 
-        // Text color - Header should NOT use column textColor
         String textColor = coalesce(
                 headerStyle.path("textColor").asText(null),
                 styleSettings.path("headerTextColor").asText(null),
@@ -276,7 +265,6 @@ public class DocumentRenderService {
         );
         styles.append("color: ").append(textColor).append(";");
 
-        // Font - Header should NOT use column font settings
         appendStyleIfPresent(styles, "font-family", headerStyle.path("fontFamily"));
         appendNumericStyle(styles, "font-size", headerStyle.path("fontSize"), "px");
         appendStyleIfPresent(styles, "font-weight", headerStyle.path("fontWeight"));
@@ -284,12 +272,9 @@ public class DocumentRenderService {
         appendStyleIfPresent(styles, "text-align", headerStyle.path("textAlign"));
         appendStyleIfPresent(styles, "vertical-align", headerStyle.path("verticalAlign"));
 
-        // Padding - Header padding should NOT use column padding
         int padding = (int) coalesceNode(headerStyle.path("padding"), styleSettings.path("cellPadding")).asInt(8);
         styles.append("padding: ").append(padding).append("px;");
 
-        // Border - Header border should use headerBorderColor/headerBorderWidth, NOT column border
-        // Priority: headerBorderColor/headerBorderWidth > headerStyle.borderColor/borderWidth > default
         String borderColor = coalesce(
                 styleSettings.path("headerBorderColor").asText(null),
                 headerStyle.path("borderColor").asText(null),
@@ -366,7 +351,6 @@ public class DocumentRenderService {
         int borderRadius = icon.path("borderRadius").asInt(0);
         int iconPadding = icon.path("padding").asInt(0);
 
-        // Build icon HTML with proper styling
         StringBuilder iconHtml = new StringBuilder();
         boolean hasIcon = !svg.isEmpty() || !iconUrl.isEmpty();
         
@@ -411,7 +395,6 @@ public class DocumentRenderService {
             return hasIcon ? iconHtml.toString() : title;
         }
 
-        // Build container with icon and text
         StringBuilder html = new StringBuilder();
         boolean isVertical = "above".equals(position) || "below".equals(position);
         html.append("<div style=\"display: flex; align-items: center;");
@@ -436,8 +419,7 @@ public class DocumentRenderService {
 
     private String renderCellContent(JsonNode cell, JsonNode column) {
         String cellType = column.path("cellType").asText("text");
-        
-        // Handle icon cell type
+
         if ("icon".equals(cellType)) {
             JsonNode icon = column.path("icon");
             if (!icon.isMissingNode() && !icon.isNull()) {
@@ -446,18 +428,16 @@ public class DocumentRenderService {
                 int iconSize = icon.path("size").asInt(20);
                 
                 if (!svg.isEmpty()) {
-                    // Apply icon color if specified
                     String iconColor = icon.path("color").asText("");
                     String processedSvg = svg;
                     if (!iconColor.isEmpty()) {
-                        processedSvg = processedSvg.replaceAll("fill=\"[^\"]*\"", "fill=\"" + iconColor + "\"");
-                        processedSvg = processedSvg.replaceAll("stroke=\"[^\"]*\"", "stroke=\"" + iconColor + "\"");
-                        if (!processedSvg.contains("fill=")) {
-                            processedSvg = processedSvg.replaceFirst("<svg", "<svg fill=\"" + iconColor + "\"");
-                        }
+                    processedSvg = processedSvg.replaceAll("fill=\"[^\"]*\"", "fill=\"" + iconColor + "\"");
+                    processedSvg = processedSvg.replaceAll("stroke=\"[^\"]*\"", "stroke=\"" + iconColor + "\"");
+                    if (!processedSvg.contains("fill=")) {
+                        processedSvg = processedSvg.replaceFirst("<svg", "<svg fill=\"" + iconColor + "\"");
                     }
-                    // Ensure SVG has proper size
-                    if (!processedSvg.contains("width=") && !processedSvg.contains("width=\"")) {
+                }
+                if (!processedSvg.contains("width=") && !processedSvg.contains("width=\"")) {
                         processedSvg = processedSvg.replaceFirst("<svg", "<svg width=\"" + iconSize + "\" height=\"" + iconSize + "\"");
                     }
                     return "<span style=\"display: inline-flex; align-items: center; justify-content: center; width: " + iconSize + "px; height: " + iconSize + "px;\">" + processedSvg + "</span>";
@@ -465,10 +445,8 @@ public class DocumentRenderService {
                     return "<img src=\"" + iconUrl + "\" style=\"max-width: 100%; max-height: 100%; object-fit: contain; width: " + iconSize + "px; height: " + iconSize + "px;\" />";
                 }
             }
-            // Fallback to cell value if icon not available
         }
-        
-        // Handle currency cell type
+
         if ("currency".equals(cellType)) {
             if (cell != null && !cell.isNull()) {
                 double value;
@@ -486,8 +464,7 @@ public class DocumentRenderService {
                 return String.format("$%.2f", value);
             }
         }
-        
-        // Handle number cell type
+
         if ("number".equals(cellType)) {
             if (cell != null && !cell.isNull()) {
                 double value;
@@ -505,8 +482,7 @@ public class DocumentRenderService {
                 return String.format("%,.0f", value);
             }
         }
-        
-        // Default: text cell
+
         if (cell == null || cell.isNull()) {
             return "";
         }
@@ -518,11 +494,8 @@ public class DocumentRenderService {
         } else {
             cellText = cell.toString();
         }
-        // Escape HTML special characters for text cells to prevent rendering issues
         return escapeHtml(cellText);
     }
-
-    // Removed - now using modular renderer classes: GlobalStylesRenderer, TextWidgetRenderer, PageStylesRenderer
 
     private double mmToPx(double mm, int dpi) {
         return (mm / 25.4d) * dpi;
@@ -655,14 +628,12 @@ public class DocumentRenderService {
         StringBuilder footerHtml = new StringBuilder();
         footerHtml.append("<div class=\"page__footer\">");
 
-        // Left text
         footerHtml.append("<div class=\"page__footer-left\">");
         if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
             footerHtml.append(footer.getLeftText());
         }
         footerHtml.append("</div>");
 
-        // Center text
         footerHtml.append("<div class=\"page__footer-center\">");
         if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
             footerHtml.append("<div class=\"page__footer-center-line\">").append(footer.getCenterText()).append("</div>");
@@ -672,7 +643,6 @@ public class DocumentRenderService {
         }
         footerHtml.append("</div>");
 
-        // Right - Page number
         footerHtml.append("<div class=\"page__footer-right\">");
         if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
             footerHtml.append(page.getNumber());

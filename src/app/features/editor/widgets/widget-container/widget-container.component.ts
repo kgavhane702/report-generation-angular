@@ -56,16 +56,11 @@ export class WidgetContainerComponent {
     });
   }
 
-  // Use both HostBinding and template binding to ensure class is applied
   @HostBinding('class.widget-container--selected')
   get isSelected(): boolean {
     return this.editorState.activeWidgetId() === this.widget?.id;
   }
 
-  /**
-   * Calculate z-index to ensure widgets appear above footer/logo (z-index: 1000)
-   * Base z-index is 2000, plus widget's zIndex for relative ordering
-   */
   get calculatedZIndex(): number {
     const baseZIndex = 2000; // Higher than footer/logo (1000)
     return baseZIndex + (this.widget?.zIndex ?? 1);
@@ -85,10 +80,10 @@ export class WidgetContainerComponent {
 
   onDragEnded(event: CdkDragEnd): void {
     const position = event.source.getFreeDragPosition();
-    const newX = this.frame.x + position.x;
-    const newY = this.frame.y + position.y;
-    // Allow widgets to go outside page boundaries (like PowerPoint)
-    const newPosition = { x: newX, y: newY };
+    const newPosition = {
+      x: this.frame.x + position.x,
+      y: this.frame.y + position.y,
+    };
 
     this.documentService.updateWidget(
       this.subsectionId,
@@ -235,12 +230,6 @@ export class WidgetContainerComponent {
     }
   }
 
-  // Deprecated: No longer clamping position to allow widgets outside page boundaries
-  // Keeping method for backwards compatibility but it now returns position as-is
-  private clampPosition(x: number, y: number, width: number, height: number) {
-    // Allow widgets to go outside page boundaries (like PowerPoint)
-    return { x, y };
-  }
 
   private clampFrame(width: number, height: number, x: number, y: number) {
     const minWidth = 20;
@@ -251,7 +240,6 @@ export class WidgetContainerComponent {
     let newX = x;
     let newY = y;
 
-    // Only enforce minimum size constraints, allow widgets to go outside page boundaries
     if (newWidth < minWidth) {
       if (this.activeHandle === 'left' || 
           this.activeHandle === 'corner' || 
@@ -271,7 +259,6 @@ export class WidgetContainerComponent {
       newHeight = minHeight;
     }
 
-    // No boundary constraints - widgets can extend beyond page edges (like PowerPoint)
     return { width: newWidth, height: newHeight, x: newX, y: newY };
   }
 }

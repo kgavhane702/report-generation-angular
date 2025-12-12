@@ -94,11 +94,7 @@ export class TableWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     this.cdr.markForCheck();
   }
 
-  /**
-   * Check if table data/properties actually changed (not just position/size)
-   */
   private hasTableDataChanged(previous: WidgetModel, current: WidgetModel): boolean {
-    // If widget IDs differ, it's a different widget
     if (previous.id !== current.id) {
       return true;
     }
@@ -106,27 +102,12 @@ export class TableWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     const prevProps = previous.props as TableWidgetProps;
     const currProps = current.props as TableWidgetProps;
 
-    // Compare columns
-    if (JSON.stringify(prevProps.columns) !== JSON.stringify(currProps.columns)) {
-      return true;
-    }
-
-    // Compare rows
-    if (JSON.stringify(prevProps.rows) !== JSON.stringify(currProps.rows)) {
-      return true;
-    }
-
-    // Compare other table-specific properties
-    if (prevProps.allowIconsInColumns !== currProps.allowIconsInColumns) {
-      return true;
-    }
-
-    if (JSON.stringify(prevProps.styleSettings) !== JSON.stringify(currProps.styleSettings)) {
-      return true;
-    }
-
-    // Table data hasn't changed - only position/size/zIndex might have
-    return false;
+    return (
+      JSON.stringify(prevProps.columns) !== JSON.stringify(currProps.columns) ||
+      JSON.stringify(prevProps.rows) !== JSON.stringify(currProps.rows) ||
+      prevProps.allowIconsInColumns !== currProps.allowIconsInColumns ||
+      JSON.stringify(prevProps.styleSettings) !== JSON.stringify(currProps.styleSettings)
+    );
   }
 
   private renderTable(): void {
@@ -144,11 +125,6 @@ export class TableWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
 
     if (!adapter) {
       const availableAdapters = this.registry.listAdapters();
-      console.warn('Table adapter not found:', {
-        requested: providerId,
-        available: availableAdapters.map(a => a.id),
-      });
-
       this.containerRef.nativeElement.innerHTML = `
         <div style="padding: 20px; text-align: center; color: #dc2626;">
           No table adapter registered for "${providerId}".<br/>
@@ -164,7 +140,6 @@ export class TableWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
         this.tableProps
       ) as TableInstance;
     } catch (error) {
-      console.error('Table rendering error:', error);
       this.containerRef.nativeElement.innerHTML = `
         <div style="padding: 20px; text-align: center; color: #dc2626;">
           Table rendering error. Double-click to configure.<br/>
@@ -175,17 +150,15 @@ export class TableWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   private updateTable(): void {
-    // Try to update in place if instance supports it
     if (this.instance?.updateData) {
       try {
         this.instance.updateData(this.tableProps);
         return;
-      } catch (error) {
-        console.warn('In-place update failed, re-rendering:', error);
+      } catch {
+        // Fall through to re-render
       }
     }
 
-    // Fall back to full re-render
     this.renderTable();
   }
 

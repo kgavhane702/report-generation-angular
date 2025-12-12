@@ -107,10 +107,9 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     }
     // Destroy editor instance
     if (this.currentEditorInstance) {
-      this.currentEditorInstance.destroy()
-        .catch((error) => {
-          console.warn('Error destroying editor:', error);
-        });
+      this.currentEditorInstance.destroy().catch(() => {
+        // Error handled silently
+      });
       this.currentEditorInstance = null;
     }
   }
@@ -169,8 +168,8 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       }
 
       this.cdr.markForCheck();
-    } catch (error) {
-      console.error('Error initializing editor:', error);
+    } catch {
+      // Error handled silently
     }
   }
 

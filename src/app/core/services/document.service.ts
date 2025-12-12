@@ -6,6 +6,8 @@ import {
   DocumentModel,
   PageSize,
   SubsectionModel,
+  HierarchySelection,
+  SubsectionSelection,
 } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
 import { DocumentActions } from '../../store/document/document.actions';
@@ -161,14 +163,10 @@ export class DocumentService {
     return page.id;
   }
 
-  private findSubsectionById(
-    subsectionId: string
-  ): SubsectionModel | undefined {
+  private findSubsectionById(subsectionId: string): SubsectionModel | undefined {
     for (const section of this.document.sections) {
       const found = section.subsections.find((sub) => sub.id === subsectionId);
-      if (found) {
-        return found;
-      }
+      if (found) return found;
     }
     return undefined;
   }
@@ -321,9 +319,6 @@ export class DocumentService {
     this.undoRedoService.executeDocumentCommand(command);
   }
 
-  /**
-   * Copy widget(s) to clipboard
-   */
   copyWidget(subsectionId: string, pageId: string, widgetId: string): void {
     const subsection = this.findSubsectionById(subsectionId);
     if (!subsection) {
@@ -343,9 +338,6 @@ export class DocumentService {
     this.clipboardService.copyWidgets([widget]);
   }
 
-  /**
-   * Copy multiple widgets to clipboard
-   */
   copyWidgets(subsectionId: string, pageId: string, widgetIds: string[]): void {
     const subsection = this.findSubsectionById(subsectionId);
     if (!subsection) {
@@ -363,11 +355,6 @@ export class DocumentService {
     }
   }
 
-  /**
-   * Paste widgets from clipboard to the specified page
-   * Widgets are offset by a small amount to avoid overlapping with originals
-   * @returns Array of pasted widget IDs
-   */
   pasteWidgets(subsectionId: string, pageId: string): string[] {
     const copiedWidgets = this.clipboardService.getCopiedWidgets();
     if (copiedWidgets.length === 0) {
@@ -384,10 +371,7 @@ export class DocumentService {
       return [];
     }
 
-    // Offset for pasted widgets (20px down and right)
     const offset = { x: 20, y: 20 };
-
-    // Clone and paste each widget, collecting their IDs
     const pastedWidgetIds: string[] = [];
     copiedWidgets.forEach((widget) => {
       const clonedWidget = this.widgetFactory.cloneWidget(widget, offset);
@@ -398,29 +382,12 @@ export class DocumentService {
     return pastedWidgetIds;
   }
 
-  /**
-   * Check if there are widgets in the clipboard
-   */
   canPaste(): boolean {
     return this.clipboardService.hasCopiedWidgets();
   }
 
-  /**
-   * Deep clone document for undo/redo history
-   */
   private deepCloneDocument(doc: DocumentModel): DocumentModel {
     return JSON.parse(JSON.stringify(doc));
   }
-}
-
-interface HierarchySelection {
-  sectionId: string | null;
-  subsectionId: string | null;
-  pageId: string | null;
-}
-
-interface SubsectionSelection {
-  subsectionId: string | null;
-  pageId: string | null;
 }
 

@@ -1,6 +1,3 @@
-/**
- * Utility for converting images to base64 data URLs
- */
 export async function convertImageToBase64(imageUrl: string): Promise<string | null> {
   try {
     const response = await fetch(imageUrl);
@@ -14,15 +11,11 @@ export async function convertImageToBase64(imageUrl: string): Promise<string | n
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  } catch (error) {
-    console.error('Error converting image to base64:', error);
+  } catch {
     return null;
   }
 }
 
-/**
- * Convert logo in document to base64 if it's a local asset
- */
 export async function convertDocumentLogo(document: any): Promise<any> {
   if (!document.logo?.url) {
     return document;

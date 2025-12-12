@@ -346,9 +346,8 @@ export class TableConfigDialogComponent implements OnDestroy {
       });
 
       this.showCsvImport = false;
-    } catch (error) {
+    } catch {
       alert('Failed to parse CSV. Please check the format.');
-      console.error('CSV import error:', error);
     }
   }
 

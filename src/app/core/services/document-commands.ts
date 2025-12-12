@@ -1,15 +1,11 @@
 import { Store } from '@ngrx/store';
-import { DocumentModel, SubsectionModel } from '../../models/document.model';
+import { DocumentModel, SubsectionModel, SectionModel, PageSize } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
 import { PageModel } from '../../models/page.model';
-import { PageSize } from '../../models/document.model';
 import { DocumentActions } from '../../store/document/document.actions';
 import { AppState } from '../../store/app.state';
 import { Command } from './undo-redo.service';
 
-/**
- * Command for adding a widget
- */
 export class AddWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -36,9 +32,6 @@ export class AddWidgetCommand implements Command {
   description = `Add ${this.widget.type} widget`;
 }
 
-/**
- * Command for updating a widget
- */
 export class UpdateWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -67,9 +60,6 @@ export class UpdateWidgetCommand implements Command {
   description = 'Update widget';
 }
 
-/**
- * Command for deleting a widget
- */
 export class DeleteWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -96,9 +86,6 @@ export class DeleteWidgetCommand implements Command {
   description = 'Delete widget';
 }
 
-/**
- * Command for updating page size
- */
 export class UpdatePageSizeCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -117,13 +104,10 @@ export class UpdatePageSizeCommand implements Command {
   description = 'Update page size';
 }
 
-/**
- * Command for adding a section
- */
 export class AddSectionCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private section: any,
+    private section: SectionModel,
     private previousDocument: DocumentModel
   ) {}
 
@@ -138,9 +122,6 @@ export class AddSectionCommand implements Command {
   description = 'Add section';
 }
 
-/**
- * Command for deleting a section
- */
 export class DeleteSectionCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -159,9 +140,6 @@ export class DeleteSectionCommand implements Command {
   description = 'Delete section';
 }
 
-/**
- * Command for adding a subsection
- */
 export class AddSubsectionCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -183,9 +161,6 @@ export class AddSubsectionCommand implements Command {
   description = 'Add subsection';
 }
 
-/**
- * Command for deleting a subsection
- */
 export class DeleteSubsectionCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -207,9 +182,6 @@ export class DeleteSubsectionCommand implements Command {
   description = 'Delete subsection';
 }
 
-/**
- * Command for adding a page
- */
 export class AddPageCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -229,9 +201,6 @@ export class AddPageCommand implements Command {
   description = 'Add page';
 }
 
-/**
- * Command for deleting a page
- */
 export class DeletePageCommand implements Command {
   constructor(
     private store: Store<AppState>,
@@ -251,9 +220,6 @@ export class DeletePageCommand implements Command {
   description = 'Delete page';
 }
 
-/**
- * Command for renaming operations
- */
 export class RenameSectionCommand implements Command {
   constructor(
     private store: Store<AppState>,

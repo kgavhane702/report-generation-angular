@@ -43,3 +43,14 @@ export interface SubsectionModel {
   pages: PageModel[];
 }
 
+export interface HierarchySelection {
+  sectionId: string | null;
+  subsectionId: string | null;
+  pageId: string | null;
+}
+
+export interface SubsectionSelection {
+  subsectionId: string | null;
+  pageId: string | null;
+}
+

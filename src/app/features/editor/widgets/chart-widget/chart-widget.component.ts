@@ -45,8 +45,6 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   dialogData?: ChartConfigDialogData;
 
   ngAfterViewInit(): void {
-    // Render chart after view init
-    // Use setTimeout to ensure DOM is ready
     setTimeout(() => {
       if (this.containerRef?.nativeElement) {
         this.renderChart();
@@ -57,8 +55,6 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['widget']) {
       if (changes['widget'].firstChange) {
-        // First change - render chart
-        // Use setTimeout to ensure view is initialized
         setTimeout(() => {
           if (this.containerRef?.nativeElement) {
             this.renderChart();
@@ -67,19 +63,15 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
       } else {
         const previousWidget = changes['widget'].previousValue as WidgetModel;
         const currentWidget = changes['widget'].currentValue as WidgetModel;
-        
-        // If widget ID changed, it's a completely different widget - destroy old and re-render
+
         if (previousWidget && previousWidget.id !== currentWidget.id) {
-        // Destroy old chart instance
-        if (this.instance) {
-          this.instance.destroy?.();
-          this.instance = undefined;
-        }
-          // Clear container
+          if (this.instance) {
+            this.instance.destroy?.();
+            this.instance = undefined;
+          }
           if (this.containerRef?.nativeElement) {
             this.containerRef.nativeElement.innerHTML = '';
           }
-          // Re-render with new widget
           setTimeout(() => {
             if (this.containerRef?.nativeElement) {
               this.renderChart();
@@ -87,9 +79,7 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
           }, 0);
           return;
         }
-        
-        // Only update if chart-specific properties changed
-        // Avoid re-rendering when position, size, or other unrelated properties change
+
         if (this.hasChartDataChanged(previousWidget, currentWidget)) {
           this.updateChart();
         }
@@ -97,11 +87,7 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     }
   }
 
-  /**
-   * Check if chart data/properties actually changed (not just position/size)
-   */
   private hasChartDataChanged(previous: WidgetModel, current: WidgetModel): boolean {
-    // If widget IDs differ, it's a different widget
     if (previous.id !== current.id) {
       return true;
     }
@@ -109,16 +95,10 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     const prevProps = previous.props as ChartWidgetProps;
     const currProps = current.props as ChartWidgetProps;
 
-    // Check if chart-specific properties changed
-    if (prevProps.provider !== currProps.provider) {
+    if (prevProps.provider !== currProps.provider || prevProps.chartType !== currProps.chartType) {
       return true;
     }
 
-    if (prevProps.chartType !== currProps.chartType) {
-      return true;
-    }
-
-    // Deep compare chart data
     const prevData = prevProps.data as ChartData;
     const currData = currProps.data as ChartData;
 
@@ -130,27 +110,12 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
       return true;
     }
 
-    // Compare chart data structure
-    if (prevData.chartType !== currData.chartType) {
-      return true;
-    }
-
-    if (prevData.title !== currData.title) {
-      return true;
-    }
-
-    // Compare series
-    if (JSON.stringify(prevData.series) !== JSON.stringify(currData.series)) {
-      return true;
-    }
-
-    // Compare labels
-    if (JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels)) {
-      return true;
-    }
-
-    // Chart data hasn't changed - only position/size/zIndex might have
-    return false;
+    return (
+      prevData.chartType !== currData.chartType ||
+      prevData.title !== currData.title ||
+      JSON.stringify(prevData.series) !== JSON.stringify(currData.series) ||
+      JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels)
+    );
   }
 
   ngOnDestroy(): void {
@@ -204,16 +169,9 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
 
     const providerId = this.chartProps.provider || 'echarts';
     const adapter = this.registry.getAdapter(providerId);
-    
+
     if (!adapter) {
-      // Debug: log available adapters
       const availableAdapters = this.registry.listAdapters();
-      console.warn('Chart adapter not found:', {
-        requested: providerId,
-        available: availableAdapters.map(a => a.id),
-        allAdapters: availableAdapters,
-      });
-      
       this.containerRef.nativeElement.innerHTML = `
         <div style="padding: 20px; text-align: center; color: #dc2626;">
           No chart adapter registered for "${providerId}".<br/>
@@ -229,7 +187,6 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
         this.chartProps
       ) as ChartInstance;
     } catch (error) {
-      console.error('Chart rendering error:', error);
       this.containerRef.nativeElement.innerHTML = `
         <div style="padding: 20px; text-align: center; color: #dc2626;">
           Chart rendering error. Double-click to configure.<br/>
@@ -240,8 +197,6 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   private updateChart(): void {
-    // Re-render on changes for simplicity
-    // In the future, we can optimize to update in place
     this.renderChart();
   }
 

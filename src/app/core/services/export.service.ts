@@ -85,8 +85,7 @@ export class ExportService {
       const json = await this.exportToJson(documentModel, options);
       await navigator.clipboard.writeText(json);
       return true;
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+    } catch {
       return false;
     }
   }

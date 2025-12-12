@@ -48,19 +48,13 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.editorState.setActiveWidget(widget.id);
   }
 
-  /**
-   * Export document to JSON file
-   */
   exportDocument(): void {
     const document = this.documentService.document;
-    this.exportService.exportToFile(document).catch(error => {
-      console.error('Failed to export file:', error);
+    this.exportService.exportToFile(document).catch(() => {
+      // Error handling is done in export service
     });
   }
 
-  /**
-   * Export document to clipboard
-   */
   async exportToClipboard(): Promise<void> {
     const document = this.documentService.document;
     const success = await this.exportService.exportToClipboard(document);
@@ -71,9 +65,6 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
   }
 
-  /**
-   * Trigger file input for import
-   */
   triggerImport(): void {
     if (!this.fileInput) {
       this.fileInput = document.createElement('input');
@@ -91,52 +82,29 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.fileInput.click();
   }
 
-  /**
-   * Force all chart components to re-render
-   * This is needed after import to ensure charts are properly initialized
-   */
   private async forceChartsReRender(): Promise<void> {
-    // Wait for Angular to process the document change
     await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Trigger change detection
     this.ngZone.run(() => {
       this.appRef.tick();
     });
-    
-    // Find all chart widget containers and trigger re-render
-    const chartContainers = document.querySelectorAll('.chart-widget__container');
-    console.log(`Found ${chartContainers.length} chart containers to re-render`);
-    
-    // Wait a bit more for components to initialize
     await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Trigger another change detection cycle
     this.ngZone.run(() => {
       this.appRef.tick();
     });
-    
-    // Additional wait for charts to initialize
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  /**
-   * Import document from file
-   */
   async importDocument(file: File): Promise<void> {
     const result = await this.importService.importFromFile(file);
     
     if (result.success && result.document) {
-      // Confirm before replacing current document
       const confirmed = confirm(
         'This will replace your current document. Are you sure you want to continue?'
       );
-      
+
       if (confirmed) {
-        // Replace the document
         this.documentService.replaceDocument(result.document);
-        
-        // Set active subsection to first one to ensure pages are rendered
+
         const firstSection = result.document.sections[0];
         const firstSubsection = firstSection?.subsections[0];
         if (firstSubsection) {
@@ -145,11 +113,8 @@ export class EditorToolbarComponent implements AfterViewInit {
             this.appRef.tick();
           });
         }
-        
-        // Wait for Angular to render the new document
+
         await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // Force all charts to re-render
         await this.forceChartsReRender();
         
         let message = 'Document imported successfully!';
@@ -169,34 +134,22 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
   }
 
-  /**
-   * Download document as PDF
-   */
   async downloadPDF(): Promise<void> {
     const document = this.documentService.document;
-    
+
     if (!document) {
       alert('No document to export');
       return;
     }
 
     try {
-      // Show loading message
-      const loadingMessage = 'Generating PDF... This may take a moment.';
-      console.log(loadingMessage);
-      
-      // Generate and download PDF
       await this.pdfService.downloadPDF(document);
-      
-      console.log('PDF downloaded successfully');
     } catch (error) {
-      console.error('Error generating PDF:', error);
       alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure the PDF backend server is running on http://localhost:3000`);
     }
   }
 
   ngAfterViewInit(): void {
-    // Component initialization if needed
   }
 
   startEditingDocumentName(): void {

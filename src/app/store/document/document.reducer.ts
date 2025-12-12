@@ -196,7 +196,7 @@ function findLocation(
   doc: DocumentModel,
   subsectionId: string,
   pageId: string
-) {
+): { sectionIndex: number; subsectionIndex: number; pageIndex: number } {
   let sectionIndex = -1;
   let subsectionIndex = -1;
   let pageIndex = -1;
@@ -208,8 +208,7 @@ function findLocation(
     if (subIdx !== -1) {
       sectionIndex = sIdx;
       subsectionIndex = subIdx;
-      const page = section.subsections[subIdx].pages;
-      pageIndex = page.findIndex((p) => p.id === pageId);
+      pageIndex = section.subsections[subIdx].pages.findIndex((p) => p.id === pageId);
       return true;
     }
     return false;

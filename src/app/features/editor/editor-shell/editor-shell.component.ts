@@ -19,21 +19,17 @@ import { TableRegistryInitializer } from '../widgets/providers/table/registry';
 export class EditorShellComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
-  
-  // Inject registry initializers to ensure they're instantiated and register adapters
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
   private readonly tableRegistryInitializer = inject(TableRegistryInitializer);
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
-    // Only handle shortcuts when not in an input/textarea/contenteditable
     const target = event.target as HTMLElement;
     const isInputElement =
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.isContentEditable;
 
-    // Handle Ctrl+C (or Cmd+C on Mac) - Copy
     if ((event.ctrlKey || event.metaKey) && event.key === 'c' && !event.shiftKey) {
       if (!isInputElement) {
         event.preventDefault();
@@ -41,7 +37,6 @@ export class EditorShellComponent {
       }
     }
 
-    // Handle Ctrl+V (or Cmd+V on Mac) - Paste
     if ((event.ctrlKey || event.metaKey) && event.key === 'v' && !event.shiftKey) {
       if (!isInputElement) {
         event.preventDefault();
@@ -76,8 +71,7 @@ export class EditorShellComponent {
     }
 
     const pastedWidgetIds = this.documentService.pasteWidgets(subsectionId, pageId);
-    
-    // Select the first pasted widget
+
     if (pastedWidgetIds.length > 0) {
       this.editorState.setActiveWidget(pastedWidgetIds[0]);
     }

@@ -7,6 +7,7 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Paths;
 import java.util.List;
 
 @Configuration
@@ -24,8 +25,9 @@ public class PlaywrightConfig implements DisposableBean {
     @Bean
     public Browser browser(Playwright playwright) {
         BrowserType.LaunchOptions options = new BrowserType.LaunchOptions()
-                .setHeadless(true)
+                .setExecutablePath(Paths.get("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"))
                 .setArgs(List.of(
+                        "--headless=new",
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
                         "--disable-dev-shm-usage",
@@ -46,6 +48,4 @@ public class PlaywrightConfig implements DisposableBean {
         }
     }
 }
-
-
 
