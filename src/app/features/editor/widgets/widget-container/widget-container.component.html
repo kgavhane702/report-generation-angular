@@ -43,6 +43,8 @@
       <app-advanced-table-widget
         *ngSwitchCase="'advanced-table'"
         [widget]="$any(widget)"
+        (cellDataChange)="onAdvancedTableCellDataChange($event)"
+        (cellStylesChange)="onAdvancedTableCellStylesChange($event)"
       ></app-advanced-table-widget>
 
       <app-image-widget

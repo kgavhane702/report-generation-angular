@@ -1,0 +1,64 @@
+<div class="table-toolbar" *ngIf="hasActiveTable">
+  <div class="table-toolbar__group">
+    <span class="table-toolbar__label">Text Alignment</span>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="textAlign === 'left'"
+      (click)="applyTextAlign('left')"
+      title="Align Left"
+    >
+      <span class="material-symbols-outlined">format_align_left</span>
+    </button>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="textAlign === 'center'"
+      (click)="applyTextAlign('center')"
+      title="Align Center"
+    >
+      <span class="material-symbols-outlined">format_align_center</span>
+    </button>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="textAlign === 'right'"
+      (click)="applyTextAlign('right')"
+      title="Align Right"
+    >
+      <span class="material-symbols-outlined">format_align_right</span>
+    </button>
+  </div>
+
+  <div class="table-toolbar__group">
+    <span class="table-toolbar__label">Formatting</span>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="fontWeight === 'bold'"
+      (click)="toggleBold()"
+      title="Bold"
+    >
+      <span class="material-symbols-outlined">format_bold</span>
+    </button>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="fontStyle === 'italic'"
+      (click)="toggleItalic()"
+      title="Italic"
+    >
+      <span class="material-symbols-outlined">format_italic</span>
+    </button>
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="textDecoration === 'underline'"
+      (click)="toggleUnderline()"
+      title="Underline"
+    >
+      <span class="material-symbols-outlined">format_underlined</span>
+    </button>
+  </div>
+</div>
+

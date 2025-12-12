@@ -118,6 +118,24 @@ export class WidgetContainerComponent {
     this.onContentChange(props);
   }
 
+  onAdvancedTableCellDataChange(cellData: string[][]): void {
+    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
+      props: {
+        ...this.widget.props,
+        cellData,
+      } as any,
+    });
+  }
+
+  onAdvancedTableCellStylesChange(cellStyles: Record<string, any>): void {
+    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
+      props: {
+        ...this.widget.props,
+        cellStyles,
+      } as any,
+    });
+  }
+
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
     if (!this.isSelected) {
       return;

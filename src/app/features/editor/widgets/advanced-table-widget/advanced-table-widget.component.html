@@ -6,12 +6,34 @@
           *ngFor="let cell of row; let j = index" 
           class="advanced-table-widget__cell"
           [class.advanced-table-widget__cell--selected]="isCellSelected(i, j)"
+          [class.advanced-table-widget__cell--editing]="isCellEditing(i, j)"
+          [style.text-align]="getCellStyle(i, j)?.textAlign || 'left'"
+          [style.font-weight]="getCellStyle(i, j)?.fontWeight || 'normal'"
+          [style.font-style]="getCellStyle(i, j)?.fontStyle || 'normal'"
+          [style.text-decoration]="getCellStyle(i, j)?.textDecoration || 'none'"
+          [style.font-size.px]="getCellStyle(i, j)?.fontSize"
+          [style.color]="getCellStyle(i, j)?.color"
+          [style.background-color]="getCellStyle(i, j)?.backgroundColor"
           (mousedown)="onCellMouseDown($event, i, j)"
+          (click)="onCellClick(i, j)"
           (mouseenter)="onCellMouseEnter(i, j)"
         >
-          <div class="advanced-table-widget__cell-content">
-            {{ getCellValue(i, j) }}
+          <div 
+            *ngIf="!isCellEditing(i, j)"
+            class="advanced-table-widget__cell-content"
+          >
+            {{ getCellValue(i, j) || '&nbsp;' }}
           </div>
+          <input
+            *ngIf="isCellEditing(i, j)"
+            type="text"
+            class="advanced-table-widget__cell-input"
+            [value]="editingValue"
+            [attr.data-cell-input]="i + '-' + j"
+            (input)="onCellInputChange($any($event.target).value)"
+            (blur)="onCellInputBlur()"
+            (keydown)="onCellInputKeyDown($event, i, j)"
+          />
         </td>
       </tr>
     </tbody>

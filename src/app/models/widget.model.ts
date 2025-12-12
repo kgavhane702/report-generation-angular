@@ -126,6 +126,18 @@ export interface ShapeStroke {
 export interface AdvancedTableWidgetProps {
   rows: number;
   columns: number;
+  cellData?: string[][]; // 2D array to store cell content [row][column]
+  cellStyles?: Record<string, AdvancedTableCellStyle>; // Key format: "row-col" e.g., "0-0"
+}
+
+export interface AdvancedTableCellStyle {
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
+  fontWeight?: 'normal' | 'bold' | 'lighter' | 'bolder' | number;
+  fontStyle?: 'normal' | 'italic' | 'oblique';
+  textDecoration?: 'none' | 'underline';
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
 }
 
 export interface MediaWidgetProps {

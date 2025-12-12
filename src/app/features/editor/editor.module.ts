@@ -25,6 +25,7 @@ import { TableGridSelectionDialogComponent } from './widgets/providers/table/tab
 import { TableGridSelectionInlineComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-inline.component';
 import { TableRegistryInitializer } from './widgets/providers/table/registry';
 import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
+import { TableToolbarComponent } from './toolbar/table-toolbar/table-toolbar.component';
 import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/advanced-table-widget.component';
 
 @NgModule({
@@ -56,6 +57,7 @@ import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/ad
     TableGridSelectionInlineComponent,
     AdvancedTableWidgetComponent,
     RichTextToolbarComponent,
+    TableToolbarComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer, TableRegistryInitializer],
