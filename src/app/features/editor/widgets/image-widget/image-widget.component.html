@@ -1,4 +1,61 @@
-<div class="image-widget">
-  <img [src]="imageProps.src" [alt]="imageProps.alt || 'Image widget'" />
+<div class="image-widget" [class.image-widget--error]="imageError">
+  <!-- Image Display Mode -->
+  <ng-container *ngIf="hasImage && !imageError">
+    <img
+      [src]="imageProps.src"
+      [alt]="imageProps.alt || 'Image'"
+      [style.object-fit]="imageFitStyle"
+      (error)="handleImageError()"
+      (click)="onImageClick()"
+      class="image-widget__image"
+    />
+  </ng-container>
+
+  <!-- Upload/Placeholder Mode -->
+  <ng-container *ngIf="!hasImage || imageError">
+    <div class="image-widget__placeholder">
+      <div class="image-widget__placeholder-content">
+        <svg
+          *ngIf="!isUploading"
+          class="image-widget__placeholder-icon"
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+        <div *ngIf="isUploading" class="image-widget__loading-spinner"></div>
+        <p class="image-widget__placeholder-text">
+          {{ imageError ? 'Failed to load image' : isUploading ? 'Uploading...' : 'Click to upload image' }}
+        </p>
+        <button
+          type="button"
+          class="image-widget__browse-button"
+          (click)="onBrowseClick()"
+          [disabled]="isUploading"
+        >
+          {{ imageError ? 'Try Again' : 'Browse' }}
+        </button>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- Hidden File Input -->
+  <input
+    #fileInput
+    type="file"
+    accept="image/*"
+    (change)="onFileSelected($event)"
+    class="image-widget__file-input"
+    aria-label="Select image file"
+  />
 </div>
 

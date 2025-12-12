@@ -45,6 +45,7 @@
       <app-image-widget
         *ngSwitchCase="'image'"
         [widget]="widget"
+        (propsChange)="onContentChange($event)"
       ></app-image-widget>
 
       <div *ngSwitchDefault class="widget-container__placeholder">

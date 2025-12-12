@@ -16,6 +16,7 @@ import com.org.report_generator.service.renderer.GlobalStylesRenderer;
 import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.AdvancedTableWidgetRenderer;
+import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class DocumentRenderService {
     
     private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
     private final AdvancedTableWidgetRenderer advancedTableWidgetRenderer = new AdvancedTableWidgetRenderer();
+    private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
 
     public String render(DocumentModel document) {
         List<Page> pages = collectPages(document);
@@ -45,6 +47,7 @@ public class DocumentRenderService {
                 .append(GlobalStylesRenderer.getCss())
                 .append(TextWidgetRenderer.getCss())
                 .append(AdvancedTableWidgetRenderer.getCss())
+                .append(ImageWidgetRenderer.getCss())
                 .append(PageStylesRenderer.getCss(pages, document))
                 .append("</style></head><body><div class=\"document-container\">");
 
@@ -129,7 +132,7 @@ public class DocumentRenderService {
         return switch (type) {
             case "text" -> textWidgetRenderer.render(props, style);
             case "advanced-table" -> advancedTableWidgetRenderer.render(props, style);
-            case "image" -> renderImageWidget(props, style);
+            case "image" -> imageWidgetRenderer.render(props, style);
             case "chart" -> renderChartWidget(props, style);
             default -> "<div class=\"widget\" style=\"" + style + "\"></div>";
         };
@@ -161,20 +164,6 @@ public class DocumentRenderService {
     }
 
 
-    private String renderImageWidget(JsonNode props, String style) {
-        if (props == null) {
-            return "<div class=\"widget widget-image\" style=\"" + style + "\"></div>";
-        }
-        String url = props.path("src").asText("");
-        if (url.isBlank()) {
-            url = props.path("url").asText("");
-        }
-        String alt = props.path("alt").asText("");
-        if (url.isBlank()) {
-            return "<div class=\"widget widget-image\" style=\"" + style + "\"></div>";
-        }
-        return "<div class=\"widget widget-image\" style=\"" + style + "\"><img src=\"" + url + "\" alt=\"" + alt + "\" style=\"width: 100%; height: 100%; object-fit: contain;\" /></div>";
-    }
 
     private String renderChartWidget(JsonNode props, String style) {
         if (props == null) {

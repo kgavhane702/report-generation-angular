@@ -7,6 +7,7 @@ import {
   ChartWidgetProps,
   AdvancedTableWidgetProps,
   TextWidgetProps,
+  ImageWidgetProps,
   WidgetProps,
 } from '../../../models/widget.model';
 import { createDefaultChartData } from '../../../models/chart-data.model';
@@ -82,7 +83,7 @@ export class WidgetFactoryService {
     };
   }
 
-  private createImageWidget(): WidgetModel {
+  private createImageWidget(): WidgetModel<ImageWidgetProps> {
     return {
       id: uuid(),
       type: 'image',
@@ -90,10 +91,11 @@ export class WidgetFactoryService {
       size: { width: 300, height: 220 },
       zIndex: 1,
       props: {
-        src: 'https://placehold.co/600x400/png',
+        src: '',
+        alt: '',
         fit: 'cover',
       },
-    } as WidgetModel;
+    };
   }
 
   private createFallbackWidget(type: WidgetType): WidgetModel {
