@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener } from '@angular/core';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -32,8 +32,12 @@ export class EditorToolbarComponent implements AfterViewInit {
   isEditingDocumentName = false;
   documentNameValue = '';
   @ViewChild('documentNameInputRef') documentNameInputRef?: ElementRef<HTMLInputElement>;
+  @ViewChild('tableDropdownContainer') tableDropdownContainer?: ElementRef<HTMLElement>;
 
-  addWidget(type: WidgetType): void {
+  // Table dropdown (for advanced table grid selection)
+  showTableDropdown = false;
+
+  addWidget(type: WidgetType, options?: { rows?: number; columns?: number }): void {
     const subsectionId = this.editorState.activeSubsectionId();
     const pageId = this.editorState.activePageId();
 
@@ -41,11 +45,38 @@ export class EditorToolbarComponent implements AfterViewInit {
       return;
     }
 
-    const widget = this.widgetFactory.createWidget(type);
+    const widget = this.widgetFactory.createWidget(type, options);
     this.documentService.addWidget(subsectionId, pageId, widget);
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
+  }
+
+  toggleTableDropdown(): void {
+    this.showTableDropdown = !this.showTableDropdown;
+  }
+
+  closeTableDropdown(): void {
+    this.showTableDropdown = false;
+  }
+
+
+  onTableGridSelected(result: { rows: number; columns: number }): void {
+    this.closeTableDropdown();
+    if (result.rows > 0 && result.columns > 0) {
+      this.addWidget('advanced-table', {
+        rows: result.rows,
+        columns: result.columns,
+      });
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (this.tableDropdownContainer?.nativeElement && 
+        !this.tableDropdownContainer.nativeElement.contains(event.target as Node)) {
+      this.closeTableDropdown();
+    }
   }
 
   exportDocument(): void {

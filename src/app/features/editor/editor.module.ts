@@ -21,8 +21,11 @@ import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-pick
 import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
 import { TableConfigDialogComponent } from './widgets/providers/table/table-config';
+import { TableGridSelectionDialogComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-dialog.component';
+import { TableGridSelectionInlineComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-inline.component';
 import { TableRegistryInitializer } from './widgets/providers/table/registry';
 import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
+import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/advanced-table-widget.component';
 
 @NgModule({
   declarations: [
@@ -49,6 +52,9 @@ import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-
     CKEditorModule,
     ChartConfigDialogComponent,
     TableConfigDialogComponent,
+    TableGridSelectionDialogComponent,
+    TableGridSelectionInlineComponent,
+    AdvancedTableWidgetComponent,
     RichTextToolbarComponent,
   ],
   exports: [EditorShellComponent],

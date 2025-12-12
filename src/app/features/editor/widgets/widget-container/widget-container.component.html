@@ -40,6 +40,11 @@
         (tablePropsChange)="onTablePropsChange($event)"
       ></app-table-widget>
 
+      <app-advanced-table-widget
+        *ngSwitchCase="'advanced-table'"
+        [widget]="$any(widget)"
+      ></app-advanced-table-widget>
+
       <app-image-widget
         *ngSwitchCase="'image'"
         [widget]="widget"

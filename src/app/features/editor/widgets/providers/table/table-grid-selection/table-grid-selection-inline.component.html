@@ -1,0 +1,21 @@
+<div class="table-grid-selection-inline">
+  <div class="table-grid-selection-inline__grid">
+    <div
+      *ngFor="let i of rowsArray"
+      class="table-grid-selection-inline__row"
+    >
+      <div
+        *ngFor="let j of columnsArray"
+        class="table-grid-selection-inline__cell"
+        [class.table-grid-selection-inline__cell--selected]="i < selectedRows && j < selectedColumns"
+        (mouseenter)="onCellHover(i, j)"
+        (click)="onCellClick(i, j)"
+      ></div>
+    </div>
+  </div>
+  
+  <div class="table-grid-selection-inline__preview">
+    {{ selectedRows }} × {{ selectedColumns }} Table
+  </div>
+</div>
+

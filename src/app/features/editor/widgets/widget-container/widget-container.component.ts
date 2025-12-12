@@ -101,20 +101,20 @@ export class WidgetContainerComponent {
     this.isEditing = editing;
   }
 
-  onContentChange(props: Partial<WidgetModel['props']>): void {
+  onContentChange(props: Partial<any>): void {
     this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
       props: {
         ...this.widget.props,
         ...props,
-      },
+      } as any,
     });
   }
 
-  onChartPropsChange(props: Partial<WidgetModel['props']>): void {
+  onChartPropsChange(props: Partial<any>): void {
     this.onContentChange(props);
   }
 
-  onTablePropsChange(props: Partial<WidgetModel['props']>): void {
+  onTablePropsChange(props: Partial<any>): void {
     this.onContentChange(props);
   }
 

@@ -1,0 +1,36 @@
+.advanced-table-widget {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: auto;
+}
+
+.advanced-table-widget__table {
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: auto;
+}
+
+.advanced-table-widget__row {
+  border: none;
+}
+
+.advanced-table-widget__cell {
+  border: 1px solid #000000;
+  padding: 8px;
+  min-width: 80px;
+  min-height: 30px;
+  vertical-align: top;
+  position: relative;
+}
+
+.advanced-table-widget__cell-content {
+  min-height: 20px;
+  width: 100%;
+  word-wrap: break-word;
+}
+

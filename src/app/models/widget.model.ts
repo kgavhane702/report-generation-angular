@@ -4,6 +4,7 @@ export type WidgetType =
   | 'text'
   | 'chart'
   | 'table'
+  | 'advanced-table'
   | 'image'
   | 'shape'
   | 'media'
@@ -35,6 +36,7 @@ export type WidgetProps =
   | TextWidgetProps
   | ChartWidgetProps
   | TableWidgetProps
+  | AdvancedTableWidgetProps
   | ImageWidgetProps
   | ShapeWidgetProps
   | MediaWidgetProps;
@@ -119,6 +121,11 @@ export interface ShapeStroke {
   color: string;
   width: number;
   dashArray?: string;
+}
+
+export interface AdvancedTableWidgetProps {
+  rows: number;
+  columns: number;
 }
 
 export interface MediaWidgetProps {

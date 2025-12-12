@@ -6,6 +6,7 @@ import {
   WidgetType,
   ChartWidgetProps,
   TableWidgetProps,
+  AdvancedTableWidgetProps,
   TextWidgetProps,
   WidgetProps,
 } from '../../../models/widget.model';
@@ -16,7 +17,7 @@ import { createDefaultTableData } from '../../../models/table-data.model';
   providedIn: 'root',
 })
 export class WidgetFactoryService {
-  createWidget(type: WidgetType): WidgetModel {
+  createWidget(type: WidgetType, options?: { rows?: number; columns?: number }): WidgetModel {
     switch (type) {
       case 'text':
         return this.createTextWidget();
@@ -24,6 +25,8 @@ export class WidgetFactoryService {
         return this.createChartWidget();
       case 'table':
         return this.createTableWidget();
+      case 'advanced-table':
+        return this.createAdvancedTableWidget(options?.rows || 3, options?.columns || 3);
       case 'image':
         return this.createImageWidget();
       default:
@@ -76,6 +79,26 @@ export class WidgetFactoryService {
         provider: 'html-table',
         allowIconsInColumns: true,
         ...defaultTableData,
+      },
+    };
+  }
+
+  private createAdvancedTableWidget(rows: number, columns: number): WidgetModel<AdvancedTableWidgetProps> {
+    // Calculate default size based on rows and columns
+    const cellWidth = 100;
+    const cellHeight = 40;
+    const defaultWidth = Math.max(columns * cellWidth, 300);
+    const defaultHeight = Math.max(rows * cellHeight, 150);
+    
+    return {
+      id: uuid(),
+      type: 'advanced-table',
+      position: { x: 100, y: 100 },
+      size: { width: defaultWidth, height: defaultHeight },
+      zIndex: 1,
+      props: {
+        rows,
+        columns,
       },
     };
   }
