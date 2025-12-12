@@ -26,11 +26,28 @@
   min-height: 30px;
   vertical-align: top;
   position: relative;
+  cursor: cell;
+  user-select: none;
+  transition: background-color 0.1s ease;
+
+  &:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  &--selected {
+    background-color: rgba(59, 130, 246, 0.3) !important;
+    border-color: #2563eb !important;
+    
+    &:hover {
+      background-color: rgba(59, 130, 246, 0.4) !important;
+    }
+  }
 }
 
 .advanced-table-widget__cell-content {
   min-height: 20px;
   width: 100%;
   word-wrap: break-word;
+  pointer-events: none;
 }
 
