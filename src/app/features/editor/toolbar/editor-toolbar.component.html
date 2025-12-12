@@ -1,4 +1,38 @@
 <div class="editor-toolbar" *ngIf="document$ | async as document">
+  <div class="editor-toolbar__group editor-toolbar__group--document-name">
+    <div class="editor-toolbar__document-name">
+      <ng-container *ngIf="!isEditingDocumentName; else documentNameInput">
+        <span 
+          class="editor-toolbar__document-name-label"
+          (click)="startEditingDocumentName()"
+          [title]="document.title || 'Untitled Document'"
+        >
+          {{ document.title || 'Untitled Document' }}
+        </span>
+        <button
+          type="button"
+          class="editor-toolbar__document-name-edit"
+          (click)="startEditingDocumentName()"
+          title="Edit document name"
+        >
+          <span class="material-symbols-outlined">edit</span>
+        </button>
+      </ng-container>
+      <ng-template #documentNameInput>
+        <input
+          type="text"
+          class="editor-toolbar__document-name-input"
+          [value]="documentNameValue"
+          (input)="documentNameValue = $any($event.target).value"
+          (blur)="saveDocumentName()"
+          (keydown.enter)="saveDocumentName()"
+          (keydown.escape)="cancelEditingDocumentName()"
+          #documentNameInputRef
+        />
+      </ng-template>
+    </div>
+  </div>
+
   <div class="editor-toolbar__group editor-toolbar__group--widgets">
     <span class="editor-toolbar__label">Add widget</span>
     <button 

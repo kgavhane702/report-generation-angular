@@ -13,6 +13,7 @@ export const DocumentActions = createActionGroup({
   source: 'Document',
   events: {
     'Set Document': props<{ document: DocumentModel }>(),
+    'Update Document Title': props<{ title: string }>(),
     'Update Page Size': props<{ pageSize: Partial<PageSize> }>(),
     'Add Widget': props<{
       subsectionId: string;

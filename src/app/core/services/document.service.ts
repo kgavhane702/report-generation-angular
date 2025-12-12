@@ -88,6 +88,10 @@ export class DocumentService {
     this.store.dispatch(DocumentActions.setDocument({ document }));
   }
 
+  updateDocumentTitle(title: string): void {
+    this.store.dispatch(DocumentActions.updateDocumentTitle({ title }));
+  }
+
   updatePageSize(pageSize: Partial<PageSize>): void {
     const previousDocument = this.deepCloneDocument(this.document);
     const command = new UpdatePageSizeCommand(

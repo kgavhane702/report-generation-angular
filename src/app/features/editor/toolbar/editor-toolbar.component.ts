@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -13,7 +13,7 @@ import { WidgetType } from '../../../models/widget.model';
   styleUrls: ['./editor-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EditorToolbarComponent {
+export class EditorToolbarComponent implements AfterViewInit {
   private readonly widgetFactory = inject(WidgetFactoryService);
   protected readonly documentService = inject(DocumentService);
   private readonly editorState = inject(EditorStateService);
@@ -27,6 +27,11 @@ export class EditorToolbarComponent {
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
+
+  // Document name editing
+  isEditingDocumentName = false;
+  documentNameValue = '';
+  @ViewChild('documentNameInputRef') documentNameInputRef?: ElementRef<HTMLInputElement>;
 
   addWidget(type: WidgetType): void {
     const subsectionId = this.editorState.activeSubsectionId();
@@ -188,6 +193,38 @@ export class EditorToolbarComponent {
       console.error('Error generating PDF:', error);
       alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure the PDF backend server is running on http://localhost:3000`);
     }
+  }
+
+  ngAfterViewInit(): void {
+    // Component initialization if needed
+  }
+
+  startEditingDocumentName(): void {
+    const doc = this.documentService.document;
+    this.documentNameValue = doc.title || '';
+    this.isEditingDocumentName = true;
+    
+    // Focus the input after Angular updates
+    setTimeout(() => {
+      if (this.documentNameInputRef?.nativeElement) {
+        this.documentNameInputRef.nativeElement.focus();
+        this.documentNameInputRef.nativeElement.select();
+      }
+    }, 0);
+  }
+
+  saveDocumentName(): void {
+    if (this.isEditingDocumentName) {
+      const trimmedValue = this.documentNameValue.trim();
+      this.documentService.updateDocumentTitle(trimmedValue || 'Untitled Document');
+      this.isEditingDocumentName = false;
+      this.documentNameValue = '';
+    }
+  }
+
+  cancelEditingDocumentName(): void {
+    this.isEditingDocumentName = false;
+    this.documentNameValue = '';
   }
 
 }

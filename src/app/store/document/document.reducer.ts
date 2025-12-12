@@ -24,6 +24,13 @@ export const documentReducer = createReducer(
     ...state,
     document,
   })),
+  on(DocumentActions.updateDocumentTitle, (state, { title }) => ({
+    ...state,
+    document: {
+      ...state.document,
+      title,
+    },
+  })),
   on(DocumentActions.updatePageSize, (state, { pageSize }) => ({
     ...state,
     document: {
