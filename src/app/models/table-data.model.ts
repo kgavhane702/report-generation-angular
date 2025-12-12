@@ -70,9 +70,10 @@ export function tableDataToCsv(columns: TableColumn[], rows: TableRow[]): string
 }
 
 /**
- * Create default table data structure
+ * Create default table data structure - returns empty table with default column titles
  */
 export function createDefaultTableData(): { columns: TableColumn[]; rows: TableRow[] } {
+  // Return empty table with default column titles for header visibility
   const columns: TableColumn[] = [
     {
       id: uuid(),
@@ -85,21 +86,13 @@ export function createDefaultTableData(): { columns: TableColumn[]; rows: TableR
       id: uuid(),
       title: 'Column 2',
       widthPx: 150,
-      align: 'center',
+      align: 'left',
       cellType: 'text',
     },
   ];
 
-  const rows: TableRow[] = [
-    {
-      id: uuid(),
-      cells: ['Row 1, Col 1', 'Row 1, Col 2'],
-    },
-    {
-      id: uuid(),
-      cells: ['Row 2, Col 1', 'Row 2, Col 2'],
-    },
-  ];
+  // Empty rows - first row will be treated as header when added
+  const rows: TableRow[] = [];
 
   return { columns, rows };
 }

@@ -27,14 +27,6 @@
         <button
           type="button"
           class="table-config-dialog__tab"
-          [class.table-config-dialog__tab--active]="activeTab === 'templates'"
-          (click)="setActiveTab('templates')"
-        >
-          Templates
-        </button>
-        <button
-          type="button"
-          class="table-config-dialog__tab"
           [class.table-config-dialog__tab--active]="activeTab === 'table-style'"
           (click)="setActiveTab('table-style')"
         >
@@ -171,14 +163,6 @@
                     {{ type | titlecase }}
                   </option>
                 </select>
-                <label class="table-config-dialog__label table-config-dialog__label--checkbox" title="Mark this column as a row header (first column will be used as row labels)">
-                  <input
-                    type="checkbox"
-                    formControlName="isHeader"
-                    class="table-config-dialog__checkbox"
-                  />
-                  Row Header Column
-                </label>
                 <div class="table-config-dialog__column-actions">
                   <button
                     type="button"
@@ -280,24 +264,6 @@
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab Content: Templates -->
-      <div *ngIf="activeTab === 'templates'" class="table-config-dialog__tab-content">
-        <div class="table-config-dialog__section">
-          <label class="table-config-dialog__label">Table Templates</label>
-          <div class="table-config-dialog__templates-grid">
-            <div
-              *ngFor="let template of templates"
-              class="table-config-dialog__template-card"
-              [class.table-config-dialog__template-card--selected]="selectedTemplate === template.id"
-              (click)="applyTemplate(template.id)"
-            >
-              <div class="table-config-dialog__template-name">{{ template.name }}</div>
-              <div class="table-config-dialog__template-description">{{ template.description }}</div>
-            </div>
           </div>
         </div>
       </div>
@@ -534,98 +500,35 @@
           </div>
         </div>
 
-        <!-- Row Headers -->
-        <div formGroupName="headerStyle" class="table-config-dialog__section">
-          <h3 class="table-config-dialog__subsection-title">Row Headers</h3>
-          <div class="table-config-dialog__form-row">
-            <label class="table-config-dialog__label">
-              <input
-                type="checkbox"
-                formControlName="showRowHeaders"
-                class="table-config-dialog__checkbox"
-              />
-              Show Row Headers (First Column)
-            </label>
-            <label class="table-config-dialog__label" *ngIf="form.get('headerStyle.showRowHeaders')?.value">
-              Row Header Width (px)
-              <input
-                type="number"
-                formControlName="rowHeaderWidth"
-                class="table-config-dialog__input table-config-dialog__input--number"
-                min="50"
-                max="500"
-              />
-            </label>
-          </div>
-        </div>
-
-        <!-- Row Header Styling -->
-        <div formGroupName="rowHeaderStyle" class="table-config-dialog__section">
-          <h3 class="table-config-dialog__subsection-title">Row Header Styling</h3>
-          <div class="table-config-dialog__form-row">
-            <label class="table-config-dialog__label">
-              Background Color
-              <input
-                type="color"
-                formControlName="rowHeaderBackgroundColor"
-                class="table-config-dialog__input table-config-dialog__input--color"
-              />
-            </label>
-            <label class="table-config-dialog__label">
-              Text Color
-              <input
-                type="color"
-                formControlName="rowHeaderTextColor"
-                class="table-config-dialog__input table-config-dialog__input--color"
-              />
-            </label>
-          </div>
-
-          <div class="table-config-dialog__form-row">
-            <label class="table-config-dialog__label">
-              Font Family
-              <input
-                type="text"
-                formControlName="rowHeaderFontFamily"
-                class="table-config-dialog__input"
-                placeholder="Arial, sans-serif"
-              />
-            </label>
-            <label class="table-config-dialog__label">
-              Font Size (px)
-              <input
-                type="number"
-                formControlName="rowHeaderFontSize"
-                class="table-config-dialog__input table-config-dialog__input--number"
-                min="8"
-                max="72"
-              />
-            </label>
-            <label class="table-config-dialog__label">
-              Font Weight
-              <select formControlName="rowHeaderFontWeight" class="table-config-dialog__select">
-                <option *ngFor="let weight of fontWeights" [value]="weight">
-                  {{ weight }}
-                </option>
-              </select>
-            </label>
-          </div>
-        </div>
       </div>
 
       <!-- Tab Content: Column Style -->
       <div *ngIf="activeTab === 'column-style'" class="table-config-dialog__tab-content">
         <div class="table-config-dialog__section">
-          <label class="table-config-dialog__label">Select Column to Style</label>
-          <select
-            class="table-config-dialog__select"
-            #columnSelector
-            (change)="selectedColumnIndex = +columnSelector.value"
-          >
-            <option *ngFor="let col of columnsFormArray.controls; let i = index" [value]="i">
-              {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
-            </option>
-          </select>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">Select Column to Style</label>
+            <select
+              class="table-config-dialog__select"
+              #columnSelector
+              (change)="selectedColumnIndex = +columnSelector.value"
+            >
+              <option *ngFor="let col of columnsFormArray.controls; let i = index" [value]="i">
+                {{ col.get('title')?.value || ('Column ' + (i + 1)) }}
+              </option>
+            </select>
+          </div>
+          <div class="table-config-dialog__form-row">
+            <label class="table-config-dialog__label">
+              <input
+                type="checkbox"
+                [(ngModel)]="applyToAllColumns"
+                [ngModelOptions]="{standalone: true}"
+                class="table-config-dialog__checkbox"
+              />
+              Apply to All Columns
+            </label>
+            <small class="table-config-dialog__hint">Note: Column styling does not apply to header row</small>
+          </div>
         </div>
 
         <ng-container *ngIf="selectedColumnIndex !== null && selectedColumnIndex >= 0">
@@ -643,6 +546,7 @@
                 type="color"
                 formControlName="backgroundColor"
                 class="table-config-dialog__input table-config-dialog__input--color"
+                (change)="applyColumnStyleToAll('backgroundColor')"
               />
             </label>
             <label class="table-config-dialog__label">
@@ -651,6 +555,7 @@
                 type="color"
                 formControlName="textColor"
                 class="table-config-dialog__input table-config-dialog__input--color"
+                (change)="applyColumnStyleToAll('textColor')"
               />
             </label>
           </div>
@@ -663,6 +568,7 @@
                 formControlName="fontFamily"
                 class="table-config-dialog__input"
                 placeholder="Arial, sans-serif"
+                (change)="applyColumnStyleToAll('fontFamily')"
               />
             </label>
             <label class="table-config-dialog__label">
@@ -673,6 +579,7 @@
                 class="table-config-dialog__input table-config-dialog__input--number"
                 min="8"
                 max="72"
+                (change)="applyColumnStyleToAll('fontSize')"
               />
             </label>
           </div>
@@ -680,7 +587,7 @@
           <div class="table-config-dialog__form-row">
             <label class="table-config-dialog__label">
               Font Weight
-              <select formControlName="fontWeight" class="table-config-dialog__select">
+              <select formControlName="fontWeight" class="table-config-dialog__select" (change)="applyColumnStyleToAll('fontWeight')">
                 <option *ngFor="let weight of fontWeights" [value]="weight">
                   {{ weight }}
                 </option>
@@ -688,7 +595,7 @@
             </label>
             <label class="table-config-dialog__label">
               Font Style
-              <select formControlName="fontStyle" class="table-config-dialog__select">
+              <select formControlName="fontStyle" class="table-config-dialog__select" (change)="applyColumnStyleToAll('fontStyle')">
                 <option *ngFor="let style of fontStyles" [value]="style">
                   {{ style | titlecase }}
                 </option>
@@ -704,6 +611,7 @@
                 type="color"
                 formControlName="borderColor"
                 class="table-config-dialog__input table-config-dialog__input--color"
+                (change)="applyColumnStyleToAll('borderColor')"
               />
             </label>
             <label class="table-config-dialog__label">
@@ -714,11 +622,12 @@
                 class="table-config-dialog__input table-config-dialog__input--number"
                 min="0"
                 max="10"
+                (change)="applyColumnStyleToAll('borderWidth')"
               />
             </label>
             <label class="table-config-dialog__label">
               Border Style
-              <select formControlName="borderStyle" class="table-config-dialog__select">
+              <select formControlName="borderStyle" class="table-config-dialog__select" (change)="applyColumnStyleToAll('borderStyle')">
                 <option *ngFor="let style of borderStyles" [value]="style">
                   {{ style | titlecase }}
                 </option>
@@ -735,11 +644,12 @@
                 class="table-config-dialog__input table-config-dialog__input--number"
                 min="0"
                 max="50"
+                (change)="applyColumnStyleToAll('padding')"
               />
             </label>
             <label class="table-config-dialog__label">
               Vertical Align
-              <select formControlName="verticalAlign" class="table-config-dialog__select">
+              <select formControlName="verticalAlign" class="table-config-dialog__select" (change)="applyColumnStyleToAll('verticalAlign')">
                 <option *ngFor="let valign of verticalAlignments" [value]="valign">
                   {{ valign | titlecase }}
                 </option>
@@ -825,16 +735,9 @@
             class="table-config-dialog__section"
           >
           <h3 class="table-config-dialog__subsection-title">Individual Row Styling</h3>
+          <p class="table-config-dialog__hint">Note: First row is always the header. Use Header Style tab to style the header row.</p>
           
           <div class="table-config-dialog__form-row">
-            <label class="table-config-dialog__label">
-              <input
-                type="checkbox"
-                formControlName="isHeader"
-                class="table-config-dialog__checkbox"
-              />
-              Mark as Header Row
-            </label>
             <label class="table-config-dialog__label">
               Height (px)
               <input

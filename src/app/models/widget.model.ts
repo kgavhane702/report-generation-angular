@@ -62,7 +62,6 @@ export interface TableWidgetProps {
   rows: TableRow[];
   allowIconsInColumns?: boolean;
   styleSettings?: TableStyleSettings;
-  template?: string; // Template ID for quick styling
 }
 
 export interface TableColumn extends ColumnStyle {

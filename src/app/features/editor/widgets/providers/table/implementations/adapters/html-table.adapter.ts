@@ -28,31 +28,22 @@ export class HtmlTableAdapter implements TableAdapter {
     table.className = 'table-adapter';
     this.applyTableStyles(table, tableProps, styleSettings);
 
-    // Determine if first column should be row header
-    const showRowHeaders = styleSettings.showRowHeaders === true;
+    // Header is always created from column titles (not from first row)
+    // Column titles come from CSV first line or manual column configuration
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    tableProps.columns.forEach((column) => {
+      const th = document.createElement('th');
+      this.applyHeaderCellStyles(th, column, tableProps, styleSettings);
+      this.renderHeaderContent(th, column, styleSettings);
+      headerRow.appendChild(th);
+    });
 
-    // Create thead (only if not using first column as row header or if we have regular headers)
-    if (!showRowHeaders || tableProps.columns.length > 1) {
-      const thead = document.createElement('thead');
-      const headerRow = document.createElement('tr');
-      
-      tableProps.columns.forEach((column, colIndex) => {
-        // Skip first column if using it as row header
-        if (showRowHeaders && colIndex === 0) {
-          return;
-        }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
 
-        const th = document.createElement('th');
-        this.applyHeaderCellStyles(th, column, tableProps, styleSettings);
-        this.renderHeaderContent(th, column, styleSettings);
-        headerRow.appendChild(th);
-      });
-
-      thead.appendChild(headerRow);
-      table.appendChild(thead);
-    }
-
-    // Create tbody
+    // Create tbody - all rows are data rows (first row is NOT the header)
     const tbody = document.createElement('tbody');
     
     tableProps.rows.forEach((row, rowIndex) => {
@@ -63,15 +54,8 @@ export class HtmlTableAdapter implements TableAdapter {
         const column = tableProps.columns[cellIndex];
         if (!column) return;
 
-        // Create cell - use th for row header if:
-        // 1. showRowHeaders is true AND it's the first column, OR
-        // 2. The column itself is marked as isHeader, OR
-        // 3. The row is marked as header AND it's the first column
-        const isRowHeaderCell = 
-          (showRowHeaders && cellIndex === 0) || 
-          (column.isHeader === true) || 
-          (row.isHeader && cellIndex === 0);
-        const cellElement = isRowHeaderCell ? document.createElement('th') : document.createElement('td');
+        // All body cells are td (header is in thead)
+        const cellElement = document.createElement('td');
 
         this.applyCellStyles(cellElement, column, row, cellIndex, rowIndex, tableProps, styleSettings);
         this.renderCellContent(cellElement, cell, column, styleSettings);
@@ -172,14 +156,25 @@ export class HtmlTableAdapter implements TableAdapter {
     const align = column.align || headerStyle.textAlign || 'left';
     th.style.textAlign = align;
 
-    // Border
-    const borderColor = column.borderColor || headerStyle.borderColor || '#e5e7eb';
-    const borderWidth = column.borderWidth || headerStyle.borderWidth || 1;
-    const borderStyle = column.borderStyle || headerStyle.borderStyle || 'solid';
-    th.style.border = `${borderWidth}px ${borderStyle} ${borderColor}`;
+    // Border - Header border should NOT use column border settings
+    // Priority: headerBorderColor/headerBorderWidth from styleSettings > headerStyle.borderColor/borderWidth > default
+    const borderColor = styleSettings.headerBorderColor || 
+                       headerStyle.borderColor || 
+                       '#e5e7eb';
+    const borderWidth = styleSettings.headerBorderWidth !== undefined 
+                       ? styleSettings.headerBorderWidth 
+                       : (headerStyle.borderWidth !== undefined ? headerStyle.borderWidth : 1);
+    const borderStyle = headerStyle.borderStyle || 'solid';
+    
+    // Only apply border if borderWidth > 0 or borderColor is set
+    if (borderWidth > 0 || borderColor !== '#e5e7eb') {
+      th.style.border = `${borderWidth}px ${borderStyle} ${borderColor}`;
+    } else {
+      th.style.border = 'none';
+    }
 
-    // Padding
-    const padding = column.padding || headerStyle.padding || cellPadding;
+    // Padding - Header padding should NOT use column padding
+    const padding = headerStyle.padding !== undefined ? headerStyle.padding : cellPadding;
     th.style.padding = `${padding}px`;
   }
 
@@ -299,19 +294,8 @@ export class HtmlTableAdapter implements TableAdapter {
       tr.style.border = `${borderWidth}px ${borderStyle} ${row.borderColor}`;
     }
 
-    // Row header styling
-    if (row.isHeader || (styleSettings.showRowHeaders && rowIndex === 0)) {
-      const rowHeaderStyle = styleSettings.rowHeaderStyle || styleSettings.headerStyle || {};
-      if (rowHeaderStyle.backgroundColor) {
-        tr.style.backgroundColor = rowHeaderStyle.backgroundColor;
-      }
-      if (rowHeaderStyle.textColor) {
-        tr.style.color = rowHeaderStyle.textColor;
-      }
-      if (rowHeaderStyle.fontWeight) {
-        tr.style.fontWeight = String(rowHeaderStyle.fontWeight);
-      }
-    }
+    // Note: Header row styling is handled separately in applyHeaderCellStyles
+    // This applies to body rows only
   }
 
   /**
@@ -327,12 +311,7 @@ export class HtmlTableAdapter implements TableAdapter {
     styleSettings: TableStyleSettings
   ): void {
     const cellPadding = styleSettings.cellPadding || 8;
-    const showRowHeaders = styleSettings.showRowHeaders === true;
-    // column is already passed as parameter, no need to redeclare
-    const isRowHeaderCell = 
-      (showRowHeaders && cellIndex === 0) || 
-      (column?.isHeader === true) || 
-      (row.isHeader && cellIndex === 0);
+    // Note: Header row is handled separately in thead, this applies to body cells only
 
     // Width
     if (column.widthPx) {
@@ -346,42 +325,36 @@ export class HtmlTableAdapter implements TableAdapter {
     }
 
     // Background - column-specific, alternate column, row-specific, or alternate row
-    let bgColor = column.backgroundColor || row.backgroundColor;
+    // Note: Column styling does NOT apply to header row (header has separate styling)
+    let bgColor = row.backgroundColor;
+    
+    // Column background color (only for body cells, not header)
+    if (column.backgroundColor) {
+      bgColor = column.backgroundColor;
+    }
     
     // Alternate column color
     if (!bgColor && styleSettings.alternateColumnColor && cellIndex % 2 === 1) {
       bgColor = styleSettings.alternateColumnColor;
     }
     
-    // Alternate row color
+    // Alternate row color (note: rowIndex is 0-based for body rows, so first body row is index 0)
     if (!bgColor && styleSettings.alternateRowColor && rowIndex % 2 === 0) {
       bgColor = styleSettings.alternateRowColor;
-    }
-
-    // Row header cell styling
-    if (isRowHeaderCell) {
-      const rowHeaderStyle = styleSettings.rowHeaderStyle || styleSettings.headerStyle || {};
-      bgColor = rowHeaderStyle.backgroundColor || bgColor || '#f3f4f6';
-      if (rowHeaderStyle.textColor) {
-        cell.style.color = rowHeaderStyle.textColor;
-      }
-      if (rowHeaderStyle.fontWeight) {
-        cell.style.fontWeight = String(rowHeaderStyle.fontWeight);
-      }
     }
 
     if (bgColor) {
       cell.style.backgroundColor = bgColor;
     }
 
-    // Text color
+    // Text color - column color applies to body cells (not header)
     if (column.textColor) {
       cell.style.color = column.textColor;
-    } else if (row.fontFamily && !isRowHeaderCell) {
-      // Use row text color if specified
+    } else if (row.textColor) {
+      cell.style.color = row.textColor;
     }
 
-    // Font
+    // Font - column font applies to body cells (not header)
     const fontFamily = column.fontFamily || row.fontFamily;
     const fontSize = column.fontSize || row.fontSize;
     const fontWeight = column.fontWeight || row.fontWeight;

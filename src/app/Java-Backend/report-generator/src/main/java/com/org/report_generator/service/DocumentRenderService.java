@@ -224,24 +224,19 @@ public class DocumentRenderService {
         html.append("<div class=\"widget widget-table\" style=\"").append(style).append("\">");
         html.append("<table class=\"table-adapter\" style=\"").append(getTableStyles(styleSettings)).append("\">");
 
-        boolean showRowHeaders = styleSettings.path("showRowHeaders").asBoolean(false);
-
-        if (!showRowHeaders || columns.size() > 1) {
-            html.append("<thead><tr>");
-            for (int i = 0; i < columns.size(); i++) {
-                if (showRowHeaders && i == 0) {
-                    continue;
-                }
-                JsonNode column = columns.has(i) ? columns.get(i) : MissingNode.getInstance();
-                html.append("<th style=\"")
-                        .append(getHeaderCellStyles(column, styleSettings))
-                        .append("\">")
-                        .append(renderHeaderContent(column))
-                        .append("</th>");
-            }
-            html.append("</tr></thead>");
+        // Header is always created from column titles (not from first row)
+        html.append("<thead><tr>");
+        for (int i = 0; i < columns.size(); i++) {
+            JsonNode column = columns.has(i) ? columns.get(i) : MissingNode.getInstance();
+            html.append("<th style=\"")
+                    .append(getHeaderCellStyles(column, styleSettings))
+                    .append("\">")
+                    .append(renderHeaderContent(column))
+                    .append("</th>");
         }
+        html.append("</tr></thead>");
 
+        // All rows are data rows (first row is NOT the header)
         html.append("<tbody>");
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             JsonNode row = rows.has(rowIndex) ? rows.get(rowIndex) : MissingNode.getInstance();
@@ -252,25 +247,17 @@ public class DocumentRenderService {
                         ? columns.get(cellIndex)
                         : MissingNode.getInstance();
                 JsonNode cell = rowCells.has(cellIndex) ? rowCells.get(cellIndex) : MissingNode.getInstance();
-                boolean isRowHeader = isRowHeaderCell(column, row, cellIndex, styleSettings);
-                String tag = isRowHeader ? "th" : "td";
-                html.append("<").append(tag).append(" style=\"")
+                // All body cells are td (header is in thead)
+                html.append("<td style=\"")
                         .append(getCellStyles(column, row, cellIndex, rowIndex, styleSettings))
                         .append("\">")
                         .append(renderCellContent(cell, column))
-                        .append("</").append(tag).append(">");
+                        .append("</td>");
             }
             html.append("</tr>");
         }
         html.append("</tbody></table></div>");
         return html.toString();
-    }
-
-    private boolean isRowHeaderCell(JsonNode column, JsonNode row, int cellIndex, JsonNode styleSettings) {
-        boolean showRowHeaders = styleSettings.path("showRowHeaders").asBoolean(false);
-        boolean rowHeaderFlag = row.path("isHeader").asBoolean(false);
-        boolean columnHeader = column.path("isHeader").asBoolean(false);
-        return (showRowHeaders && cellIndex == 0) || columnHeader || (rowHeaderFlag && cellIndex == 0);
     }
 
     private String getTableStyles(JsonNode styleSettings) {
@@ -290,33 +277,58 @@ public class DocumentRenderService {
 
     private String getHeaderCellStyles(JsonNode column, JsonNode styleSettings) {
         StringBuilder styles = new StringBuilder();
+        JsonNode headerStyle = styleSettings.path("headerStyle");
+        
+        // Background - Header border should NOT use column border settings
+        // Priority: headerStyle.backgroundColor > headerBackgroundColor > default
         String background = coalesce(
-                column.path("backgroundColor").asText(null),
-                styleSettings.path("headerStyle").path("backgroundColor").asText(null),
+                headerStyle.path("backgroundColor").asText(null),
                 styleSettings.path("headerBackgroundColor").asText(null),
                 "#f3f4f6"
         );
         styles.append("background-color: ").append(background).append(";");
 
+        // Text color - Header should NOT use column textColor
         String textColor = coalesce(
-                column.path("textColor").asText(null),
-                styleSettings.path("headerStyle").path("textColor").asText(null),
+                headerStyle.path("textColor").asText(null),
                 styleSettings.path("headerTextColor").asText(null),
                 "#111827"
         );
         styles.append("color: ").append(textColor).append(";");
 
-        appendStyleIfPresent(styles, "font-family", chooseFirst(column.path("fontFamily"), styleSettings.path("headerStyle").path("fontFamily")));
-        appendNumericStyle(styles, "font-size", chooseFirst(column.path("fontSize"), styleSettings.path("headerStyle").path("fontSize")), "px");
-        appendStyleIfPresent(styles, "font-weight", chooseFirst(column.path("fontWeight"), styleSettings.path("headerStyle").path("fontWeight")));
-        appendStyleIfPresent(styles, "text-align", chooseFirst(column.path("align"), styleSettings.path("headerStyle").path("textAlign")));
+        // Font - Header should NOT use column font settings
+        appendStyleIfPresent(styles, "font-family", headerStyle.path("fontFamily"));
+        appendNumericStyle(styles, "font-size", headerStyle.path("fontSize"), "px");
+        appendStyleIfPresent(styles, "font-weight", headerStyle.path("fontWeight"));
+        appendStyleIfPresent(styles, "font-style", headerStyle.path("fontStyle"));
+        appendStyleIfPresent(styles, "text-align", headerStyle.path("textAlign"));
+        appendStyleIfPresent(styles, "vertical-align", headerStyle.path("verticalAlign"));
 
-        int padding = (int) chooseFirst(column.path("padding"), styleSettings.path("cellPadding")).asInt(8);
+        // Padding - Header padding should NOT use column padding
+        int padding = (int) coalesceNode(headerStyle.path("padding"), styleSettings.path("cellPadding")).asInt(8);
         styles.append("padding: ").append(padding).append("px;");
 
-        appendStyleIfPresent(styles, "border-color", coalesceNode(column.path("borderColor"), styleSettings.path("headerBorderColor")));
-        appendNumericStyle(styles, "border-width", coalesceNode(column.path("borderWidth"), styleSettings.path("headerBorderWidth")), "px");
-        appendStyleIfPresent(styles, "border-style", coalesceNode(column.path("borderStyle"), styleSettings.path("borderStyle")));
+        // Border - Header border should use headerBorderColor/headerBorderWidth, NOT column border
+        // Priority: headerBorderColor/headerBorderWidth > headerStyle.borderColor/borderWidth > default
+        String borderColor = coalesce(
+                styleSettings.path("headerBorderColor").asText(null),
+                headerStyle.path("borderColor").asText(null),
+                "#e5e7eb"
+        );
+        styles.append("border-color: ").append(borderColor).append(";");
+        
+        int borderWidth = (int) coalesceNode(
+                styleSettings.path("headerBorderWidth"),
+                headerStyle.path("borderWidth")
+        ).asInt(1);
+        styles.append("border-width: ").append(borderWidth).append("px;");
+        
+        String borderStyle = coalesce(
+                headerStyle.path("borderStyle").asText(null),
+                styleSettings.path("borderStyle").asText(null),
+                "solid"
+        );
+        styles.append("border-style: ").append(borderStyle).append(";");
 
         return styles.toString();
     }
@@ -363,45 +375,135 @@ public class DocumentRenderService {
         if (icon.isMissingNode() || icon.isNull()) {
             return title;
         }
+        
         String position = icon.path("position").asText("before");
-        String margin = icon.path("margin").asText("4");
+        int margin = icon.path("margin").asInt(6);
         String svg = icon.path("svg").asText("");
+        String iconUrl = icon.path("url").asText("");
+        int iconSize = icon.path("size").asInt(18);
+        String iconColor = icon.path("color").asText("");
+        String iconBgColor = icon.path("backgroundColor").asText("");
+        int borderRadius = icon.path("borderRadius").asInt(0);
+        int iconPadding = icon.path("padding").asInt(0);
 
-        if (!svg.isEmpty() && "only".equals(position)) {
-            return svg;
+        // Build icon HTML with proper styling
+        StringBuilder iconHtml = new StringBuilder();
+        boolean hasIcon = !svg.isEmpty() || !iconUrl.isEmpty();
+        
+        if (hasIcon) {
+            iconHtml.append("<span style=\"display: inline-flex; align-items: center; justify-content: center;");
+            iconHtml.append(" width: ").append(iconSize).append("px;");
+            iconHtml.append(" height: ").append(iconSize).append("px;");
+            if (!iconBgColor.isEmpty()) {
+                iconHtml.append(" background-color: ").append(iconBgColor).append(";");
+            }
+            if (borderRadius > 0) {
+                iconHtml.append(" border-radius: ").append(borderRadius).append("px;");
+            }
+            if (iconPadding > 0) {
+                iconHtml.append(" padding: ").append(iconPadding).append("px;");
+            }
+            iconHtml.append("\">");
+            
+            if (!svg.isEmpty()) {
+                // Apply color to SVG if specified
+                String processedSvg = svg;
+                if (!iconColor.isEmpty()) {
+                    processedSvg = processedSvg.replaceAll("fill=\"[^\"]*\"", "fill=\"" + iconColor + "\"");
+                    processedSvg = processedSvg.replaceAll("stroke=\"[^\"]*\"", "stroke=\"" + iconColor + "\"");
+                    // Add fill/stroke if not present
+                    if (!processedSvg.contains("fill=")) {
+                        processedSvg = processedSvg.replaceFirst("<svg", "<svg fill=\"" + iconColor + "\"");
+                    }
+                }
+                // Ensure SVG has proper size
+                if (!processedSvg.contains("width=") && !processedSvg.contains("width=\"")) {
+                    processedSvg = processedSvg.replaceFirst("<svg", "<svg width=\"" + iconSize + "\" height=\"" + iconSize + "\"");
+                }
+                iconHtml.append(processedSvg);
+            } else if (!iconUrl.isEmpty()) {
+                iconHtml.append("<img src=\"").append(iconUrl).append("\" style=\"width: 100%; height: 100%; object-fit: contain;\" />");
+            }
+            iconHtml.append("</span>");
         }
 
+        if (!hasIcon || "only".equals(position)) {
+            return hasIcon ? iconHtml.toString() : title;
+        }
+
+        // Build container with icon and text
         StringBuilder html = new StringBuilder();
-        html.append("<div style=\"display: flex; align-items: center; gap: ").append(margin).append("px;\">");
-        if ("before".equals(position) || "above".equals(position)) {
-            if (!svg.isEmpty()) {
-                html.append(svg);
-            }
-            if ("above".equals(position)) {
-                html.append("<br>");
-            }
-            html.append("<span>").append(title).append("</span>");
+        boolean isVertical = "above".equals(position) || "below".equals(position);
+        html.append("<div style=\"display: flex; align-items: center;");
+        if (isVertical) {
+            html.append(" flex-direction: column;");
         } else {
-            html.append("<span>").append(title).append("</span>");
-            if ("below".equals(position)) {
-                html.append("<br>");
-            }
-            if (!svg.isEmpty()) {
-                html.append(svg);
-            }
+            html.append(" flex-direction: row;");
         }
+        html.append(" gap: ").append(margin).append("px;\">");
+        
+        if ("before".equals(position) || "above".equals(position)) {
+            html.append(iconHtml);
+            html.append("<span style=\"flex: 1;\">").append(title).append("</span>");
+        } else {
+            html.append("<span style=\"flex: 1;\">").append(title).append("</span>");
+            html.append(iconHtml);
+        }
+        
         html.append("</div>");
         return html.toString();
     }
 
     private String renderCellContent(JsonNode cell, JsonNode column) {
-        if (column.path("cellType").asText("").equals("icon") && column.path("icon").path("svg").isTextual()) {
-            return column.path("icon").path("svg").asText("");
+        String cellType = column.path("cellType").asText("text");
+        
+        // Handle icon cell type
+        if ("icon".equals(cellType)) {
+            JsonNode icon = column.path("icon");
+            if (!icon.isMissingNode() && !icon.isNull()) {
+                String svg = icon.path("svg").asText("");
+                String iconUrl = icon.path("url").asText("");
+                int iconSize = icon.path("size").asInt(20);
+                
+                if (!svg.isEmpty()) {
+                    // Apply icon color if specified
+                    String iconColor = icon.path("color").asText("");
+                    String processedSvg = svg;
+                    if (!iconColor.isEmpty()) {
+                        processedSvg = processedSvg.replaceAll("fill=\"[^\"]*\"", "fill=\"" + iconColor + "\"");
+                        processedSvg = processedSvg.replaceAll("stroke=\"[^\"]*\"", "stroke=\"" + iconColor + "\"");
+                        if (!processedSvg.contains("fill=")) {
+                            processedSvg = processedSvg.replaceFirst("<svg", "<svg fill=\"" + iconColor + "\"");
+                        }
+                    }
+                    // Ensure SVG has proper size
+                    if (!processedSvg.contains("width=") && !processedSvg.contains("width=\"")) {
+                        processedSvg = processedSvg.replaceFirst("<svg", "<svg width=\"" + iconSize + "\" height=\"" + iconSize + "\"");
+                    }
+                    return "<span style=\"display: inline-flex; align-items: center; justify-content: center; width: " + iconSize + "px; height: " + iconSize + "px;\">" + processedSvg + "</span>";
+                } else if (!iconUrl.isEmpty()) {
+                    return "<img src=\"" + iconUrl + "\" style=\"max-width: 100%; max-height: 100%; object-fit: contain; width: " + iconSize + "px; height: " + iconSize + "px;\" />";
+                }
+            }
+            // Fallback to cell value if icon not available
         }
-        if (column.path("icon").path("url").isTextual()) {
-            String url = column.path("icon").path("url").asText();
-            return "<img src=\"" + url + "\" style=\"max-width: 100%; max-height: 100%; object-fit: contain;\" />";
+        
+        // Handle currency cell type
+        if ("currency".equals(cellType)) {
+            if (cell != null && !cell.isNull() && cell.isNumber()) {
+                double value = cell.asDouble();
+                return String.format("$%.2f", value);
+            }
         }
+        
+        // Handle number cell type
+        if ("number".equals(cellType)) {
+            if (cell != null && !cell.isNull() && cell.isNumber()) {
+                return String.format("%,.0f", cell.asDouble());
+            }
+        }
+        
+        // Default: text cell
         if (cell == null || cell.isNull()) {
             return "";
         }
@@ -543,6 +645,24 @@ public class DocumentRenderService {
                 .table-adapter th, .table-adapter td { padding: 8px; border: 1px solid #e5e7eb; vertical-align: middle; }
                 .table-adapter th { background-color: #f3f4f6; font-weight: 600; text-align: left; }
                 .table-adapter tbody tr:nth-child(even) { background-color: #f9fafb; }
+                
+                /* Icon rendering in tables */
+                .table-adapter th svg, .table-adapter td svg {
+                    display: inline-block;
+                    vertical-align: middle;
+                    max-width: 100%;
+                    max-height: 100%;
+                }
+                .table-adapter th img, .table-adapter td img {
+                    display: inline-block;
+                    vertical-align: middle;
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                }
+                .table-adapter th span[style*="display: flex"], .table-adapter td span[style*="display: flex"] {
+                    display: flex !important;
+                }
                 
                 .chart-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f3f4f6; color: #6b7280; font-size: 14px; }
                 

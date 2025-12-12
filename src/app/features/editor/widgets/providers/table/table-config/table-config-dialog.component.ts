@@ -68,7 +68,6 @@ export class TableConfigDialogComponent implements OnDestroy {
   readonly fontWeights: Array<'normal' | 'bold' | 'bolder' | 'lighter' | number> = ['normal', 'bold', 'bolder', 'lighter'];
   readonly fontStyles: Array<'normal' | 'italic' | 'oblique'> = ['normal', 'italic', 'oblique'];
   readonly borderStyles: Array<'solid' | 'dashed' | 'dotted' | 'none'> = ['solid', 'dashed', 'dotted', 'none'];
-  readonly templates = this.templatesService.getTemplates();
   readonly availableIcons = this.templatesService.getAvailableIcons();
   
   form!: FormGroup;
@@ -76,12 +75,12 @@ export class TableConfigDialogComponent implements OnDestroy {
   showCsvImport = false;
   editingCellId: string | null = null;
   editingCellValue = '';
-  activeTab: 'data' | 'table-style' | 'header-style' | 'column-style' | 'row-style' | 'icons' | 'templates' = 'data';
-  selectedTemplate: string | null = null;
+  activeTab: 'data' | 'table-style' | 'header-style' | 'column-style' | 'row-style' | 'icons' = 'data';
   selectedColumnIndex: number | null = 0;
   selectedRowIndex: number | null = 0;
   selectedIconColumnIndex: number | null = 0;
   showIconPicker = false;
+  applyToAllColumns = false; // For column styling - apply to all columns
 
   ngOnInit(): void {
     const tableProps = this.data?.tableProps || {
@@ -90,11 +89,6 @@ export class TableConfigDialogComponent implements OnDestroy {
       allowIconsInColumns: true,
     };
     this.initializeForm(tableProps);
-    
-    // Initialize selected template if one exists
-    if (tableProps.template) {
-      this.selectedTemplate = tableProps.template;
-    }
     
     // Initialize selected indices
     if (this.columnsFormArray.length > 0) {
@@ -122,7 +116,6 @@ export class TableConfigDialogComponent implements OnDestroy {
     
     this.form = this.fb.group({
       allowIconsInColumns: [tableProps.allowIconsInColumns !== false],
-      template: [tableProps.template || ''],
       columns: this.fb.array(
         tableProps.columns.map((col) => this.createColumnFormGroup(col))
       ),
@@ -141,10 +134,8 @@ export class TableConfigDialogComponent implements OnDestroy {
         fontSize: [styleSettings.fontSize ?? 14],
         textColor: [styleSettings.textColor || '#000000'],
       }),
-      // Header styling
+      // Header styling (first row is always header)
       headerStyle: this.fb.group({
-        showRowHeaders: [styleSettings.showRowHeaders ?? false],
-        rowHeaderWidth: [styleSettings.rowHeaderWidth ?? 100],
         headerBackgroundColor: [styleSettings.headerBackgroundColor || '#f3f4f6'],
         headerTextColor: [styleSettings.headerTextColor || '#1f2937'],
         headerBorderColor: [styleSettings.headerBorderColor || ''],
@@ -155,14 +146,6 @@ export class TableConfigDialogComponent implements OnDestroy {
         headerFontStyle: [styleSettings.headerStyle?.fontStyle || 'normal'],
         headerTextAlign: [styleSettings.headerStyle?.textAlign || 'left'],
         headerVerticalAlign: [styleSettings.headerStyle?.verticalAlign || 'middle'],
-      }),
-      // Row header styling
-      rowHeaderStyle: this.fb.group({
-        rowHeaderBackgroundColor: [styleSettings.rowHeaderBackgroundColor || '#f3f4f6'],
-        rowHeaderTextColor: [styleSettings.rowHeaderStyle?.textColor || '#1f2937'],
-        rowHeaderFontFamily: [styleSettings.rowHeaderStyle?.fontFamily || ''],
-        rowHeaderFontSize: [styleSettings.rowHeaderStyle?.fontSize ?? 14],
-        rowHeaderFontWeight: [styleSettings.rowHeaderStyle?.fontWeight || 'bold'],
       }),
       // Alternating colors
       alternatingColors: this.fb.group({
@@ -190,9 +173,8 @@ export class TableConfigDialogComponent implements OnDestroy {
       widthPx: [column.widthPx || 120, [Validators.required, Validators.min(50)]],
       align: [column.align || 'left', Validators.required],
       cellType: [column.cellType || 'text', Validators.required],
-      verticalAlign: [column.verticalAlign || 'middle'],
-      isHeader: [column.isHeader ?? false],
-      // Column styling
+        verticalAlign: [column.verticalAlign || 'middle'],
+        // Column styling (does not apply to header row)
       backgroundColor: [column.backgroundColor || ''],
       textColor: [column.textColor || ''],
       fontFamily: [column.fontFamily || ''],
@@ -226,8 +208,7 @@ export class TableConfigDialogComponent implements OnDestroy {
     return this.fb.group({
       id: [row.id || uuid()],
       cells: cellsArray,
-      // Row styling
-      isHeader: [row.isHeader ?? false],
+      // Row styling (first row is always header, so no isHeader flag needed)
       backgroundColor: [row.backgroundColor || ''],
       height: [row.height || null],
       minHeight: [row.minHeight || null],
@@ -390,153 +371,8 @@ export class TableConfigDialogComponent implements OnDestroy {
     return tableDataToCsv(columns, rows);
   }
 
-  setActiveTab(tab: 'data' | 'table-style' | 'header-style' | 'column-style' | 'row-style' | 'icons' | 'templates'): void {
+  setActiveTab(tab: 'data' | 'table-style' | 'header-style' | 'column-style' | 'row-style' | 'icons'): void {
     this.activeTab = tab;
-  }
-
-  applyTemplate(templateId: string): void {
-    const { styleSettings, columnSuggestions } = this.templatesService.applyTemplateWithColumns(templateId);
-
-    this.selectedTemplate = templateId;
-    
-    // Update the template form control
-    this.form.patchValue({ template: templateId });
-    
-    // Apply template styles to form
-    const tableStyleGroup = this.form.get('tableStyle') as FormGroup;
-    const headerStyleGroup = this.form.get('headerStyle') as FormGroup;
-    const rowHeaderStyleGroup = this.form.get('rowHeaderStyle') as FormGroup;
-    const alternatingColorsGroup = this.form.get('alternatingColors') as FormGroup;
-    const bodyStyleGroup = this.form.get('bodyStyle') as FormGroup;
-
-    // Apply table-level styles
-    if (tableStyleGroup) {
-      const tableStyleUpdates: any = {};
-      if (styleSettings.backgroundColor !== undefined) tableStyleUpdates.backgroundColor = styleSettings.backgroundColor;
-      if (styleSettings.borderColor !== undefined) tableStyleUpdates.borderColor = styleSettings.borderColor;
-      if (styleSettings.borderWidth !== undefined) tableStyleUpdates.borderWidth = styleSettings.borderWidth;
-      if (styleSettings.borderStyle !== undefined) tableStyleUpdates.borderStyle = styleSettings.borderStyle;
-      if (styleSettings.cellPadding !== undefined) tableStyleUpdates.cellPadding = styleSettings.cellPadding;
-      if (styleSettings.cellSpacing !== undefined) tableStyleUpdates.cellSpacing = styleSettings.cellSpacing;
-      if (styleSettings.fontFamily !== undefined) tableStyleUpdates.fontFamily = styleSettings.fontFamily;
-      if (styleSettings.fontSize !== undefined) tableStyleUpdates.fontSize = styleSettings.fontSize;
-      if (styleSettings.textColor !== undefined) tableStyleUpdates.textColor = styleSettings.textColor;
-      tableStyleGroup.patchValue(tableStyleUpdates);
-    }
-
-    // Apply header styles
-    if (headerStyleGroup) {
-      const headerStyleUpdates: any = {};
-      if (styleSettings.headerBackgroundColor !== undefined) headerStyleUpdates.headerBackgroundColor = styleSettings.headerBackgroundColor;
-      if (styleSettings.headerTextColor !== undefined) headerStyleUpdates.headerTextColor = styleSettings.headerTextColor;
-      if (styleSettings.headerBorderColor !== undefined) headerStyleUpdates.headerBorderColor = styleSettings.headerBorderColor;
-      if (styleSettings.headerBorderWidth !== undefined) headerStyleUpdates.headerBorderWidth = styleSettings.headerBorderWidth;
-      if (styleSettings.showRowHeaders !== undefined) headerStyleUpdates.showRowHeaders = styleSettings.showRowHeaders;
-      if (styleSettings.rowHeaderWidth !== undefined) headerStyleUpdates.rowHeaderWidth = styleSettings.rowHeaderWidth;
-      
-      // Apply nested headerStyle properties
-      // Note: headerStyle.textColor takes precedence over headerTextColor if both exist
-      if (styleSettings.headerStyle) {
-        if (styleSettings.headerStyle.fontFamily !== undefined) headerStyleUpdates.headerFontFamily = styleSettings.headerStyle.fontFamily;
-        if (styleSettings.headerStyle.fontSize !== undefined) headerStyleUpdates.headerFontSize = styleSettings.headerStyle.fontSize;
-        if (styleSettings.headerStyle.fontWeight !== undefined) headerStyleUpdates.headerFontWeight = styleSettings.headerStyle.fontWeight;
-        if (styleSettings.headerStyle.fontStyle !== undefined) headerStyleUpdates.headerFontStyle = styleSettings.headerStyle.fontStyle;
-        if (styleSettings.headerStyle.textAlign !== undefined) headerStyleUpdates.headerTextAlign = styleSettings.headerStyle.textAlign;
-        if (styleSettings.headerStyle.verticalAlign !== undefined) headerStyleUpdates.headerVerticalAlign = styleSettings.headerStyle.verticalAlign;
-        // Only override headerTextColor if headerStyle.textColor is explicitly set
-        if (styleSettings.headerStyle.textColor !== undefined) {
-          headerStyleUpdates.headerTextColor = styleSettings.headerStyle.textColor;
-        }
-      }
-      
-      headerStyleGroup.patchValue(headerStyleUpdates);
-    }
-
-    // Apply row header styles
-    if (rowHeaderStyleGroup && styleSettings.rowHeaderStyle) {
-      const rowHeaderStyleUpdates: any = {};
-      if (styleSettings.rowHeaderBackgroundColor !== undefined) rowHeaderStyleUpdates.rowHeaderBackgroundColor = styleSettings.rowHeaderBackgroundColor;
-      if (styleSettings.rowHeaderStyle.fontFamily !== undefined) rowHeaderStyleUpdates.rowHeaderFontFamily = styleSettings.rowHeaderStyle.fontFamily;
-      if (styleSettings.rowHeaderStyle.fontSize !== undefined) rowHeaderStyleUpdates.rowHeaderFontSize = styleSettings.rowHeaderStyle.fontSize;
-      if (styleSettings.rowHeaderStyle.fontWeight !== undefined) rowHeaderStyleUpdates.rowHeaderFontWeight = styleSettings.rowHeaderStyle.fontWeight;
-      if (styleSettings.rowHeaderStyle.textColor !== undefined) rowHeaderStyleUpdates.rowHeaderTextColor = styleSettings.rowHeaderStyle.textColor;
-      rowHeaderStyleGroup.patchValue(rowHeaderStyleUpdates);
-    }
-
-    // Apply alternating colors
-    if (alternatingColorsGroup) {
-      const alternatingColorsUpdates: any = {};
-      if (styleSettings.alternateRowColor !== undefined) alternatingColorsUpdates.alternateRowColor = styleSettings.alternateRowColor;
-      if (styleSettings.alternateColumnColor !== undefined) alternatingColorsUpdates.alternateColumnColor = styleSettings.alternateColumnColor;
-      alternatingColorsGroup.patchValue(alternatingColorsUpdates);
-    }
-
-    // Apply body styles
-    if (bodyStyleGroup && styleSettings.bodyStyle) {
-      const bodyStyleUpdates: any = {};
-      if (styleSettings.bodyStyle.fontFamily !== undefined) bodyStyleUpdates.bodyFontFamily = styleSettings.bodyStyle.fontFamily;
-      if (styleSettings.bodyStyle.fontSize !== undefined) bodyStyleUpdates.bodyFontSize = styleSettings.bodyStyle.fontSize;
-      if (styleSettings.bodyStyle.fontWeight !== undefined) bodyStyleUpdates.bodyFontWeight = styleSettings.bodyStyle.fontWeight;
-      if (styleSettings.bodyStyle.textColor !== undefined) bodyStyleUpdates.bodyTextColor = styleSettings.bodyStyle.textColor;
-      if (styleSettings.bodyStyle.backgroundColor !== undefined) bodyStyleUpdates.bodyBackgroundColor = styleSettings.bodyStyle.backgroundColor;
-      bodyStyleGroup.patchValue(bodyStyleUpdates);
-    }
-
-    // Apply column suggestions with icons
-    if (columnSuggestions && columnSuggestions.length > 0) {
-      // Clear existing columns
-      this.columnsFormArray.clear();
-      this.rowsFormArray.clear();
-
-      // Add suggested columns with icons
-      columnSuggestions.forEach((suggestion) => {
-        const iconConfig = suggestion.icon 
-          ? this.templatesService.getIconConfigForTemplate(templateId, suggestion.icon as any)
-          : null;
-
-        const columnGroup = this.fb.group({
-          id: [uuid()],
-          title: [suggestion.title, Validators.required],
-          widthPx: [suggestion.widthPx || 120, [Validators.required, Validators.min(50)]],
-          align: [suggestion.align || 'left', Validators.required],
-          cellType: [suggestion.cellType || 'text', Validators.required],
-          verticalAlign: ['middle'],
-          isHeader: [false],
-          backgroundColor: [''],
-          textColor: [''],
-          fontFamily: [''],
-          fontSize: [14],
-          fontWeight: ['normal'],
-          fontStyle: ['normal'],
-          borderColor: [''],
-          borderWidth: [0],
-          borderStyle: ['none'],
-          padding: [8],
-          icon: this.fb.group({
-            name: [iconConfig?.svg ? '' : ''],
-            svg: [iconConfig?.svg || ''],
-            url: [suggestion.supportsImage ? '' : ''],
-            position: ['before'], // Always 'before' to show text with icon
-            size: [iconConfig?.size || 18],
-            color: [iconConfig?.color || ''],
-            margin: [iconConfig?.margin || 6],
-            backgroundColor: [iconConfig?.backgroundColor || ''],
-            borderRadius: [iconConfig?.borderRadius || 0],
-            padding: [iconConfig?.padding || 0],
-          }),
-        });
-
-        this.columnsFormArray.push(columnGroup);
-      });
-
-      // Add default rows
-      for (let i = 0; i < 3; i++) {
-        const rowCells = Array(columnSuggestions.length).fill('');
-        this.rowsFormArray.push(
-          this.createRowFormGroup({ id: uuid(), cells: rowCells })
-        );
-      }
-    }
   }
 
   /**
@@ -589,15 +425,16 @@ export class TableConfigDialogComponent implements OnDestroy {
     }
 
     const svg = this.templatesService.getIcon(iconName as any);
-    const iconConfig = this.selectedTemplate
-      ? this.templatesService.getIconConfigForTemplate(this.selectedTemplate, iconName as any)
-      : {
-          svg,
-          position: 'before' as const,
-          size: 18,
-          color: '#6366f1',
-          margin: 6,
-        };
+    const iconConfig = {
+      svg,
+      position: 'before' as const,
+      size: 18,
+      color: '#6366f1',
+      margin: 6,
+      backgroundColor: '',
+      borderRadius: 0,
+      padding: 0,
+    };
 
     // Ensure position is 'before' (not 'only') so text is visible
     iconGroup.patchValue({
@@ -606,9 +443,9 @@ export class TableConfigDialogComponent implements OnDestroy {
       size: iconConfig.size,
       color: iconConfig.color,
       margin: iconConfig.margin,
-      backgroundColor: iconConfig.backgroundColor || '',
-      borderRadius: iconConfig.borderRadius || 0,
-      padding: iconConfig.padding || 0,
+      backgroundColor: iconConfig.backgroundColor,
+      borderRadius: iconConfig.borderRadius,
+      padding: iconConfig.padding,
       url: '', // Clear URL when setting SVG icon
     });
 
@@ -662,16 +499,12 @@ export class TableConfigDialogComponent implements OnDestroy {
     if (suggestion) {
       const iconGroup = columnGroup.get('icon') as FormGroup;
       if (iconGroup) {
-        const iconConfig = this.selectedTemplate
-          ? this.templatesService.getIconConfigForTemplate(this.selectedTemplate, this.getIconNameFromSuggestion(title) as any)
-          : suggestion;
-
         iconGroup.patchValue({
-          svg: iconConfig.svg,
-          position: iconConfig.position,
-          size: iconConfig.size,
-          color: iconConfig.color,
-          margin: iconConfig.margin,
+          svg: suggestion.svg,
+          position: suggestion.position,
+          size: suggestion.size,
+          color: suggestion.color,
+          margin: suggestion.margin,
         });
       }
     }
@@ -697,6 +530,52 @@ export class TableConfigDialogComponent implements OnDestroy {
     return '';
   }
 
+  /**
+   * Apply column style changes to all columns when "Apply to All" is enabled
+   * Note: Column styling does not affect header row (header has separate styling)
+   */
+  applyColumnStyleToAll(styleProperty: string, event?: any): void {
+    if (!this.applyToAllColumns || this.selectedColumnIndex === null) {
+      return;
+    }
+
+    const selectedColumnGroup = this.getColumnFormGroup(this.selectedColumnIndex);
+    if (!selectedColumnGroup) {
+      return;
+    }
+
+    // Use setTimeout to ensure form control value is updated after change event
+    setTimeout(() => {
+      // Get the current value from the selected column's form control
+      const control = selectedColumnGroup.get(styleProperty);
+      if (!control) {
+        return;
+      }
+
+      let value = control.value;
+
+      // For number inputs, ensure we get the numeric value
+      if (styleProperty === 'fontSize' || styleProperty === 'borderWidth' || styleProperty === 'padding') {
+        value = value !== null && value !== undefined ? Number(value) : value;
+      }
+
+      // For color inputs, handle empty strings - if cleared, clear for all
+      if (styleProperty === 'backgroundColor' || styleProperty === 'textColor' || styleProperty === 'borderColor') {
+        value = value || '';
+      }
+
+      // Apply the style to ALL columns (including the selected one) to override previous values
+      this.columnsFormArray.controls.forEach((columnGroup, index) => {
+        const targetControl = columnGroup.get(styleProperty);
+        if (targetControl) {
+          // Set value and mark as dirty to ensure it's saved
+          targetControl.setValue(value, { emitEvent: false });
+          targetControl.markAsDirty();
+        }
+      });
+    }, 0);
+  }
+
   save(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -706,7 +585,6 @@ export class TableConfigDialogComponent implements OnDestroy {
     const formValue = this.form.value;
     const tableStyle = formValue.tableStyle || {};
     const headerStyle = formValue.headerStyle || {};
-    const rowHeaderStyle = formValue.rowHeaderStyle || {};
     const alternatingColors = formValue.alternatingColors || {};
     const bodyStyle = formValue.bodyStyle || {};
 
@@ -742,16 +620,6 @@ export class TableConfigDialogComponent implements OnDestroy {
         verticalAlign: headerStyle.headerVerticalAlign || undefined,
       },
       
-      // Row header styling
-      showRowHeaders: headerStyle.showRowHeaders ?? undefined,
-      rowHeaderWidth: headerStyle.rowHeaderWidth ?? undefined,
-      rowHeaderBackgroundColor: rowHeaderStyle.rowHeaderBackgroundColor || undefined,
-      rowHeaderStyle: {
-        fontFamily: rowHeaderStyle.rowHeaderFontFamily || undefined,
-        fontSize: rowHeaderStyle.rowHeaderFontSize ?? undefined,
-        fontWeight: rowHeaderStyle.rowHeaderFontWeight || undefined,
-        textColor: rowHeaderStyle.rowHeaderTextColor || undefined,
-      },
       
       // Alternating colors
       alternateRowColor: alternatingColors.alternateRowColor || undefined,
@@ -769,7 +637,6 @@ export class TableConfigDialogComponent implements OnDestroy {
 
     const tableProps: TableWidgetProps = {
       provider: 'html-table',
-      template: formValue.template || undefined,
       columns: formValue.columns.map((col: any) => ({
         id: col.id,
         title: col.title,
@@ -777,8 +644,7 @@ export class TableConfigDialogComponent implements OnDestroy {
         align: col.align,
         cellType: col.cellType,
         verticalAlign: col.verticalAlign || undefined,
-        isHeader: col.isHeader ?? undefined,
-        // Column styling
+        // Column styling (does not apply to header row)
         backgroundColor: col.backgroundColor || undefined,
         textColor: col.textColor || undefined,
         fontFamily: col.fontFamily || undefined,
@@ -806,8 +672,7 @@ export class TableConfigDialogComponent implements OnDestroy {
       rows: formValue.rows.map((row: any) => ({
         id: row.id,
         cells: row.cells || [],
-        // Row styling
-        isHeader: row.isHeader ?? undefined,
+        // Row styling (first row is always header)
         backgroundColor: row.backgroundColor || undefined,
         height: row.height || undefined,
         minHeight: row.minHeight || undefined,
