@@ -1,14 +1,13 @@
 <div class="text-widget-color-picker" *ngIf="isTextWidgetSelected()">
-  <div class="text-widget-color-picker__trigger" (click)="toggleDropdown()">
+  <div class="text-widget-color-picker__trigger" (click)="toggleDropdown()" [attr.title]="(currentColor() || 'Transparent') + ' background'">
+    <span class="material-symbols-outlined text-widget-color-picker__icon">format_color_fill</span>
     <div
       class="text-widget-color-picker__preview"
       [style.background-color]="getDisplayColor()"
       [class.text-widget-color-picker__preview--transparent]="!currentColor()"
-      [attr.title]="currentColor() || 'Transparent'"
     >
       <span *ngIf="!currentColor()" class="text-widget-color-picker__transparent-icon">×</span>
     </div>
-    <span class="text-widget-color-picker__label">Background</span>
   </div>
 
   <div class="text-widget-color-picker__dropdown" *ngIf="showDropdown()">

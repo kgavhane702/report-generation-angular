@@ -13,12 +13,13 @@ import {
 import { CommonModule } from '@angular/common';
 import { RichTextToolbarService } from '../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
+import { TextWidgetColorPickerComponent } from '../text-widget-color-picker/text-widget-color-picker.component';
 import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-rich-text-toolbar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TextWidgetColorPickerComponent],
   templateUrl: './rich-text-toolbar.component.html',
   styleUrls: ['./rich-text-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

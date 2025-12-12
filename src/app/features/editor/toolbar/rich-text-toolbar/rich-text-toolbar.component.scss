@@ -1,6 +1,8 @@
 .rich-text-toolbar {
   background: #fff;
   border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  display: flex;
+  align-items: center;
   
   // CKEditor toolbar styles
   ::ng-deep .ck.ck-toolbar {
@@ -13,6 +15,14 @@
   .rich-text-toolbar__container {
     display: flex;
     align-items: center;
+    flex: 1;
+  }
+
+  // Background color picker styling to match CKEditor toolbar
+  .rich-text-toolbar__background-picker {
+    margin-left: 0.25rem;
+    border-left: 1px solid #d1d5db;
+    padding-left: 0.25rem;
   }
 }
 

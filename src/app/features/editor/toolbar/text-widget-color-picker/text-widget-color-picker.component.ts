@@ -7,12 +7,15 @@ import {
   HostListener,
   ElementRef,
 } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { TextWidgetProps } from '../../../../models/widget.model';
 
 @Component({
   selector: 'app-text-widget-color-picker',
+  standalone: true,
+  imports: [CommonModule],
   templateUrl: './text-widget-color-picker.component.html',
   styleUrls: ['./text-widget-color-picker.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

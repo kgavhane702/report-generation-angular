@@ -55,25 +55,33 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   border-radius: 0.25rem;
   cursor: pointer;
-  color: #64748b;
-  transition: background-color 120ms ease, color 120ms ease;
+  color: #475569;
+  transition: all 0.15s ease;
   flex-shrink: 0;
+  margin: 0 0.0625rem;
 
   .material-symbols-outlined {
-    font-size: 18px;
+    font-size: 1.125rem;
     line-height: 1;
+    color: #475569;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   }
 
   &:hover {
-    background-color: rgba(15, 23, 42, 0.08);
-    color: #0f172a;
+    background-color: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #334155;
+
+    .material-symbols-outlined {
+      color: #334155;
+    }
   }
 }
 
@@ -97,9 +105,7 @@
 }
 
 // Spacing between toolbar groups
-app-undo-redo-controls,
-app-zoom-controls,
-app-text-widget-color-picker {
+app-undo-redo-controls {
   margin-left: 0.25rem;
   border-left: 1px solid #d1d5db;
   padding-left: 0.25rem;

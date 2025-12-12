@@ -8,13 +8,14 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.375rem 0.5rem;
+  padding: 0.375rem;
   border-radius: 0.25rem;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
   margin: 0 0.0625rem;
+  position: relative;
 
   &:hover {
     background-color: #f1f5f9;
@@ -22,15 +23,25 @@
   }
 }
 
+.text-widget-color-picker__icon {
+  font-size: 1.125rem;
+  color: #475569;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
 .text-widget-color-picker__preview {
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 0.25rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 0.125rem;
   border: 1px solid #d1d5db;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: absolute;
+  bottom: 0.125rem;
+  right: 0.125rem;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
 }
 
 .text-widget-color-picker__preview--transparent {
@@ -43,12 +54,6 @@
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
 }
 
-.text-widget-color-picker__label {
-  font-size: 0.875rem;
-  color: #475569;
-  white-space: nowrap;
-  font-weight: 500;
-}
 
 .text-widget-color-picker__transparent-icon {
   display: block;
