@@ -22,6 +22,7 @@ import { RichTextEditorService } from '../../../../core/services/rich-text-edito
 import { CkEditorRichTextEditorService } from '../../../../core/services/rich-text-editor/ckeditor-rich-text-editor.service';
 import { RichTextToolbarService } from '../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
+import { WidgetSaveService } from '../../../../core/services/widget-save.service';
 import { DecoupledEditor } from 'ckeditor5';
 
 @Component({
@@ -41,6 +42,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private readonly editorService = inject(RichTextEditorService);
   private readonly toolbarService = inject(RichTextToolbarService);
   private readonly editorState = inject(EditorStateService);
+  private readonly widgetSaveService = inject(WidgetSaveService);
   private readonly cdr = inject(ChangeDetectorRef);
   private editorInstance = this.editorService.createEditor();
 
@@ -144,6 +146,8 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       // Set up data change listener
       editor.model.document.on('change:data', () => {
         this.editorData = editor.getData();
+        // Mark widget as unsaved when content changes
+        this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
         this.cdr.markForCheck();
       });
 

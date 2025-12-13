@@ -5,6 +5,7 @@ import {
   HostBinding,
   HostListener,
   Input,
+  OnInit,
   OnDestroy,
   ViewChild,
   effect,
@@ -18,6 +19,7 @@ import { WidgetModel } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
+import { WidgetSaveService } from '../../../../core/services/widget-save.service';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -27,7 +29,7 @@ type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner
   styleUrls: ['./widget-container.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WidgetContainerComponent implements OnDestroy {
+export class WidgetContainerComponent implements OnInit, OnDestroy {
   @Input({ required: true }) widget!: WidgetModel;
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) pageId!: string;
@@ -62,6 +64,7 @@ export class WidgetContainerComponent implements OnDestroy {
   private dragSaveSubject = new Subject<void>();
   private resizeSaveSubject = new Subject<void>();
   private subscriptions = new Subscription();
+  private readonly widgetSaveService = inject(WidgetSaveService);
 
   constructor(
     private readonly documentService: DocumentService,
@@ -90,6 +93,23 @@ export class WidgetContainerComponent implements OnDestroy {
       ).subscribe(() => {
         this.autoSaveAfterResize();
       })
+    );
+
+    // Listen for global save all request (before adding new widget)
+    this.subscriptions.add(
+      this.widgetSaveService.saveAll$.subscribe(() => {
+        this.savePendingChangesImmediately();
+      })
+    );
+  }
+
+  ngOnInit(): void {
+    // Register this widget container with the save service
+    // Widget is guaranteed to be available in ngOnInit
+    this.widgetSaveService.registerWidgetContainer(
+      this.widget.id,
+      () => this.hasPendingChanges(),
+      () => this.savePendingChangesImmediatelyAsync()
     );
   }
 
@@ -270,7 +290,7 @@ export class WidgetContainerComponent implements OnDestroy {
     cellData?: string[][];
     cellStyles?: Record<string, any>;
     mergedCells?: Record<string, { rowspan: number; colspan: number }>;
-  } | null): void {
+  } | null, immediate: boolean = false): void {
     const updates: any = {};
     
     if (this.pendingPosition) {
@@ -306,24 +326,51 @@ export class WidgetContainerComponent implements OnDestroy {
     }
     
     if (Object.keys(updates).length > 0) {
-      // Save in background without blocking UI
-      setTimeout(() => {
+      if (immediate) {
+        // Save immediately (synchronous) when called before adding new widget
         this.documentService.updateWidget(
           this.subsectionId,
           this.pageId,
           this.widget.id,
           updates
         );
-      }, 0);
-      
-      // Clear pending changes after commit
-      this.pendingPosition = null;
-      this.pendingSize = null;
-      // Clear savedFrame after a short delay to allow store update
-      setTimeout(() => {
-        this.savedFrame = null;
+        // Clear pending changes immediately
+        this.pendingPosition = null;
+        this.pendingSize = null;
+        // Mark widget as saved
+        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
+        // Update savedFrame to match committed state
+        if (updates.position || updates.size) {
+          this.savedFrame = {
+            width: updates.size?.width ?? this.widget.size.width,
+            height: updates.size?.height ?? this.widget.size.height,
+            x: updates.position?.x ?? this.widget.position.x,
+            y: updates.position?.y ?? this.widget.position.y,
+          };
+        }
         this.cdr.markForCheck();
-      }, 100);
+      } else {
+        // Save in background without blocking UI (normal auto-save)
+        setTimeout(() => {
+          this.documentService.updateWidget(
+            this.subsectionId,
+            this.pageId,
+            this.widget.id,
+            updates
+          );
+        }, 0);
+        
+        // Clear pending changes after commit
+        this.pendingPosition = null;
+        this.pendingSize = null;
+        // Mark widget as saved
+        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
+        // Clear savedFrame after a short delay to allow store update
+        setTimeout(() => {
+          this.savedFrame = null;
+          this.cdr.markForCheck();
+        }, 100);
+      }
     }
   }
 
@@ -412,6 +459,53 @@ export class WidgetContainerComponent implements OnDestroy {
     return widgetProps;
   }
 
+  /**
+   * Save pending changes immediately (called before adding new widget)
+   * This ensures all unsaved changes are committed before store updates
+   */
+  private savePendingChangesImmediately(): void {
+    // Save if there are pending changes (position, size, or content)
+    if (this.hasPendingChanges()) {
+      const widgetProps = this.getCurrentWidgetProps();
+      // Save immediately without debounce
+      this.commitChanges(widgetProps, true);
+    }
+  }
+
+  /**
+   * Check if this widget has pending changes (position, size, or content)
+   */
+  private hasPendingChanges(): boolean {
+    // Check position/size changes
+    const hasPositionOrSizeChanges = !!(this.pendingPosition || this.pendingSize);
+    // Check content changes via save service
+    const hasContentChanges = this.widgetSaveService.hasUnsavedChanges(this.widget.id);
+    return hasPositionOrSizeChanges || hasContentChanges;
+  }
+
+  /**
+   * Save pending changes asynchronously and return a Promise
+   * Resolves when save is complete
+   */
+  private savePendingChangesImmediatelyAsync(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      // Save if there are pending changes (position, size, or content)
+      if (this.hasPendingChanges()) {
+        const widgetProps = this.getCurrentWidgetProps();
+        // Save immediately without debounce
+        this.commitChanges(widgetProps, true);
+        // Mark as saved after commit
+        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
+        // Resolve after next tick to ensure save is processed
+        setTimeout(() => {
+          resolve();
+        }, 0);
+      } else {
+        resolve();
+      }
+    });
+  }
+
   private clampFrame(width: number, height: number, x: number, y: number) {
     const minWidth = 20;
     const minHeight = 20;
@@ -444,6 +538,9 @@ export class WidgetContainerComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Unregister from save service
+    this.widgetSaveService.unregisterWidgetContainer(this.widget.id);
+    
     // Clean up RxJS subscriptions
     this.subscriptions.unsubscribe();
     this.dragSaveSubject.complete();

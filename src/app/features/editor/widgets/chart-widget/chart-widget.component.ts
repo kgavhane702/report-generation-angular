@@ -22,6 +22,7 @@ import {
   ChartConfigDialogData,
   ChartConfigDialogResult,
 } from '../providers/charts/chart-config/chart-config-dialog.component';
+import { WidgetSaveService } from '../../../../core/services/widget-save.service';
 
 @Component({
   selector: 'app-chart-widget',
@@ -36,6 +37,7 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
 
   private instance?: ChartInstance;
   private readonly registry = inject(ChartRegistryService);
+  private readonly widgetSaveService = inject(WidgetSaveService);
   private readonly cdr = inject(ChangeDetectorRef);
   
   showDialog = false;
@@ -147,6 +149,8 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     // Store pending chart data for commit on save
     if (!result.cancelled && result.chartData) {
       this.pendingChartData = result.chartData;
+      // Mark widget as unsaved when chart data changes
+      this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
       // Update chart preview (but don't save yet)
       this.updateChartPreview();
     }

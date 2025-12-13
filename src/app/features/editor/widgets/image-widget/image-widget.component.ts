@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 
 import { ImageWidgetProps, WidgetModel } from '../../../../models/widget.model';
+import { WidgetSaveService } from '../../../../core/services/widget-save.service';
 
 @Component({
   selector: 'app-image-widget',
@@ -21,6 +22,7 @@ export class ImageWidgetComponent {
 
   @ViewChild('fileInput', { static: false }) fileInputRef?: ElementRef<HTMLInputElement>;
 
+  private readonly widgetSaveService = inject(WidgetSaveService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   isUploading = false;
@@ -88,6 +90,8 @@ export class ImageWidgetComponent {
             alt: file.name,
             fit: this.imageProps?.fit || 'cover',
           };
+          // Mark widget as unsaved when image changes
+          this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
           this.imageError = false;
         } else {
           this.imageError = true;
