@@ -477,9 +477,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Check if this widget has pending changes (position, size, or content)
    */
   private hasPendingChanges(): boolean {
-    // Check position/size changes
     const hasPositionOrSizeChanges = !!(this.pendingPosition || this.pendingSize);
-    // Check content changes via save service
     const hasContentChanges = this.widgetSaveService.hasUnsavedChanges(this.widget.id);
     return hasPositionOrSizeChanges || hasContentChanges;
   }
@@ -489,7 +487,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Resolves when save is complete and store has been updated
    */
   private savePendingChangesImmediatelyAsync(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       // Save if there are pending changes (position, size, or content)
       if (this.hasPendingChanges()) {
         // Store current document reference before save

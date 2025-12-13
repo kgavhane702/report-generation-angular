@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
 import { Subject, from, Subscription, firstValueFrom } from 'rxjs';
-import { switchMap, delay, debounceTime, distinctUntilChanged, catchError, skip, take, timeout } from 'rxjs/operators';
+import { switchMap, delay, debounceTime, catchError, skip, take, timeout } from 'rxjs/operators';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -246,32 +246,23 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     // Setup RxJS pipeline for add widget: save pending → add widget
     this.subscriptions.add(
       this.addWidgetSubject.pipe(
-        debounceTime(100), // Small debounce to batch rapid clicks
-        distinctUntilChanged((prev, curr) => 
-          prev.type === curr.type && 
-          JSON.stringify(prev.options) === JSON.stringify(curr.options)
-        ),
-        // Step 1: Check and save pending changes before adding widget
+        debounceTime(100), // Small debounce to prevent rapid duplicate clicks
         switchMap(({ type, options }) => {
           // Check if any widget has unsaved changes
           if (this.widgetSaveService.hasAnyPendingChanges()) {
-            // Save all pending changes first
+            // Save all pending changes first, then add widget
             return from(this.widgetSaveService.saveAllPendingChanges()).pipe(
-              // Small delay to ensure saves are processed smoothly
-              delay(50),
-              // Then proceed to add widget
-              switchMap(() => this.addWidgetInternal(type, options)),
-              // Catch errors and still proceed with adding widget
-              // User should be aware but not blocked from adding widget
+              delay(50), // Small delay to ensure saves are processed
+              switchMap(() => from(this.addWidgetInternal(type, options))),
               catchError((error) => {
                 console.error('Error saving pending changes before adding widget:', error);
                 // Still proceed to add widget - user can manually save later
-                return this.addWidgetInternal(type, options);
+                return from(this.addWidgetInternal(type, options));
               })
             );
           } else {
             // No pending changes, add widget directly
-            return this.addWidgetInternal(type, options);
+            return from(this.addWidgetInternal(type, options));
           }
         })
       ).subscribe({

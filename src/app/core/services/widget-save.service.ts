@@ -97,23 +97,26 @@ export class WidgetSaveService {
 
   /**
    * Check if any widget has unsaved changes
-   * Uses status map as primary source of truth, with container state as fallback
-   * This ensures consistency and prevents false positives/negatives
+   * Only checks widgets that are actually registered and can be saved
+   * This prevents false positives from widgets that are marked as unsaved
+   * but don't have a registered container yet (e.g., newly created widgets)
    */
   hasAnyPendingChanges(): boolean {
-    // Primary check: status map (single source of truth for content changes)
-    const hasStatusUnsaved = Object.values(this.widgetSaveStatus).some(s => s.hasUnsavedChanges);
-    
-    // Secondary check: container state (for position/size changes that may not be in status map yet)
-    // Only check containers that are registered and exist in status map
-    const hasContainerPending = this.widgetContainers.some(w => {
-      // Only trust container state if widget exists in status map
-      // This prevents false positives from orphaned containers
+    // Only check widgets that are registered in containers AND have pending changes
+    // This ensures we only block operations for widgets that can actually be saved
+    return this.widgetContainers.some(w => {
+      // Check if widget exists in status map (not deleted)
       const widgetExists = this.widgetSaveStatus[w.widgetId] !== undefined;
-      return widgetExists && w.hasPendingChanges();
+      if (!widgetExists) {
+        return false;
+      }
+      
+      // Check if widget has unsaved changes in status map OR container state
+      const hasStatusUnsaved = this.widgetSaveStatus[w.widgetId]?.hasUnsavedChanges ?? false;
+      const hasContainerPending = w.hasPendingChanges();
+      
+      return hasStatusUnsaved || hasContainerPending;
     });
-    
-    return hasStatusUnsaved || hasContainerPending;
   }
 
   /**
@@ -148,7 +151,6 @@ export class WidgetSaveService {
       // Filter out widgets that no longer exist (may have been deleted)
       const unsavedWidgetIds = this.getUnsavedWidgetIds();
       const widgetsToSave = this.widgetContainers.filter(w => {
-        // Check if widget still exists in status map (not deleted)
         const widgetExists = this.widgetSaveStatus[w.widgetId] !== undefined;
         const hasPending = w.hasPendingChanges() || unsavedWidgetIds.includes(w.widgetId);
         return widgetExists && hasPending;
