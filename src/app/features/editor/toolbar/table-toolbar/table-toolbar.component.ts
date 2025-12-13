@@ -5,10 +5,12 @@ import {
   effect,
   inject,
   OnInit,
+  OnDestroy,
   HostListener,
   ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { TableSelectionService } from '../../../../core/services/table-selection.service';
@@ -23,13 +25,14 @@ import { WidgetModel, AdvancedTableCellStyle, AdvancedTableWidgetProps } from '.
   styleUrls: ['./table-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TableToolbarComponent implements OnInit {
+export class TableToolbarComponent implements OnInit, OnDestroy {
   private readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
   private readonly tableSelectionService = inject(TableSelectionService);
   private readonly tableOperationsService = inject(TableOperationsService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly elementRef = inject(ElementRef);
+  private subscriptions = new Subscription();
 
   activeWidget: WidgetModel<AdvancedTableWidgetProps> | null = null;
   isAdvancedTableActive = false;
@@ -37,7 +40,7 @@ export class TableToolbarComponent implements OnInit {
   // Style states
   textAlign: 'left' | 'center' | 'right' | 'justify' = 'left';
   fontWeight: 'normal' | 'bold' = 'normal';
-  fontStyle: 'normal' | 'italic' = 'normal';
+  fontStyle: 'normal' | 'italic' | 'oblique' = 'normal';
   textDecoration: 'none' | 'underline' = 'none';
   fontSize: number = 14;
   color: string = '#000000';
@@ -68,6 +71,20 @@ export class TableToolbarComponent implements OnInit {
       
       this.cdr.markForCheck();
     });
+
+    // Watch for selection changes to update style states
+    this.subscriptions.add(
+      this.tableSelectionService.selectedCells$.subscribe(() => {
+        if (this.isAdvancedTableActive) {
+          this.updateStyleStates();
+          this.cdr.markForCheck();
+        }
+      })
+    );
+  }
+
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
   }
 
   ngOnInit(): void {
@@ -107,35 +124,67 @@ export class TableToolbarComponent implements OnInit {
   ];
 
   private updateStyleStates(): void {
-    // This will be called when we have selection info
-    // For now, set defaults
-    this.textAlign = 'left';
-    this.fontWeight = 'normal';
-    this.fontStyle = 'normal';
-    this.textDecoration = 'none';
-    this.fontSize = 14;
-    this.color = '#000000';
-    this.backgroundColor = '';
-    this.verticalAlign = 'middle';
-    this.borderStyle = 'solid';
-    this.borderWidth = 1;
-    this.borderColor = '#000000';
+    if (!this.activeWidget) {
+      return;
+    }
+
+    const selectedCells = this.tableSelectionService.getSelectedCells();
+    const cellStyles = this.activeWidget.props.cellStyles || {};
+
+    if (selectedCells.length > 0) {
+      // Get styles from first selected cell (or merge common styles)
+      const firstCell = selectedCells[0];
+      const key = `${firstCell.row}-${firstCell.col}`;
+      const style = cellStyles[key] || {};
+
+      this.textAlign = style.textAlign || 'left';
+      this.fontWeight = (style.fontWeight === 'bold' || style.fontWeight === 'bolder' || style.fontWeight === 700) ? 'bold' : 'normal';
+      this.fontStyle = (style.fontStyle === 'italic' || style.fontStyle === 'oblique') ? style.fontStyle : 'normal';
+      this.textDecoration = style.textDecoration || 'none';
+      this.fontSize = style.fontSize || 14;
+      this.color = style.color || '#000000';
+      this.backgroundColor = style.backgroundColor || '';
+      this.verticalAlign = style.verticalAlign || 'middle';
+      this.borderStyle = style.borderStyle || 'solid';
+      this.borderWidth = style.borderWidth || 1;
+      this.borderColor = style.borderColor || '#000000';
+    } else {
+      // Defaults when no selection
+      this.textAlign = 'left';
+      this.fontWeight = 'normal';
+      this.fontStyle = 'normal';
+      this.textDecoration = 'none';
+      this.fontSize = 14;
+      this.color = '#000000';
+      this.backgroundColor = '';
+      this.verticalAlign = 'middle';
+      this.borderStyle = 'solid';
+      this.borderWidth = 1;
+      this.borderColor = '#000000';
+    }
   }
 
   applyTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
-    // No action - design only
+    this.textAlign = align;
+    this.applyStyle({ textAlign: align });
   }
 
   toggleBold(): void {
-    // No action - design only
+    const newWeight = this.fontWeight === 'bold' ? 'normal' : 'bold';
+    this.fontWeight = newWeight;
+    this.applyStyle({ fontWeight: newWeight });
   }
 
   toggleItalic(): void {
-    // No action - design only
+    const newStyle = this.fontStyle === 'italic' ? 'normal' : 'italic';
+    this.fontStyle = newStyle;
+    this.applyStyle({ fontStyle: newStyle });
   }
 
   toggleUnderline(): void {
-    // No action - design only
+    const newDecoration = this.textDecoration === 'underline' ? 'none' : 'underline';
+    this.textDecoration = newDecoration;
+    this.applyStyle({ textDecoration: newDecoration });
   }
 
   private applyStyle(style: Partial<AdvancedTableCellStyle>): void {
@@ -180,49 +229,62 @@ export class TableToolbarComponent implements OnInit {
 
   // Font size methods
   applyFontSize(size: number): void {
-    // No action - design only
+    this.fontSize = size;
+    this.applyStyle({ fontSize: size });
     this.showFontSizeDropdown = false;
   }
 
   // Color methods
   applyTextColor(color: string): void {
-    // No action - design only
+    this.color = color;
+    this.applyStyle({ color: color });
     this.showTextColorDropdown = false;
   }
 
   applyBackgroundColor(color: string): void {
-    // No action - design only
+    this.backgroundColor = color;
+    this.applyStyle({ backgroundColor: color });
     this.showBackgroundColorDropdown = false;
   }
 
   onTextColorInputChange(event: Event): void {
-    // No action - design only
+    const target = event.target as HTMLInputElement;
+    const color = target.value;
+    this.applyTextColor(color);
   }
 
   onBackgroundColorInputChange(event: Event): void {
-    // No action - design only
+    const target = event.target as HTMLInputElement;
+    const color = target.value;
+    this.applyBackgroundColor(color);
   }
 
   // Vertical alignment methods
   applyVerticalAlign(align: 'top' | 'middle' | 'bottom'): void {
-    // No action - design only
+    this.verticalAlign = align;
+    this.applyStyle({ verticalAlign: align });
   }
 
   // Border methods
   applyBorderStyle(style: 'solid' | 'dashed' | 'dotted' | 'none'): void {
-    // No action - design only
+    this.borderStyle = style;
+    this.applyStyle({ borderStyle: style });
   }
 
   applyBorderWidth(width: number): void {
-    // No action - design only
+    this.borderWidth = width;
+    this.applyStyle({ borderWidth: width });
   }
 
   applyBorderColor(color: string): void {
-    // No action - design only
+    this.borderColor = color;
+    this.applyStyle({ borderColor: color });
   }
 
   onBorderColorInputChange(event: Event): void {
-    // No action - design only
+    const target = event.target as HTMLInputElement;
+    const color = target.value;
+    this.applyBorderColor(color);
   }
 
   getDisplayTextColor(): string {
@@ -239,48 +301,48 @@ export class TableToolbarComponent implements OnInit {
 
   // Structure operation methods
   insertRowAbove(): void {
-    // No action - design only
+    this.tableOperationsService.insertRow(true);
   }
 
   insertRowBelow(): void {
-    // No action - design only
+    this.tableOperationsService.insertRow(false);
   }
 
   deleteRow(): void {
-    // No action - design only
+    this.tableOperationsService.deleteRow();
   }
 
   insertColumnLeft(): void {
-    // No action - design only
+    this.tableOperationsService.insertColumn(true);
   }
 
   insertColumnRight(): void {
-    // No action - design only
+    this.tableOperationsService.insertColumn(false);
   }
 
   deleteColumn(): void {
-    // No action - design only
+    this.tableOperationsService.deleteColumn();
   }
 
   mergeCells(): void {
-    // No action - design only
+    this.tableOperationsService.mergeCells();
   }
 
   unmergeCells(): void {
-    // No action - design only
+    this.tableOperationsService.unmergeCells();
   }
 
   // Copy/Paste methods
   copyCells(): void {
-    // No action - design only
+    this.tableOperationsService.copyCells();
   }
 
   pasteCells(): void {
-    // No action - design only
+    this.tableOperationsService.pasteCells();
   }
 
   cutCells(): void {
-    // No action - design only
+    this.tableOperationsService.cutCells();
   }
 
   @HostListener('document:click', ['$event'])

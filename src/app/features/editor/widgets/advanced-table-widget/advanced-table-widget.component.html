@@ -15,6 +15,7 @@
             contenteditable="true"
             [attr.data-row]="i"
             [attr.data-col]="j"
+            [ngStyle]="getCellStyle(i, j)"
             (mousedown)="$event.stopPropagation()"
             (click)="$event.stopPropagation()"            
             (focus)="onCellFocus($event, i, j)"

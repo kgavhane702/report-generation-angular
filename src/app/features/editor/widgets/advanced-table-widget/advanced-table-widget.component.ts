@@ -13,8 +13,12 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { WidgetModel, AdvancedTableWidgetProps } from '../../../../models/widget.model';
 import { TableSelectionService } from '../../../../core/services/table-selection.service';
+import { TableOperationsService } from '../../../../core/services/table-operations.service';
+import { DocumentService } from '../../../../core/services/document.service';
+import { EditorStateService } from '../../../../core/services/editor-state.service';
 
 interface CellPosition {
   row: number;
@@ -48,10 +52,14 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   
   // Track last saved cellData to prevent unnecessary updates
   private lastSavedCellData: string[][] | null = null;
+  private subscriptions = new Subscription();
 
   constructor(
     private cdr: ChangeDetectorRef,
-    private tableSelectionService: TableSelectionService
+    private tableSelectionService: TableSelectionService,
+    private tableOperationsService: TableOperationsService,
+    private documentService: DocumentService,
+    private editorState: EditorStateService
   ) {}
 
   ngOnInit(): void {
@@ -75,6 +83,13 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         }
       }
     }
+
+    // Listen to table operations
+    this.subscriptions.add(
+      this.tableOperationsService.operation$.subscribe(operation => {
+        this.handleTableOperation(operation);
+      })
+    );
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -120,6 +135,7 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
 
   ngOnDestroy(): void {
     this.stopSelection();
+    this.subscriptions.unsubscribe();
   }
 
   private initializeTableData(): void {
@@ -433,8 +449,8 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       rows: this.rows,
       columns: this.columns,
       cellData: this.tableData.map(row => [...row]), // Return a copy of the actual data
-      cellStyles: {},
-      mergedCells: {},
+      cellStyles: this.widget?.props?.cellStyles ? { ...this.widget.props.cellStyles } : {},
+      mergedCells: this.widget?.props?.mergedCells ? { ...this.widget.props.mergedCells } : {},
     };
   }
 
@@ -458,5 +474,316 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         this.tableData[row][col] = content;
       }
     });
+  }
+
+  /**
+   * Get cell style object for a specific cell
+   * Converts AdvancedTableCellStyle to CSS style object
+   */
+  getCellStyle(row: number, col: number): Record<string, any> {
+    if (!this.widget?.props?.cellStyles) {
+      return {};
+    }
+
+    const key = `${row}-${col}`;
+    const style = this.widget.props.cellStyles[key];
+    
+    if (!style) {
+      return {};
+    }
+
+    const cssStyle: Record<string, any> = {};
+
+    if (style.textAlign) {
+      cssStyle['text-align'] = style.textAlign;
+    }
+    if (style.fontWeight) {
+      cssStyle['font-weight'] = style.fontWeight;
+    }
+    if (style.fontStyle) {
+      cssStyle['font-style'] = style.fontStyle;
+    }
+    if (style.textDecoration) {
+      cssStyle['text-decoration'] = style.textDecoration;
+    }
+    if (style.fontSize) {
+      cssStyle['font-size'] = `${style.fontSize}px`;
+    }
+    if (style.color) {
+      cssStyle['color'] = style.color;
+    }
+    if (style.backgroundColor) {
+      cssStyle['background-color'] = style.backgroundColor;
+    }
+    if (style.verticalAlign) {
+      cssStyle['vertical-align'] = style.verticalAlign;
+    }
+    if (style.borderStyle || style.borderWidth || style.borderColor) {
+      const borderWidth = style.borderWidth || 1;
+      const borderStyle = style.borderStyle || 'solid';
+      const borderColor = style.borderColor || '#000000';
+      cssStyle['border'] = `${borderWidth}px ${borderStyle} ${borderColor}`;
+    }
+
+    return cssStyle;
+  }
+
+  /**
+   * Handle table operations from toolbar
+   */
+  private handleTableOperation(operation: any): void {
+    // Only handle operations if this widget is active
+    const activeWidget = this.editorState.activeWidget();
+    if (activeWidget?.id !== this.widget?.id) {
+      return;
+    }
+
+    const subsectionId = this.editorState.activeSubsectionId();
+    const pageId = this.editorState.activePageId();
+
+    if (!subsectionId || !pageId) {
+      return;
+    }
+
+    const selectedCells = this.tableSelectionService.getSelectedCells();
+    if (selectedCells.length === 0) {
+      return; // Need selection for operations
+    }
+
+    // Get the first selected cell as reference
+    const firstCell = selectedCells[0];
+    const lastCell = selectedCells[selectedCells.length - 1];
+    const startRow = Math.min(firstCell.row, lastCell.row);
+    const endRow = Math.max(firstCell.row, lastCell.row);
+    const startCol = Math.min(firstCell.col, lastCell.col);
+    const endCol = Math.max(firstCell.col, lastCell.col);
+
+    switch (operation.type) {
+      case 'insertRow':
+        this.insertRow(startRow, operation.above);
+        break;
+      case 'deleteRow':
+        this.deleteRow(startRow, endRow);
+        break;
+      case 'insertColumn':
+        this.insertColumn(startCol, operation.left);
+        break;
+      case 'deleteColumn':
+        this.deleteColumn(startCol, endCol);
+        break;
+      case 'mergeCells':
+        this.mergeCells(startRow, endRow, startCol, endCol);
+        break;
+      case 'unmergeCells':
+        this.unmergeCells(startRow, startCol);
+        break;
+      case 'copyCells':
+        this.copyCells(startRow, endRow, startCol, endCol);
+        break;
+      case 'pasteCells':
+        this.pasteCells(startRow, startCol);
+        break;
+      case 'cutCells':
+        this.cutCells(startRow, endRow, startCol, endCol);
+        break;
+    }
+  }
+
+  private insertRow(referenceRow: number, above: boolean): void {
+    const newRow = above ? referenceRow : referenceRow + 1;
+    this.rows++;
+    
+    // Insert empty row in tableData
+    const emptyRow: string[] = [];
+    for (let j = 0; j < this.columns; j++) {
+      emptyRow.push('');
+    }
+    this.tableData.splice(newRow, 0, emptyRow);
+
+    this.updateWidget();
+  }
+
+  private deleteRow(startRow: number, endRow: number): void {
+    if (this.rows <= 1) return; // Don't delete last row
+    
+    // Remove rows from tableData
+    const count = endRow - startRow + 1;
+    this.tableData.splice(startRow, count);
+    this.rows -= count;
+
+    this.updateWidget();
+  }
+
+  private insertColumn(referenceCol: number, left: boolean): void {
+    const newCol = left ? referenceCol : referenceCol + 1;
+    this.columns++;
+    
+    // Insert empty column in all rows
+    this.tableData.forEach(row => {
+      row.splice(newCol, 0, '');
+    });
+
+    this.updateWidget();
+  }
+
+  private deleteColumn(startCol: number, endCol: number): void {
+    if (this.columns <= 1) return; // Don't delete last column
+    
+    // Remove columns from all rows
+    const count = endCol - startCol + 1;
+    this.tableData.forEach(row => {
+      row.splice(startCol, count);
+    });
+    this.columns -= count;
+
+    this.updateWidget();
+  }
+
+  private mergeCells(startRow: number, endRow: number, startCol: number, endCol: number): void {
+    // Store merged cell info
+    const mergedCells = this.widget?.props?.mergedCells || {};
+    const key = `${startRow}-${startCol}`;
+    
+    // Calculate rowspan and colspan
+    const rowspan = endRow - startRow + 1;
+    const colspan = endCol - startCol + 1;
+
+    // Merge content - combine all cell contents
+    let mergedContent = '';
+    for (let i = startRow; i <= endRow; i++) {
+      for (let j = startCol; j <= endCol; j++) {
+        if (this.tableData[i] && this.tableData[i][j]) {
+          if (mergedContent) mergedContent += ' ';
+          mergedContent += this.tableData[i][j];
+        }
+      }
+    }
+
+    // Set merged content to first cell
+    if (this.tableData[startRow] && this.tableData[startRow][startCol] !== undefined) {
+      this.tableData[startRow][startCol] = mergedContent;
+    }
+
+    // Update merged cells record
+    const updatedMergedCells = {
+      ...mergedCells,
+      [key]: { rowspan, colspan }
+    };
+
+    this.updateWidget({ mergedCells: updatedMergedCells });
+  }
+
+  private unmergeCells(row: number, col: number): void {
+    const mergedCells = this.widget?.props?.mergedCells || {};
+    const key = `${row}-${col}`;
+    
+    if (mergedCells[key]) {
+      const { rowspan, colspan } = mergedCells[key];
+      const updatedMergedCells = { ...mergedCells };
+      delete updatedMergedCells[key];
+
+      // Clear content in unmerged cells
+      const content = this.tableData[row]?.[col] || '';
+      for (let i = row; i < row + rowspan; i++) {
+        for (let j = col; j < col + colspan; j++) {
+          if (i === row && j === col) continue;
+          if (this.tableData[i] && this.tableData[i][j] !== undefined) {
+            this.tableData[i][j] = '';
+          }
+        }
+      }
+
+      this.updateWidget({ mergedCells: updatedMergedCells });
+    }
+  }
+
+  private copyCells(startRow: number, endRow: number, startCol: number, endCol: number): void {
+    // Copy cell data to clipboard (simplified - could use Clipboard API)
+    const copiedData: string[][] = [];
+    for (let i = startRow; i <= endRow; i++) {
+      const row: string[] = [];
+      for (let j = startCol; j <= endCol; j++) {
+        row.push(this.tableData[i]?.[j] || '');
+      }
+      copiedData.push(row);
+    }
+    
+    // Store in sessionStorage for paste
+    sessionStorage.setItem('tableClipboard', JSON.stringify(copiedData));
+  }
+
+  private pasteCells(startRow: number, startCol: number): void {
+    const clipboardData = sessionStorage.getItem('tableClipboard');
+    if (!clipboardData) return;
+
+    try {
+      const copiedData: string[][] = JSON.parse(clipboardData);
+      
+      // Paste data starting at selected cell
+      for (let i = 0; i < copiedData.length; i++) {
+        const targetRow = startRow + i;
+        if (targetRow >= this.rows) break;
+        
+        for (let j = 0; j < copiedData[i].length; j++) {
+          const targetCol = startCol + j;
+          if (targetCol >= this.columns) break;
+          
+          if (this.tableData[targetRow] && this.tableData[targetRow][targetCol] !== undefined) {
+            this.tableData[targetRow][targetCol] = copiedData[i][j];
+          }
+        }
+      }
+
+      this.updateWidget();
+    } catch (error) {
+      console.error('Error pasting cells:', error);
+    }
+  }
+
+  private cutCells(startRow: number, endRow: number, startCol: number, endCol: number): void {
+    // Copy first
+    this.copyCells(startRow, endRow, startCol, endCol);
+    
+    // Then clear
+    for (let i = startRow; i <= endRow; i++) {
+      for (let j = startCol; j <= endCol; j++) {
+        if (this.tableData[i] && this.tableData[i][j] !== undefined) {
+          this.tableData[i][j] = '';
+        }
+      }
+    }
+
+    this.updateWidget();
+  }
+
+  /**
+   * Update widget with new table structure
+   */
+  private updateWidget(additionalProps?: Partial<AdvancedTableWidgetProps>): void {
+    const subsectionId = this.editorState.activeSubsectionId();
+    const pageId = this.editorState.activePageId();
+
+    if (!subsectionId || !pageId || !this.widget) {
+      return;
+    }
+
+    // Sync data from DOM before updating
+    this.syncTableDataFromDOM();
+
+    const currentState = this.getCurrentState();
+    
+    this.documentService.updateWidget(subsectionId, pageId, this.widget.id, {
+      props: {
+        ...this.widget.props,
+        rows: this.rows,
+        columns: this.columns,
+        cellData: currentState.cellData,
+        cellStyles: currentState.cellStyles,
+        mergedCells: currentState.mergedCells,
+        ...additionalProps,
+      } as any,
+    });
+
+    this.cdr.markForCheck();
   }
 }
