@@ -78,12 +78,10 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async exportDocument(): Promise<void> {
-    // Save all pending changes before exporting
-    if (this.widgetSaveService.hasAnyPendingChanges()) {
-      await this.widgetSaveService.saveAllPendingChanges();
-      // Small delay to ensure saves are processed
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
+    // Always save all widgets before exporting
+    await this.widgetSaveService.saveAllPendingChanges();
+    // Small delay to ensure saves are processed
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     const document = this.documentService.document;
     this.exportService.exportToFile(document).catch(() => {
@@ -92,21 +90,19 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async exportToClipboard(): Promise<void> {
-    // Save all pending changes before exporting
-    if (this.widgetSaveService.hasAnyPendingChanges()) {
-      try {
-        await this.widgetSaveService.saveAllPendingChanges();
-        // Small delay to ensure saves are processed
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (error) {
-        console.error('Error saving pending changes before clipboard export:', error);
-        // Continue with export anyway - user should be aware of potential data loss
-        const proceed = confirm(
-          `Some changes could not be saved before export. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        if (!proceed) {
-          return;
-        }
+    // Always save all widgets before exporting
+    try {
+      await this.widgetSaveService.saveAllPendingChanges();
+      // Small delay to ensure saves are processed
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } catch (error) {
+      console.error('Error saving widgets before clipboard export:', error);
+      // Continue with export anyway - user should be aware of potential data loss
+      const proceed = confirm(
+        `Some changes could not be saved before export. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      if (!proceed) {
+        return;
       }
     }
     
@@ -190,41 +186,36 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async downloadPDF(): Promise<void> {
-    // Save all pending changes before generating PDF
-    if (this.widgetSaveService.hasAnyPendingChanges()) {
+    // Always save all widgets before generating PDF
+    try {
+      // Save all widgets
+      await this.widgetSaveService.saveAllPendingChanges();
+      
+      // Wait for the document observable to emit a new value (document updated)
+      // This is more efficient than JSON.stringify polling and guarantees the update
       try {
-        // Get current document reference before saving
-        const documentBeforeSave = this.documentService.document;
-        
-        // Save all pending changes
-        await this.widgetSaveService.saveAllPendingChanges();
-        
-        // Wait for the document observable to emit a new value (document updated)
-        // This is more efficient than JSON.stringify polling and guarantees the update
-        try {
-          await firstValueFrom(
-            this.documentService.document$.pipe(
-              skip(1), // Skip the current value
-              take(1), // Take the next value (updated document)
-              timeout(1000) // Max 1 second wait
-            )
-          );
-          // Small delay to ensure all updates are fully propagated
-          await new Promise(resolve => setTimeout(resolve, 50));
-        } catch (timeoutError) {
-          // If timeout, document may not have changed or already updated
-          // Proceed anyway - saves should be done
-          console.warn('Document update timeout, proceeding with PDF generation');
-        }
-      } catch (error) {
-        console.error('Error saving pending changes before PDF generation:', error);
-        // Ask user if they want to proceed with potentially stale data
-        const proceed = confirm(
-          `Some changes could not be saved before PDF generation. The PDF may not include your latest changes. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+        await firstValueFrom(
+          this.documentService.document$.pipe(
+            skip(1), // Skip the current value
+            take(1), // Take the next value (updated document)
+            timeout(1000) // Max 1 second wait
+          )
         );
-        if (!proceed) {
-          return;
-        }
+        // Small delay to ensure all updates are fully propagated
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (timeoutError) {
+        // If timeout, document may not have changed or already updated
+        // Proceed anyway - saves should be done
+        console.warn('Document update timeout, proceeding with PDF generation');
+      }
+    } catch (error) {
+      console.error('Error saving widgets before PDF generation:', error);
+      // Ask user if they want to proceed with potentially stale data
+      const proceed = confirm(
+        `Some changes could not be saved before PDF generation. The PDF may not include your latest changes. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      if (!proceed) {
+        return;
       }
     }
 
@@ -248,22 +239,16 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       this.addWidgetSubject.pipe(
         debounceTime(100), // Small debounce to prevent rapid duplicate clicks
         switchMap(({ type, options }) => {
-          // Check if any widget has unsaved changes
-          if (this.widgetSaveService.hasAnyPendingChanges()) {
-            // Save all pending changes first, then add widget
-            return from(this.widgetSaveService.saveAllPendingChanges()).pipe(
-              delay(50), // Small delay to ensure saves are processed
-              switchMap(() => from(this.addWidgetInternal(type, options))),
-              catchError((error) => {
-                console.error('Error saving pending changes before adding widget:', error);
-                // Still proceed to add widget - user can manually save later
-                return from(this.addWidgetInternal(type, options));
-              })
-            );
-          } else {
-            // No pending changes, add widget directly
-            return from(this.addWidgetInternal(type, options));
-          }
+          // Always save all widgets first, then add widget
+          return from(this.widgetSaveService.saveAllPendingChanges()).pipe(
+            delay(50), // Small delay to ensure saves are processed
+            switchMap(() => from(this.addWidgetInternal(type, options))),
+            catchError((error) => {
+              console.error('Error saving widgets before adding widget:', error);
+              // Still proceed to add widget - user can manually save later
+              return from(this.addWidgetInternal(type, options));
+            })
+          );
         })
       ).subscribe({
         error: (err) => {

@@ -149,8 +149,6 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     // Store pending chart data for commit on save
     if (!result.cancelled && result.chartData) {
       this.pendingChartData = result.chartData;
-      // Mark widget as unsaved when chart data changes
-      this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
       // Update chart preview (but don't save yet)
       this.updateChartPreview();
     }

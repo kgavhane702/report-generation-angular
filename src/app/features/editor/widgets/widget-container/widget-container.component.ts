@@ -109,7 +109,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Widget is guaranteed to be available in ngOnInit
     this.widgetSaveService.registerWidgetContainer(
       this.widget.id,
-      () => this.hasPendingChanges(),
       () => this.savePendingChangesImmediatelyAsync()
     );
   }
@@ -338,8 +337,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         // Clear pending changes immediately
         this.pendingPosition = null;
         this.pendingSize = null;
-        // Mark widget as saved
-        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
         // Update savedFrame to match committed state
         if (updates.position || updates.size) {
           this.savedFrame = {
@@ -364,8 +361,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         // Clear pending changes after commit
         this.pendingPosition = null;
         this.pendingSize = null;
-        // Mark widget as saved
-        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
         // Clear savedFrame after a short delay to allow store update
         setTimeout(() => {
           this.savedFrame = null;
@@ -462,65 +457,53 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
   /**
    * Save pending changes immediately (called before adding new widget)
-   * This ensures all unsaved changes are committed before store updates
+   * Always saves to capture any content changes, even if position/size haven't changed
    */
   private savePendingChangesImmediately(): void {
-    // Save if there are pending changes (position, size, or content)
-    if (this.hasPendingChanges()) {
-      const widgetProps = this.getCurrentWidgetProps();
-      // Save immediately without debounce
-      this.commitChanges(widgetProps, true);
-    }
+    // Always get current widget props to capture any content changes
+    const widgetProps = this.getCurrentWidgetProps();
+    // Save immediately without debounce
+    this.commitChanges(widgetProps, true);
   }
 
   /**
-   * Check if this widget has pending changes (position, size, or content)
+   * Check if this widget has pending changes (position or size)
+   * Content changes are always saved when saveAllPendingChanges is called
    */
   private hasPendingChanges(): boolean {
-    const hasPositionOrSizeChanges = !!(this.pendingPosition || this.pendingSize);
-    const hasContentChanges = this.widgetSaveService.hasUnsavedChanges(this.widget.id);
-    return hasPositionOrSizeChanges || hasContentChanges;
+    return !!(this.pendingPosition || this.pendingSize);
   }
 
   /**
    * Save pending changes asynchronously and return a Promise
    * Resolves when save is complete and store has been updated
+   * Always saves to capture any content changes, even if position/size haven't changed
    */
   private savePendingChangesImmediatelyAsync(): Promise<void> {
     return new Promise<void>((resolve) => {
-      // Save if there are pending changes (position, size, or content)
-      if (this.hasPendingChanges()) {
-        // Store current document reference before save
-        this.lastDocumentReference = this.documentService.document;
-        
-        const widgetProps = this.getCurrentWidgetProps();
-        // Save immediately without debounce
-        this.commitChanges(widgetProps, true);
-        
-        // Wait for document observable to emit new value (store updated)
-        // This ensures the save has actually propagated to the store
-        firstValueFrom(
-          this.documentService.document$.pipe(
-            skip(1), // Skip the current value
-            take(1), // Take the next value (updated document)
-            timeout(500) // Max 500ms wait
-          )
+      // Always get current widget props to capture any content changes
+      const widgetProps = this.getCurrentWidgetProps();
+      
+      // Save immediately without debounce (even if no position/size changes, content may have changed)
+      this.commitChanges(widgetProps, true);
+      
+      // Wait for document observable to emit new value (store updated)
+      // This ensures the save has actually propagated to the store
+      firstValueFrom(
+        this.documentService.document$.pipe(
+          skip(1), // Skip the current value
+          take(1), // Take the next value (updated document)
+          timeout(500) // Max 500ms wait
         )
-          .then(() => {
-            // Mark as saved only after store update is confirmed
-            this.widgetSaveService.markWidgetAsSaved(this.widget.id);
-            resolve();
-          })
-          .catch((error) => {
-            // If timeout or error, still mark as saved (save was called)
-            // but log the warning
-            console.warn(`Widget ${this.widget.id} save may not have propagated to store:`, error);
-            this.widgetSaveService.markWidgetAsSaved(this.widget.id);
-            resolve(); // Resolve anyway to not block operations
-          });
-      } else {
-        resolve();
-      }
+      )
+        .then(() => {
+          resolve();
+        })
+        .catch((error) => {
+          // If timeout, log the warning but still resolve
+          console.warn(`Widget ${this.widget.id} save may not have propagated to store:`, error);
+          resolve(); // Resolve anyway to not block operations
+        });
     });
   }
 

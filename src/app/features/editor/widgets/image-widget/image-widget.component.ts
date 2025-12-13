@@ -90,8 +90,6 @@ export class ImageWidgetComponent {
             alt: file.name,
             fit: this.imageProps?.fit || 'cover',
           };
-          // Mark widget as unsaved when image changes
-          this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
           this.imageError = false;
         } else {
           this.imageError = true;

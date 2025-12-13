@@ -146,8 +146,6 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       // Set up data change listener
       editor.model.document.on('change:data', () => {
         this.editorData = editor.getData();
-        // Mark widget as unsaved when content changes
-        this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
         this.cdr.markForCheck();
       });
 

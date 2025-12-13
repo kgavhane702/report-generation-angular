@@ -449,8 +449,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     // Clean the value - remove &nbsp; and trim whitespace
     const cleanedValue = this.cleanCellValue(value);
     this.tableData[rowIndex][colIndex] = cleanedValue;
-    // Mark widget as unsaved when table data changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
   }
 
   private cleanCellValue(value: string): string {
@@ -475,8 +473,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         ...style,
       };
     });
-    // Mark widget as unsaved when styles change
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.cdr.markForCheck();
   }
 
@@ -529,8 +525,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       col: cell.col,
     }));
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
@@ -579,8 +573,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     this.selectionStart = null;
     this.selectionEnd = null;
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
@@ -630,8 +622,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       col: cell.col >= targetCol ? cell.col + 1 : cell.col,
     }));
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
@@ -682,8 +672,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     this.selectionStart = null;
     this.selectionEnd = null;
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
@@ -726,8 +714,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     this.selectionStart = { row: minRow, col: minCol };
     this.selectionEnd = { row: minRow, col: minCol };
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
@@ -744,8 +730,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       }
     });
 
-    // Mark widget as unsaved when structure changes
-    this.widgetSaveService.markWidgetAsUnsaved(this.widget.id);
     this.emitStructureChange();
   }
 
