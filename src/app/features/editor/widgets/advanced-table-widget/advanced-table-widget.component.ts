@@ -45,6 +45,9 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
 
   // Track which cell is currently being edited to prevent content updates
   editingCell: CellPosition | null = null;
+  
+  // Track last saved cellData to prevent unnecessary updates
+  private lastSavedCellData: string[][] | null = null;
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -77,29 +80,41 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['widget'] && this.widget?.props) {
       const currentProps = this.widget.props;
-      this.rows = currentProps.rows || 3;
-      this.columns = currentProps.columns || 3;
-      this.initializeTableData();
+      const newRows = currentProps.rows || 3;
+      const newColumns = currentProps.columns || 3;
       
-      // Load existing cellData from widget props if available
-      if (currentProps.cellData && Array.isArray(currentProps.cellData)) {
-        // Ensure tableData matches the dimensions
-        for (let i = 0; i < this.rows && i < currentProps.cellData.length; i++) {
-          const sourceRow = currentProps.cellData[i];
-          if (Array.isArray(sourceRow)) {
-            for (let j = 0; j < this.columns && j < sourceRow.length; j++) {
-              if (this.tableData[i] && this.tableData[i][j] !== undefined) {
-                this.tableData[i][j] = sourceRow[j] || '';
-              }
-            }
-          }
-        }
+      // Only reinitialize if dimensions changed
+      const dimensionsChanged = newRows !== this.rows || newColumns !== this.columns;
+      
+      if (dimensionsChanged) {
+        this.rows = newRows;
+        this.columns = newColumns;
+        this.initializeTableData();
+        this.lastSavedCellData = null; // Reset when dimensions change
       }
       
-      // Reinitialize cell contents after data changes
-      setTimeout(() => {
-        this.initializeCellContents();
-      }, 0);
+      // Check if cellData actually changed to prevent unnecessary updates
+      const cellDataChanged = currentProps.cellData && Array.isArray(currentProps.cellData) &&
+        (!this.lastSavedCellData || JSON.stringify(this.lastSavedCellData) !== JSON.stringify(currentProps.cellData));
+      
+      // Update cellData from widget props if available and changed
+      if (cellDataChanged && currentProps.cellData && Array.isArray(currentProps.cellData)) {
+        this.updateCellDataFromProps(currentProps.cellData, dimensionsChanged);
+        this.lastSavedCellData = currentProps.cellData.map(row => [...row]); // Store a copy
+      }
+      
+      // Only update DOM if dimensions changed or cellData changed
+      if (dimensionsChanged) {
+        Promise.resolve().then(() => {
+          this.initializeCellContents();
+        });
+      } else if (cellDataChanged) {
+        // For content-only updates, sync DOM without full reinitialization
+        Promise.resolve().then(() => {
+          this.syncCellContentsFromData();
+        });
+      }
+      // If nothing changed, don't update DOM at all - prevents flicker
     }
   }
 
@@ -121,9 +136,9 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
 
   ngAfterViewInit(): void {
     // Initialize content for all editable cells after view is initialized
-    setTimeout(() => {
+    Promise.resolve().then(() => {
       this.initializeCellContents();
-    }, 0);
+    });
   }
 
   private initializeCellContents(): void {
@@ -139,8 +154,62 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       
       if (this.tableData[row] && this.tableData[row][col] !== undefined) {
         const content = this.tableData[row][col];
-        if (content && !div.textContent) {
+        // Only update if content is different to prevent flicker
+        if (div.textContent !== content) {
           div.textContent = content;
+        }
+      }
+    });
+  }
+
+  /**
+   * Update cellData from props without full reinitialization
+   * Only updates cells that actually changed
+   */
+  private updateCellDataFromProps(cellData: string[][], forceUpdate: boolean = false): void {
+    for (let i = 0; i < this.rows && i < cellData.length; i++) {
+      const sourceRow = cellData[i];
+      if (Array.isArray(sourceRow)) {
+        for (let j = 0; j < this.columns && j < sourceRow.length; j++) {
+          if (this.tableData[i] && this.tableData[i][j] !== undefined) {
+            const newContent = sourceRow[j] || '';
+            // Only update if content changed to prevent unnecessary updates
+            if (forceUpdate || this.tableData[i][j] !== newContent) {
+              this.tableData[i][j] = newContent;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Sync cell contents from tableData without full reinitialization
+   * Only updates DOM elements that actually changed
+   */
+  private syncCellContentsFromData(): void {
+    if (!this.tableContainer) return;
+    
+    const editableDivs = this.tableContainer.nativeElement.querySelectorAll(
+      '.advanced-table-widget__cell-editable'
+    ) as NodeListOf<HTMLElement>;
+    
+    editableDivs.forEach((div, index) => {
+      const row = Math.floor(index / this.columns);
+      const col = index % this.columns;
+      
+      if (this.tableData[row] && this.tableData[row][col] !== undefined) {
+        const expectedContent = this.tableData[row][col];
+        const currentContent = div.textContent || '';
+        
+        // Only update if content is different to prevent flicker
+        if (currentContent !== expectedContent) {
+          // Preserve cursor position if the cell is being edited
+          if (this.editingCell && this.editingCell.row === row && this.editingCell.col === col) {
+            // Don't update if user is currently editing this cell
+            return;
+          }
+          div.textContent = expectedContent;
         }
       }
     });
