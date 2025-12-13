@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
-import { Subject, from, Subscription } from 'rxjs';
-import { switchMap, delay, debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Subject, from, Subscription, firstValueFrom } from 'rxjs';
+import { switchMap, delay, debounceTime, distinctUntilChanged, catchError, skip, take, timeout } from 'rxjs/operators';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -94,9 +94,20 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   async exportToClipboard(): Promise<void> {
     // Save all pending changes before exporting
     if (this.widgetSaveService.hasAnyPendingChanges()) {
-      await this.widgetSaveService.saveAllPendingChanges();
-      // Small delay to ensure saves are processed
-      await new Promise(resolve => setTimeout(resolve, 50));
+      try {
+        await this.widgetSaveService.saveAllPendingChanges();
+        // Small delay to ensure saves are processed
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch (error) {
+        console.error('Error saving pending changes before clipboard export:', error);
+        // Continue with export anyway - user should be aware of potential data loss
+        const proceed = confirm(
+          `Some changes could not be saved before export. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+        if (!proceed) {
+          return;
+        }
+      }
     }
     
     const document = this.documentService.document;
@@ -146,6 +157,7 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       );
 
       if (confirmed) {
+        // replaceDocument already clears widget save status, but ensure it's done
         this.documentService.replaceDocument(result.document);
 
         const firstSection = result.document.sections[0];
@@ -180,35 +192,39 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   async downloadPDF(): Promise<void> {
     // Save all pending changes before generating PDF
     if (this.widgetSaveService.hasAnyPendingChanges()) {
-      // Get current document state before saving
-      const documentBeforeSave = JSON.stringify(this.documentService.document);
-      
-      // Save all pending changes
-      await this.widgetSaveService.saveAllPendingChanges();
-      
-      // Wait for the document to actually update by polling the document signal
-      // This ensures the NgRx store updates have propagated to the signal
-      let attempts = 0;
-      const maxAttempts = 20; // 20 attempts * 50ms = 1 second max wait
-      
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-        const currentDocument = JSON.stringify(this.documentService.document);
+      try {
+        // Get current document reference before saving
+        const documentBeforeSave = this.documentService.document;
         
-        // If document has changed, the save has propagated
-        if (currentDocument !== documentBeforeSave) {
-          // Additional small delay to ensure all updates are fully propagated
+        // Save all pending changes
+        await this.widgetSaveService.saveAllPendingChanges();
+        
+        // Wait for the document observable to emit a new value (document updated)
+        // This is more efficient than JSON.stringify polling and guarantees the update
+        try {
+          await firstValueFrom(
+            this.documentService.document$.pipe(
+              skip(1), // Skip the current value
+              take(1), // Take the next value (updated document)
+              timeout(1000) // Max 1 second wait
+            )
+          );
+          // Small delay to ensure all updates are fully propagated
           await new Promise(resolve => setTimeout(resolve, 50));
-          break;
+        } catch (timeoutError) {
+          // If timeout, document may not have changed or already updated
+          // Proceed anyway - saves should be done
+          console.warn('Document update timeout, proceeding with PDF generation');
         }
-        
-        attempts++;
-      }
-      
-      // If we've waited the max time, proceed anyway (saves should be done)
-      if (attempts >= maxAttempts) {
-        // Give it one more moment
-        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error('Error saving pending changes before PDF generation:', error);
+        // Ask user if they want to proceed with potentially stale data
+        const proceed = confirm(
+          `Some changes could not be saved before PDF generation. The PDF may not include your latest changes. Do you want to continue anyway?\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+        if (!proceed) {
+          return;
+        }
       }
     }
 
@@ -244,7 +260,14 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
               // Small delay to ensure saves are processed smoothly
               delay(50),
               // Then proceed to add widget
-              switchMap(() => this.addWidgetInternal(type, options))
+              switchMap(() => this.addWidgetInternal(type, options)),
+              // Catch errors and still proceed with adding widget
+              // User should be aware but not blocked from adding widget
+              catchError((error) => {
+                console.error('Error saving pending changes before adding widget:', error);
+                // Still proceed to add widget - user can manually save later
+                return this.addWidgetInternal(type, options);
+              })
             );
           } else {
             // No pending changes, add widget directly

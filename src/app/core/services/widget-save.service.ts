@@ -19,6 +19,13 @@ export class WidgetSaveService {
     savePending: () => Promise<void>;
   }> = [];
 
+  // Lock to prevent concurrent save operations
+  private isSaving = false;
+  private saveQueue: Array<{
+    resolve: () => void;
+    reject: (error: Error) => void;
+  }> = [];
+
   /**
    * Register a widget container so it can be saved when needed
    */
@@ -27,6 +34,9 @@ export class WidgetSaveService {
     hasPendingChangesFn: () => boolean,
     saveFn: () => Promise<void>
   ): void {
+    // Prevent duplicate registration - unregister first if exists
+    this.unregisterWidgetContainer(widgetId);
+    
     this.widgetContainers.push({ 
       widgetId,
       hasPendingChanges: hasPendingChangesFn,
@@ -87,11 +97,22 @@ export class WidgetSaveService {
 
   /**
    * Check if any widget has unsaved changes
+   * Uses status map as primary source of truth, with container state as fallback
+   * This ensures consistency and prevents false positives/negatives
    */
   hasAnyPendingChanges(): boolean {
-    // Check both the status map and the container's pending changes
+    // Primary check: status map (single source of truth for content changes)
     const hasStatusUnsaved = Object.values(this.widgetSaveStatus).some(s => s.hasUnsavedChanges);
-    const hasContainerPending = this.widgetContainers.some(w => w.hasPendingChanges());
+    
+    // Secondary check: container state (for position/size changes that may not be in status map yet)
+    // Only check containers that are registered and exist in status map
+    const hasContainerPending = this.widgetContainers.some(w => {
+      // Only trust container state if widget exists in status map
+      // This prevents false positives from orphaned containers
+      const widgetExists = this.widgetSaveStatus[w.widgetId] !== undefined;
+      return widgetExists && w.hasPendingChanges();
+    });
+    
     return hasStatusUnsaved || hasContainerPending;
   }
 
@@ -107,30 +128,115 @@ export class WidgetSaveService {
   /**
    * Save all pending changes and return a Promise that resolves when all saves complete
    * Only saves widgets that actually have pending changes
+   * Prevents concurrent save operations using a lock mechanism
    */
   saveAllPendingChanges(): Promise<void> {
-    // Trigger save signal for widgets that listen via observable (legacy support)
-    this.saveAllSubject.next();
-    
-    // Find all widgets with pending changes (both from status and containers)
-    const unsavedWidgetIds = this.getUnsavedWidgetIds();
-    const widgetsToSave = this.widgetContainers.filter(w => 
-      w.hasPendingChanges() || unsavedWidgetIds.includes(w.widgetId)
-    );
-    
-    if (widgetsToSave.length === 0) {
-      return Promise.resolve();
-    }
+    return new Promise<void>((resolve, reject) => {
+      // If a save is already in progress, queue this request
+      if (this.isSaving) {
+        this.saveQueue.push({ resolve, reject });
+        return;
+      }
 
-    // Save all widgets with pending changes sequentially for smooth operation
-    return widgetsToSave.reduce((promise, widget) => {
-      return promise.then(() => {
-        return widget.savePending().then(() => {
-          // Mark as saved after successful save
-          this.markWidgetAsSaved(widget.widgetId);
-        });
+      // Acquire lock
+      this.isSaving = true;
+
+      // Trigger save signal for widgets that listen via observable (legacy support)
+      this.saveAllSubject.next();
+      
+      // Find all widgets with pending changes (both from status and containers)
+      // Filter out widgets that no longer exist (may have been deleted)
+      const unsavedWidgetIds = this.getUnsavedWidgetIds();
+      const widgetsToSave = this.widgetContainers.filter(w => {
+        // Check if widget still exists in status map (not deleted)
+        const widgetExists = this.widgetSaveStatus[w.widgetId] !== undefined;
+        const hasPending = w.hasPendingChanges() || unsavedWidgetIds.includes(w.widgetId);
+        return widgetExists && hasPending;
       });
-    }, Promise.resolve());
+      
+      if (widgetsToSave.length === 0) {
+        // Release lock
+        this.isSaving = false;
+        // Process next queued save if any
+        this.processSaveQueue();
+        resolve();
+        return;
+      }
+
+      // Save all widgets with pending changes sequentially with error handling
+      const saveErrors: Array<{ widgetId: string; error: Error }> = [];
+      
+      widgetsToSave.reduce((promise, widget) => {
+        return promise.then(() => {
+          return widget.savePending()
+            .then(() => {
+              // Mark as saved only after successful save
+              this.markWidgetAsSaved(widget.widgetId);
+            })
+            .catch((error: Error) => {
+              // Collect error but continue saving other widgets
+              saveErrors.push({
+                widgetId: widget.widgetId,
+                error: error instanceof Error ? error : new Error(String(error))
+              });
+              console.error(`Failed to save widget ${widget.widgetId}:`, error);
+            });
+        });
+      }, Promise.resolve())
+        .then(() => {
+          // Release lock
+          this.isSaving = false;
+          
+          // Process next queued save if any
+          this.processSaveQueue();
+          
+          // If there were errors, reject with error details
+          if (saveErrors.length > 0) {
+            const errorMessage = `Failed to save ${saveErrors.length} widget(s): ${saveErrors.map(e => e.widgetId).join(', ')}`;
+            reject(new Error(errorMessage));
+          } else {
+            resolve();
+          }
+        })
+        .catch((error: Error) => {
+          // Release lock
+          this.isSaving = false;
+          
+          // Process next queued save if any
+          this.processSaveQueue();
+          
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
+    });
+  }
+
+  /**
+   * Process the next queued save operation
+   */
+  private processSaveQueue(): void {
+    if (this.saveQueue.length > 0 && !this.isSaving) {
+      const nextSave = this.saveQueue.shift();
+      if (nextSave) {
+        this.saveAllPendingChanges()
+          .then(() => nextSave.resolve())
+          .catch((error) => nextSave.reject(error));
+      }
+    }
+  }
+
+  /**
+   * Clear all widget save status (useful when document is replaced)
+   * Rejects any queued save operations to prevent hanging promises
+   */
+  clearAllWidgetStatus(): void {
+    // Reject all queued saves to prevent hanging promises
+    this.saveQueue.forEach(({ reject }) => {
+      reject(new Error('Save cancelled: Document was replaced'));
+    });
+    this.widgetSaveStatus = {};
+    this.widgetContainers = [];
+    this.saveQueue = [];
+    this.isSaving = false;
   }
 }
 

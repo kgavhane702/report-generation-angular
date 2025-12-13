@@ -12,11 +12,11 @@ import {
   inject,
 } from '@angular/core';
 import { CdkDragEnd } from '@angular/cdk/drag-drop';
-import { Subject, Subscription } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Subject, Subscription, firstValueFrom } from 'rxjs';
+import { debounceTime, distinctUntilChanged, skip, take, timeout } from 'rxjs/operators';
 
 import { WidgetModel } from '../../../../models/widget.model';
-import { PageSize } from '../../../../models/document.model';
+import { PageSize, DocumentModel } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { WidgetSaveService } from '../../../../core/services/widget-save.service';
@@ -59,6 +59,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private pendingPosition: { x: number; y: number } | null = null;
   private pendingSize: { width: number; height: number } | null = null;
   private savedFrame: WidgetFrame | null = null; // Store the saved frame to prevent flicker
+  private lastDocumentReference: DocumentModel | null = null; // Track document reference to detect changes
   
   // RxJS Subjects for debounced auto-save
   private dragSaveSubject = new Subject<void>();
@@ -485,21 +486,40 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
   /**
    * Save pending changes asynchronously and return a Promise
-   * Resolves when save is complete
+   * Resolves when save is complete and store has been updated
    */
   private savePendingChangesImmediatelyAsync(): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       // Save if there are pending changes (position, size, or content)
       if (this.hasPendingChanges()) {
+        // Store current document reference before save
+        this.lastDocumentReference = this.documentService.document;
+        
         const widgetProps = this.getCurrentWidgetProps();
         // Save immediately without debounce
         this.commitChanges(widgetProps, true);
-        // Mark as saved after commit
-        this.widgetSaveService.markWidgetAsSaved(this.widget.id);
-        // Resolve after next tick to ensure save is processed
-        setTimeout(() => {
-          resolve();
-        }, 0);
+        
+        // Wait for document observable to emit new value (store updated)
+        // This ensures the save has actually propagated to the store
+        firstValueFrom(
+          this.documentService.document$.pipe(
+            skip(1), // Skip the current value
+            take(1), // Take the next value (updated document)
+            timeout(500) // Max 500ms wait
+          )
+        )
+          .then(() => {
+            // Mark as saved only after store update is confirmed
+            this.widgetSaveService.markWidgetAsSaved(this.widget.id);
+            resolve();
+          })
+          .catch((error) => {
+            // If timeout or error, still mark as saved (save was called)
+            // but log the warning
+            console.warn(`Widget ${this.widget.id} save may not have propagated to store:`, error);
+            this.widgetSaveService.markWidgetAsSaved(this.widget.id);
+            resolve(); // Resolve anyway to not block operations
+          });
       } else {
         resolve();
       }

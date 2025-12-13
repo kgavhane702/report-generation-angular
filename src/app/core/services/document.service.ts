@@ -21,6 +21,7 @@ import {
 } from '../utils/document.factory';
 import { UndoRedoService } from './undo-redo.service';
 import { ClipboardService } from './clipboard.service';
+import { WidgetSaveService } from './widget-save.service';
 import {
   AddWidgetCommand,
   UpdateWidgetCommand,
@@ -49,6 +50,7 @@ export class DocumentService {
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly clipboardService = inject(ClipboardService);
   private readonly widgetFactory = inject(WidgetFactoryService);
+  private readonly widgetSaveService = inject(WidgetSaveService);
 
   constructor(private readonly store: Store<AppState>) {}
 
@@ -308,6 +310,10 @@ export class DocumentService {
     pageId: string,
     widgetId: string
   ): void {
+    // Clean up widget save status before deleting
+    // This prevents memory leaks if component is destroyed before widget is removed from store
+    this.widgetSaveService.unregisterWidgetContainer(widgetId);
+    
     const previousDocument = this.deepCloneDocument(this.document);
     const command = new DeleteWidgetCommand(
       this.store,
