@@ -238,3 +238,54 @@
   display: block;
 }
 
+.widget-container__save {
+  position: absolute;
+  top: -14px;
+  left: calc(50% - 40px); /* Position to the left of center */
+  transform: translateX(-50%); /* Center the button on the calculated position */
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: #ffffff;
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #22c55e;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  z-index: 20; // Above drag handles
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.widget-container:hover .widget-container__save,
+.widget-container--selected .widget-container__save {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.widget-container__save:hover {
+  background: #22c55e;
+  color: #ffffff;
+  transform: translateX(-50%) scale(1.1);
+  box-shadow: 0 4px 8px rgba(34, 197, 94, 0.3);
+}
+
+.widget-container__save:active {
+  transform: translateX(-50%) scale(0.95);
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.widget-container__save svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  display: block;
+}
+

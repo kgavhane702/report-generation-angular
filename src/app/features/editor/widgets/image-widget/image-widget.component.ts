@@ -3,9 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
-  EventEmitter,
   Input,
-  Output,
   ViewChild,
   inject,
 } from '@angular/core';
@@ -20,7 +18,6 @@ import { ImageWidgetProps, WidgetModel } from '../../../../models/widget.model';
 })
 export class ImageWidgetComponent {
   @Input({ required: true }) widget!: WidgetModel;
-  @Output() propsChange = new EventEmitter<Partial<ImageWidgetProps>>();
 
   @ViewChild('fileInput', { static: false }) fileInputRef?: ElementRef<HTMLInputElement>;
 
@@ -28,6 +25,7 @@ export class ImageWidgetComponent {
 
   isUploading = false;
   imageError = false;
+  pendingImageData?: { src: string; alt: string; fit: 'cover' | 'contain' | 'stretch' };
 
   // Maximum file size: 10MB
   private readonly MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -84,13 +82,16 @@ export class ImageWidgetComponent {
     this.convertFileToBase64(file)
       .then((base64String) => {
         if (base64String) {
-          this.propsChange.emit({
+          // Store pending image data for commit on save
+          this.pendingImageData = {
             src: base64String,
             alt: file.name,
             fit: this.imageProps?.fit || 'cover',
-          });
+          };
+          this.imageError = false;
         } else {
           this.imageError = true;
+          this.pendingImageData = undefined;
         }
         this.isUploading = false;
         this.resetFileInput();
@@ -135,6 +136,23 @@ export class ImageWidgetComponent {
     if (this.fileInputRef?.nativeElement) {
       this.fileInputRef.nativeElement.value = '';
     }
+  }
+
+  // Public method to get current state (called by widget-container)
+  getCurrentState(): Partial<ImageWidgetProps> {
+    const state = this.pendingImageData ? { ...this.pendingImageData } : {
+      src: this.imageProps?.src,
+      alt: this.imageProps?.alt,
+      fit: this.imageProps?.fit || 'cover',
+    };
+    
+    // Clear pending data after getting state (will be saved)
+    if (this.pendingImageData) {
+      this.pendingImageData = undefined;
+      this.cdr.markForCheck();
+    }
+    
+    return state;
   }
 }
 

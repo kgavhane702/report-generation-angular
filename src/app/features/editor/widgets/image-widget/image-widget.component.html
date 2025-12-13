@@ -2,9 +2,9 @@
   <!-- Image Display Mode -->
   <ng-container *ngIf="hasImage && !imageError">
     <img
-      [src]="imageProps.src"
-      [alt]="imageProps.alt || 'Image'"
-      [style.object-fit]="imageFitStyle"
+      [src]="pendingImageData?.src || imageProps.src"
+      [alt]="pendingImageData?.alt || imageProps.alt || 'Image'"
+      [style.object-fit]="pendingImageData?.fit || imageFitStyle"
       (error)="handleImageError()"
       (click)="onImageClick()"
       class="image-widget__image"

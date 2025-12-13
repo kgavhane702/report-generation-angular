@@ -2,13 +2,11 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  EventEmitter,
   HostListener,
   Input,
   OnChanges,
   OnDestroy,
   OnInit,
-  Output,
   SimpleChanges,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -32,21 +30,19 @@ interface CellPosition {
 })
 export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestroy {
   @Input() widget!: WidgetModel<AdvancedTableWidgetProps>;
-  @Output() cellDataChange = new EventEmitter<string[][]>();
-  @Output() cellStylesChange = new EventEmitter<Record<string, AdvancedTableCellStyle>>();
-  @Output() structureChange = new EventEmitter<{
-    rows: number;
-    columns: number;
-    cellData: string[][];
-    cellStyles: Record<string, AdvancedTableCellStyle>;
-    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
-  }>();
 
   rows: number = 3;
   columns: number = 3;
   tableData: string[][] = [];
   cellStyles: Record<string, AdvancedTableCellStyle> = {};
   mergedCells: Record<string, { rowspan: number; colspan: number }> = {};
+  private initialTableState?: {
+    rows: number;
+    columns: number;
+    cellData: string[][];
+    cellStyles: Record<string, AdvancedTableCellStyle>;
+    mergedCells: Record<string, { rowspan: number; colspan: number }>;
+  };
 
   // Selection state
   isSelecting = false;
@@ -71,6 +67,8 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       this.rows = this.widget.props.rows || 3;
       this.columns = this.widget.props.columns || 3;
       this.loadTableData();
+      // Store initial state for change detection
+      this.storeInitialState();
     }
 
     // Subscribe to table operations
@@ -274,7 +272,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         this.selectedCells.forEach(cell => {
           this.tableData[cell.row][cell.col] = '';
         });
-        this.cellDataChange.emit(this.tableData.map(row => [...row]));
         this.cdr.markForCheck();
       }
     }
@@ -450,12 +447,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
     // Clean the value - remove &nbsp; and trim whitespace
     const cleanedValue = this.cleanCellValue(value);
     this.tableData[rowIndex][colIndex] = cleanedValue;
-    
-    // Emit change event with cleaned values
-    const cleanedCellData = this.tableData.map(row => 
-      row.map(cell => this.cleanCellValue(cell || ''))
-    );
-    this.cellDataChange.emit(cleanedCellData);
   }
 
   private cleanCellValue(value: string): string {
@@ -480,7 +471,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         ...style,
       };
     });
-    this.cellStylesChange.emit({ ...this.cellStyles });
     this.cdr.markForCheck();
   }
 
@@ -742,18 +732,6 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
   }
 
   private emitStructureChange(): void {
-    // Clean all cell values before emitting
-    const cleanedCellData = this.tableData.map(row => 
-      row.map(cell => this.cleanCellValue(cell || ''))
-    );
-    
-    this.structureChange.emit({
-      rows: this.rows,
-      columns: this.columns,
-      cellData: cleanedCellData,
-      cellStyles: { ...this.cellStyles },
-      mergedCells: { ...this.mergedCells },
-    });
     this.cdr.markForCheck();
   }
 
@@ -932,6 +910,72 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       delete this.cellStyles[key];
     });
     this.emitStructureChange();
+  }
+
+  storeInitialState(): void {
+    const cleanedCellData = this.tableData.map(row => 
+      row.map(cell => this.cleanCellValue(cell || ''))
+    );
+    this.initialTableState = {
+      rows: this.rows,
+      columns: this.columns,
+      cellData: cleanedCellData,
+      cellStyles: { ...this.cellStyles },
+      mergedCells: { ...this.mergedCells },
+    };
+  }
+
+  hasChanges(): boolean {
+    if (!this.initialTableState) {
+      return false;
+    }
+
+    // Check if rows/columns changed
+    if (this.rows !== this.initialTableState.rows || this.columns !== this.initialTableState.columns) {
+      return true;
+    }
+
+    // Check if cell data changed
+    const cleanedCellData = this.tableData.map(row => 
+      row.map(cell => this.cleanCellValue(cell || ''))
+    );
+    if (JSON.stringify(cleanedCellData) !== JSON.stringify(this.initialTableState.cellData)) {
+      return true;
+    }
+
+    // Check if cell styles changed
+    if (JSON.stringify(this.cellStyles) !== JSON.stringify(this.initialTableState.cellStyles)) {
+      return true;
+    }
+
+    // Check if merged cells changed
+    if (JSON.stringify(this.mergedCells) !== JSON.stringify(this.initialTableState.mergedCells)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Public method to get current state (called by widget-container)
+  getCurrentState(): {
+    rows: number;
+    columns: number;
+    cellData: string[][];
+    cellStyles: Record<string, AdvancedTableCellStyle>;
+    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
+  } {
+    // Clean all cell values before returning
+    const cleanedCellData = this.tableData.map(row => 
+      row.map(cell => this.cleanCellValue(cell || ''))
+    );
+    
+    return {
+      rows: this.rows,
+      columns: this.columns,
+      cellData: cleanedCellData,
+      cellStyles: { ...this.cellStyles },
+      mergedCells: { ...this.mergedCells },
+    };
   }
 }
 

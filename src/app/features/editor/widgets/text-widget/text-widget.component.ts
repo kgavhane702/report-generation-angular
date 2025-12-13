@@ -3,11 +3,9 @@ import {
   ChangeDetectorRef,
   Component,
   effect,
-  EventEmitter,
   Input,
   OnChanges,
   OnDestroy,
-  Output,
   SimpleChanges,
   inject,
   OnInit,
@@ -37,9 +35,6 @@ import { DecoupledEditor } from 'ckeditor5';
 })
 export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit {
   @Input({ required: true }) widget!: WidgetModel;
-
-  @Output() editingChange = new EventEmitter<boolean>();
-  @Output() propsChange = new EventEmitter<Partial<TextWidgetProps>>();
 
   @ViewChild('editorContainer', { static: false }) editorContainer?: ElementRef<HTMLElement>;
 
@@ -204,7 +199,6 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
 
     if (!this.editing) {
       this.editing = true;
-      this.editingChange.emit(true);
     }
   }
 
@@ -230,12 +224,6 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
         // The effect() will handle unregistering when the widget becomes inactive
 
         this.editing = false;
-        this.editingChange.emit(false);
-
-        const nextHtml = this.editorData ?? '';
-        if (nextHtml !== this.textProps.contentHtml) {
-          this.propsChange.emit({ contentHtml: nextHtml });
-        }
       } else if (isStillInsideToolbar && this.currentEditorInstance) {
         // Check if focus is on a select element (dropdown is open)
         const activeElement = document.activeElement;
@@ -267,6 +255,15 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   get backgroundColor(): string {
     const bgColor = this.textProps.backgroundColor;
     return bgColor && bgColor.trim() !== '' ? bgColor : 'transparent';
+  }
+
+  // Public method to get current state (called by widget-container)
+  getCurrentState(): Partial<TextWidgetProps> {
+    const currentContent = this.currentEditorInstance?.getData() ?? this.editorData ?? '';
+    return {
+      contentHtml: currentContent,
+      backgroundColor: this.textProps.backgroundColor,
+    };
   }
 }
 

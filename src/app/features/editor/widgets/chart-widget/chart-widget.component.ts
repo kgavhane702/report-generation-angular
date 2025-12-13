@@ -4,11 +4,9 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
-  EventEmitter,
   Input,
   OnChanges,
   OnDestroy,
-  Output,
   SimpleChanges,
   ViewChild,
   inject,
@@ -33,7 +31,6 @@ import {
 })
 export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) widget!: WidgetModel;
-  @Output() chartPropsChange = new EventEmitter<Partial<ChartWidgetProps>>();
   
   @ViewChild('container', { static: true }) containerRef!: ElementRef<HTMLDivElement>;
 
@@ -43,6 +40,7 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   
   showDialog = false;
   dialogData?: ChartConfigDialogData;
+  pendingChartData?: ChartData;
 
   ngAfterViewInit(): void {
     setTimeout(() => {
@@ -145,16 +143,68 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   closeConfigDialog(result: ChartConfigDialogResult): void {
     this.showDialog = false;
     this.dialogData = undefined;
+    
+    // Store pending chart data for commit on save
+    if (!result.cancelled && result.chartData) {
+      this.pendingChartData = result.chartData;
+      // Update chart preview (but don't save yet)
+      this.updateChartPreview();
+    }
+    
+    this.cdr.markForCheck();
+  }
 
-    if (!result.cancelled) {
-      // Emit chart props change event
-      this.chartPropsChange.emit({
-        chartType: result.chartData.chartType,
-        data: result.chartData,
-      });
+  private updateChartPreview(): void {
+    if (!this.containerRef?.nativeElement || !this.pendingChartData) {
+      return;
     }
 
-    this.cdr.markForCheck();
+    // Destroy existing instance
+    if (this.instance) {
+      this.instance.destroy?.();
+    }
+
+    const providerId = this.chartProps.provider || 'echarts';
+    const adapter = this.registry.getAdapter(providerId);
+
+    if (!adapter) {
+      return;
+    }
+
+    try {
+      // Render with pending data for preview
+      const previewProps: ChartWidgetProps = {
+        ...this.chartProps,
+        chartType: this.pendingChartData.chartType,
+        data: this.pendingChartData,
+      };
+      this.instance = adapter.render(
+        this.containerRef.nativeElement,
+        previewProps
+      ) as ChartInstance;
+    } catch (error) {
+      // Error handled silently
+    }
+  }
+
+  // Public method to get current state (called by widget-container)
+  getCurrentState(): Partial<ChartWidgetProps> {
+    const state = this.pendingChartData ? {
+      chartType: this.pendingChartData.chartType,
+      data: this.pendingChartData,
+      provider: this.chartProps.provider,
+    } : {
+      chartType: this.chartProps.chartType,
+      data: this.chartProps.data,
+      provider: this.chartProps.provider,
+    };
+    
+    // Clear pending data after getting state (will be saved)
+    if (this.pendingChartData) {
+      this.pendingChartData = undefined;
+    }
+    
+    return state;
   }
 
   private renderChart(): void {

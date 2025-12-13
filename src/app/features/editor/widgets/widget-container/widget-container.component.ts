@@ -5,12 +5,16 @@ import {
   HostBinding,
   HostListener,
   Input,
+  OnDestroy,
+  ViewChild,
   effect,
   inject,
 } from '@angular/core';
 import { CdkDragEnd } from '@angular/cdk/drag-drop';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
-import { WidgetModel, WidgetPosition } from '../../../../models/widget.model';
+import { WidgetModel } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
@@ -23,7 +27,7 @@ type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner
   styleUrls: ['./widget-container.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class WidgetContainerComponent {
+export class WidgetContainerComponent implements OnDestroy {
   @Input({ required: true }) widget!: WidgetModel;
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) pageId!: string;
@@ -31,6 +35,11 @@ export class WidgetContainerComponent {
   @Input({ required: true }) pageWidth!: number;
   @Input({ required: true }) pageHeight!: number;
   @Input() dragBoundarySelector = '';
+
+  @ViewChild('textWidget') textWidget?: any;
+  @ViewChild('chartWidget') chartWidget?: any;
+  @ViewChild('tableWidget') tableWidget?: any;
+  @ViewChild('imageWidget') imageWidget?: any;
 
   isEditing = false;
   isResizing = false;
@@ -45,6 +54,14 @@ export class WidgetContainerComponent {
     positionY: number;
   };
   private previewFrame: WidgetFrame | null = null;
+  private pendingPosition: { x: number; y: number } | null = null;
+  private pendingSize: { width: number; height: number } | null = null;
+  private savedFrame: WidgetFrame | null = null; // Store the saved frame to prevent flicker
+  
+  // RxJS Subjects for debounced auto-save
+  private dragSaveSubject = new Subject<void>();
+  private resizeSaveSubject = new Subject<void>();
+  private subscriptions = new Subscription();
 
   constructor(
     private readonly documentService: DocumentService,
@@ -54,6 +71,26 @@ export class WidgetContainerComponent {
       this.editorState.activeWidgetId();
       this.cdr.markForCheck();
     });
+
+    // Setup debounced auto-save for drag
+    this.subscriptions.add(
+      this.dragSaveSubject.pipe(
+        debounceTime(300),
+        distinctUntilChanged()
+      ).subscribe(() => {
+        this.autoSaveAfterDrag();
+      })
+    );
+
+    // Setup debounced auto-save for resize
+    this.subscriptions.add(
+      this.resizeSaveSubject.pipe(
+        debounceTime(300),
+        distinctUntilChanged()
+      ).subscribe(() => {
+        this.autoSaveAfterResize();
+      })
+    );
   }
 
   @HostBinding('class.widget-container--selected')
@@ -67,9 +104,15 @@ export class WidgetContainerComponent {
   }
 
   get frame(): WidgetFrame {
+    // During resize, use previewFrame
     if (this.previewFrame) {
       return this.previewFrame;
     }
+    // After save, use savedFrame to prevent flicker
+    if (this.savedFrame) {
+      return this.savedFrame;
+    }
+    // Otherwise use widget's actual position/size
     return {
       width: this.widget.size.width,
       height: this.widget.size.height,
@@ -80,76 +123,34 @@ export class WidgetContainerComponent {
 
   onDragEnded(event: CdkDragEnd): void {
     const position = event.source.getFreeDragPosition();
-    const newPosition = {
-      x: this.frame.x + position.x,
-      y: this.frame.y + position.y,
+    const currentFrame = this.savedFrame || {
+      width: this.widget.size.width,
+      height: this.widget.size.height,
+      x: this.widget.position.x,
+      y: this.widget.position.y,
     };
-
-    this.documentService.updateWidget(
-      this.subsectionId,
-      this.pageId,
-      this.widget.id,
-      {
-        position: newPosition,
-      }
-    );
-
+    const newPosition = {
+      x: currentFrame.x + position.x,
+      y: currentFrame.y + position.y,
+    };
+    // Store pending position for commit
+    this.pendingPosition = newPosition;
+    // Update saved frame immediately to prevent flicker
+    this.savedFrame = {
+      ...currentFrame,
+      x: newPosition.x,
+      y: newPosition.y,
+    };
     event.source.reset();
+    
+    // Trigger debounced auto-save
+    this.dragSaveSubject.next();
   }
 
   onEditingChange(editing: boolean): void {
     this.isEditing = editing;
   }
 
-  onContentChange(props: Partial<any>): void {
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
-      props: {
-        ...this.widget.props,
-        ...props,
-      } as any,
-    });
-  }
-
-  onChartPropsChange(props: Partial<any>): void {
-    this.onContentChange(props);
-  }
-
-  onAdvancedTableCellDataChange(cellData: string[][]): void {
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
-      props: {
-        ...this.widget.props,
-        cellData,
-      } as any,
-    });
-  }
-
-  onAdvancedTableCellStylesChange(cellStyles: Record<string, any>): void {
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
-      props: {
-        ...this.widget.props,
-        cellStyles,
-      } as any,
-    });
-  }
-
-  onAdvancedTableStructureChange(structure: {
-    rows: number;
-    columns: number;
-    cellData: string[][];
-    cellStyles: Record<string, any>;
-    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
-  }): void {
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
-      props: {
-        ...this.widget.props,
-        rows: structure.rows,
-        columns: structure.columns,
-        cellData: structure.cellData,
-        cellStyles: structure.cellStyles,
-        mergedCells: structure.mergedCells,
-      } as any,
-    });
-  }
 
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
     if (!this.isSelected) {
@@ -234,6 +235,98 @@ export class WidgetContainerComponent {
     this.editorState.setActiveWidget(this.widget.id);
   }
 
+  onSaveClick(event: MouseEvent | PointerEvent): void {
+    event.stopPropagation();
+    event.preventDefault();
+    // Get current widget state based on widget type
+    let widgetProps: any = null;
+    
+    switch (this.widget.type) {
+      case 'text':
+        widgetProps = this.textWidget?.getCurrentState();
+        break;
+      case 'chart':
+        widgetProps = this.chartWidget?.getCurrentState();
+        break;
+      case 'image':
+        widgetProps = this.imageWidget?.getCurrentState();
+        break;
+      case 'advanced-table':
+        widgetProps = this.tableWidget?.getCurrentState();
+        if (widgetProps) {
+          // Update initial state after getting current state
+          this.tableWidget.storeInitialState();
+        }
+        break;
+    }
+    
+    // Commit everything together: position, size, and widget props
+    this.commitChanges(widgetProps);
+  }
+
+  private commitChanges(widgetProps: Partial<any> | {
+    rows?: number;
+    columns?: number;
+    cellData?: string[][];
+    cellStyles?: Record<string, any>;
+    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
+  } | null): void {
+    const updates: any = {};
+    
+    if (this.pendingPosition) {
+      updates.position = this.pendingPosition;
+    }
+    
+    if (this.pendingSize) {
+      updates.size = this.pendingSize;
+    }
+    
+    // Always preserve existing widget props, merge with new ones if provided
+    if (widgetProps && Object.keys(widgetProps).length > 0) {
+      // Handle advanced table structure changes
+      if ('rows' in widgetProps && 'columns' in widgetProps && 'cellData' in widgetProps) {
+        updates.props = {
+          ...this.widget.props,
+          rows: widgetProps.rows,
+          columns: widgetProps.columns,
+          cellData: widgetProps.cellData,
+          cellStyles: widgetProps.cellStyles || {},
+          mergedCells: widgetProps.mergedCells || {},
+        };
+      } else {
+        // Handle other widget props - merge with existing to preserve all data
+        updates.props = {
+          ...this.widget.props,
+          ...widgetProps,
+        };
+      }
+    } else {
+      // If no widget props provided, preserve existing props
+      updates.props = { ...this.widget.props };
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      // Save in background without blocking UI
+      setTimeout(() => {
+        this.documentService.updateWidget(
+          this.subsectionId,
+          this.pageId,
+          this.widget.id,
+          updates
+        );
+      }, 0);
+      
+      // Clear pending changes after commit
+      this.pendingPosition = null;
+      this.pendingSize = null;
+      // Clear savedFrame after a short delay to allow store update
+      setTimeout(() => {
+        this.savedFrame = null;
+        this.cdr.markForCheck();
+      }, 100);
+    }
+  }
+
   onDeleteClick(event: MouseEvent | PointerEvent): void {
     event.stopPropagation();
     event.preventDefault();
@@ -250,19 +343,74 @@ export class WidgetContainerComponent {
     if (!this.isResizing) {
       return;
     }
+    // Store pending size and position for commit
+    if (this.previewFrame) {
+      this.pendingSize = {
+        width: this.previewFrame.width,
+        height: this.previewFrame.height,
+      };
+      this.pendingPosition = {
+        x: this.previewFrame.x,
+        y: this.previewFrame.y,
+      };
+      // Update saved frame immediately to prevent flicker
+      this.savedFrame = { ...this.previewFrame };
+    }
     this.isResizing = false;
     this.activeHandle = null;
     this.resizeStart = undefined;
+    this.previewFrame = null;
+    
+    // Trigger debounced auto-save
+    this.resizeSaveSubject.next();
+  }
 
-    if (this.previewFrame) {
-      this.documentService.updateWidget(this.subsectionId, this.pageId, this.widget.id, {
-        size: { width: this.previewFrame.width, height: this.previewFrame.height },
-        position: { x: this.previewFrame.x, y: this.previewFrame.y },
-      });
-      this.previewFrame = null;
+
+  private autoSaveAfterDrag(): void {
+    // Auto-save after drag - save position and preserve widget props
+    if (this.pendingPosition) {
+      // Get current widget props to preserve data
+      const widgetProps = this.getCurrentWidgetProps();
+      this.commitChanges(widgetProps);
     }
   }
 
+  private autoSaveAfterResize(): void {
+    // Auto-save after resize - save position, size, and preserve widget props
+    if (this.pendingPosition || this.pendingSize) {
+      // Get current widget props to preserve data
+      const widgetProps = this.getCurrentWidgetProps();
+      this.commitChanges(widgetProps);
+    }
+  }
+
+  private getCurrentWidgetProps(): Partial<any> | {
+    rows?: number;
+    columns?: number;
+    cellData?: string[][];
+    cellStyles?: Record<string, any>;
+    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
+  } | null {
+    // Get current widget state to preserve data during auto-save
+    let widgetProps: any = null;
+    
+    switch (this.widget.type) {
+      case 'text':
+        widgetProps = this.textWidget?.getCurrentState();
+        break;
+      case 'chart':
+        widgetProps = this.chartWidget?.getCurrentState();
+        break;
+      case 'image':
+        widgetProps = this.imageWidget?.getCurrentState();
+        break;
+      case 'advanced-table':
+        widgetProps = this.tableWidget?.getCurrentState();
+        break;
+    }
+    
+    return widgetProps;
+  }
 
   private clampFrame(width: number, height: number, x: number, y: number) {
     const minWidth = 20;
@@ -293,6 +441,13 @@ export class WidgetContainerComponent {
     }
 
     return { width: newWidth, height: newHeight, x: newX, y: newY };
+  }
+
+  ngOnDestroy(): void {
+    // Clean up RxJS subscriptions
+    this.subscriptions.unsubscribe();
+    this.dragSaveSubject.complete();
+    this.resizeSaveSubject.complete();
   }
 }
 
