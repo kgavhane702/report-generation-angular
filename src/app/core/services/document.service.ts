@@ -89,6 +89,8 @@ export class DocumentService {
   }
 
   replaceDocument(document: DocumentModel): void {
+    // Clear all widget registrations when document is replaced
+    this.widgetSaveService.clearAllWidgetStatus();
     this.store.dispatch(DocumentActions.setDocument({ document }));
   }
 
@@ -292,6 +294,9 @@ export class DocumentService {
     }
 
     const fallback = pages[index + 1] ?? pages[index - 1];
+
+    // Clean up widget registrations for deleted page before deletion
+    this.widgetSaveService.unregisterPageWidgets(pageId);
 
     const previousDocument = this.deepCloneDocument(this.document);
     const command = new DeletePageCommand(

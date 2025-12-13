@@ -490,11 +490,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       
       // Wait for document observable to emit new value (store updated)
       // This ensures the save has actually propagated to the store
+      // Reduced timeout to 200ms for faster response - store updates are usually instant
       firstValueFrom(
         this.documentService.document$.pipe(
           skip(1), // Skip the current value
           take(1), // Take the next value (updated document)
-          timeout(500) // Max 500ms wait
+          timeout(200) // Reduced from 500ms to 200ms for faster operations
         )
       )
         .then(() => {
@@ -502,6 +503,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         })
         .catch((error) => {
           // If timeout, log the warning but still resolve
+          // Store updates are usually instant, so timeout is rare
           console.warn(`Widget ${this.widget.id} save may not have propagated to store:`, error);
           resolve(); // Resolve anyway to not block operations
         });
