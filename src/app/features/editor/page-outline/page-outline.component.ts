@@ -19,28 +19,25 @@ export class PageOutlineComponent {
   editingPageId: string | null = null;
   editingPageValue = '';
 
-  async selectPage(pageId: string): Promise<void> {
-    await this.editorState.setActivePage(pageId);
+  selectPage(pageId: string): void {
+    this.editorState.setActivePage(pageId);
   }
 
-  async addPage(): Promise<void> {
+  addPage(): void {
     const subsectionId = this.editorState.activeSubsectionId();
     if (!subsectionId) {
       return;
     }
-    // Save current active page before adding new page
+    // Save current active page in background before adding new page
     const currentPageId = this.editorState.activePageId();
     if (currentPageId) {
-      try {
-        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
-      } catch (error) {
+      this.widgetSaveService.saveActivePageWidgets(currentPageId).catch((error) => {
         console.error('Error saving before adding page:', error);
-        // Continue with adding page even if save fails
-      }
+      });
     }
     const pageId = this.documentService.addPage(subsectionId);
     if (pageId) {
-      await this.editorState.setActivePage(pageId);
+      this.editorState.setActivePage(pageId);
     }
   }
 
@@ -62,24 +59,21 @@ export class PageOutlineComponent {
     this.editingPageId = null;
   }
 
-  async deletePage(subsectionId: string, pageId: string, event: MouseEvent, totalPages: number): Promise<void> {
+  deletePage(subsectionId: string, pageId: string, event: MouseEvent, totalPages: number): void {
     event.stopPropagation();
     if (totalPages <= 1) {
       return;
     }
-    // Save current page if it's the one being deleted
+    // Save current page in background if it's the one being deleted
     const currentPageId = this.editorState.activePageId();
     if (currentPageId === pageId && currentPageId) {
-      try {
-        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
-      } catch (error) {
+      this.widgetSaveService.saveActivePageWidgets(currentPageId).catch((error) => {
         console.error('Error saving before deleting page:', error);
-        // Continue with deletion even if save fails
-      }
+      });
     }
     const fallbackId = this.documentService.deletePage(subsectionId, pageId);
     if (fallbackId) {
-      await this.editorState.setActivePage(fallbackId);
+      this.editorState.setActivePage(fallbackId);
     }
   }
 

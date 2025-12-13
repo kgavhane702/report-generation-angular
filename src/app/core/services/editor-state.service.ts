@@ -81,16 +81,14 @@ export class EditorStateService {
     this.pageId.set(firstPage?.id ?? null);
   }
 
-  async setActiveSection(sectionId: string): Promise<void> {
-    // Save current active page before switching sections
+  setActiveSection(sectionId: string): void {
+    // Save current active page in background (non-blocking) before switching
     const currentPageId = this.pageId();
     if (currentPageId) {
-      try {
-        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
-      } catch (error) {
+      // Trigger save in background without blocking the UI switch
+      this.widgetSaveService.saveActivePageWidgets(currentPageId).catch((error) => {
         console.error('Error saving widgets before section switch:', error);
-        // Continue with section switch even if save fails
-      }
+      });
     }
 
     this.sectionId.set(sectionId);
@@ -101,20 +99,18 @@ export class EditorStateService {
     const subsection = section?.subsections[0];
 
     if (subsection) {
-      await this.setActiveSubsection(subsection.id);
+      this.setActiveSubsection(subsection.id);
     }
   }
 
-  async setActiveSubsection(subsectionId: string): Promise<void> {
-    // Save current active page before switching subsections
+  setActiveSubsection(subsectionId: string): void {
+    // Save current active page in background (non-blocking) before switching
     const currentPageId = this.pageId();
     if (currentPageId) {
-      try {
-        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
-      } catch (error) {
+      // Trigger save in background without blocking the UI switch
+      this.widgetSaveService.saveActivePageWidgets(currentPageId).catch((error) => {
         console.error('Error saving widgets before subsection switch:', error);
-        // Continue with subsection switch even if save fails
-      }
+      });
     }
 
     this.subsectionId.set(subsectionId);
@@ -123,28 +119,26 @@ export class EditorStateService {
       .flatMap((section) => section.subsections)
       .find((sub) => sub.id === subsectionId);
     
-    // Use setActivePage to properly save and switch to the new page
+    // Switch to new page immediately (don't wait for save)
     const newPageId = subsection?.pages[0]?.id ?? null;
     if (newPageId) {
-      await this.setActivePage(newPageId);
+      this.setActivePage(newPageId);
     } else {
       this.pageId.set(null);
     }
   }
 
-  async setActivePage(pageId: string): Promise<void> {
-    // Save current active page before switching
+  setActivePage(pageId: string): void {
+    // Save current active page in background (non-blocking) before switching
     const currentPageId = this.pageId();
     if (currentPageId && currentPageId !== pageId) {
-      try {
-        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
-      } catch (error) {
+      // Trigger save in background without blocking the UI switch
+      this.widgetSaveService.saveActivePageWidgets(currentPageId).catch((error) => {
         console.error('Error saving widgets before page switch:', error);
-        // Continue with page switch even if save fails
-      }
+      });
     }
     
-    // Switch to new page
+    // Switch to new page immediately (don't wait for save)
     this.pageId.set(pageId);
     this.widgetId.set(null);
   }

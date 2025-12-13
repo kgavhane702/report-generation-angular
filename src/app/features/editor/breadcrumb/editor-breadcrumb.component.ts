@@ -32,22 +32,22 @@ export class EditorBreadcrumbComponent {
     return this.activeSection?.subsections ?? [];
   }
 
-  async selectSection(sectionId: string): Promise<void> {
-    await this.editorState.setActiveSection(sectionId);
+  selectSection(sectionId: string): void {
+    this.editorState.setActiveSection(sectionId);
   }
 
-  async selectSubsection(subsectionId: string): Promise<void> {
-    await this.editorState.setActiveSubsection(subsectionId);
+  selectSubsection(subsectionId: string): void {
+    this.editorState.setActiveSubsection(subsectionId);
   }
 
-  async addSection(): Promise<void> {
+  addSection(): void {
     const ids = this.documentService.addSection();
-    await this.editorState.setActiveSection(ids.sectionId!);
+    this.editorState.setActiveSection(ids.sectionId!);
     // setActiveSection already calls setActiveSubsection which calls setActivePage
     // So we don't need to call setActivePage again
   }
 
-  async addSubsection(): Promise<void> {
+  addSubsection(): void {
     const sectionId = this.editorState.activeSectionId();
     if (!sectionId) {
       return;
@@ -57,7 +57,7 @@ export class EditorBreadcrumbComponent {
       return;
     }
     // setActiveSubsection already calls setActivePage, so we don't need to call it again
-    await this.editorState.setActiveSubsection(ids.subsectionId);
+    this.editorState.setActiveSubsection(ids.subsectionId);
   }
 
   startSectionEdit(section: SectionModel, event: MouseEvent): void {
@@ -78,7 +78,7 @@ export class EditorBreadcrumbComponent {
     this.editingSectionId = null;
   }
 
-  async deleteSection(sectionId: string, event: MouseEvent): Promise<void> {
+  deleteSection(sectionId: string, event: MouseEvent): void {
     event.stopPropagation();
     if (this.sections.length <= 1) {
       return;
@@ -86,7 +86,7 @@ export class EditorBreadcrumbComponent {
     const fallback = this.documentService.deleteSection(sectionId);
     if (fallback?.sectionId) {
       // setActiveSection already handles setting subsection and page
-      await this.editorState.setActiveSection(fallback.sectionId);
+      this.editorState.setActiveSection(fallback.sectionId);
     }
   }
 
@@ -108,7 +108,7 @@ export class EditorBreadcrumbComponent {
     this.editingSubsectionId = null;
   }
 
-  async deleteSubsection(subsectionId: string, event: MouseEvent): Promise<void> {
+  deleteSubsection(subsectionId: string, event: MouseEvent): void {
     event.stopPropagation();
     const sectionId = this.editorState.activeSectionId();
     if (!sectionId) {
@@ -121,7 +121,7 @@ export class EditorBreadcrumbComponent {
     const fallback = this.documentService.deleteSubsection(sectionId, subsectionId);
     if (fallback?.subsectionId) {
       // setActiveSubsection already handles setting the page
-      await this.editorState.setActiveSubsection(fallback.subsectionId);
+      this.editorState.setActiveSubsection(fallback.subsectionId);
     }
   }
 }
