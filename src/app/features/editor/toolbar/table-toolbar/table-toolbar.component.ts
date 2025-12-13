@@ -123,31 +123,19 @@ export class TableToolbarComponent implements OnInit {
   }
 
   applyTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
-    if (!this.activeWidget) return;
-    
-    this.textAlign = align;
-    this.applyStyle({ textAlign: align });
+    // No action - design only
   }
 
   toggleBold(): void {
-    if (!this.activeWidget) return;
-    
-    this.fontWeight = this.fontWeight === 'bold' ? 'normal' : 'bold';
-    this.applyStyle({ fontWeight: this.fontWeight });
+    // No action - design only
   }
 
   toggleItalic(): void {
-    if (!this.activeWidget) return;
-    
-    this.fontStyle = this.fontStyle === 'italic' ? 'normal' : 'italic';
-    this.applyStyle({ fontStyle: this.fontStyle });
+    // No action - design only
   }
 
   toggleUnderline(): void {
-    if (!this.activeWidget) return;
-    
-    this.textDecoration = this.textDecoration === 'underline' ? 'none' : 'underline';
-    this.applyStyle({ textDecoration: this.textDecoration });
+    // No action - design only
   }
 
   private applyStyle(style: Partial<AdvancedTableCellStyle>): void {
@@ -192,70 +180,49 @@ export class TableToolbarComponent implements OnInit {
 
   // Font size methods
   applyFontSize(size: number): void {
-    if (!this.activeWidget) return;
-    this.fontSize = size;
-    this.applyStyle({ fontSize: size });
+    // No action - design only
     this.showFontSizeDropdown = false;
   }
 
   // Color methods
   applyTextColor(color: string): void {
-    if (!this.activeWidget) return;
-    this.color = color || '#000000';
-    this.applyStyle({ color: this.color });
+    // No action - design only
     this.showTextColorDropdown = false;
   }
 
   applyBackgroundColor(color: string): void {
-    if (!this.activeWidget) return;
-    this.backgroundColor = color;
-    this.applyStyle({ backgroundColor: color || undefined });
+    // No action - design only
     this.showBackgroundColorDropdown = false;
   }
 
   onTextColorInputChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.value) {
-      this.applyTextColor(input.value);
-    }
+    // No action - design only
   }
 
   onBackgroundColorInputChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.applyBackgroundColor(input.value);
+    // No action - design only
   }
 
   // Vertical alignment methods
   applyVerticalAlign(align: 'top' | 'middle' | 'bottom'): void {
-    if (!this.activeWidget) return;
-    this.verticalAlign = align;
-    this.applyStyle({ verticalAlign: align });
+    // No action - design only
   }
 
   // Border methods
   applyBorderStyle(style: 'solid' | 'dashed' | 'dotted' | 'none'): void {
-    if (!this.activeWidget) return;
-    this.borderStyle = style;
-    this.applyStyle({ borderStyle: style });
+    // No action - design only
   }
 
   applyBorderWidth(width: number): void {
-    if (!this.activeWidget) return;
-    this.borderWidth = width;
-    this.applyStyle({ borderWidth: width });
+    // No action - design only
   }
 
   applyBorderColor(color: string): void {
-    if (!this.activeWidget) return;
-    this.borderColor = color;
-    this.applyStyle({ borderColor: color });
+    // No action - design only
   }
 
   onBorderColorInputChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.value) {
-      this.applyBorderColor(input.value);
-    }
+    // No action - design only
   }
 
   getDisplayTextColor(): string {
@@ -272,48 +239,48 @@ export class TableToolbarComponent implements OnInit {
 
   // Structure operation methods
   insertRowAbove(): void {
-    this.tableOperationsService.insertRow(true);
+    // No action - design only
   }
 
   insertRowBelow(): void {
-    this.tableOperationsService.insertRow(false);
+    // No action - design only
   }
 
   deleteRow(): void {
-    this.tableOperationsService.deleteRow();
+    // No action - design only
   }
 
   insertColumnLeft(): void {
-    this.tableOperationsService.insertColumn(true);
+    // No action - design only
   }
 
   insertColumnRight(): void {
-    this.tableOperationsService.insertColumn(false);
+    // No action - design only
   }
 
   deleteColumn(): void {
-    this.tableOperationsService.deleteColumn();
+    // No action - design only
   }
 
   mergeCells(): void {
-    this.tableOperationsService.mergeCells();
+    // No action - design only
   }
 
   unmergeCells(): void {
-    this.tableOperationsService.unmergeCells();
+    // No action - design only
   }
 
   // Copy/Paste methods
   copyCells(): void {
-    this.tableOperationsService.copyCells();
+    // No action - design only
   }
 
   pasteCells(): void {
-    this.tableOperationsService.pasteCells();
+    // No action - design only
   }
 
   cutCells(): void {
-    this.tableOperationsService.cutCells();
+    // No action - design only
   }
 
   @HostListener('document:click', ['$event'])
