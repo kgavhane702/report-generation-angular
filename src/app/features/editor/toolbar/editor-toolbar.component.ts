@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
 import { Subject, from, Subscription, firstValueFrom } from 'rxjs';
-import { switchMap, delay, debounceTime, catchError, skip, take, timeout } from 'rxjs/operators';
+import { switchMap, delay, debounceTime, catchError } from 'rxjs/operators';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -81,8 +81,8 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     // Save active page widgets before exporting
     const activePageId = this.editorState.activePageId();
     await this.widgetSaveService.saveActivePageWidgets(activePageId);
-    // Small delay to ensure saves are processed
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // NgRx store updates are synchronous, use microtask to ensure completion
+    await Promise.resolve();
     
     const document = this.documentService.document;
     this.exportService.exportToFile(document).catch(() => {
@@ -95,8 +95,8 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     const activePageId = this.editorState.activePageId();
     try {
       await this.widgetSaveService.saveActivePageWidgets(activePageId);
-      // Small delay to ensure saves are processed
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // NgRx store updates are synchronous, use microtask to ensure completion
+      await Promise.resolve();
     } catch (error) {
       console.error('Error saving widgets before clipboard export:', error);
       // Continue with export anyway - user should be aware of potential data loss
@@ -135,15 +135,16 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   private async forceChartsReRender(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Use requestAnimationFrame for DOM updates instead of setTimeout
+    await new Promise(resolve => requestAnimationFrame(resolve));
     this.ngZone.run(() => {
       this.appRef.tick();
     });
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     this.ngZone.run(() => {
       this.appRef.tick();
     });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   }
 
   async importDocument(file: File): Promise<void> {
@@ -167,7 +168,8 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
           });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Use requestAnimationFrame for DOM updates
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await this.forceChartsReRender();
         
         let message = 'Document imported successfully!';
@@ -194,23 +196,9 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       // Save active page widgets
       await this.widgetSaveService.saveActivePageWidgets(activePageId);
       
-      // Wait for the document observable to emit a new value (document updated)
-      // This is more efficient than JSON.stringify polling and guarantees the update
-      try {
-        await firstValueFrom(
-          this.documentService.document$.pipe(
-            skip(1), // Skip the current value
-            take(1), // Take the next value (updated document)
-            timeout(1000) // Max 1 second wait
-          )
-        );
-        // Small delay to ensure all updates are fully propagated
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } catch (timeoutError) {
-        // If timeout, document may not have changed or already updated
-        // Proceed anyway - saves should be done
-        console.warn('Document update timeout, proceeding with PDF generation');
-      }
+      // NgRx store updates are synchronous, so the document is already updated
+      // Use a microtask to ensure all saves have completed
+      await Promise.resolve();
     } catch (error) {
       console.error('Error saving widgets before PDF generation:', error);
       // Ask user if they want to proceed with potentially stale data
@@ -290,13 +278,13 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     this.documentNameValue = doc.title || '';
     this.isEditingDocumentName = true;
     
-    // Focus the input after Angular updates
-    setTimeout(() => {
+    // Focus the input after Angular updates using requestAnimationFrame
+    requestAnimationFrame(() => {
       if (this.documentNameInputRef?.nativeElement) {
         this.documentNameInputRef.nativeElement.focus();
         this.documentNameInputRef.nativeElement.select();
       }
-    }, 0);
+    });
   }
 
   saveDocumentName(): void {

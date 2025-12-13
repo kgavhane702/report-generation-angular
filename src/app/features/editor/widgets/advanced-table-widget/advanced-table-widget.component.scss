@@ -12,7 +12,7 @@
   height: 100%;
   border-collapse: collapse;
   border-spacing: 0;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .advanced-table-widget__row {
@@ -22,13 +22,20 @@
 .advanced-table-widget__cell {
   border: 1px solid #000000;
   padding: 0;
-  min-width: 80px;
+  width: 150px;
+  min-width: 150px;
   min-height: 30px;
   vertical-align: top;
   position: relative;
   cursor: cell;
   user-select: none;
   transition: background-color 0.1s ease;
+
+  // Allow editing in the editable div
+  .advanced-table-widget__cell-editable {
+    user-select: text;
+    pointer-events: auto;
+  }
 
   &:hover {
     background-color: rgba(59, 130, 246, 0.1);
@@ -68,5 +75,45 @@
   background: white;
   color: inherit;
   box-sizing: border-box;
+}
+
+.advanced-table-widget__cell-editable {
+  display: block;
+  width: 100%;
+  min-height: 30px;
+  padding: 8px;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  pointer-events: auto;
+  resize: none;
+
+  &:focus {
+    outline: 2px solid #2563eb;
+    outline-offset: -2px;
+    background: white;
+  }
+
+  &:empty::before {
+    content: '';
+    display: inline-block;
+  }
+
+  // Ensure contenteditable works
+  &[contenteditable="true"] {
+    -webkit-user-modify: read-write-plaintext-only;
+  }
 }
 

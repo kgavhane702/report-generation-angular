@@ -1,4 +1,4 @@
-<div class="advanced-table-widget">
+<div class="advanced-table-widget" #tableContainer>
   <table class="advanced-table-widget__table">
     <tbody>
       <tr *ngFor="let row of tableData; let i = index" class="advanced-table-widget__row">
@@ -10,6 +10,15 @@
           (click)="onCellClick(i, j)"
           (mouseenter)="onCellMouseEnter(i, j)"
         >
+          <div
+            class="advanced-table-widget__cell-editable"
+            contenteditable="true"
+            [attr.data-row]="i"
+            [attr.data-col]="j"
+            (mousedown)="$event.stopPropagation()"
+            (click)="$event.stopPropagation()"            
+            (focus)="onCellFocus($event, i, j)"
+          ></div>
         </td>
       </tr>
     </tbody>

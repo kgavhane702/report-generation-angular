@@ -12,8 +12,8 @@ import {
   inject,
 } from '@angular/core';
 import { CdkDragEnd } from '@angular/cdk/drag-drop';
-import { Subject, Subscription, firstValueFrom } from 'rxjs';
-import { debounceTime, distinctUntilChanged, skip, take, timeout } from 'rxjs/operators';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 import { WidgetModel } from '../../../../models/widget.model';
 import { PageSize, DocumentModel } from '../../../../models/document.model';
@@ -321,23 +321,24 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       } else {
         // Save in background without blocking UI (normal auto-save)
-        setTimeout(() => {
+        // Use microtask to ensure it runs after current execution
+        Promise.resolve().then(() => {
           this.documentService.updateWidget(
             this.subsectionId,
             this.pageId,
             this.widget.id,
             updates
           );
-        }, 0);
+        });
         
         // Clear pending changes after commit
         this.pendingPosition = null;
         this.pendingSize = null;
-        // Clear savedFrame after a short delay to allow store update
-        setTimeout(() => {
+        // Clear savedFrame using microtask to allow store update
+        Promise.resolve().then(() => {
           this.savedFrame = null;
           this.cdr.markForCheck();
-        }, 100);
+        });
       }
     }
   }
@@ -457,27 +458,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const widgetProps = this.getCurrentWidgetProps();
       
       // Save immediately without debounce (even if no position/size changes, content may have changed)
+      // NgRx dispatches are synchronous, so the store is updated immediately when commitChanges is called
       this.commitChanges(widgetProps, true);
       
-      // Wait for document observable to emit new value (store updated)
-      // This ensures the save has actually propagated to the store
-      // Reduced timeout to 200ms for faster response - store updates are usually instant
-      firstValueFrom(
-        this.documentService.document$.pipe(
-          skip(1), // Skip the current value
-          take(1), // Take the next value (updated document)
-          timeout(200) // Reduced from 500ms to 200ms for faster operations
-        )
-      )
-        .then(() => {
-          resolve();
-        })
-        .catch((error) => {
-          // If timeout, log the warning but still resolve
-          // Store updates are usually instant, so timeout is rare
-          console.warn(`Widget ${this.widget.id} save may not have propagated to store:`, error);
-          resolve(); // Resolve anyway to not block operations
-        });
+      // Since NgRx store updates are synchronous, resolve immediately after dispatch
+      // Use a microtask to ensure the dispatch has completed
+      Promise.resolve().then(() => {
+        resolve();
+      });
     });
   }
 
