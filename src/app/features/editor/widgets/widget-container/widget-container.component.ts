@@ -109,6 +109,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Widget is guaranteed to be available in ngOnInit
     this.widgetSaveService.registerWidgetContainer(
       this.widget.id,
+      this.pageId,
       () => this.savePendingChangesImmediatelyAsync()
     );
   }

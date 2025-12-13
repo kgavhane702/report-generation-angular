@@ -78,8 +78,9 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async exportDocument(): Promise<void> {
-    // Always save all widgets before exporting
-    await this.widgetSaveService.saveAllPendingChanges();
+    // Save active page widgets before exporting
+    const activePageId = this.editorState.activePageId();
+    await this.widgetSaveService.saveActivePageWidgets(activePageId);
     // Small delay to ensure saves are processed
     await new Promise(resolve => setTimeout(resolve, 50));
     
@@ -90,9 +91,10 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async exportToClipboard(): Promise<void> {
-    // Always save all widgets before exporting
+    // Save active page widgets before exporting
+    const activePageId = this.editorState.activePageId();
     try {
-      await this.widgetSaveService.saveAllPendingChanges();
+      await this.widgetSaveService.saveActivePageWidgets(activePageId);
       // Small delay to ensure saves are processed
       await new Promise(resolve => setTimeout(resolve, 50));
     } catch (error) {
@@ -186,10 +188,11 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   }
 
   async downloadPDF(): Promise<void> {
-    // Always save all widgets before generating PDF
+    // Save active page widgets before generating PDF
+    const activePageId = this.editorState.activePageId();
     try {
-      // Save all widgets
-      await this.widgetSaveService.saveAllPendingChanges();
+      // Save active page widgets
+      await this.widgetSaveService.saveActivePageWidgets(activePageId);
       
       // Wait for the document observable to emit a new value (document updated)
       // This is more efficient than JSON.stringify polling and guarantees the update
@@ -239,8 +242,9 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       this.addWidgetSubject.pipe(
         debounceTime(100), // Small debounce to prevent rapid duplicate clicks
         switchMap(({ type, options }) => {
-          // Always save all widgets first, then add widget
-          return from(this.widgetSaveService.saveAllPendingChanges()).pipe(
+          // Save active page widgets first, then add widget
+          const activePageId = this.editorState.activePageId();
+          return from(this.widgetSaveService.saveActivePageWidgets(activePageId)).pipe(
             delay(50), // Small delay to ensure saves are processed
             switchMap(() => from(this.addWidgetInternal(type, options))),
             catchError((error) => {

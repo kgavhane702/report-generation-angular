@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { DocumentService } from '../../../core/services/document.service';
+import { WidgetSaveService } from '../../../core/services/widget-save.service';
 import { PageModel } from '../../../models/page.model';
 
 @Component({
@@ -13,22 +14,33 @@ import { PageModel } from '../../../models/page.model';
 export class PageOutlineComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
+  private readonly widgetSaveService = inject(WidgetSaveService);
 
   editingPageId: string | null = null;
   editingPageValue = '';
 
-  selectPage(pageId: string): void {
-    this.editorState.setActivePage(pageId);
+  async selectPage(pageId: string): Promise<void> {
+    await this.editorState.setActivePage(pageId);
   }
 
-  addPage(): void {
+  async addPage(): Promise<void> {
     const subsectionId = this.editorState.activeSubsectionId();
     if (!subsectionId) {
       return;
     }
+    // Save current active page before adding new page
+    const currentPageId = this.editorState.activePageId();
+    if (currentPageId) {
+      try {
+        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
+      } catch (error) {
+        console.error('Error saving before adding page:', error);
+        // Continue with adding page even if save fails
+      }
+    }
     const pageId = this.documentService.addPage(subsectionId);
     if (pageId) {
-      this.editorState.setActivePage(pageId);
+      await this.editorState.setActivePage(pageId);
     }
   }
 
@@ -50,14 +62,24 @@ export class PageOutlineComponent {
     this.editingPageId = null;
   }
 
-  deletePage(subsectionId: string, pageId: string, event: MouseEvent, totalPages: number): void {
+  async deletePage(subsectionId: string, pageId: string, event: MouseEvent, totalPages: number): Promise<void> {
     event.stopPropagation();
     if (totalPages <= 1) {
       return;
     }
+    // Save current page if it's the one being deleted
+    const currentPageId = this.editorState.activePageId();
+    if (currentPageId === pageId && currentPageId) {
+      try {
+        await this.widgetSaveService.saveActivePageWidgets(currentPageId);
+      } catch (error) {
+        console.error('Error saving before deleting page:', error);
+        // Continue with deletion even if save fails
+      }
+    }
     const fallbackId = this.documentService.deletePage(subsectionId, pageId);
     if (fallbackId) {
-      this.editorState.setActivePage(fallbackId);
+      await this.editorState.setActivePage(fallbackId);
     }
   }
 

@@ -11,6 +11,7 @@ export class WidgetSaveService {
   // Track all registered widget containers with their save functions
   private widgetContainers: Array<{ 
     widgetId: string;
+    pageId: string;
     savePending: () => Promise<void>;
   }> = [];
 
@@ -26,6 +27,7 @@ export class WidgetSaveService {
    */
   registerWidgetContainer(
     widgetId: string,
+    pageId: string,
     saveFn: () => Promise<void>
   ): void {
     // Prevent duplicate registration - unregister first if exists
@@ -33,6 +35,7 @@ export class WidgetSaveService {
     
     this.widgetContainers.push({ 
       widgetId,
+      pageId,
       savePending: saveFn 
     });
   }
@@ -48,9 +51,87 @@ export class WidgetSaveService {
   }
 
   /**
+   * Save widgets from a specific page and return a Promise that resolves when all saves complete
+   * Only saves widgets registered for the given pageId
+   * Prevents concurrent save operations using a lock mechanism
+   */
+  saveActivePageWidgets(pageId: string | null): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      // If no pageId provided, resolve immediately
+      if (!pageId) {
+        resolve();
+        return;
+      }
+
+      // If a save is already in progress, queue this request
+      if (this.isSaving) {
+        this.saveQueue.push({ resolve, reject });
+        return;
+      }
+
+      // Acquire lock
+      this.isSaving = true;
+
+      // Filter widgets by pageId
+      const widgetsToSave = this.widgetContainers.filter(w => w.pageId === pageId);
+      
+      if (widgetsToSave.length === 0) {
+        // Release lock
+        this.isSaving = false;
+        // Process next queued save if any
+        this.processSaveQueue();
+        resolve();
+        return;
+      }
+
+      // Save widgets sequentially with error handling
+      const saveErrors: Array<{ widgetId: string; error: Error }> = [];
+      
+      widgetsToSave.reduce((promise, widget) => {
+        return promise.then(() => {
+          return widget.savePending()
+            .catch((error: Error) => {
+              // Collect error but continue saving other widgets
+              saveErrors.push({
+                widgetId: widget.widgetId,
+                error: error instanceof Error ? error : new Error(String(error))
+              });
+              console.error(`Failed to save widget ${widget.widgetId}:`, error);
+            });
+        });
+      }, Promise.resolve())
+        .then(() => {
+          // Release lock
+          this.isSaving = false;
+          
+          // Process next queued save if any
+          this.processSaveQueue();
+          
+          // If there were errors, reject with error details
+          if (saveErrors.length > 0) {
+            const errorMessage = `Failed to save ${saveErrors.length} widget(s): ${saveErrors.map(e => e.widgetId).join(', ')}`;
+            reject(new Error(errorMessage));
+          } else {
+            resolve();
+          }
+        })
+        .catch((error: Error) => {
+          // Release lock
+          this.isSaving = false;
+          
+          // Process next queued save if any
+          this.processSaveQueue();
+          
+          reject(error instanceof Error ? error : new Error(String(error)));
+        });
+    });
+  }
+
+  /**
    * Save all widgets and return a Promise that resolves when all saves complete
    * Always saves all registered widgets - no need to check for pending changes
    * Prevents concurrent save operations using a lock mechanism
+   * Kept for backward compatibility
    */
   saveAllPendingChanges(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -121,6 +202,7 @@ export class WidgetSaveService {
 
   /**
    * Process the next queued save operation
+   * Note: Queued saves will use saveAllPendingChanges for simplicity
    */
   private processSaveQueue(): void {
     if (this.saveQueue.length > 0 && !this.isSaving) {
