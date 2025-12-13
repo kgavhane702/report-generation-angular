@@ -256,35 +256,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.editorState.setActiveWidget(this.widget.id);
   }
 
-  onSaveClick(event: MouseEvent | PointerEvent): void {
-    event.stopPropagation();
-    event.preventDefault();
-    // Get current widget state based on widget type
-    let widgetProps: any = null;
-    
-    switch (this.widget.type) {
-      case 'text':
-        widgetProps = this.textWidget?.getCurrentState();
-        break;
-      case 'chart':
-        widgetProps = this.chartWidget?.getCurrentState();
-        break;
-      case 'image':
-        widgetProps = this.imageWidget?.getCurrentState();
-        break;
-      case 'advanced-table':
-        widgetProps = this.tableWidget?.getCurrentState();
-        if (widgetProps) {
-          // Update initial state after getting current state
-          this.tableWidget.storeInitialState();
-        }
-        break;
-    }
-    
-    // Commit everything together: position, size, and widget props
-    this.commitChanges(widgetProps);
-  }
-
   private commitChanges(widgetProps: Partial<any> | {
     rows?: number;
     columns?: number;
