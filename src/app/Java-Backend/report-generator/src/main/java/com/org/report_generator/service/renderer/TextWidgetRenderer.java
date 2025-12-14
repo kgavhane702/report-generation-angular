@@ -17,6 +17,7 @@ public class TextWidgetRenderer {
             position: relative;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            overflow: visible;
             color: inherit;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             font-size: 1rem;
@@ -32,8 +33,9 @@ public class TextWidgetRenderer {
         /* Paragraphs - match CKEditor editable styles */
         .widget-text p {
             margin: 0;
-            padding: 0;
+            padding: 0.3em 0;
             line-height: 1.4;
+            overflow: visible;
         }
         
         /* Headings */
@@ -109,14 +111,26 @@ public class TextWidgetRenderer {
             font-size: 0.75em;
             line-height: 0;
             position: relative;
-            top: -0.5em;
+            top: -0.4em;
         }
         .widget-text sub {
             vertical-align: sub;
             font-size: 0.75em;
             line-height: 0;
             position: relative;
-            bottom: -0.25em;
+            bottom: -0.2em;
+        }
+        
+        /* Ensure parent containers don't clip superscript/subscript */
+        .widget-text p,
+        .widget-text div,
+        .widget-text span,
+        .widget-text li,
+        .widget-text strong,
+        .widget-text em,
+        .widget-text b,
+        .widget-text i {
+            overflow: visible;
         }
         
         /* Links */

@@ -53,6 +53,11 @@ public class GlobalStylesRenderer {
             overflow: hidden;
         }
         
+        /* Text widgets need visible overflow for superscript/subscript */
+        .widget-text {
+            overflow: visible !important;
+        }
+        
         @media print {
             body {
                 background: white;
