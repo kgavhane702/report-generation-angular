@@ -17,6 +17,7 @@ import { Subject, Subscription, takeUntil } from 'rxjs';
 
 import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../../models/chart-data.model';
 import { ChartRegistryService } from '../registry';
+import * as XLSX from 'xlsx';
 
 export interface ChartConfigDialogData {
   chartData: ChartData;
@@ -115,6 +116,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
   form!: FormGroup;
   csvFormControl = this.fb.control('');
   showCsvImport = false;
+  selectedFileName: string | null = null;
 
   ngOnInit(): void {
     // Get available providers (excluding placeholder)
@@ -367,13 +369,89 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
     });
   }
 
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    
+    if (!file) {
+      return;
+    }
+
+    this.selectedFileName = file.name;
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+    if (fileExtension === 'csv') {
+      this.readCsvFile(file);
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      this.readExcelFile(file);
+    } else {
+      alert('Unsupported file format. Please select a CSV, XLSX, or XLS file.');
+      this.selectedFileName = null;
+    }
+  }
+
+  private readCsvFile(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e: ProgressEvent<FileReader>) => {
+      try {
+        const text = e.target?.result as string;
+        this.csvFormControl.setValue(text);
+        // Auto-import after reading
+        this.importFromCsv();
+      } catch (error) {
+        alert('Failed to read CSV file. Please check the file format.');
+        this.selectedFileName = null;
+      }
+    };
+    reader.onerror = () => {
+      alert('Error reading CSV file.');
+      this.selectedFileName = null;
+    };
+    reader.readAsText(file);
+  }
+
+  private readExcelFile(file: File): void {
+    const reader = new FileReader();
+    reader.onload = (e: ProgressEvent<FileReader>) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Get the first sheet
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to CSV format
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        this.csvFormControl.setValue(csv);
+        
+        // Auto-import after reading
+        this.importFromCsv();
+      } catch (error) {
+        alert('Failed to read Excel file. Please check the file format.');
+        this.selectedFileName = null;
+      }
+    };
+    reader.onerror = () => {
+      alert('Error reading Excel file.');
+      this.selectedFileName = null;
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   importFromCsv(): void {
     try {
       const csvValue = this.csvFormControl.value || '';
+      if (!csvValue.trim()) {
+        alert('No data to import. Please select a file or paste CSV data.');
+        return;
+      }
       const chartData = parseCsvToChartData(csvValue, this.form.value.chartType);
       const currentProvider = this.form.value.provider || this.data?.provider || 'echarts';
       this.initializeForm(chartData, currentProvider);
       this.showCsvImport = false;
+      this.selectedFileName = null;
+      this.cdr.markForCheck();
     } catch (error) {
       alert('Failed to parse CSV. Please check the format.');
     }

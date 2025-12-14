@@ -155,7 +155,26 @@
         </div>
         
         <div *ngIf="showCsvImport" class="chart-config-dialog__csv-section">
-          <label class="chart-config-dialog__label">CSV Data</label>
+          <label class="chart-config-dialog__label">Import Data from File</label>
+          <div class="chart-config-dialog__file-upload">
+            <input
+              type="file"
+              #fileInput
+              accept=".csv,.xlsx,.xls"
+              (change)="onFileSelected($event)"
+              class="chart-config-dialog__file-input"
+              id="csvFileInput"
+            />
+            <label for="csvFileInput" class="chart-config-dialog__file-label">
+              <span class="chart-config-dialog__file-button">Browse Files</span>
+              <span class="chart-config-dialog__file-hint">CSV, XLSX, or XLS files</span>
+            </label>
+            <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
+              Selected: {{ selectedFileName }}
+            </span>
+          </div>
+          
+          <label class="chart-config-dialog__label">Or Paste CSV Data</label>
           <textarea
             [formControl]="csvFormControl"
             class="chart-config-dialog__textarea"

@@ -394,6 +394,63 @@
     border: 1px solid #dee2e6;
   }
 
+  &__file-upload {
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__file-input {
+    display: none;
+  }
+
+  &__file-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+  }
+
+  &__file-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    background: #212529;
+    color: white;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    border: 1px solid #212529;
+
+    &:hover {
+      background: #495057;
+      border-color: #495057;
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  &__file-hint {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 4px;
+  }
+
+  &__file-name {
+    font-size: 13px;
+    color: #495057;
+    font-weight: 500;
+    padding: 8px 12px;
+    background: #e9ecef;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+  }
+
   &__footer {
     display: flex;
     justify-content: flex-end;
