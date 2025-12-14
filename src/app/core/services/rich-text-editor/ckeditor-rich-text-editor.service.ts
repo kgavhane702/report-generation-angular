@@ -25,6 +25,8 @@ import {
   TableCellProperties,
   TableToolbar,
   Underline,
+  Superscript,
+  Subscript,
 } from 'ckeditor5';
 
 import {
@@ -102,6 +104,8 @@ class CkEditorInstance implements RichTextEditor {
       Italic,
       Underline,
       Strikethrough,
+      Superscript,
+      Subscript,
       List,
       ListProperties,
       Link,
@@ -134,6 +138,9 @@ class CkEditorInstance implements RichTextEditor {
           'italic',
           'underline',
           'strikethrough',
+          '|',
+          'superscript',
+          'subscript',
           '|',
           'link',
           'bulletedList',
