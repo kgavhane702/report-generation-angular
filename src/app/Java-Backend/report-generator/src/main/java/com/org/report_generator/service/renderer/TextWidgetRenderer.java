@@ -103,6 +103,22 @@ public class TextWidgetRenderer {
             text-decoration: line-through;
         }
         
+        /* Superscript and Subscript */
+        .widget-text sup {
+            vertical-align: super;
+            font-size: 0.75em;
+            line-height: 0;
+            position: relative;
+            top: -0.5em;
+        }
+        .widget-text sub {
+            vertical-align: sub;
+            font-size: 0.75em;
+            line-height: 0;
+            position: relative;
+            bottom: -0.25em;
+        }
+        
         /* Links */
         .widget-text a {
             color: #2563eb;
@@ -126,7 +142,9 @@ public class TextWidgetRenderer {
         .widget-text em[style*="color:"],
         .widget-text b[style*="color:"],
         .widget-text i[style*="color:"],
-        .widget-text u[style*="color:"] {
+        .widget-text u[style*="color:"],
+        .widget-text sup[style*="color:"],
+        .widget-text sub[style*="color:"] {
             /* Inline color styles are preserved */
         }
         
@@ -143,7 +161,9 @@ public class TextWidgetRenderer {
         .widget-text p[style*="font-size:"],
         .widget-text div[style*="font-size:"],
         .widget-text strong[style*="font-size:"],
-        .widget-text em[style*="font-size:"] {
+        .widget-text em[style*="font-size:"],
+        .widget-text sup[style*="font-size:"],
+        .widget-text sub[style*="font-size:"] {
             /* Inline font-size styles are preserved */
         }
         
