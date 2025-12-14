@@ -43,6 +43,10 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   
   showDialog = false;
   dialogData?: ChartConfigDialogData;
+  
+  // Store pending changes that haven't been saved yet
+  private pendingChartData?: ChartData;
+  private pendingProvider?: string;
 
   ngAfterViewInit(): void {
     setTimeout(() => {
@@ -65,6 +69,10 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
         const currentWidget = changes['widget'].currentValue as WidgetModel;
 
         if (previousWidget && previousWidget.id !== currentWidget.id) {
+          // Widget changed - clear pending data for the old widget
+          this.pendingChartData = undefined;
+          this.pendingProvider = undefined;
+          
           if (this.instance) {
             this.instance.destroy?.();
             this.instance = undefined;
@@ -81,6 +89,9 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
         }
 
         if (this.hasChartDataChanged(previousWidget, currentWidget)) {
+          // Widget data was updated from parent - clear pending data since it's now saved
+          this.pendingChartData = undefined;
+          this.pendingProvider = undefined;
           this.updateChart();
         }
       }
@@ -128,18 +139,39 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
   }
 
   openConfigDialog(): void {
-    const chartData = (this.chartProps.data as ChartData) || {
+    // Use pendingChartData if available (most recent unsaved changes), otherwise use widget data
+    const sourceChartData = this.pendingChartData || (this.chartProps.data as ChartData);
+    
+    const chartData = sourceChartData || {
       chartType: 'column',
       labels: [],
       series: [],
     };
 
+    // Create a deep copy to ensure Angular detects changes and dialog always gets fresh data
+    const clonedChartData = this.deepCloneChartData(chartData);
+
+    // Use pending provider if available, otherwise use widget provider
+    const provider = this.pendingProvider || this.chartProps.provider;
+
     this.dialogData = {
-      chartData,
+      chartData: clonedChartData,
       widgetId: this.widget.id,
+      provider: provider,
     };
     this.showDialog = true;
     this.cdr.markForCheck();
+  }
+  
+  private deepCloneChartData(data: ChartData): ChartData {
+    return {
+      ...data,
+      labels: data.labels ? [...data.labels] : [],
+      series: data.series ? data.series.map(series => ({
+        ...series,
+        data: series.data ? [...series.data] : [],
+      })) : [],
+    };
   }
 
   closeConfigDialog(result: ChartConfigDialogResult): void {
@@ -147,10 +179,17 @@ export class ChartWidgetComponent implements AfterViewInit, OnChanges, OnDestroy
     this.dialogData = undefined;
 
     if (!result.cancelled) {
+      // Store pending changes immediately so they're available when dialog reopens
+      this.pendingChartData = result.chartData;
+      if (result.provider) {
+        this.pendingProvider = result.provider;
+      }
+      
       // Emit chart props change event
       this.chartPropsChange.emit({
         chartType: result.chartData.chartType,
         data: result.chartData,
+        provider: result.provider,
       });
     }
 

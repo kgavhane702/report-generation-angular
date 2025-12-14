@@ -1,7 +1,9 @@
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ElementRef,
   EventEmitter,
   inject,
   Input,
@@ -10,13 +12,15 @@ import {
   OnInit,
   Output,
   SimpleChanges,
+  ViewChild,
 } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Subject, Subscription, takeUntil } from 'rxjs';
+import { DragDropModule, CdkDragEnd } from '@angular/cdk/drag-drop';
 
 import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../../models/chart-data.model';
-import { ChartRegistryService } from '../registry';
+import { ChartRegistryService } from '../registry/chart-registry.service';
 
 export interface ChartConfigDialogData {
   chartData: ChartData;
@@ -33,12 +37,12 @@ export interface ChartConfigDialogResult {
 @Component({
   selector: 'app-chart-config-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, DragDropModule],
   templateUrl: './chart-config-dialog.component.html',
   styleUrls: ['./chart-config-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy {
+export class ChartConfigDialogComponent implements OnInit, OnChanges, AfterViewInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly registry = inject(ChartRegistryService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -47,8 +51,13 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
 
   @Input() data?: ChartConfigDialogData;
   @Output() closed = new EventEmitter<ChartConfigDialogResult>();
+  @ViewChild('dialogContent', { static: false }) dialogContent?: ElementRef<HTMLElement>;
 
   availableProviders: Array<{ id: string; label: string }> = [];
+  
+  // Initial drag position for CDK Drag
+  dragPosition = { x: 0, y: 0 };
+  private positionInitialized = false;
 
 
   readonly chartTypes: ChartType[] = [
@@ -188,6 +197,43 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
       });
   }
 
+  ngAfterViewInit(): void {
+    // Calculate and set initial centered position for CDK Drag
+    // Use double requestAnimationFrame to ensure the view is fully rendered and dimensions are accurate
+    if (!this.positionInitialized) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (this.dialogContent) {
+            const element = this.dialogContent.nativeElement;
+            // Get actual dimensions or use defaults
+            const dialogWidth = element.offsetWidth || 850;
+            const dialogHeight = element.offsetHeight || 400;
+            
+            // Calculate center position relative to viewport
+            const centerX = Math.max(0, (window.innerWidth - dialogWidth) / 2);
+            const centerY = Math.max(0, (window.innerHeight - dialogHeight) / 2);
+            
+            // Set initial drag position for CDK Drag
+            this.dragPosition = { x: centerX, y: centerY };
+            this.positionInitialized = true;
+            this.cdr.markForCheck();
+          }
+        });
+      });
+    }
+  }
+
+  onDragEnded(event: CdkDragEnd): void {
+    // Update drag position when dragging ends to maintain the new position
+    // Use getFreeDragPosition() to get the current drag position
+    if (event.source) {
+      const position = event.source.getFreeDragPosition();
+      if (position) {
+        this.dragPosition = { x: position.x, y: position.y };
+        this.cdr.markForCheck();
+      }
+    }
+  }
 
   ngOnDestroy(): void {
     if (this.chartTypeSubscription) {

@@ -1,7 +1,7 @@
 <div class="chart-config-dialog">
   <div class="chart-config-dialog__overlay" (click)="closeDialog($event)"></div>
-  <div class="chart-config-dialog__content" (click)="$event.stopPropagation()">
-    <div class="chart-config-dialog__header">
+  <div #dialogContent class="chart-config-dialog__content" cdkDrag [cdkDragFreeDragPosition]="dragPosition" (cdkDragEnded)="onDragEnded($event)" (click)="$event.stopPropagation()">
+    <div class="chart-config-dialog__header" cdkDragHandle (click)="$event.stopPropagation()">
       <h2 class="chart-config-dialog__title">Chart Configuration</h2>
       <button
         type="button"
