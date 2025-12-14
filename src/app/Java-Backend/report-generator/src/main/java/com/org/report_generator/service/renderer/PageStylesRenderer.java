@@ -18,6 +18,12 @@ public class PageStylesRenderer {
     private static final double DEFAULT_HEIGHT_MM = 190.5d;
     
     private static final String PAGE_CSS = """
+        .page {
+            position: relative;
+            overflow: visible;
+            box-sizing: border-box;
+        }
+        
         .page__surface {
             position: relative;
             background: #ffffff;
@@ -25,6 +31,8 @@ public class PageStylesRenderer {
             padding: 0;
             border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0;
+            overflow: visible;
+            box-sizing: border-box;
         }
         
         .page__logo-placeholder {
@@ -58,6 +66,8 @@ public class PageStylesRenderer {
             padding: 4px 20px;
             pointer-events: none;
             background: rgba(255, 255, 255, 0.95);
+            min-height: 20px;
+            box-sizing: border-box;
         }
         
         .page__footer-left {

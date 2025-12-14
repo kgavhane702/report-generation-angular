@@ -105,7 +105,11 @@ public class DocumentRenderService {
                 .append(heightPx)
                 .append("px; page-break-after: always; page: ")
                 .append(pageName)
-                .append(";\"><div class=\"page__surface\">");
+                .append(";\"><div class=\"page__surface\" style=\"width: ")
+                .append(widthPx)
+                .append("px; height: ")
+                .append(heightPx)
+                .append("px; overflow: visible;\">");
 
         builder.append(renderLogo(document, widthPx, heightPx));
 
@@ -189,6 +193,17 @@ public class DocumentRenderService {
         return input.replaceAll("([a-z])([A-Z]+)", "$1-$2").toLowerCase(Locale.ROOT);
     }
 
+    private String escapeHtml(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&#39;");
+    }
+
     private String renderLogo(DocumentModel document, double pageWidth, double pageHeight) {
         LogoConfig logo = document.getLogo();
         if (logo == null || logo.getUrl() == null || logo.getUrl().isBlank()) {
@@ -240,22 +255,30 @@ public class DocumentRenderService {
 
         footerHtml.append("<div class=\"page__footer-left\">");
         if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
-            footerHtml.append(footer.getLeftText());
+            footerHtml.append(escapeHtml(footer.getLeftText()));
+        } else {
+            footerHtml.append("&nbsp;");
         }
         footerHtml.append("</div>");
 
         footerHtml.append("<div class=\"page__footer-center\">");
         if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
-            footerHtml.append("<div class=\"page__footer-center-line\">").append(footer.getCenterText()).append("</div>");
+            footerHtml.append("<div class=\"page__footer-center-line\">").append(escapeHtml(footer.getCenterText())).append("</div>");
         }
         if (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) {
-            footerHtml.append("<div class=\"page__footer-center-line\">").append(footer.getCenterSubText()).append("</div>");
+            footerHtml.append("<div class=\"page__footer-center-line\">").append(escapeHtml(footer.getCenterSubText())).append("</div>");
+        }
+        if ((footer.getCenterText() == null || footer.getCenterText().isBlank()) && 
+            (footer.getCenterSubText() == null || footer.getCenterSubText().isBlank())) {
+            footerHtml.append("&nbsp;");
         }
         footerHtml.append("</div>");
 
         footerHtml.append("<div class=\"page__footer-right\">");
         if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
             footerHtml.append(page.getNumber());
+        } else {
+            footerHtml.append("&nbsp;");
         }
         footerHtml.append("</div>");
 

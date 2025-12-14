@@ -46,6 +46,9 @@ public class PdfGeneratorService {
             page.setContent(html, new Page.SetContentOptions()
                     .setWaitUntil(WaitUntilState.NETWORKIDLE)
                     .setTimeout(30_000));
+            
+            // Wait a bit to ensure all content including footer is fully rendered
+            page.waitForTimeout(500);
 
             PdfOptions options = new PdfOptions()
                     .setFormat("A4")
