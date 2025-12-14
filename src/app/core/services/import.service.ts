@@ -171,14 +171,29 @@ export class ImportService {
           id: subsection.id,
           title: subsection.title || 'Untitled Subsection',
           pages: subsection.pages.map((page) => ({
-            ...page,
+            id: page.id,
+            number: page.number ?? 0,
+            title: page.title,
             widgets: page.widgets || [],
+            background: page.background,
             // Ensure each page has an orientation (default to landscape if missing)
             orientation: page.orientation || 'landscape',
           })),
         })),
       })),
       metadata: document.metadata || {},
+      // Preserve footer configuration if present
+      footer: document.footer ? {
+        leftText: document.footer.leftText,
+        centerText: document.footer.centerText,
+        centerSubText: document.footer.centerSubText,
+        showPageNumber: document.footer.showPageNumber,
+      } : undefined,
+      // Preserve logo configuration if present
+      logo: document.logo ? {
+        url: document.logo.url,
+        position: document.logo.position,
+      } : undefined,
     };
   }
 }
