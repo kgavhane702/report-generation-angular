@@ -8,4 +8,4 @@ export { ChartJsScatterChartHandler } from './scatter-chart.handler';
 export { ChartJsStackedBarChartHandler } from './stacked-bar-chart.handler';
 export { ChartJsStackedColumnChartHandler } from './stacked-column-chart.handler';
 export { ChartJsStackedBarLineChartHandler } from './stacked-bar-line-chart.handler';
-
+export { ChartJsStackedOverlappedBarLineChartHandler } from './stacked-overlapped-bar-line-chart.handler';

@@ -74,7 +74,8 @@ export type ChartType =
   | 'scatter'
   | 'stackedBar'
   | 'stackedColumn'
-  | 'stackedBarLine';
+  | 'stackedBarLine'
+  | 'stackedOverlappedBarLine';
 
 export interface ChartSeries {
   /**
@@ -108,7 +109,7 @@ export interface ChartSeries {
  */
 export function createDefaultChartData(chartType: ChartType = 'column'): ChartData {
   // Line charts should default to 'top' position, others to 'inside'
-  // Note: stackedBarLine defaults to 'inside' but handler converts line series to 'top'
+  // Note: stackedBarLine and stackedOverlappedBarLine default to 'inside' but handlers convert line series to 'top'
   const defaultLabelPosition = chartType === 'line' ? 'top' : 'inside';
   
   return {
@@ -201,4 +202,3 @@ export function chartDataToCsv(data: ChartData): string {
 
   return rows.join('\n');
 }
-

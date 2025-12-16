@@ -11,6 +11,7 @@ import {
   EChartsStackedBarChartHandler,
   EChartsStackedColumnChartHandler,
   EChartsStackedBarLineChartHandler,
+  EChartsStackedOverlappedBarLineChartHandler,
 } from '../handlers/echarts';
 
 export class EChartsChartTypeRegistry extends BaseChartTypeRegistry<EChartsChartTypeHandler> {
@@ -26,6 +27,7 @@ export class EChartsChartTypeRegistry extends BaseChartTypeRegistry<EChartsChart
     this.register(new EChartsStackedBarChartHandler());
     this.register(new EChartsStackedColumnChartHandler());
     this.register(new EChartsStackedBarLineChartHandler());
+    this.register(new EChartsStackedOverlappedBarLineChartHandler());
   }
 }
 
@@ -37,4 +39,3 @@ export function getEChartsChartTypeRegistry(): EChartsChartTypeRegistry {
   }
   return registryInstance;
 }
-

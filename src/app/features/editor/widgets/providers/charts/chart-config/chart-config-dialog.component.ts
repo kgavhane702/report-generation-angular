@@ -73,6 +73,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
     'stackedColumn',
     'stackedBar',
     'stackedBarLine',
+    'stackedOverlappedBarLine',
   ];
 
   readonly chartTypeLabels: Record<ChartType, string> = {
@@ -86,6 +87,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
     stackedColumn: 'Stacked Column',
     stackedBar: 'Stacked Bar',
     stackedBarLine: 'Stacked Bar/Line',
+    stackedOverlappedBarLine: 'Stacked Overlapped Bar/Line',
   };
 
   readonly legendPositions: Array<'top' | 'bottom' | 'left' | 'right'> = [
@@ -189,11 +191,11 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
       this.chartTypeSubscription.unsubscribe();
     }
     
-    // Set up subscription to chart type changes for stackedBarLine
+    // Set up subscription to chart type changes for stackedBarLine / stackedOverlappedBarLine
     this.chartTypeSubscription = this.form.get('chartType')?.valueChanges
       .pipe(takeUntil(this.destroy$))
       .subscribe((chartType: ChartType) => {
-        if (chartType === 'stackedBarLine' && this.seriesFormArray.length > 1) {
+        if ((chartType === 'stackedBarLine' || chartType === 'stackedOverlappedBarLine') && this.seriesFormArray.length > 1) {
           // Update series types: first = bar, others = line
           this.seriesFormArray.controls.forEach((seriesGroup, index) => {
             const group = seriesGroup as FormGroup;
@@ -253,9 +255,9 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
       (series.data || []).map((value: number) => this.fb.control(value))
     );
     
-    // For stackedBarLine charts, determine default series type
+    // For stackedBarLine / stackedOverlappedBarLine charts, determine default series type
     // First series defaults to 'bar', others to 'line'
-    const defaultSeriesType = chartType === 'stackedBarLine' 
+    const defaultSeriesType = (chartType === 'stackedBarLine' || chartType === 'stackedOverlappedBarLine')
       ? (index === 0 ? 'bar' : 'line')
       : undefined;
     
@@ -284,7 +286,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
   }
 
   get isStackedBarLineChart(): boolean {
-    return this.currentChartType === 'stackedBarLine';
+    return this.currentChartType === 'stackedBarLine' || this.currentChartType === 'stackedOverlappedBarLine';
   }
 
   get hasMultipleSeries(): boolean {
@@ -302,7 +304,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
       return true;
     }
     // Show for line series in stacked bar/line charts
-    if (chartType === 'stackedBarLine') {
+    if (chartType === 'stackedBarLine' || chartType === 'stackedOverlappedBarLine') {
       const seriesGroup = this.seriesFormArray.at(seriesIndex) as FormGroup;
       const seriesType = seriesGroup?.get('seriesType')?.value;
       return seriesType === 'line';
@@ -576,4 +578,3 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
     }
   }
 }
-
