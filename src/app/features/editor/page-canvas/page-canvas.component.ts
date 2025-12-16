@@ -54,6 +54,29 @@ export class PageCanvasComponent implements AfterViewInit {
   }
 
   /**
+   * Get the base page width in pixels
+   */
+  get basePageWidthPx(): number {
+    const pageSize = this.documentService.document.pageSize;
+    const dpi = pageSize.dpi ?? 96;
+    // Use the larger dimension for landscape
+    const widthMm = Math.max(pageSize.widthMm, pageSize.heightMm);
+    return Math.round((widthMm / 25.4) * dpi);
+  }
+
+  /**
+   * Calculate wrapper width based on zoom level
+   * This creates actual layout width for proper horizontal scrolling
+   */
+  get wrapperWidth(): string {
+    const zoomValue = this.zoom() / 100;
+    const baseWidth = this.basePageWidthPx;
+    // Add padding (2rem = 32px on each side = 64px total) and some margin
+    const totalWidth = (baseWidth + 128) * zoomValue;
+    return `${Math.max(totalWidth, 100)}px`;
+  }
+
+  /**
    * Calculate zoom level to fit the page within the visible canvas area
    */
   calculateFitZoom(): number {

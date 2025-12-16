@@ -1,43 +1,33 @@
 .page-canvas {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: 100%;
-  padding: 3rem 4rem;
-  border-radius: 0;
+  // Let content determine size for proper scrolling
+  display: inline-block;
+  min-width: 100%;
+  padding: 0;
   background: transparent;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
   box-sizing: border-box;
-  margin: 0 auto;
 }
 
-// Wrapper that extends leftward to allow scrolling to content behind sidebar
+// Wrapper holds the zoomed content - its width determines scroll area
 .page-canvas__wrapper {
-  display: flex;
+  display: inline-flex;
+  // Center the viewport horizontally within the wrapper
   justify-content: center;
   align-items: flex-start;
-  width: 100%;
-  // Extend leftward by sidebar width to allow scrolling
-  margin-left: -280px;
-  padding-left: 280px;
-  min-width: calc(100% + 280px);
+  // Width will be set dynamically based on zoom
+  min-width: 100%;
   box-sizing: border-box;
+  padding: 2rem;
 }
 
 .page-canvas__viewport {
-  width: max-content;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2rem;
-  padding: 2rem 0;
+  padding: 2rem;
   box-sizing: border-box;
-  // Ensure viewport can extend beyond visible area when zoomed
   position: relative;
-  // Maintain aspect ratio during zoom
+  // Scale from center-top so content expands symmetrically
   transform-origin: top center;
   will-change: transform;
 }

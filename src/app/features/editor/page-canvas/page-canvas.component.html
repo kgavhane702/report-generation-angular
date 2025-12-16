@@ -1,5 +1,5 @@
 <ng-container *ngIf="editorState.activeSubsection() as subsection">
-  <div class="page-canvas__wrapper">
+  <div class="page-canvas__wrapper" [style.width]="wrapperWidth">
     <section
       class="page-canvas__viewport"
       [style.transform]="zoomTransform"
