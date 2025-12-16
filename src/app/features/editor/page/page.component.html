@@ -14,33 +14,22 @@
     />
   </div>
 
-  <!-- Widgets Container - New ID-based approach -->
-  <!-- Each widget selects its own data using widgetId -->
-  <ng-container *ngIf="!useLegacyMode">
-    <app-widget-container
-      *ngFor="let widgetId of widgetIds; trackBy: trackByWidgetId"
-      [widgetId]="widgetId"
-      [pageSize]="pageSize"
-      [pageId]="pageId || page?.id || ''"
-      [subsectionId]="subsectionId"
-      [pageWidth]="widthPx"
-      [pageHeight]="heightPx"
-    ></app-widget-container>
-  </ng-container>
-  
-  <!-- Legacy mode: Full widget objects (backward compatibility) -->
-  <ng-container *ngIf="useLegacyMode">
-    <app-widget-container
-      *ngFor="let widget of legacyWidgets; trackBy: trackByWidgetId"
-      [widgetId]="widget.id"
-      [widget]="widget"
-      [pageSize]="pageSize"
-      [pageId]="page?.id || ''"
-      [subsectionId]="subsectionId"
-      [pageWidth]="widthPx"
-      [pageHeight]="heightPx"
-    ></app-widget-container>
-  </ng-container>
+  <!-- 
+    FIXED: Using widgetIds (stable array from granular selector) 
+    instead of page.widgets (changes on every widget update)
+    
+    Each WidgetContainerComponent now selects its own data using widgetId.
+    Widget A updating does NOT cause Widget B to re-render.
+  -->
+  <app-widget-container
+    *ngFor="let widgetId of widgetIds(); trackBy: trackByWidgetId"
+    [widgetId]="widgetId"
+    [pageSize]="pageSize"
+    [pageId]="pageId"
+    [subsectionId]="subsectionId"
+    [pageWidth]="widthPx"
+    [pageHeight]="heightPx"
+  ></app-widget-container>
 
   <!-- Fixed Footer Elements at Bottom -->
   <div class="page__footer" *ngIf="footerLeftText || footerCenterText || showPageNumber">

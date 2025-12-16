@@ -1,17 +1,21 @@
-<ng-container *ngIf="editorState.activeSubsection() as subsection">
+<!-- Only render when we have an active subsection -->
+<ng-container *ngIf="activeSubsectionId() as subsectionId">
   <div class="page-canvas__wrapper" [style.width]="wrapperWidth">
     <section
       class="page-canvas__viewport"
       [style.transform]="zoomTransform()"
       [style.transform-origin]="zoomOrigin"
     >
+      <!-- 
+        FIXED: Using pageIds (stable array) instead of subsection.pages (changes on every widget update)
+        This prevents all pages from re-rendering when a single widget changes.
+      -->
       <app-page
-        *ngFor="let page of subsection.pages"
-        [page]="page"
-        [pageId]="page.id"
+        *ngFor="let pageId of pageIds(); trackBy: trackByPageId"
+        [pageId]="pageId"
         [pageSize]="documentService.document.pageSize"
-        [subsectionId]="subsection.id"
-        [isActive]="editorState.activePageId() === page.id"
+        [subsectionId]="subsectionId"
+        [isActive]="editorState.activePageId() === pageId"
       ></app-page>
     </section>
   </div>

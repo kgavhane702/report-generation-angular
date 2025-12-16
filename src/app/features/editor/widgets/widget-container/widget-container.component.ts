@@ -10,11 +10,11 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
+import { Subscription } from 'rxjs';
 import { CdkDragEnd } from '@angular/cdk/drag-drop';
 
-import { WidgetModel, WidgetPosition, WidgetProps } from '../../../../models/widget.model';
+import { WidgetPosition, WidgetProps } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { DraftStateService } from '../../../../core/services/draft-state.service';
@@ -35,16 +35,15 @@ interface WidgetFrame {
 /**
  * WidgetContainerComponent
  * 
- * REFACTORED to use the new architecture:
- * 1. Takes widgetId as input instead of full widget object
- * 2. Selects widget data using granular selector (only updates when THIS widget changes)
- * 3. Uses DraftStateService for in-progress changes (resize, drag)
- * 4. Only commits to store when interaction completes
+ * FIXED: Now uses widgetId + granular selector exclusively.
  * 
- * This prevents:
- * - Widget re-renders when other widgets change
- * - Interrupted resize/drag operations
- * - Focus loss during text editing
+ * Before: [widget]="widget" → new object on any doc change → all widgets re-render
+ * After: [widgetId]="widgetId" → stable string → widget selects its own data
+ * 
+ * Key architecture:
+ * - Granular selector only emits when THIS widget's data changes
+ * - Other widgets changing does NOT trigger this component
+ * - Draft state handles in-progress changes locally
  */
 @Component({
   selector: 'app-widget-container',
@@ -59,7 +58,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   /**
    * Widget ID - the component selects its own data using this ID
-   * This is the key change: we pass ID, not the full object
    */
   @Input({ required: true }) widgetId!: string;
   
@@ -76,12 +74,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   @Input({ required: true }) pageWidth!: number;
   @Input({ required: true }) pageHeight!: number;
   @Input() dragBoundarySelector = '';
-  
-  /**
-   * Legacy input for backward compatibility during migration
-   * @deprecated Use widgetId instead
-   */
-  @Input() widget?: WidgetModel;
   
   // ============================================
   // INJECTED SERVICES
@@ -103,23 +95,21 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly persistedWidget = signal<WidgetEntity | null>(null);
   
   /**
+   * Subscription to widget data
+   */
+  private widgetSubscription?: Subscription;
+  
+  /**
    * Computed signal that merges persisted data with any draft changes
    * This is what the template uses for rendering
    */
   readonly displayWidget = computed<WidgetEntity | null>(() => {
     const persisted = this.persistedWidget();
     if (!persisted) {
-      // Fall back to legacy input during migration
-      if (this.widget) {
-        return {
-          ...this.widget,
-          pageId: this.pageId,
-        } as WidgetEntity;
-      }
       return null;
     }
     
-    // Merge with draft if exists
+    // Merge with draft if exists (for in-progress resize/drag)
     return this.draftState.getMergedWidget(this.widgetId, persisted);
   });
   
@@ -199,25 +189,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   ngOnInit(): void {
     // Subscribe to widget data using granular selector
-    this.subscribeToWidgetData();
+    // This ONLY emits when THIS widget's data changes in the store
+    this.widgetSubscription = this.store
+      .select(DocumentSelectors.selectWidgetById(this.widgetId))
+      .subscribe(widget => {
+        this.persistedWidget.set(widget);
+      });
   }
   
   ngOnDestroy(): void {
+    // Clean up subscription
+    this.widgetSubscription?.unsubscribe();
+    
     // Commit any pending drafts before destroying
     if (this.draftState.hasDraft(this.widgetId)) {
       this.draftState.commitDraft(this.widgetId);
     }
-  }
-  
-  private subscribeToWidgetData(): void {
-    // Use the granular selector - this only emits when THIS widget changes
-    const effectiveWidgetId = this.widgetId || this.widget?.id;
-    if (!effectiveWidgetId) return;
-    
-    this.store.select(DocumentSelectors.selectWidgetById(effectiveWidgetId))
-      .subscribe(widget => {
-        this.persistedWidget.set(widget);
-      });
   }
   
   // ============================================
@@ -373,7 +360,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   /**
    * Handle content changes from child widgets
-   * This uses draft state to batch changes
    */
   onContentChange(props: Partial<WidgetProps>): void {
     const currentWidget = this.displayWidget();

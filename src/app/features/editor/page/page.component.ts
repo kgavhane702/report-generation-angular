@@ -4,29 +4,26 @@ import {
   HostBinding,
   Input,
   OnInit,
+  OnDestroy,
   inject,
   signal,
-  computed,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
+import { Subscription } from 'rxjs';
 
-import { PageModel } from '../../../models/page.model';
 import { PageSize } from '../../../models/document.model';
 import { DocumentService } from '../../../core/services/document.service';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
+import { PageEntity } from '../../../store/document/document.state';
 
 /**
  * PageComponent
  * 
- * REFACTORED to support both:
- * 1. Legacy: full page object as input (backward compatibility)
- * 2. New: pageId input + granular selectors (optimized)
+ * FIXED: Now uses pageId + granular selectors exclusively.
  * 
- * The key change is passing widget IDs to WidgetContainerComponent
- * instead of full widget objects, so widgets only re-render when
- * their specific data changes.
+ * Before: [page]="page" → new object on any widget change → all widgets re-render
+ * After: [pageId]="pageId" → stable string → page selects its own data
  */
 @Component({
   selector: 'app-page',
@@ -34,21 +31,15 @@ import { DocumentSelectors } from '../../../store/document/document.selectors';
   styleUrls: ['./page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PageComponent implements OnInit {
+export class PageComponent implements OnInit, OnDestroy {
   // ============================================
   // INPUTS
   // ============================================
   
   /**
-   * Legacy input: full page object
-   * @deprecated Use pageId for better performance
+   * Page ID - the component selects its own data using this ID
    */
-  @Input() page?: PageModel;
-  
-  /**
-   * New input: page ID for granular selection
-   */
-  @Input() pageId?: string;
+  @Input({ required: true }) pageId!: string;
   
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) subsectionId!: string;
@@ -64,59 +55,31 @@ export class PageComponent implements OnInit {
   @HostBinding('class.page') hostClass = true;
 
   // ============================================
-  // STATE
+  // STATE (from granular selectors)
   // ============================================
   
   /**
-   * Widget IDs for this page - from granular selector
-   * This array only changes when widgets are added/removed,
-   * NOT when widget content changes
+   * Widget IDs for this page - STABLE reference
+   * Only changes when widgets are added/removed, NOT when widget content changes
    */
   private readonly _widgetIds = signal<string[]>([]);
+  readonly widgetIds = this._widgetIds.asReadonly();
   
   /**
-   * Page data from store (for pageId input)
+   * Page data from granular selector
+   * Only changes when THIS page's metadata changes, not other pages/widgets
    */
-  private readonly _pageData = signal<PageModel | null>(null);
+  private readonly _pageData = signal<PageEntity | null>(null);
+
+  /**
+   * Subscriptions
+   */
+  private widgetIdsSubscription?: Subscription;
+  private pageDataSubscription?: Subscription;
 
   // ============================================
   // COMPUTED PROPERTIES
   // ============================================
-  
-  /**
-   * Get the effective page data (from input or store)
-   */
-  get effectivePage(): PageModel | null {
-    return this.page || this._pageData();
-  }
-  
-  /**
-   * Get widget IDs for iteration
-   * Uses store selector when available, falls back to legacy page input
-   */
-  get widgetIds(): string[] {
-    // Prefer granular selector IDs
-    if (this._widgetIds().length > 0) {
-      return this._widgetIds();
-    }
-    // Fall back to legacy page object
-    return this.effectivePage?.widgets?.map(w => w.id) ?? [];
-  }
-  
-  /**
-   * Check if we should use the legacy widget input mode
-   * (for backward compatibility during migration)
-   */
-  get useLegacyMode(): boolean {
-    return !!this.page && this._widgetIds().length === 0;
-  }
-  
-  /**
-   * Get widgets for legacy mode
-   */
-  get legacyWidgets(): any[] {
-    return this.page?.widgets ?? [];
-  }
 
   get widthPx(): number {
     return this.convertMmToPx(this.getOrientedSize().widthMm);
@@ -127,8 +90,7 @@ export class PageComponent implements OnInit {
   }
 
   get surfaceId(): string {
-    const id = this.pageId || this.page?.id || 'unknown';
-    return `page-surface-${id}`;
+    return `page-surface-${this.pageId}`;
   }
 
   get surfaceSelector(): string {
@@ -157,11 +119,11 @@ export class PageComponent implements OnInit {
   }
   
   get pageNumber(): number {
-    return this.effectivePage?.number ?? 1;
+    return this._pageData()?.number ?? 1;
   }
   
   get pageOrientation(): 'portrait' | 'landscape' {
-    return this.effectivePage?.orientation || 'landscape';
+    return this._pageData()?.orientation || 'landscape';
   }
 
   // ============================================
@@ -170,39 +132,33 @@ export class PageComponent implements OnInit {
   
   ngOnInit(): void {
     // Subscribe to widget IDs using granular selector
-    const effectivePageId = this.pageId || this.page?.id;
-    if (effectivePageId) {
-      this.store.select(DocumentSelectors.selectWidgetIdsForPage(effectivePageId))
-        .subscribe(ids => {
-          this._widgetIds.set(ids);
-        });
-        
-      // Also subscribe to page data if using pageId input
-      if (this.pageId) {
-        this.store.select(DocumentSelectors.selectPageById(this.pageId))
-          .subscribe(pageData => {
-            if (pageData) {
-              this._pageData.set({
-                id: pageData.id,
-                number: pageData.number,
-                title: pageData.title,
-                background: pageData.background,
-                orientation: pageData.orientation,
-                widgets: [], // Widgets are loaded separately via IDs
-              });
-            }
-          });
-      }
-    }
+    // This only emits when widgets are added/removed from this page
+    this.widgetIdsSubscription = this.store
+      .select(DocumentSelectors.selectWidgetIdsForPage(this.pageId))
+      .subscribe(ids => {
+        this._widgetIds.set(ids);
+      });
+      
+    // Subscribe to page data using granular selector
+    // This only emits when this page's metadata changes
+    this.pageDataSubscription = this.store
+      .select(DocumentSelectors.selectPageById(this.pageId))
+      .subscribe(pageData => {
+        this._pageData.set(pageData);
+      });
+  }
+  
+  ngOnDestroy(): void {
+    this.widgetIdsSubscription?.unsubscribe();
+    this.pageDataSubscription?.unsubscribe();
   }
 
   // ============================================
   // TRACK BY
   // ============================================
   
-  trackByWidgetId(index: number, widgetOrId: any): string {
-    // Handle both widget objects (legacy) and widget IDs (new)
-    return typeof widgetOrId === 'string' ? widgetOrId : widgetOrId.id;
+  trackByWidgetId(index: number, widgetId: string): string {
+    return widgetId;
   }
 
   // ============================================
