@@ -1,10 +1,15 @@
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   EventEmitter,
+  inject,
+  OnDestroy,
   Output,
+  ViewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 
 export interface TableGridSelectionResult {
   rows: number;
@@ -20,13 +25,32 @@ export interface TableGridSelectionResult {
   styleUrls: ['./table-grid-selection-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TableGridSelectionDialogComponent {
+export class TableGridSelectionDialogComponent implements AfterViewInit, OnDestroy {
+  private readonly document = inject(DOCUMENT);
+  private dialogElement: HTMLElement | null = null;
+
   @Output() closed = new EventEmitter<TableGridSelectionResult>();
+  @ViewChild('dialogContainer', { static: true }) dialogContainer!: ElementRef<HTMLDivElement>;
 
   maxRows = 10;
   maxColumns = 10;
   selectedRows = 1;
   selectedColumns = 1;
+
+  ngAfterViewInit(): void {
+    // Move dialog to document body to escape stacking context
+    if (this.dialogContainer?.nativeElement) {
+      this.dialogElement = this.dialogContainer.nativeElement;
+      this.document.body.appendChild(this.dialogElement);
+    }
+  }
+
+  ngOnDestroy(): void {
+    // Remove dialog from body when component is destroyed
+    if (this.dialogElement && this.dialogElement.parentNode === this.document.body) {
+      this.document.body.removeChild(this.dialogElement);
+    }
+  }
 
   get rowsArray(): number[] {
     return Array(this.maxRows).fill(0).map((_, i) => i);

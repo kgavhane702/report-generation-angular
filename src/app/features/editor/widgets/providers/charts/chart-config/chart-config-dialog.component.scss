@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 100000;
+  z-index: 999999 !important;
   pointer-events: none;
 
   &__overlay {
@@ -35,7 +35,7 @@
     flex-direction: column;
     overflow: hidden;
     pointer-events: auto;
-    z-index: 2;
+    z-index: 1000000 !important;
   }
 
   &__header {

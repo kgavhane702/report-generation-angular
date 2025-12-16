@@ -1,7 +1,9 @@
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ElementRef,
   EventEmitter,
   inject,
   Input,
@@ -9,10 +11,12 @@ import {
   OnDestroy,
   OnInit,
   Output,
+  Renderer2,
   SimpleChanges,
+  ViewChild,
 } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 
 import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../../models/chart-data.model';
@@ -39,15 +43,21 @@ export interface ChartConfigDialogResult {
   styleUrls: ['./chart-config-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy {
+export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit {
   private readonly fb = inject(FormBuilder);
   private readonly registry = inject(ChartRegistryService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly renderer = inject(Renderer2);
+  private readonly document = inject(DOCUMENT);
+  private readonly elementRef = inject(ElementRef);
   private readonly destroy$ = new Subject<void>();
   private chartTypeSubscription?: Subscription;
+  private dialogElement: HTMLElement | null = null;
 
   @Input() data?: ChartConfigDialogData;
   @Output() closed = new EventEmitter<ChartConfigDialogResult>();
+
+  @ViewChild('dialogContainer', { static: true }) dialogContainer!: ElementRef<HTMLDivElement>;
 
   availableProviders: Array<{ id: string; label: string }> = [];
 
@@ -131,6 +141,14 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
     }
   }
 
+  ngAfterViewInit(): void {
+    // Move dialog to document body to escape stacking context
+    if (this.dialogContainer?.nativeElement) {
+      this.dialogElement = this.dialogContainer.nativeElement;
+      this.document.body.appendChild(this.dialogElement);
+    }
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     // Reinitialize form when data input changes to use latest widget data
     if (changes['data'] && this.data) {
@@ -192,6 +210,11 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy 
 
 
   ngOnDestroy(): void {
+    // Remove dialog from body when component is destroyed
+    if (this.dialogElement && this.dialogElement.parentNode === this.document.body) {
+      this.document.body.removeChild(this.dialogElement);
+    }
+    
     if (this.chartTypeSubscription) {
       this.chartTypeSubscription.unsubscribe();
     }

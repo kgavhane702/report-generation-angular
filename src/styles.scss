@@ -28,3 +28,12 @@ app-root {
   min-height: 100%;
   width: 100%;
 }
+
+// Ensure all modals and dialogs appear on top of everything
+[class*="dialog"],
+[class*="modal"] {
+  &[style*="position: fixed"],
+  &[style*="position:fixed"] {
+    z-index: 999999 !important;
+  }
+}
