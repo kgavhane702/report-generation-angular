@@ -211,6 +211,69 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // DRAG HANDLING
   // ============================================
   
+  /**
+   * Handle pointer down on drag handle
+   * Ensures proper pointer event handling and prevents CKEditor interference
+   * Similar fix to resizer - ensures first drag attempt works after editing
+   * 
+   * The issue: After editing in CKEditor, isEditing is still true when drag handle
+   * is clicked, causing cdkDragDisabled to be true. The blur timeout delays the
+   * editing state change by 150ms, so the first drag attempt is blocked.
+   * 
+   * The fix: Exit editing mode immediately when drag handle is clicked, ensuring
+   * cdkDragDisabled becomes false before CDK Drag processes the event.
+   */
+  onDragHandlePointerDown(event: PointerEvent): void {
+    // CRITICAL FIX: Exit editing mode immediately if currently editing
+    // This ensures cdkDragDisabled becomes false before CDK Drag processes the event
+    // The editing state would normally clear after a 150ms blur timeout, but we need
+    // it to clear immediately when user starts dragging
+    if (this.isEditing) {
+      // Force stop editing immediately by stopping editing in UIState
+      // This will make cdkDragDisabled false right away
+      this.uiState.stopEditing();
+    }
+    
+    // Release any pointer capture that might be held by CKEditor or other elements
+    // This must be done synchronously before CDK Drag processes the event
+    if (event.pointerId !== undefined) {
+      try {
+        // Release capture from the active element (might be CKEditor's editable)
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement && typeof activeElement.releasePointerCapture === 'function') {
+          try {
+            activeElement.releasePointerCapture(event.pointerId);
+          } catch {
+            // Element might not have capture - that's fine
+          }
+        }
+        
+        // Also check if the event target or its parents have capture
+        let element: HTMLElement | null = event.target as HTMLElement;
+        while (element && element !== document.body) {
+          if (element.releasePointerCapture) {
+            try {
+              element.releasePointerCapture(event.pointerId);
+            } catch {
+              // Not all elements will have capture
+            }
+          }
+          element = element.parentElement;
+        }
+      } catch {
+        // Ignore errors - continue to let CDK Drag handle the event
+      }
+    }
+    
+    // Select widget if not already selected
+    if (!this.isSelected) {
+      this.uiState.selectWidget(this.widgetId);
+    }
+    
+    // Start drag tracking - CDK Drag will handle its own pointer capture
+    this.uiState.startDragging(this.widgetId);
+  }
+  
   onDragEnded(event: CdkDragEnd): void {
     const position = event.source.getFreeDragPosition();
     const newPosition: WidgetPosition = {

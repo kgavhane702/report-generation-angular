@@ -291,6 +291,10 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       return;
     }
 
+    // Release any pointer capture that CKEditor might be holding
+    // This helps ensure drag works immediately after editing stops
+    this.releasePointerCapture();
+
     // Use a small delay to check if the blur was caused by clicking inside the editor or toolbar
     // This prevents premature saving when clicking toolbar buttons or dragging
     this.blurTimeoutId = window.setTimeout(() => {
@@ -332,6 +336,42 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       this.isClickingInsideEditor = false;
       this.blurTimeoutId = null;
     }, 150);
+  }
+  
+  /**
+   * Release any pointer capture that might be held by CKEditor
+   * This helps ensure drag/resize work immediately after editing stops
+   */
+  private releasePointerCapture(): void {
+    try {
+      const editableElement = this.currentEditorInstance?.ui?.getEditableElement();
+      if (editableElement) {
+        // Try to release pointer capture for all possible pointer IDs
+        // Note: There's no API to enumerate active pointer captures,
+        // so we try common pointer IDs (0-10 should cover most cases)
+        for (let i = 0; i <= 10; i++) {
+          try {
+            (editableElement as HTMLElement).releasePointerCapture?.(i);
+          } catch {
+            // Ignore - pointer might not have capture
+          }
+        }
+      }
+      
+      // Also try to release from the active element
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && activeElement.releasePointerCapture) {
+        for (let i = 0; i <= 10; i++) {
+          try {
+            activeElement.releasePointerCapture(i);
+          } catch {
+            // Ignore
+          }
+        }
+      }
+    } catch {
+      // Ignore errors
+    }
   }
 
   // ============================================
