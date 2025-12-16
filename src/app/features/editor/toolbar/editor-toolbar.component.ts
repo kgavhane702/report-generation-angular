@@ -136,14 +136,18 @@ export class EditorToolbarComponent implements AfterViewInit {
       if (confirmed) {
         this.documentService.replaceDocument(result.document);
 
+        // Set first section, subsection, and page as active
         const firstSection = result.document.sections[0];
         const firstSubsection = firstSection?.subsections[0];
-        if (firstSubsection) {
-          this.ngZone.run(() => {
-            this.editorState.setActiveSubsection(firstSubsection.id);
-            this.appRef.tick();
-          });
-        }
+        const firstPage = firstSubsection?.pages[0];
+        
+        this.ngZone.run(() => {
+          if (firstSection) {
+            // Set the active section first, which will cascade to subsection and page
+            this.editorState.setActiveSection(firstSection.id);
+          }
+          this.appRef.tick();
+        });
 
         await new Promise(resolve => setTimeout(resolve, 200));
         await this.forceChartsReRender();
