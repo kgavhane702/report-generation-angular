@@ -14,16 +14,33 @@
     />
   </div>
 
-  <!-- Widgets Container -->
-  <app-widget-container
-    *ngFor="let widget of page.widgets; trackBy: trackByWidgetId"
-    [widget]="widget"
-    [pageSize]="pageSize"
-    [pageId]="page.id"
-    [subsectionId]="subsectionId"
-    [pageWidth]="widthPx"
-    [pageHeight]="heightPx"
-  ></app-widget-container>
+  <!-- Widgets Container - New ID-based approach -->
+  <!-- Each widget selects its own data using widgetId -->
+  <ng-container *ngIf="!useLegacyMode">
+    <app-widget-container
+      *ngFor="let widgetId of widgetIds; trackBy: trackByWidgetId"
+      [widgetId]="widgetId"
+      [pageSize]="pageSize"
+      [pageId]="pageId || page?.id || ''"
+      [subsectionId]="subsectionId"
+      [pageWidth]="widthPx"
+      [pageHeight]="heightPx"
+    ></app-widget-container>
+  </ng-container>
+  
+  <!-- Legacy mode: Full widget objects (backward compatibility) -->
+  <ng-container *ngIf="useLegacyMode">
+    <app-widget-container
+      *ngFor="let widget of legacyWidgets; trackBy: trackByWidgetId"
+      [widgetId]="widget.id"
+      [widget]="widget"
+      [pageSize]="pageSize"
+      [pageId]="page?.id || ''"
+      [subsectionId]="subsectionId"
+      [pageWidth]="widthPx"
+      [pageHeight]="heightPx"
+    ></app-widget-container>
+  </ng-container>
 
   <!-- Fixed Footer Elements at Bottom -->
   <div class="page__footer" *ngIf="footerLeftText || footerCenterText || showPageNumber">
@@ -46,9 +63,8 @@
     
     <!-- Bottom Right - Page Number -->
     <div class="page__footer-right" *ngIf="showPageNumber">
-      {{ page.number }}
+      {{ pageNumber }}
     </div>
     <div class="page__footer-right" *ngIf="!showPageNumber"></div>
   </div>
 </div>
-

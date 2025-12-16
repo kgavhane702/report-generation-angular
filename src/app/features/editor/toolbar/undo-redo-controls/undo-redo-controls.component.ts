@@ -2,13 +2,16 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-  ChangeDetectorRef,
-  effect,
   HostListener,
 } from '@angular/core';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
-import { DocumentService } from '../../../../core/services/document.service';
 
+/**
+ * UndoRedoControlsComponent
+ * 
+ * REFACTORED: Removed effect() + markForCheck() pattern.
+ * Signals automatically trigger change detection when used in templates.
+ */
 @Component({
   selector: 'app-undo-redo-controls',
   templateUrl: './undo-redo-controls.component.html',
@@ -17,24 +20,13 @@ import { DocumentService } from '../../../../core/services/document.service';
 })
 export class UndoRedoControlsComponent {
   private readonly undoRedoService = inject(UndoRedoService);
-  private readonly documentService = inject(DocumentService);
-  private readonly cdr = inject(ChangeDetectorRef);
 
+  // Signals automatically trigger change detection when used in templates
   readonly documentCanUndo = this.undoRedoService.documentCanUndo;
   readonly documentCanRedo = this.undoRedoService.documentCanRedo;
 
-  constructor() {
-    // Trigger change detection when undo/redo state changes
-    effect(() => {
-      this.undoRedoService.documentCanUndo();
-      this.undoRedoService.documentCanRedo();
-      this.cdr.markForCheck();
-    });
-  }
-
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
-    // Handle Ctrl+Z (undo) and Ctrl+Y or Ctrl+Shift+Z (redo)
     if (event.ctrlKey || event.metaKey) {
       if (event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
@@ -58,4 +50,3 @@ export class UndoRedoControlsComponent {
     }
   }
 }
-

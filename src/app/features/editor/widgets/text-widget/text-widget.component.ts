@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  effect,
   EventEmitter,
   Input,
   OnChanges,
@@ -14,6 +13,7 @@ import {
   ViewChild,
   ElementRef,
   AfterViewInit,
+  signal,
 } from '@angular/core';
 
 import {
@@ -23,9 +23,22 @@ import {
 import { RichTextEditorService } from '../../../../core/services/rich-text-editor/rich-text-editor.interface';
 import { CkEditorRichTextEditorService } from '../../../../core/services/rich-text-editor/ckeditor-rich-text-editor.service';
 import { RichTextToolbarService } from '../../../../core/services/rich-text-editor/rich-text-toolbar.service';
-import { EditorStateService } from '../../../../core/services/editor-state.service';
+import { UIStateService } from '../../../../core/services/ui-state.service';
 import { DecoupledEditor } from 'ckeditor5';
 
+/**
+ * TextWidgetComponent
+ * 
+ * REFACTORED to use local editing state:
+ * 1. CKEditor content is kept in local signal during editing
+ * 2. Changes are ONLY emitted when user finishes editing (blur)
+ * 3. External updates are ignored while actively editing
+ * 
+ * This prevents:
+ * - CKEditor losing focus during typing
+ * - Cursor position resetting
+ * - Content flickering
+ */
 @Component({
   selector: 'app-text-widget',
   templateUrl: './text-widget.component.html',
@@ -43,46 +56,82 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
 
   @ViewChild('editorContainer', { static: false }) editorContainer?: ElementRef<HTMLElement>;
 
+  // ============================================
+  // INJECTED SERVICES
+  // ============================================
+  
   private readonly editorService = inject(RichTextEditorService);
   private readonly toolbarService = inject(RichTextToolbarService);
-  private readonly editorState = inject(EditorStateService);
+  private readonly uiState = inject(UIStateService);
   private readonly cdr = inject(ChangeDetectorRef);
+  
+  // ============================================
+  // EDITOR CONFIGURATION
+  // ============================================
+  
   private editorInstance = this.editorService.createEditor();
-
   readonly Editor = this.editorInstance.Editor;
   readonly editorConfig = this.editorInstance.config;
 
-  editing = false;
-  editorData = '';
-  private blurTimeoutId: number | null = null;
-  private isClickingInsideEditor = false;
+  // ============================================
+  // LOCAL EDITING STATE
+  // This is the key architectural change!
+  // ============================================
+  
+  /**
+   * Local content during editing - NOT synced to store while editing
+   * This prevents store updates during typing which would cause re-renders
+   */
+  private readonly localContent = signal<string>('');
+  
+  /**
+   * Track if we're actively editing (user has focus)
+   * While true, we ignore external widget updates
+   */
+  private readonly isActivelyEditing = signal<boolean>(false);
+  
+  /**
+   * Content that was in the store when editing started
+   * Used to detect if content changed externally
+   */
+  private contentAtEditStart = '';
+  
+  // ============================================
+  // EDITOR STATE
+  // ============================================
+  
   private currentEditorInstance: DecoupledEditor | null = null;
   private isEditorInitialized = false;
+  private blurTimeoutId: number | null = null;
+  private isClickingInsideEditor = false;
 
-  constructor() {
-    // Watch for widget selection changes
-    effect(() => {
-      const activeWidgetId = this.editorState.activeWidgetId();
-      const isThisWidgetActive = activeWidgetId === this.widget?.id;
-      
-      if (isThisWidgetActive && this.currentEditorInstance) {
-        // Register editor and toolbar when this widget becomes active
-        const toolbarElement = this.currentEditorInstance.ui.view.toolbar.element;
-        this.toolbarService.setActiveEditor(this.currentEditorInstance, toolbarElement);
-      } else if (!isThisWidgetActive && this.toolbarService.activeEditor === this.currentEditorInstance) {
-        // Unregister when this widget becomes inactive (only if it was the active editor)
-        // But don't unregister if the editor is still being edited (focused)
-        if (!this.editing) {
-          this.toolbarService.setActiveEditor(null, null);
-        }
-      }
-      this.cdr.markForCheck();
-    });
+  // ============================================
+  // PUBLIC GETTERS
+  // ============================================
+  
+  /**
+   * Whether we're in editing mode
+   */
+  get editing(): boolean {
+    return this.isActivelyEditing();
   }
 
+  get textProps(): TextWidgetProps {
+    return this.widget.props as TextWidgetProps;
+  }
+
+  get backgroundColor(): string {
+    const bgColor = this.textProps.backgroundColor;
+    return bgColor && bgColor.trim() !== '' ? bgColor : 'transparent';
+  }
+
+  // ============================================
+  // LIFECYCLE
+  // ============================================
+
   ngOnInit(): void {
-    // Initialize with widget content
-    this.editorData = this.textProps.contentHtml ?? '';
+    // Initialize local content with widget content
+    this.localContent.set(this.textProps.contentHtml ?? '');
     
     // Listen to mousedown events to detect clicks inside editor/toolbar
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
@@ -96,15 +145,23 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   }
 
   ngOnDestroy(): void {
+    // Commit any pending changes before destroying
+    if (this.isActivelyEditing()) {
+      this.commitContentChange();
+    }
+    
     // Clean up event listener
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
+    
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
     }
+    
     // Unregister editor from toolbar service
     if (this.currentEditorInstance && this.toolbarService.activeEditor === this.currentEditorInstance) {
       this.toolbarService.setActiveEditor(null, null);
     }
+    
     // Destroy editor instance
     if (this.currentEditorInstance) {
       this.currentEditorInstance.destroy().catch(() => {
@@ -115,14 +172,27 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['widget'] && !this.editing && this.currentEditorInstance) {
-      this.editorData = this.textProps.contentHtml ?? '';
-      // Update editor content if it changed externally
-      if (this.currentEditorInstance.getData() !== this.editorData) {
-        this.currentEditorInstance.setData(this.editorData);
+    if (changes['widget'] && this.currentEditorInstance) {
+      // KEY CHANGE: Only update if NOT actively editing
+      if (!this.isActivelyEditing()) {
+        const newContent = this.textProps.contentHtml ?? '';
+        this.localContent.set(newContent);
+        
+        // Update editor content if it changed externally
+        if (this.currentEditorInstance.getData() !== newContent) {
+          this.currentEditorInstance.setData(newContent);
+        }
       }
+      // If actively editing, we ignore external updates to prevent:
+      // - Cursor position reset
+      // - Content flickering
+      // - Focus loss
     }
   }
+
+  // ============================================
+  // EDITOR INITIALIZATION
+  // ============================================
 
   private async initializeEditor(): Promise<void> {
     if (!this.editorContainer || this.isEditorInitialized) {
@@ -133,8 +203,8 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       const EditorClass = this.Editor;
       const config = this.editorConfig;
 
-      // Create DecoupledEditor instance (without mounting)
-      const editor = await EditorClass.create(this.editorData, config) as DecoupledEditor;
+      // Create DecoupledEditor instance with local content
+      const editor = await EditorClass.create(this.localContent(), config) as DecoupledEditor;
 
       // Get the editable element and mount it to the container
       const editableElement = editor.ui.getEditableElement();
@@ -147,8 +217,10 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       this.isEditorInitialized = true;
 
       // Set up data change listener
+      // KEY CHANGE: Only update local signal, NOT store
       editor.model.document.on('change:data', () => {
-        this.editorData = editor.getData();
+        // Update local content signal (no store update!)
+        this.localContent.set(editor.getData());
         this.cdr.markForCheck();
       });
 
@@ -162,7 +234,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       });
 
       // Register editor if this widget is active
-      if (this.editorState.activeWidgetId() === this.widget.id) {
+      if (this.uiState.activeWidgetId() === this.widget.id) {
         const toolbarElement = editor.ui.view.toolbar.element;
         this.toolbarService.setActiveEditor(editor, toolbarElement);
       }
@@ -172,6 +244,10 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       // Error handled silently
     }
   }
+
+  // ============================================
+  // EVENT HANDLERS
+  // ============================================
 
   private handleDocumentMouseDown = (event: MouseEvent): void => {
     // Check if click is inside the editor container or the rich text toolbar
@@ -202,14 +278,16 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       this.blurTimeoutId = null;
     }
 
-    if (!this.editing) {
-      this.editing = true;
+    // Start editing mode
+    if (!this.isActivelyEditing()) {
+      this.isActivelyEditing.set(true);
+      this.contentAtEditStart = this.textProps.contentHtml ?? '';
       this.editingChange.emit(true);
     }
   }
 
   private handleEditorBlur(): void {
-    if (!this.editing) {
+    if (!this.isActivelyEditing()) {
       return;
     }
 
@@ -224,20 +302,16 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       const isStillInsideToolbar = activeElement && 
         toolbarElement?.contains(activeElement);
       
-      // Only save if the focus moved outside both the editor and toolbar, and it wasn't a click inside
+      // Only commit and exit editing if focus moved completely outside
       if (!isStillInsideEditor && !isStillInsideToolbar && !this.isClickingInsideEditor) {
-        // Don't unregister here - keep the editor registered if the widget is still active
-        // The effect() will handle unregistering when the widget becomes inactive
-
-        this.editing = false;
+        // Commit the content change - this is the ONLY time we update the store
+        this.commitContentChange();
+        
+        // Exit editing mode
+        this.isActivelyEditing.set(false);
         this.editingChange.emit(false);
-
-        const nextHtml = this.editorData ?? '';
-        if (nextHtml !== this.textProps.contentHtml) {
-          this.propsChange.emit({ contentHtml: nextHtml });
-        }
       } else if (isStillInsideToolbar && this.currentEditorInstance) {
-        // Check if focus is on a select element (dropdown is open)
+        // Focus moved to toolbar - refocus editor after toolbar interaction
         const activeElement = document.activeElement;
         const isSelectElement = activeElement && activeElement.tagName === 'SELECT';
         
@@ -260,13 +334,21 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     }, 150);
   }
 
-  get textProps(): TextWidgetProps {
-    return this.widget.props as TextWidgetProps;
-  }
+  // ============================================
+  // CONTENT MANAGEMENT
+  // ============================================
 
-  get backgroundColor(): string {
-    const bgColor = this.textProps.backgroundColor;
-    return bgColor && bgColor.trim() !== '' ? bgColor : 'transparent';
+  /**
+   * Commit the local content to the store
+   * This is called ONLY when editing is complete (blur)
+   */
+  private commitContentChange(): void {
+    const currentContent = this.localContent();
+    const originalContent = this.contentAtEditStart;
+    
+    // Only emit if content actually changed
+    if (currentContent !== originalContent) {
+      this.propsChange.emit({ contentHtml: currentContent });
+    }
   }
 }
-

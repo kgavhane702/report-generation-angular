@@ -2,12 +2,13 @@
   <div class="page-canvas__wrapper" [style.width]="wrapperWidth">
     <section
       class="page-canvas__viewport"
-      [style.transform]="zoomTransform"
+      [style.transform]="zoomTransform()"
       [style.transform-origin]="zoomOrigin"
     >
       <app-page
         *ngFor="let page of subsection.pages"
         [page]="page"
+        [pageId]="page.id"
         [pageSize]="documentService.document.pageSize"
         [subsectionId]="subsection.id"
         [isActive]="editorState.activePageId() === page.id"
@@ -15,4 +16,3 @@
     </section>
   </div>
 </ng-container>
-

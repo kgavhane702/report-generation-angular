@@ -1,25 +1,60 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, signal, inject } from '@angular/core';
 
 import { DocumentService } from './document.service';
+import { UIStateService } from './ui-state.service';
 import { DocumentModel, SubsectionModel } from '../../models/document.model';
 import { PageModel } from '../../models/page.model';
 import { WidgetModel } from '../../models/widget.model';
 
+/**
+ * EditorStateService
+ * 
+ * REFACTORED to separate concerns:
+ * - Navigation state: section, subsection, page (lives here)
+ * - UI state: widget selection, zoom, etc. (delegated to UIStateService)
+ * 
+ * This separation allows:
+ * - Navigation changes don't affect widget editing
+ * - Widget selection changes don't trigger navigation updates
+ * - Cleaner code with single responsibility
+ */
 @Injectable({
   providedIn: 'root',
 })
 export class EditorStateService {
+  private readonly documentService = inject(DocumentService);
+  private readonly uiState = inject(UIStateService);
+  
+  // ============================================
+  // NAVIGATION STATE (owned by this service)
+  // ============================================
+  
   private readonly sectionId = signal<string | null>(null);
   private readonly subsectionId = signal<string | null>(null);
   private readonly pageId = signal<string | null>(null);
-  private readonly widgetId = signal<string | null>(null);
-  private readonly zoomLevel = signal<number>(100); // Zoom level in percentage (100 = 100%)
 
   readonly activeSectionId = this.sectionId.asReadonly();
   readonly activeSubsectionId = this.subsectionId.asReadonly();
   readonly activePageId = this.pageId.asReadonly();
-  readonly activeWidgetId = this.widgetId.asReadonly();
-  readonly zoom = this.zoomLevel.asReadonly();
+  
+  // ============================================
+  // DELEGATED UI STATE (from UIStateService)
+  // These are exposed here for backward compatibility
+  // ============================================
+  
+  /**
+   * Active widget ID - delegated to UIStateService
+   */
+  readonly activeWidgetId = this.uiState.activeWidgetId;
+  
+  /**
+   * Zoom level - delegated to UIStateService
+   */
+  readonly zoom = this.uiState.zoomLevel;
+
+  // ============================================
+  // COMPUTED PROPERTIES
+  // ============================================
 
   readonly document = computed<DocumentModel>(() => this.documentService.document);
 
@@ -47,7 +82,7 @@ export class EditorStateService {
   });
 
   readonly activeWidgetContext = computed<WidgetContext | null>(() => {
-    const selectedId = this.widgetId();
+    const selectedId = this.activeWidgetId();
     const subsection = this.activeSubsection();
     if (!selectedId || !subsection) {
       return null;
@@ -67,7 +102,16 @@ export class EditorStateService {
     () => this.activeWidgetContext()?.widget ?? null
   );
 
-  constructor(private readonly documentService: DocumentService) {
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+
+  constructor() {
+    // Initialize with first section/subsection/page
+    this.initializeNavigation();
+  }
+  
+  private initializeNavigation(): void {
     const doc = this.documentService.document;
     const firstSection = doc.sections[0];
     const firstSub = firstSection?.subsections[0];
@@ -78,9 +122,14 @@ export class EditorStateService {
     this.pageId.set(firstPage?.id ?? null);
   }
 
+  // ============================================
+  // NAVIGATION METHODS
+  // ============================================
+
   setActiveSection(sectionId: string): void {
     this.sectionId.set(sectionId);
-    this.widgetId.set(null);
+    this.uiState.selectWidget(null); // Clear widget selection on navigation
+    
     const section = this.documentService.document.sections.find(
       (s) => s.id === sectionId
     );
@@ -93,7 +142,8 @@ export class EditorStateService {
 
   setActiveSubsection(subsectionId: string): void {
     this.subsectionId.set(subsectionId);
-    this.widgetId.set(null);
+    this.uiState.selectWidget(null);
+    
     const subsection = this.documentService.document.sections
       .flatMap((section) => section.subsections)
       .find((sub) => sub.id === subsectionId);
@@ -102,40 +152,42 @@ export class EditorStateService {
 
   setActivePage(pageId: string): void {
     this.pageId.set(pageId);
-    this.widgetId.set(null);
+    this.uiState.selectWidget(null);
   }
 
+  // ============================================
+  // WIDGET SELECTION (delegated to UIStateService)
+  // ============================================
+
+  /**
+   * Set active widget - delegates to UIStateService
+   */
   setActiveWidget(widgetId: string | null): void {
-    this.widgetId.set(widgetId);
+    this.uiState.selectWidget(widgetId);
   }
+
+  // ============================================
+  // ZOOM METHODS (delegated to UIStateService)
+  // ============================================
 
   setZoom(zoom: number): void {
-    // Clamp zoom between 10% and 400%
-    const clampedZoom = Math.max(10, Math.min(400, zoom));
-    this.zoomLevel.set(clampedZoom);
+    this.uiState.setZoom(zoom);
   }
 
   zoomIn(): void {
-    const currentZoom = this.zoomLevel();
-    const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400];
-    const nextZoom = zoomSteps.find(step => step > currentZoom) || 400;
-    this.setZoom(nextZoom);
+    this.uiState.zoomIn();
   }
 
   zoomOut(): void {
-    const currentZoom = this.zoomLevel();
-    const zoomSteps = [25, 50, 75, 100, 125, 150, 200, 250, 300, 400];
-    const previousZoom = [...zoomSteps].reverse().find(step => step < currentZoom) || 25;
-    this.setZoom(previousZoom);
+    this.uiState.zoomOut();
   }
 
   resetZoom(): void {
-    this.setZoom(100);
+    this.uiState.resetZoom();
   }
 
   /**
    * Calculate zoom level to fit page within viewport
-   * This should be called from a component that has access to DOM measurements
    */
   calculateFitToWindowZoom(
     pageWidth: number,
@@ -144,18 +196,14 @@ export class EditorStateService {
     viewportHeight: number,
     padding: { top: number; right: number; bottom: number; left: number }
   ): number {
-    // Calculate available space (viewport minus padding)
     const availableWidth = viewportWidth - padding.left - padding.right;
     const availableHeight = viewportHeight - padding.top - padding.bottom;
 
-    // Calculate zoom ratios for width and height
     const widthRatio = (availableWidth / pageWidth) * 100;
     const heightRatio = (availableHeight / pageHeight) * 100;
 
-    // Use the smaller ratio to ensure the page fits completely
     const fitZoom = Math.min(widthRatio, heightRatio);
 
-    // Clamp between 10% and 400%
     return Math.max(10, Math.min(400, Math.floor(fitZoom)));
   }
 }
@@ -165,4 +213,3 @@ interface WidgetContext {
   pageId: string;
   subsectionId: string;
 }
-

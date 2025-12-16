@@ -3,16 +3,25 @@ import {
   Component,
   HostBinding,
   inject,
-  ChangeDetectorRef,
-  effect,
   ViewChild,
   ElementRef,
   AfterViewInit,
+  computed,
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
+import { UIStateService } from '../../../core/services/ui-state.service';
 import { DocumentService } from '../../../core/services/document.service';
 
+/**
+ * PageCanvasComponent
+ * 
+ * Container for pages with zoom and scroll support.
+ * 
+ * REFACTORED:
+ * - Uses UIStateService for zoom (transient UI state)
+ * - Removed manual markForCheck() - signals handle change detection
+ */
 @Component({
   selector: 'app-page-canvas',
   templateUrl: './page-canvas.component.html',
@@ -21,36 +30,33 @@ import { DocumentService } from '../../../core/services/document.service';
 })
 export class PageCanvasComponent implements AfterViewInit {
   protected readonly editorState = inject(EditorStateService);
+  protected readonly uiState = inject(UIStateService);
   protected readonly documentService = inject(DocumentService);
-  private readonly cdr = inject(ChangeDetectorRef);
   private readonly elementRef = inject(ElementRef);
 
   @ViewChild('viewport', { static: false }) viewportRef?: ElementRef<HTMLElement>;
 
-  readonly zoom = this.editorState.zoom;
+  /**
+   * Zoom level from UIStateService
+   * Signals automatically trigger change detection when value changes
+   */
+  readonly zoom = this.uiState.zoomLevel;
 
   @HostBinding('class.page-canvas') hostClass = true;
 
-  constructor() {
-    // Trigger change detection when zoom changes
-    effect(() => {
-      this.editorState.zoom();
-      this.cdr.markForCheck();
-    });
-  }
+  /**
+   * Computed zoom transform style
+   */
+  readonly zoomTransform = computed(() => {
+    const zoomValue = this.zoom() / 100;
+    return `scale(${zoomValue})`;
+  });
+
+  readonly zoomOrigin = 'top center';
 
   ngAfterViewInit(): void {
     // Expose method to calculate fit zoom
     (this.editorState as any).calculateFitZoom = () => this.calculateFitZoom();
-  }
-
-  get zoomTransform(): string {
-    const zoomValue = this.zoom() / 100;
-    return `scale(${zoomValue})`;
-  }
-
-  get zoomOrigin(): string {
-    return 'top center';
   }
 
   /**
@@ -123,23 +129,10 @@ export class PageCanvasComponent implements AfterViewInit {
     const viewportWidth = canvasElement.clientWidth;
     const viewportHeight = canvasElement.clientHeight;
 
-    // Account for padding: canvas has 2rem (32px) top/bottom and 3rem (48px) left/right
-    // Page canvas has 2rem (32px) top/bottom and 2.5rem (40px) left/right
-    const canvasPadding = {
-      top: 32,
-      right: 48,
-      bottom: 32,
-      left: 48,
-    };
+    // Account for padding
+    const canvasPadding = { top: 32, right: 48, bottom: 32, left: 48 };
+    const pageCanvasPadding = { top: 32, right: 40, bottom: 32, left: 40 };
 
-    const pageCanvasPadding = {
-      top: 32,
-      right: 40,
-      bottom: 32,
-      left: 40,
-    };
-
-    // Total padding
     const totalPadding = {
       top: canvasPadding.top + pageCanvasPadding.top,
       right: canvasPadding.right + pageCanvasPadding.right,
@@ -162,4 +155,3 @@ export class PageCanvasComponent implements AfterViewInit {
     return Math.max(10, Math.min(400, Math.floor(fitZoom)));
   }
 }
-

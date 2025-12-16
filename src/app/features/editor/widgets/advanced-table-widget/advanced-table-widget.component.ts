@@ -112,6 +112,12 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
       const prevProps = changes['widget'].previousValue?.props;
       const currentProps = this.widget.props;
       
+      // KEY CHANGE: Don't update from external props while actively editing
+      // This prevents disrupting user's editing session
+      if (this.isActivelyEditing) {
+        return;
+      }
+      
       this.rows = currentProps.rows || 3;
       this.columns = currentProps.columns || 3;
       
@@ -135,6 +141,14 @@ export class AdvancedTableWidgetComponent implements OnInit, OnChanges, OnDestro
         this.cdr.markForCheck();
       }
     }
+  }
+  
+  /**
+   * Track if table is being actively edited/selected
+   * Used to prevent external updates during user interaction
+   */
+  get isActivelyEditing(): boolean {
+    return this.editingCell !== null || this.isSelecting || this.selectedCells.length > 0;
   }
 
   ngOnDestroy(): void {

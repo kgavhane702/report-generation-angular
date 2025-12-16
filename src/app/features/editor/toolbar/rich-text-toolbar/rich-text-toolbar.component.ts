@@ -2,7 +2,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  effect,
+  computed,
   inject,
   OnInit,
   OnDestroy,
@@ -16,6 +16,12 @@ import { EditorStateService } from '../../../../core/services/editor-state.servi
 import { TextWidgetColorPickerComponent } from '../text-widget-color-picker/text-widget-color-picker.component';
 import { Subscription } from 'rxjs';
 
+/**
+ * RichTextToolbarComponent
+ * 
+ * REFACTORED: Uses computed signal instead of effect for widget type check.
+ * Subscription callback still needs markForCheck since it's RxJS, not signals.
+ */
 @Component({
   selector: 'app-rich-text-toolbar',
   standalone: true,
@@ -33,25 +39,22 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
   private toolbarSubscription?: Subscription;
   private pendingToolbarElement: HTMLElement | null = null;
   
-  // Track if a text widget is active
-  isTextWidgetActive = false;
-
-  constructor() {
-    // Watch for active widget changes to determine if a text widget is selected
-    effect(() => {
-      const activeWidget = this.editorState.activeWidget();
-      this.isTextWidgetActive = activeWidget?.type === 'text';
-      this.cdr.markForCheck();
-    });
-  }
+  /**
+   * Computed signal: automatically updates when activeWidget changes
+   * No manual markForCheck needed since signals handle this
+   */
+  readonly isTextWidgetActive = computed(() => {
+    const activeWidget = this.editorState.activeWidget();
+    return activeWidget?.type === 'text';
+  });
 
   ngOnInit(): void {
     // Subscribe to active toolbar element changes
+    // markForCheck is needed here because this is an RxJS subscription, not a signal
     this.toolbarSubscription = this.toolbarService.activeToolbar$.subscribe((toolbarElement) => {
       if (this.toolbarContainer) {
         this.updateToolbar(toolbarElement);
       } else {
-        // Store for later when view is ready
         this.pendingToolbarElement = toolbarElement;
       }
       this.cdr.markForCheck();
@@ -59,7 +62,6 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
   }
 
   ngAfterViewInit(): void {
-    // Mount pending toolbar if available
     if (this.pendingToolbarElement && this.toolbarContainer) {
       this.updateToolbar(this.pendingToolbarElement);
       this.pendingToolbarElement = null;
@@ -80,14 +82,11 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
 
     const container = this.toolbarContainer.nativeElement;
     
-    // Clear existing toolbar
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
 
-    // Append new toolbar if available
     if (toolbarElement && toolbarElement.parentNode !== container) {
-      // Remove from previous parent if it exists
       if (toolbarElement.parentNode) {
         toolbarElement.parentNode.removeChild(toolbarElement);
       }
@@ -96,8 +95,6 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
   }
 
   get hasActiveToolbar(): boolean {
-    // Show toolbar container if a text widget is active
-    return this.isTextWidgetActive;
+    return this.isTextWidgetActive();
   }
 }
-

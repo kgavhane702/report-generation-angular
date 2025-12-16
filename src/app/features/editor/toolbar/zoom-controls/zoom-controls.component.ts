@@ -2,13 +2,17 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
-  ChangeDetectorRef,
-  effect,
 } from '@angular/core';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
 import { DocumentService } from '../../../../core/services/document.service';
 
+/**
+ * ZoomControlsComponent
+ * 
+ * REFACTORED: Removed effect() + markForCheck() pattern.
+ * Signals automatically trigger change detection when used in templates.
+ */
 @Component({
   selector: 'app-zoom-controls',
   templateUrl: './zoom-controls.component.html',
@@ -19,21 +23,13 @@ export class ZoomControlsComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly documentService = inject(DocumentService);
-  private readonly cdr = inject(ChangeDetectorRef);
 
+  // Signals automatically trigger change detection
   readonly zoom = this.editorState.zoom;
   readonly canUndo = this.undoRedoService.zoomCanUndo;
   readonly canRedo = this.undoRedoService.zoomCanRedo;
 
-  private skipRecording: boolean = false;
-
-  constructor() {
-    // Track zoom changes for change detection
-    effect(() => {
-      this.editorState.zoom();
-      this.cdr.markForCheck();
-    });
-  }
+  private skipRecording = false;
 
   onZoomChange(value: number): void {
     if (this.skipRecording) {
@@ -41,7 +37,6 @@ export class ZoomControlsComponent {
     }
     const oldZoom = this.zoom();
     this.editorState.setZoom(value);
-    // Record zoom change for undo/redo
     if (oldZoom !== value) {
       this.undoRedoService.recordZoomChange(
         oldZoom,
@@ -140,14 +135,12 @@ export class ZoomControlsComponent {
   }
 
   private calculateAndSetFitZoom(): void {
-    // Get the canvas element
     const canvasElement = window.document.querySelector('.editor-shell__canvas') as HTMLElement;
     if (!canvasElement) {
       this.editorState.setZoom(100);
       return;
     }
 
-    // Get viewport dimensions
     const viewportWidth = canvasElement.clientWidth;
     const viewportHeight = canvasElement.clientHeight;
 
@@ -156,7 +149,6 @@ export class ZoomControlsComponent {
       return;
     }
 
-    // Get active page dimensions
     const subsection = this.editorState.activeSubsection();
     if (!subsection || subsection.pages.length === 0) {
       this.editorState.setZoom(100);
@@ -177,7 +169,6 @@ export class ZoomControlsComponent {
     const orientation = activePage.orientation || 'landscape';
     const { widthMm, heightMm } = pageSize;
 
-    // Get oriented dimensions
     let pageWidthMm = widthMm;
     let pageHeightMm = heightMm;
     if (orientation === 'portrait' && widthMm > heightMm) {
@@ -188,7 +179,6 @@ export class ZoomControlsComponent {
       pageHeightMm = widthMm;
     }
 
-    // Convert to pixels
     const dpi = pageSize.dpi ?? 96;
     const pageWidthPx = Math.round((pageWidthMm / 25.4) * dpi);
     const pageHeightPx = Math.round((pageHeightMm / 25.4) * dpi);
@@ -198,7 +188,6 @@ export class ZoomControlsComponent {
       return;
     }
 
-    // Account for padding
     const totalPadding = {
       top: 32 + 32,
       right: 48 + 40,
@@ -206,7 +195,6 @@ export class ZoomControlsComponent {
       left: 48 + 40,
     };
 
-    // Calculate available space
     const availableWidth = viewportWidth - totalPadding.left - totalPadding.right;
     const availableHeight = viewportHeight - totalPadding.top - totalPadding.bottom;
 
@@ -215,16 +203,11 @@ export class ZoomControlsComponent {
       return;
     }
 
-    // Calculate zoom ratios
     const widthRatio = (availableWidth / pageWidthPx) * 100;
     const heightRatio = (availableHeight / pageHeightPx) * 100;
 
-    // Use the smaller ratio to ensure page fits completely
     const fitZoom = Math.min(widthRatio, heightRatio);
-
-    // Clamp and set zoom
     const clampedZoom = Math.max(10, Math.min(400, Math.round(fitZoom)));
     this.editorState.setZoom(clampedZoom);
   }
 }
-
