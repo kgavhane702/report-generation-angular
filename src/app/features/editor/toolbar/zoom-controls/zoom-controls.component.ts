@@ -149,23 +149,22 @@ export class ZoomControlsComponent {
       return;
     }
 
-    const subsection = this.editorState.activeSubsection();
-    if (!subsection || subsection.pages.length === 0) {
+    // Use normalized state - get pages for active subsection
+    const pages = this.editorState.activeSubsectionPages();
+    if (pages.length === 0) {
       this.editorState.setZoom(100);
       return;
     }
 
-    const activePage = subsection.pages.find(
-      (p) => p.id === this.editorState.activePageId()
-    ) || subsection.pages[0];
+    const activePageId = this.editorState.activePageId();
+    const activePage = pages.find((p: any) => p.id === activePageId) || pages[0];
 
     if (!activePage) {
       this.editorState.setZoom(100);
       return;
     }
 
-    const doc = this.documentService.document;
-    const pageSize = doc.pageSize;
+    const pageSize = this.editorState.pageSize();
     const orientation = activePage.orientation || 'landscape';
     const { widthMm, heightMm } = pageSize;
 

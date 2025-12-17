@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { DocumentService } from '../../../core/services/document.service';
-import { PageModel } from '../../../models/page.model';
+import { PageEntity } from '../../../store/document/document.state';
 
 @Component({
   selector: 'app-page-outline',
@@ -17,12 +17,21 @@ export class PageOutlineComponent {
   editingPageId: string | null = null;
   editingPageValue = '';
 
+  /** Get pages for active subsection */
+  readonly pages = this.editorState.activeSubsectionPages;
+  
+  /** Get active subsection ID */
+  readonly activeSubsectionId = this.editorState.activeSubsectionId;
+  
+  /** Get active page ID */
+  readonly activePageId = this.editorState.activePageId;
+
   selectPage(pageId: string): void {
     this.editorState.setActivePage(pageId);
   }
 
   addPage(): void {
-    const subsectionId = this.editorState.activeSubsectionId();
+    const subsectionId = this.activeSubsectionId();
     if (!subsectionId) {
       return;
     }
@@ -32,16 +41,16 @@ export class PageOutlineComponent {
     }
   }
 
-  startPageEdit(page: PageModel, event: MouseEvent): void {
+  startPageEdit(page: PageEntity, event: MouseEvent): void {
     event.stopPropagation();
     this.editingPageId = page.id;
     this.editingPageValue = page.title ?? `Page ${page.number}`;
   }
 
-  savePageTitle(subsectionId: string, pageId: string): void {
+  savePageTitle(pageId: string): void {
     const value = this.editingPageValue.trim();
     if (value) {
-      this.documentService.renamePage(subsectionId, pageId, value);
+      this.documentService.renamePage(pageId, value);
     }
     this.editingPageId = null;
   }
@@ -61,17 +70,26 @@ export class PageOutlineComponent {
     }
   }
 
-  displayTitle(page: PageModel): string {
+  displayTitle(page: PageEntity): string {
     return page.title ?? `Page ${page.number}`;
   }
 
   setPageOrientation(
-    subsectionId: string,
     pageId: string,
     orientation: 'portrait' | 'landscape',
     event: MouseEvent
   ): void {
     event.stopPropagation();
-    this.documentService.updatePageOrientation(subsectionId, pageId, orientation);
+    this.documentService.updatePageOrientation(pageId, orientation);
+  }
+  
+  /** Get widget count for a page */
+  getWidgetCount(pageId: string): number {
+    return this.editorState.getWidgetCountForPage(pageId);
+  }
+  
+  /** Track by page ID */
+  trackByPageId(index: number, page: PageEntity): string {
+    return page.id;
   }
 }

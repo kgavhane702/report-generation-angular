@@ -74,8 +74,8 @@ export class TextWidgetColorPickerComponent {
       return;
     }
 
-    const { widget, pageId, subsectionId } = context;
-    this.documentService.updateWidget(subsectionId, pageId, widget.id, {
+    const { widget, pageId } = context;
+    this.documentService.updateWidget(pageId, widget.id, {
       props: {
         ...widget.props,
         backgroundColor: color,

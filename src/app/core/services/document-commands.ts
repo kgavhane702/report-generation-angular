@@ -1,5 +1,5 @@
 import { Store } from '@ngrx/store';
-import { DocumentModel, SubsectionModel, SectionModel, PageSize } from '../../models/document.model';
+import { SubsectionModel, SectionModel, PageSize } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
 import { PageModel } from '../../models/page.model';
 import { DocumentActions, WidgetActions } from '../../store/document/document.actions';
@@ -15,7 +15,6 @@ import { Command } from './undo-redo.service';
 export class AddWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private subsectionId: string,
     private pageId: string,
     private widget: WidgetModel
   ) {}
@@ -23,7 +22,6 @@ export class AddWidgetCommand implements Command {
   execute(): void {
     this.store.dispatch(
       DocumentActions.addWidget({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
         widget: this.widget,
       })
@@ -31,10 +29,8 @@ export class AddWidgetCommand implements Command {
   }
 
   undo(): void {
-    // Remove the specific widget - much more efficient than replacing entire document
     this.store.dispatch(
       DocumentActions.deleteWidget({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
         widgetId: this.widget.id,
       })
@@ -53,15 +49,13 @@ export class AddWidgetCommand implements Command {
 export class UpdateWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private subsectionId: string,
     private pageId: string,
     private widgetId: string,
     private changes: Partial<WidgetModel>,
-    private previousWidget: WidgetModel // Only store this widget's previous state
+    private previousWidget: WidgetModel | WidgetEntity
   ) {}
 
   execute(): void {
-    // Use entity-level action for targeted update
     this.store.dispatch(
       WidgetActions.updateOne({
         id: this.widgetId,
@@ -71,7 +65,6 @@ export class UpdateWidgetCommand implements Command {
   }
 
   undo(): void {
-    // Restore only this widget to its previous state
     this.store.dispatch(
       WidgetActions.updateOne({
         id: this.widgetId,
@@ -91,16 +84,14 @@ export class UpdateWidgetCommand implements Command {
 export class DeleteWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private subsectionId: string,
     private pageId: string,
     private widgetId: string,
-    private deletedWidget: WidgetModel // Store the deleted widget for undo
+    private deletedWidget: WidgetModel | WidgetEntity
   ) {}
 
   execute(): void {
     this.store.dispatch(
       DocumentActions.deleteWidget({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
         widgetId: this.widgetId,
       })
@@ -108,12 +99,15 @@ export class DeleteWidgetCommand implements Command {
   }
 
   undo(): void {
-    // Re-add the deleted widget
+    // Convert WidgetEntity to WidgetModel if needed
+    const widget = 'pageId' in this.deletedWidget 
+      ? (({ pageId, ...rest }) => rest)(this.deletedWidget as WidgetEntity) as WidgetModel
+      : this.deletedWidget;
+    
     this.store.dispatch(
       DocumentActions.addWidget({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
-        widget: this.deletedWidget,
+        widget,
       })
     );
   }
@@ -128,7 +122,7 @@ export class UpdatePageSizeCommand implements Command {
   constructor(
     private store: Store<AppState>,
     private pageSize: Partial<PageSize>,
-    private previousPageSize: PageSize // Only store previous page size
+    private previousPageSize: PageSize
   ) {}
 
   execute(): void {
@@ -169,7 +163,7 @@ export class DeleteSectionCommand implements Command {
   constructor(
     private store: Store<AppState>,
     private sectionId: string,
-    private deletedSection: SectionModel // Store the deleted section for undo
+    private deletedSection: SectionModel
   ) {}
 
   execute(): void {
@@ -177,7 +171,6 @@ export class DeleteSectionCommand implements Command {
   }
 
   undo(): void {
-    // Re-add the deleted section
     this.store.dispatch(DocumentActions.addSection({ section: this.deletedSection }));
   }
 
@@ -217,7 +210,7 @@ export class DeleteSubsectionCommand implements Command {
     private store: Store<AppState>,
     private sectionId: string,
     private subsectionId: string,
-    private deletedSubsection: SubsectionModel // Store for undo
+    private deletedSubsection: SubsectionModel
   ) {}
 
   execute(): void {
@@ -264,7 +257,7 @@ export class DeletePageCommand implements Command {
     private store: Store<AppState>,
     private subsectionId: string,
     private pageId: string,
-    private deletedPage: PageModel // Store for undo
+    private deletedPage: PageModel
   ) {}
 
   execute(): void {
@@ -286,7 +279,7 @@ export class RenameSectionCommand implements Command {
     private store: Store<AppState>,
     private sectionId: string,
     private title: string,
-    private previousTitle: string // Only store previous title
+    private previousTitle: string
   ) {}
 
   execute(): void {
@@ -332,7 +325,6 @@ export class RenameSubsectionCommand implements Command {
 export class RenamePageCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private subsectionId: string,
     private pageId: string,
     private title: string,
     private previousTitle: string
@@ -341,7 +333,6 @@ export class RenamePageCommand implements Command {
   execute(): void {
     this.store.dispatch(
       DocumentActions.renamePage({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
         title: this.title,
       })
@@ -351,7 +342,6 @@ export class RenamePageCommand implements Command {
   undo(): void {
     this.store.dispatch(
       DocumentActions.renamePage({
-        subsectionId: this.subsectionId,
         pageId: this.pageId,
         title: this.previousTitle,
       })

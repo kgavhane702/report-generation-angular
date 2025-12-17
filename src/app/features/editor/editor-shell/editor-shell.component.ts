@@ -62,17 +62,15 @@ export class EditorShellComponent {
     }
 
     this.documentService.copyWidget(
-      widgetContext.subsectionId,
       widgetContext.pageId,
       widgetContext.widget.id
     );
   }
 
   private pasteWidgets(): void {
-    const subsectionId = this.editorState.activeSubsectionId();
     const pageId = this.editorState.activePageId();
 
-    if (!subsectionId || !pageId) {
+    if (!pageId) {
       return;
     }
 
@@ -80,11 +78,10 @@ export class EditorShellComponent {
       return;
     }
 
-    const pastedWidgetIds = this.documentService.pasteWidgets(subsectionId, pageId);
+    const pastedWidgetIds = this.documentService.pasteWidgets(pageId);
 
     if (pastedWidgetIds.length > 0) {
       this.editorState.setActiveWidget(pastedWidgetIds[0]);
     }
   }
 }
-

@@ -1,8 +1,13 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { SectionModel, SubsectionModel } from '../../../models/document.model';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { Dictionary } from '@ngrx/entity';
 
 import { DocumentService } from '../../../core/services/document.service';
 import { EditorStateService } from '../../../core/services/editor-state.service';
+import { AppState } from '../../../store/app.state';
+import { DocumentSelectors } from '../../../store/document/document.selectors';
+import { SectionEntity, SubsectionEntity } from '../../../store/document/document.state';
 
 @Component({
   selector: 'app-editor-breadcrumb',
@@ -13,24 +18,54 @@ import { EditorStateService } from '../../../core/services/editor-state.service'
 export class EditorBreadcrumbComponent {
   protected readonly documentService = inject(DocumentService);
   protected readonly editorState = inject(EditorStateService);
+  private readonly store = inject(Store<AppState>);
 
   editingSectionId: string | null = null;
   editingSectionValue = '';
   editingSubsectionId: string | null = null;
   editingSubsectionValue = '';
 
-  get sections(): SectionModel[] {
-    return this.documentService.document.sections;
+  /** All sections (ordered) */
+  private readonly allSections = toSignal(
+    this.store.select(DocumentSelectors.selectAllSections),
+    { initialValue: [] as SectionEntity[] }
+  );
+  
+  /** All section IDs */
+  private readonly sectionIds = toSignal(
+    this.store.select(DocumentSelectors.selectSectionIds),
+    { initialValue: [] as string[] }
+  );
+  
+  /** Section entities map */
+  private readonly sectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSectionEntities),
+    { initialValue: {} as Dictionary<SectionEntity> }
+  );
+
+  /** Get sections ordered by sectionIds */
+  get sections(): SectionEntity[] {
+    const ids = this.sectionIds();
+    const entities = this.sectionEntities();
+    return ids.map((id: string) => entities[id]).filter((s): s is SectionEntity => !!s);
   }
 
-  get activeSection(): SectionModel | undefined {
-    const activeId = this.editorState.activeSectionId();
-    return this.sections.find((section) => section.id === activeId);
+  /** Active section ID */
+  readonly activeSectionId = this.editorState.activeSectionId;
+  
+  /** Active subsection ID */
+  readonly activeSubsectionId = this.editorState.activeSubsectionId;
+
+  /** Get active section */
+  get activeSection(): SectionEntity | null {
+    const activeId = this.activeSectionId();
+    if (!activeId) return null;
+    const entities = this.sectionEntities();
+    return entities[activeId] ?? null;
   }
 
-  get subsections(): SubsectionModel[] {
-    return this.activeSection?.subsections ?? [];
-  }
+  /** Subsections for active section */
+  readonly subsections = this.editorState.activeSectionSubsections;
 
   selectSection(sectionId: string): void {
     this.editorState.setActiveSection(sectionId);
@@ -48,7 +83,7 @@ export class EditorBreadcrumbComponent {
   }
 
   addSubsection(): void {
-    const sectionId = this.editorState.activeSectionId();
+    const sectionId = this.activeSectionId();
     if (!sectionId) {
       return;
     }
@@ -62,7 +97,7 @@ export class EditorBreadcrumbComponent {
     }
   }
 
-  startSectionEdit(section: SectionModel, event: MouseEvent): void {
+  startSectionEdit(section: SectionEntity, event: MouseEvent): void {
     event.stopPropagation();
     this.editingSectionId = section.id;
     this.editingSectionValue = section.title;
@@ -97,7 +132,7 @@ export class EditorBreadcrumbComponent {
     }
   }
 
-  startSubsectionEdit(subsection: SubsectionModel, event: MouseEvent): void {
+  startSubsectionEdit(subsection: SubsectionEntity, event: MouseEvent): void {
     event.stopPropagation();
     this.editingSubsectionId = subsection.id;
     this.editingSubsectionValue = subsection.title;
@@ -117,11 +152,11 @@ export class EditorBreadcrumbComponent {
 
   deleteSubsection(subsectionId: string, event: MouseEvent): void {
     event.stopPropagation();
-    const sectionId = this.editorState.activeSectionId();
+    const sectionId = this.activeSectionId();
     if (!sectionId) {
       return;
     }
-    const subsections = this.subsections;
+    const subsections = this.subsections();
     if (subsections.length <= 1) {
       return;
     }
@@ -133,5 +168,14 @@ export class EditorBreadcrumbComponent {
       }
     }
   }
+  
+  /** Track by section ID */
+  trackBySectionId(index: number, section: SectionEntity): string {
+    return section.id;
+  }
+  
+  /** Track by subsection ID */
+  trackBySubsectionId(index: number, subsection: SubsectionEntity): string {
+    return subsection.id;
+  }
 }
-

@@ -153,10 +153,9 @@ export class TableToolbarComponent implements OnInit {
   private applyStyle(style: Partial<AdvancedTableCellStyle>): void {
     if (!this.activeWidget) return;
 
-    const subsectionId = this.editorState.activeSubsectionId();
     const pageId = this.editorState.activePageId();
 
-    if (!subsectionId || !pageId) return;
+    if (!pageId) return;
 
     const currentStyles = this.activeWidget.props.cellStyles || {};
     const updatedStyles = { ...currentStyles };
@@ -178,7 +177,7 @@ export class TableToolbarComponent implements OnInit {
       // This could be improved to show a message or apply to active cell
     }
     
-    this.documentService.updateWidget(subsectionId, pageId, this.activeWidget.id, {
+    this.documentService.updateWidget(pageId, this.activeWidget.id, {
       props: {
         ...this.activeWidget.props,
         cellStyles: updatedStyles,

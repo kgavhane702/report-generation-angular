@@ -19,8 +19,8 @@ import {
 } from './document.state';
 
 /**
- * Legacy Document Actions (for backward compatibility during migration)
- * These will be deprecated once migration is complete.
+ * Document Actions - Normalized State Only
+ * All actions work with the normalized entity structure.
  */
 export const DocumentActions = createActionGroup({
   source: 'Document',
@@ -29,13 +29,10 @@ export const DocumentActions = createActionGroup({
     'Update Document Title': props<{ title: string }>(),
     'Update Page Size': props<{ pageSize: Partial<PageSize> }>(),
     'Add Widget': props<{
-      subsectionId: string;
       pageId: string;
       widget: WidgetModel;
     }>(),
     'Update Widget': props<{
-      subsectionId: string;
-      pageId: string;
       widgetId: string;
       changes: Partial<WidgetModel>;
     }>(),
@@ -50,13 +47,12 @@ export const DocumentActions = createActionGroup({
     }>(),
     'Rename Section': props<{ sectionId: string; title: string }>(),
     'Rename Subsection': props<{ subsectionId: string; title: string }>(),
-    'Rename Page': props<{ subsectionId: string; pageId: string; title: string }>(),
-    'Update Page Orientation': props<{ subsectionId: string; pageId: string; orientation: 'portrait' | 'landscape' }>(),
+    'Rename Page': props<{ pageId: string; title: string }>(),
+    'Update Page Orientation': props<{ pageId: string; orientation: 'portrait' | 'landscape' }>(),
     'Delete Section': props<{ sectionId: string }>(),
     'Delete Subsection': props<{ sectionId: string; subsectionId: string }>(),
     'Delete Page': props<{ subsectionId: string; pageId: string }>(),
     'Delete Widget': props<{
-      subsectionId: string;
       pageId: string;
       widgetId: string;
     }>(),

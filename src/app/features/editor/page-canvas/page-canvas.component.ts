@@ -7,26 +7,17 @@ import {
   ElementRef,
   AfterViewInit,
   computed,
-  signal,
-  OnInit,
-  OnDestroy,
+  effect,
 } from '@angular/core';
-import { Store } from '@ngrx/store';
-import { Subscription } from 'rxjs';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { UIStateService } from '../../../core/services/ui-state.service';
-import { DocumentService } from '../../../core/services/document.service';
-import { AppState } from '../../../store/app.state';
-import { DocumentSelectors } from '../../../store/document/document.selectors';
 
 /**
  * PageCanvasComponent
  * 
- * FIXED: Now uses granular selectors instead of nested document traversal.
- * 
- * Before: subsection.pages → new array on ANY widget change → all pages re-render
- * After: selectPageIdsForSubsection → stable array, only changes on page add/remove
+ * Uses EditorStateService's reactive signals for page rendering.
+ * Automatically reacts to subsection changes via computed signals.
  */
 @Component({
   selector: 'app-page-canvas',
@@ -34,11 +25,9 @@ import { DocumentSelectors } from '../../../store/document/document.selectors';
   styleUrls: ['./page-canvas.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
+export class PageCanvasComponent implements AfterViewInit {
   protected readonly editorState = inject(EditorStateService);
   protected readonly uiState = inject(UIStateService);
-  protected readonly documentService = inject(DocumentService);
-  private readonly store = inject(Store<AppState>);
   private readonly elementRef = inject(ElementRef);
 
   @ViewChild('viewport', { static: false }) viewportRef?: ElementRef<HTMLElement>;
@@ -51,21 +40,20 @@ export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
   @HostBinding('class.page-canvas') hostClass = true;
 
   /**
-   * Page IDs for the active subsection - STABLE reference
-   * Only changes when pages are added/removed, NOT when widget content changes
+   * Page IDs for the active subsection - REACTIVE
+   * Automatically updates when subsection changes
    */
-  private readonly _pageIds = signal<string[]>([]);
-  readonly pageIds = this._pageIds.asReadonly();
+  readonly pageIds = this.editorState.activeSubsectionPageIds;
 
   /**
-   * Active subsection ID for tracking
+   * Active subsection ID for template
    */
   readonly activeSubsectionId = this.editorState.activeSubsectionId;
 
   /**
-   * Subscription management
+   * Page size from EditorStateService
    */
-  private pageIdsSubscription?: Subscription;
+  readonly pageSize = this.editorState.pageSize;
 
   /**
    * Computed zoom transform style
@@ -77,39 +65,8 @@ export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
 
   readonly zoomOrigin = 'top center';
 
-  ngOnInit(): void {
-    // Subscribe to page IDs using granular selector
-    this.subscribeToPageIds();
-  }
-
   ngAfterViewInit(): void {
     (this.editorState as any).calculateFitZoom = () => this.calculateFitZoom();
-  }
-
-  ngOnDestroy(): void {
-    this.pageIdsSubscription?.unsubscribe();
-  }
-
-  /**
-   * Subscribe to page IDs for the active subsection
-   * This uses the granular selector that only emits when pages are added/removed
-   */
-  private subscribeToPageIds(): void {
-    // Watch for subsection changes and update page IDs subscription
-    const subsectionId = this.activeSubsectionId();
-    if (subsectionId) {
-      this.updatePageIdsSubscription(subsectionId);
-    }
-  }
-
-  private updatePageIdsSubscription(subsectionId: string): void {
-    this.pageIdsSubscription?.unsubscribe();
-    
-    this.pageIdsSubscription = this.store
-      .select(DocumentSelectors.selectPageIdsForSubsection(subsectionId))
-      .subscribe(ids => {
-        this._pageIds.set(ids);
-      });
   }
 
   /**
@@ -123,9 +80,9 @@ export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
    * Get the base page width in pixels
    */
   get basePageWidthPx(): number {
-    const pageSize = this.documentService.document.pageSize;
-    const dpi = pageSize.dpi ?? 96;
-    const widthMm = Math.max(pageSize.widthMm, pageSize.heightMm);
+    const size = this.pageSize();
+    const dpi = size.dpi ?? 96;
+    const widthMm = Math.max(size.widthMm, size.heightMm);
     return Math.round((widthMm / 25.4) * dpi);
   }
 
@@ -143,22 +100,21 @@ export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
    * Calculate zoom level to fit the page within the visible canvas area
    */
   calculateFitZoom(): number {
-    const subsection = this.editorState.activeSubsection();
-    if (!subsection || subsection.pages.length === 0) {
+    const pages = this.editorState.activeSubsectionPages();
+    if (pages.length === 0) {
       return 100;
     }
 
-    const activePage = subsection.pages.find(
-      (p) => p.id === this.editorState.activePageId()
-    ) || subsection.pages[0];
+    const activePageId = this.editorState.activePageId();
+    const activePage = pages.find((p: any) => p.id === activePageId) || pages[0];
 
     if (!activePage) {
       return 100;
     }
 
-    const pageSize = this.documentService.document.pageSize;
+    const size = this.pageSize();
     const orientation = activePage.orientation || 'landscape';
-    const { widthMm, heightMm } = pageSize;
+    const { widthMm, heightMm } = size;
     
     let pageWidthMm = widthMm;
     let pageHeightMm = heightMm;
@@ -170,7 +126,7 @@ export class PageCanvasComponent implements OnInit, AfterViewInit, OnDestroy {
       pageHeightMm = widthMm;
     }
 
-    const dpi = pageSize.dpi ?? 96;
+    const dpi = size.dpi ?? 96;
     const pageWidthPx = Math.round((pageWidthMm / 25.4) * dpi);
     const pageHeightPx = Math.round((pageHeightMm / 25.4) * dpi);
 

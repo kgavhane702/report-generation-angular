@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
 
 import { WidgetFactoryService } from '../widgets/widget-factory.service';
 import { DocumentService } from '../../../core/services/document.service';
@@ -7,6 +9,9 @@ import { ExportService } from '../../../core/services/export.service';
 import { ImportService } from '../../../core/services/import.service';
 import { PdfService } from '../../../core/services/pdf.service';
 import { WidgetType } from '../../../models/widget.model';
+import { AppState } from '../../../store/app.state';
+import { DocumentSelectors } from '../../../store/document/document.selectors';
+
 @Component({
   selector: 'app-editor-toolbar',
   templateUrl: './editor-toolbar.component.html',
@@ -22,8 +27,16 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly pdfService = inject(PdfService);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
+  private readonly store = inject(Store<AppState>);
 
-  readonly document$ = this.documentService.document$;
+  /** Document title from store */
+  readonly documentTitle = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentTitle),
+    { initialValue: 'Untitled Document' }
+  );
+  
+  /** Denormalized document for export */
+  readonly document$ = this.store.select(DocumentSelectors.selectDenormalizedDocument);
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
@@ -38,15 +51,14 @@ export class EditorToolbarComponent implements AfterViewInit {
   showTableDropdown = false;
 
   addWidget(type: WidgetType, options?: { rows?: number; columns?: number }): void {
-    const subsectionId = this.editorState.activeSubsectionId();
     const pageId = this.editorState.activePageId();
 
-    if (!subsectionId || !pageId) {
+    if (!pageId) {
       return;
     }
 
     const widget = this.widgetFactory.createWidget(type, options);
-    this.documentService.addWidget(subsectionId, pageId, widget);
+    this.documentService.addWidget(pageId, widget);
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
@@ -134,22 +146,18 @@ export class EditorToolbarComponent implements AfterViewInit {
       );
 
       if (confirmed) {
+        // Replace document in store
         this.documentService.replaceDocument(result.document);
 
-        // Set first section, subsection, and page as active
-        const firstSection = result.document.sections[0];
-        const firstSubsection = firstSection?.subsections[0];
-        const firstPage = firstSubsection?.pages[0];
-        
-        this.ngZone.run(() => {
-          if (firstSection) {
-            // Set the active section first, which will cascade to subsection and page
-            this.editorState.setActiveSection(firstSection.id);
-          }
-          this.appRef.tick();
-        });
+        // Reset navigation to first section/subsection/page
+        // Use setTimeout to allow store to update first
+        setTimeout(() => {
+          this.ngZone.run(() => {
+            this.editorState.resetNavigation();
+            this.appRef.tick();
+          });
+        }, 100);
 
-        await new Promise(resolve => setTimeout(resolve, 200));
         await this.forceChartsReRender();
         
         let message = 'Document imported successfully!';
@@ -188,8 +196,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   startEditingDocumentName(): void {
-    const doc = this.documentService.document;
-    this.documentNameValue = doc.title || '';
+    this.documentNameValue = this.documentTitle() || '';
     this.isEditingDocumentName = true;
     
     // Focus the input after Angular updates
@@ -216,4 +223,3 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
 }
-

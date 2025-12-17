@@ -1,13 +1,13 @@
-<div class="editor-toolbar" *ngIf="document$ | async as document">
+<div class="editor-toolbar">
   <div class="editor-toolbar__group editor-toolbar__group--document-name">
     <div class="editor-toolbar__document-name">
       <ng-container *ngIf="!isEditingDocumentName; else documentNameInput">
         <span 
           class="editor-toolbar__document-name-label"
           (click)="startEditingDocumentName()"
-          [title]="document.title || 'Untitled Document'"
+          [title]="documentTitle() || 'Untitled Document'"
         >
-          {{ document.title || 'Untitled Document' }}
+          {{ documentTitle() || 'Untitled Document' }}
         </span>
         <button
           type="button"

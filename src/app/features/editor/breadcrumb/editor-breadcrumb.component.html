@@ -7,8 +7,8 @@
     <div class="breadcrumb__list">
       <div
         class="breadcrumb__chip"
-        *ngFor="let section of sections"
-        [class.breadcrumb__chip--active]="editorState.activeSectionId() === section.id"
+        *ngFor="let section of sections; trackBy: trackBySectionId"
+        [class.breadcrumb__chip--active]="activeSectionId() === section.id"
         (click)="selectSection(section.id)"
       >
         <ng-container *ngIf="editingSectionId === section.id; else sectionLabel">
@@ -45,7 +45,7 @@
       <button
         type="button"
         (click)="addSubsection()"
-        [disabled]="!editorState.activeSectionId()"
+        [disabled]="!activeSectionId()"
       >
         + Subsection
       </button>
@@ -53,8 +53,8 @@
     <div class="breadcrumb__list">
       <div
         class="breadcrumb__chip"
-        *ngFor="let subsection of subsections"
-        [class.breadcrumb__chip--active]="editorState.activeSubsectionId() === subsection.id"
+        *ngFor="let subsection of subsections(); trackBy: trackBySubsectionId"
+        [class.breadcrumb__chip--active]="activeSubsectionId() === subsection.id"
         (click)="selectSubsection(subsection.id)"
       >
         <ng-container *ngIf="editingSubsectionId === subsection.id; else subsectionLabel">
@@ -75,7 +75,7 @@
             <button
               type="button"
               (click)="deleteSubsection(subsection.id, $event)"
-              [disabled]="subsections.length <= 1"
+              [disabled]="subsections().length <= 1"
             >
               ✕
             </button>
@@ -85,4 +85,3 @@
     </div>
   </div>
 </div>
-

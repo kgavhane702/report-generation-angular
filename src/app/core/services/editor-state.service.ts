@@ -1,101 +1,206 @@
-import { Injectable, computed, signal, inject } from '@angular/core';
+import { Injectable, computed, signal, inject, effect } from '@angular/core';
+import { Store } from '@ngrx/store';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Dictionary } from '@ngrx/entity';
 
-import { DocumentService } from './document.service';
 import { UIStateService } from './ui-state.service';
-import { DocumentModel, SubsectionModel } from '../../models/document.model';
-import { PageModel } from '../../models/page.model';
+import { AppState } from '../../store/app.state';
+import { DocumentSelectors } from '../../store/document/document.selectors';
+import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 import { WidgetModel } from '../../models/widget.model';
 
 /**
  * EditorStateService
  * 
- * REFACTORED to separate concerns:
+ * Manages navigation state using normalized store selectors.
  * - Navigation state: section, subsection, page (lives here)
  * - UI state: widget selection, zoom, etc. (delegated to UIStateService)
- * 
- * This separation allows:
- * - Navigation changes don't affect widget editing
- * - Widget selection changes don't trigger navigation updates
- * - Cleaner code with single responsibility
  */
 @Injectable({
   providedIn: 'root',
 })
 export class EditorStateService {
-  private readonly documentService = inject(DocumentService);
+  private readonly store = inject(Store<AppState>);
   private readonly uiState = inject(UIStateService);
   
   // ============================================
   // NAVIGATION STATE (owned by this service)
   // ============================================
   
-  private readonly sectionId = signal<string | null>(null);
-  private readonly subsectionId = signal<string | null>(null);
-  private readonly pageId = signal<string | null>(null);
+  private readonly _sectionId = signal<string | null>(null);
+  private readonly _subsectionId = signal<string | null>(null);
+  private readonly _pageId = signal<string | null>(null);
 
-  readonly activeSectionId = this.sectionId.asReadonly();
-  readonly activeSubsectionId = this.subsectionId.asReadonly();
-  readonly activePageId = this.pageId.asReadonly();
+  readonly activeSectionId = this._sectionId.asReadonly();
+  readonly activeSubsectionId = this._subsectionId.asReadonly();
+  readonly activePageId = this._pageId.asReadonly();
+  
+  // ============================================
+  // STORE SIGNALS (from normalized state)
+  // ============================================
+  
+  /** All section IDs */
+  private readonly sectionIds = toSignal(
+    this.store.select(DocumentSelectors.selectSectionIds),
+    { initialValue: [] as string[] }
+  );
+  
+  /** Section entities map */
+  private readonly sectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSectionEntities),
+    { initialValue: {} as Dictionary<SectionEntity> }
+  );
+  
+  /** Subsection entities map */
+  private readonly subsectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionEntities),
+    { initialValue: {} as Dictionary<SubsectionEntity> }
+  );
+  
+  /** Page entities map */
+  private readonly pageEntities = toSignal(
+    this.store.select(DocumentSelectors.selectPageEntities),
+    { initialValue: {} as Dictionary<PageEntity> }
+  );
+  
+  /** Widget entities map */
+  private readonly widgetEntities = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Dictionary<WidgetEntity> }
+  );
+  
+  /** Subsection IDs by section ID */
+  private readonly subsectionIdsBySectionId = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionIdsBySectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Page IDs by subsection ID */
+  private readonly pageIdsBySubsectionId = toSignal(
+    this.store.select(DocumentSelectors.selectPageIdsBySubsectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Widget IDs by page ID */
+  private readonly widgetIdsByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetIdsByPageId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Page size */
+  readonly pageSize = toSignal(
+    this.store.select(DocumentSelectors.selectPageSize),
+    { initialValue: { widthMm: 254, heightMm: 190.5, dpi: 96 } }
+  );
+  
+  /** Document footer */
+  readonly documentFooter = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentFooter),
+    { initialValue: undefined }
+  );
+  
+  /** Document logo */
+  readonly documentLogo = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentLogo),
+    { initialValue: undefined }
+  );
   
   // ============================================
   // DELEGATED UI STATE (from UIStateService)
-  // These are exposed here for backward compatibility
   // ============================================
   
-  /**
-   * Active widget ID - delegated to UIStateService
-   */
   readonly activeWidgetId = this.uiState.activeWidgetId;
-  
-  /**
-   * Zoom level - delegated to UIStateService
-   */
   readonly zoom = this.uiState.zoomLevel;
 
   // ============================================
-  // COMPUTED PROPERTIES
+  // COMPUTED PROPERTIES (from normalized state)
   // ============================================
 
-  readonly document = computed<DocumentModel>(() => this.documentService.document);
-
-  readonly activeSubsection = computed<SubsectionModel | null>(() => {
-    const subId = this.subsectionId();
-    if (!subId) {
-      return null;
-    }
-    for (const section of this.document().sections) {
-      const subsection = section.subsections.find((s) => s.id === subId);
-      if (subsection) {
-        return subsection;
-      }
-    }
-    return null;
+  /** Active section entity */
+  readonly activeSection = computed<SectionEntity | null>(() => {
+    const id = this._sectionId();
+    if (!id) return null;
+    const entities = this.sectionEntities();
+    return entities[id] ?? null;
   });
 
-  readonly activePage = computed<PageModel | null>(() => {
-    const pageId = this.pageId();
-    const subsection = this.activeSubsection();
-    if (!subsection || !pageId) {
-      return null;
-    }
-    return subsection.pages.find((p) => p.id === pageId) ?? null;
+  /** Active subsection entity */
+  readonly activeSubsection = computed<SubsectionEntity | null>(() => {
+    const id = this._subsectionId();
+    if (!id) return null;
+    const entities = this.subsectionEntities();
+    return entities[id] ?? null;
   });
 
+  /** Active page entity */
+  readonly activePage = computed<PageEntity | null>(() => {
+    const id = this._pageId();
+    if (!id) return null;
+    const entities = this.pageEntities();
+    return entities[id] ?? null;
+  });
+  
+  /** Page IDs for active subsection */
+  readonly activeSubsectionPageIds = computed<string[]>(() => {
+    const subId = this._subsectionId();
+    return subId ? this.pageIdsBySubsectionId()[subId] ?? [] : [];
+  });
+  
+  /** Pages for active subsection */
+  readonly activeSubsectionPages = computed<PageEntity[]>(() => {
+    const pageIds = this.activeSubsectionPageIds();
+    const entities = this.pageEntities();
+    return pageIds.map((id: string) => entities[id]).filter((p): p is PageEntity => !!p);
+  });
+  
+  /** Subsection IDs for active section */
+  readonly activeSectionSubsectionIds = computed<string[]>(() => {
+    const secId = this._sectionId();
+    return secId ? this.subsectionIdsBySectionId()[secId] ?? [] : [];
+  });
+  
+  /** Subsections for active section */
+  readonly activeSectionSubsections = computed<SubsectionEntity[]>(() => {
+    const subIds = this.activeSectionSubsectionIds();
+    const entities = this.subsectionEntities();
+    return subIds.map((id: string) => entities[id]).filter((s): s is SubsectionEntity => !!s);
+  });
+  
+  /** Widget IDs for active page */
+  readonly activePageWidgetIds = computed<string[]>(() => {
+    const pageId = this._pageId();
+    return pageId ? this.widgetIdsByPageId()[pageId] ?? [] : [];
+  });
+
+  /** Active widget context */
   readonly activeWidgetContext = computed<WidgetContext | null>(() => {
     const selectedId = this.activeWidgetId();
-    const subsection = this.activeSubsection();
-    if (!selectedId || !subsection) {
+    const subsectionId = this._subsectionId();
+    const pageId = this._pageId();
+    
+    if (!selectedId || !subsectionId) {
       return null;
     }
 
-    for (const page of subsection.pages) {
-      const widget = page.widgets.find((w) => w.id === selectedId);
-      if (widget) {
-        return { widget, pageId: page.id, subsectionId: subsection.id };
-      }
+    const entities = this.widgetEntities();
+    const widget = entities[selectedId];
+    if (!widget) {
+      return null;
+    }
+    
+    // Verify widget belongs to current page
+    const widgetPageId = widget.pageId;
+    if (widgetPageId !== pageId) {
+      return null;
     }
 
-    return null;
+    // Convert WidgetEntity to WidgetModel (remove pageId)
+    const { pageId: _, ...widgetModel } = widget;
+    return { 
+      widget: widgetModel as WidgetModel, 
+      pageId: widgetPageId, 
+      subsectionId 
+    };
   });
 
   readonly activeWidget = computed<WidgetModel | null>(
@@ -107,19 +212,31 @@ export class EditorStateService {
   // ============================================
 
   constructor() {
-    // Initialize with first section/subsection/page
-    this.initializeNavigation();
+    // Use effect to initialize navigation when sections are available
+    effect(() => {
+      const ids = this.sectionIds();
+      const currentSectionId = this._sectionId();
+      
+      // Only initialize if no section is selected and sections exist
+      if (!currentSectionId && ids.length > 0) {
+        this.initializeNavigation();
+      }
+    }, { allowSignalWrites: true });
   }
   
   private initializeNavigation(): void {
-    const doc = this.documentService.document;
-    const firstSection = doc.sections[0];
-    const firstSub = firstSection?.subsections[0];
-    const firstPage = firstSub?.pages[0];
+    const sectionIds = this.sectionIds();
+    if (sectionIds.length === 0) return;
+    
+    const firstSectionId = sectionIds[0];
+    const subIds = this.subsectionIdsBySectionId()[firstSectionId] || [];
+    const firstSubId = subIds[0];
+    const pageIds = firstSubId ? this.pageIdsBySubsectionId()[firstSubId] || [] : [];
+    const firstPageId = pageIds[0];
 
-    this.sectionId.set(firstSection?.id ?? null);
-    this.subsectionId.set(firstSub?.id ?? null);
-    this.pageId.set(firstPage?.id ?? null);
+    this._sectionId.set(firstSectionId ?? null);
+    this._subsectionId.set(firstSubId ?? null);
+    this._pageId.set(firstPageId ?? null);
   }
 
   // ============================================
@@ -127,31 +244,32 @@ export class EditorStateService {
   // ============================================
 
   setActiveSection(sectionId: string): void {
-    this.sectionId.set(sectionId);
-    this.uiState.selectWidget(null); // Clear widget selection on navigation
+    this._sectionId.set(sectionId);
+    this.uiState.selectWidget(null);
     
-    const section = this.documentService.document.sections.find(
-      (s) => s.id === sectionId
-    );
-    const subsection = section?.subsections[0];
-
-    if (subsection) {
-      this.setActiveSubsection(subsection.id);
+    // Auto-select first subsection
+    const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
+    const firstSubId = subIds[0];
+    
+    if (firstSubId) {
+      this.setActiveSubsection(firstSubId);
+    } else {
+      this._subsectionId.set(null);
+      this._pageId.set(null);
     }
   }
 
   setActiveSubsection(subsectionId: string): void {
-    this.subsectionId.set(subsectionId);
+    this._subsectionId.set(subsectionId);
     this.uiState.selectWidget(null);
     
-    const subsection = this.documentService.document.sections
-      .flatMap((section) => section.subsections)
-      .find((sub) => sub.id === subsectionId);
-    this.pageId.set(subsection?.pages[0]?.id ?? null);
+    // Auto-select first page
+    const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
+    this._pageId.set(pageIds[0] ?? null);
   }
 
   setActivePage(pageId: string): void {
-    this.pageId.set(pageId);
+    this._pageId.set(pageId);
     this.uiState.selectWidget(null);
   }
 
@@ -159,9 +277,6 @@ export class EditorStateService {
   // WIDGET SELECTION (delegated to UIStateService)
   // ============================================
 
-  /**
-   * Set active widget - delegates to UIStateService
-   */
   setActiveWidget(widgetId: string | null): void {
     this.uiState.selectWidget(widgetId);
   }
@@ -186,9 +301,6 @@ export class EditorStateService {
     this.uiState.resetZoom();
   }
 
-  /**
-   * Calculate zoom level to fit page within viewport
-   */
   calculateFitToWindowZoom(
     pageWidth: number,
     pageHeight: number,
@@ -205,6 +317,32 @@ export class EditorStateService {
     const fitZoom = Math.min(widthRatio, heightRatio);
 
     return Math.max(10, Math.min(400, Math.floor(fitZoom)));
+  }
+  
+  // ============================================
+  // HELPER METHODS
+  // ============================================
+  
+  /** Get widget count for a specific page */
+  getWidgetCountForPage(pageId: string): number {
+    return this.widgetIdsByPageId()[pageId]?.length ?? 0;
+  }
+  
+  /** Get a widget by ID */
+  getWidgetById(widgetId: string): WidgetEntity | null {
+    const entities = this.widgetEntities();
+    return entities[widgetId] ?? null;
+  }
+  
+  /** Get a page by ID */
+  getPageById(pageId: string): PageEntity | null {
+    const entities = this.pageEntities();
+    return entities[pageId] ?? null;
+  }
+  
+  /** Reset navigation to first section/subsection/page */
+  resetNavigation(): void {
+    this.initializeNavigation();
   }
 }
 

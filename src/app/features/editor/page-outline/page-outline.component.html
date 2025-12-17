@@ -1,15 +1,15 @@
 <div class="page-outline">
   <div class="page-outline__header">
     <h3>Pages</h3>
-    <button type="button" (click)="addPage()" [disabled]="!editorState.activeSubsectionId()">
+    <button type="button" (click)="addPage()" [disabled]="!activeSubsectionId()">
       + Page
     </button>
   </div>
-  <div class="page-outline__list" *ngIf="editorState.activeSubsection() as subsection">
+  <div class="page-outline__list" *ngIf="activeSubsectionId() as subsectionId">
     <div
       class="page-outline__item"
-      *ngFor="let page of subsection.pages"
-      [class.page-outline__item--active]="editorState.activePageId() === page.id"
+      *ngFor="let page of pages(); trackBy: trackByPageId"
+      [class.page-outline__item--active]="activePageId() === page.id"
       (click)="selectPage(page.id)"
     >
       <ng-container *ngIf="editingPageId === page.id; else pageLabel">
@@ -18,8 +18,8 @@
           [value]="editingPageValue"
           (click)="$event.stopPropagation()"
           (input)="editingPageValue = $any($event.target).value"
-          (blur)="savePageTitle(subsection.id, page.id)"
-          (keydown.enter)="savePageTitle(subsection.id, page.id)"
+          (blur)="savePageTitle(page.id)"
+          (keydown.enter)="savePageTitle(page.id)"
           (keydown.escape)="cancelPageEdit()"
         />
       </ng-container>
@@ -28,13 +28,13 @@
           {{ displayTitle(page) }}
         </div>
         <div class="page-outline__meta">
-          <span class="page-outline__widgets">{{ page.widgets.length }}</span>
+          <span class="page-outline__widgets">{{ getWidgetCount(page.id) }}</span>
           <div class="page-outline__orientation">
             <button
               type="button"
               class="page-outline__orientation-btn"
               [class.page-outline__orientation-btn--active]="page.orientation === 'landscape' || !page.orientation"
-              (click)="setPageOrientation(subsection.id, page.id, 'landscape', $event)"
+              (click)="setPageOrientation(page.id, 'landscape', $event)"
               title="Landscape (wider)"
             >
               ⬌
@@ -43,7 +43,7 @@
               type="button"
               class="page-outline__orientation-btn"
               [class.page-outline__orientation-btn--active]="page.orientation === 'portrait'"
-              (click)="setPageOrientation(subsection.id, page.id, 'portrait', $event)"
+              (click)="setPageOrientation(page.id, 'portrait', $event)"
               title="Portrait (taller)"
             >
               ⬍
@@ -52,8 +52,8 @@
           <button type="button" (click)="startPageEdit(page, $event)">✎</button>
           <button
             type="button"
-            (click)="deletePage(subsection.id, page.id, $event, subsection.pages.length)"
-            [disabled]="subsection.pages.length <= 1"
+            (click)="deletePage(subsectionId, page.id, $event, pages().length)"
+            [disabled]="pages().length <= 1"
           >
             ✕
           </button>
@@ -62,4 +62,3 @@
     </div>
   </div>
 </div>
-

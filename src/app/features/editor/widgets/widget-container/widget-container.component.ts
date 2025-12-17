@@ -429,7 +429,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (!currentWidget) return;
     
     // Update via document service for undo support
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widgetId, {
+    this.documentService.updateWidget(this.pageId, this.widgetId, {
       props: {
         ...currentWidget.props,
         ...props,
@@ -445,7 +445,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const currentWidget = this.displayWidget();
     if (!currentWidget) return;
     
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widgetId, {
+    this.documentService.updateWidget(this.pageId, this.widgetId, {
       props: {
         ...currentWidget.props,
         cellData,
@@ -457,7 +457,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const currentWidget = this.displayWidget();
     if (!currentWidget) return;
     
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widgetId, {
+    this.documentService.updateWidget(this.pageId, this.widgetId, {
       props: {
         ...currentWidget.props,
         cellStyles,
@@ -475,7 +475,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const currentWidget = this.displayWidget();
     if (!currentWidget) return;
     
-    this.documentService.updateWidget(this.subsectionId, this.pageId, this.widgetId, {
+    this.documentService.updateWidget(this.pageId, this.widgetId, {
       props: {
         ...currentWidget.props,
         rows: structure.rows,
@@ -499,7 +499,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.draftState.discardDraft(this.widgetId);
     
     // Delete the widget
-    this.documentService.deleteWidget(this.subsectionId, this.pageId, this.widgetId);
+    this.documentService.deleteWidget(this.pageId, this.widgetId);
     
     // Clear selection
     this.uiState.selectWidget(null);

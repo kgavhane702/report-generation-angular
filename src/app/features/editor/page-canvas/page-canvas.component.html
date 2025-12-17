@@ -7,13 +7,13 @@
       [style.transform-origin]="zoomOrigin"
     >
       <!-- 
-        FIXED: Using pageIds (stable array) instead of subsection.pages (changes on every widget update)
-        This prevents all pages from re-rendering when a single widget changes.
+        Uses reactive pageIds signal from EditorStateService.
+        Automatically updates when subsection changes.
       -->
       <app-page
         *ngFor="let pageId of pageIds(); trackBy: trackByPageId"
         [pageId]="pageId"
-        [pageSize]="documentService.document.pageSize"
+        [pageSize]="pageSize()"
         [subsectionId]="subsectionId"
         [isActive]="editorState.activePageId() === pageId"
       ></app-page>

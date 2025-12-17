@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
+import { Dictionary } from '@ngrx/entity';
 
 import {
   DocumentModel,
@@ -38,42 +39,115 @@ import {
   RenamePageCommand,
 } from './document-commands';
 import { WidgetFactoryService } from '../../features/editor/widgets/widget-factory.service';
+import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 
 /**
  * DocumentService
  * 
- * OPTIMIZED:
- * - No longer clones entire document for undo
- * - Stores only minimal data needed for each command
- * - Uses entity-level actions for widget updates
+ * Works with normalized state only.
+ * Uses selectors for reading and actions for writing.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class DocumentService {
-  readonly document$ = this.store.select(DocumentSelectors.selectDocument);
-  private readonly documentSignal = toSignal(this.document$, {
-    initialValue: createInitialDocument(),
-  });
+  private readonly store = inject(Store<AppState>);
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly clipboardService = inject(ClipboardService);
   private readonly widgetFactory = inject(WidgetFactoryService);
 
-  constructor(private readonly store: Store<AppState>) {}
+  // ============================================
+  // STORE SIGNALS
+  // ============================================
+  
+  /** Denormalized document (for export) */
+  readonly document$ = this.store.select(DocumentSelectors.selectDenormalizedDocument);
+  private readonly documentSignal = toSignal(this.document$, {
+    initialValue: createInitialDocument(),
+  });
+  
+  /** Section IDs */
+  private readonly sectionIds = toSignal(
+    this.store.select(DocumentSelectors.selectSectionIds),
+    { initialValue: [] as string[] }
+  );
+  
+  /** Section entities */
+  private readonly sectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSectionEntities),
+    { initialValue: {} as Dictionary<SectionEntity> }
+  );
+  
+  /** Subsection entities */
+  private readonly subsectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionEntities),
+    { initialValue: {} as Dictionary<SubsectionEntity> }
+  );
+  
+  /** Page entities */
+  private readonly pageEntities = toSignal(
+    this.store.select(DocumentSelectors.selectPageEntities),
+    { initialValue: {} as Dictionary<PageEntity> }
+  );
+  
+  /** Widget entities */
+  private readonly widgetEntities = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Dictionary<WidgetEntity> }
+  );
+  
+  /** Subsection IDs by section ID */
+  private readonly subsectionIdsBySectionId = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionIdsBySectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Page IDs by subsection ID */
+  private readonly pageIdsBySubsectionId = toSignal(
+    this.store.select(DocumentSelectors.selectPageIdsBySubsectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Widget IDs by page ID */
+  private readonly widgetIdsByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetIdsByPageId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+  
+  /** Page size */
+  private readonly pageSizeSignal = toSignal(
+    this.store.select(DocumentSelectors.selectPageSize),
+    { initialValue: { widthMm: 254, heightMm: 190.5, dpi: 96 } }
+  );
 
+  // ============================================
+  // PUBLIC GETTERS
+  // ============================================
+  
+  /** Get denormalized document (for export/compatibility) */
   get document(): DocumentModel {
     return this.documentSignal();
+  }
+  
+  /** Get page size */
+  get pageSize(): PageSize {
+    return this.pageSizeSignal();
+  }
+  
+  /** Get all sections */
+  get sections(): SectionEntity[] {
+    const ids = this.sectionIds();
+    const entities = this.sectionEntities();
+    return ids.map((id: string) => entities[id]).filter((s): s is SectionEntity => !!s);
   }
 
   // ============================================
   // WIDGET OPERATIONS
   // ============================================
 
-  addWidget(subsectionId: string, pageId: string, widget: WidgetModel): void {
-    // No need to clone document - command stores only the widget
+  addWidget(pageId: string, widget: WidgetModel): void {
     const command = new AddWidgetCommand(
       this.store,
-      subsectionId,
       pageId,
       widget
     );
@@ -81,46 +155,36 @@ export class DocumentService {
   }
 
   updateWidget(
-    subsectionId: string,
     pageId: string,
     widgetId: string,
     mutation: Partial<WidgetModel>
   ): void {
-    // Find the widget's current state for undo
-    const previousWidget = this.findWidgetById(subsectionId, pageId, widgetId);
+    const previousWidget = this.widgetEntities()[widgetId];
     if (!previousWidget) {
-      return; // Widget not found
+      return;
     }
 
-    // Store only this widget's previous state, not entire document
     const command = new UpdateWidgetCommand(
       this.store,
-      subsectionId,
       pageId,
       widgetId,
       mutation,
-      { ...previousWidget } // Shallow clone of just this widget
+      { ...previousWidget }
     );
     this.undoRedoService.executeDocumentCommand(command);
   }
 
-  deleteWidget(
-    subsectionId: string,
-    pageId: string,
-    widgetId: string
-  ): void {
-    // Find the widget to store for undo
-    const widget = this.findWidgetById(subsectionId, pageId, widgetId);
+  deleteWidget(pageId: string, widgetId: string): void {
+    const widget = this.widgetEntities()[widgetId];
     if (!widget) {
       return;
     }
 
     const command = new DeleteWidgetCommand(
       this.store,
-      subsectionId,
       pageId,
       widgetId,
-      { ...widget } // Store only this widget for undo
+      { ...widget }
     );
     this.undoRedoService.executeDocumentCommand(command);
   }
@@ -138,8 +202,7 @@ export class DocumentService {
   }
 
   updatePageSize(pageSize: Partial<PageSize>): void {
-    // Store only previous page size for undo
-    const previousPageSize = { ...this.document.pageSize };
+    const previousPageSize = { ...this.pageSizeSignal() };
     const command = new UpdatePageSizeCommand(
       this.store,
       pageSize,
@@ -153,14 +216,13 @@ export class DocumentService {
   // ============================================
 
   addSection(): HierarchySelection {
-    const sectionCount = this.document.sections.length + 1;
+    const sectionCount = this.sectionIds().length + 1;
     const sectionTitle = `Section ${sectionCount}`;
     const subsectionTitle = 'Subsection 1';
     const page = createPageModel(1);
     const subsection = createSubsectionModel(subsectionTitle, [page]);
     const section = createSectionModel(sectionTitle, [subsection]);
 
-    // No need to clone document - undo just removes the section
     const command = new AddSectionCommand(this.store, section);
     this.undoRedoService.executeDocumentCommand(command);
 
@@ -172,41 +234,48 @@ export class DocumentService {
   }
 
   deleteSection(sectionId: string): HierarchySelection | null {
-    const sections = this.document.sections;
-    const index = sections.findIndex((section) => section.id === sectionId);
+    const sectionIds = this.sectionIds();
+    const index = sectionIds.indexOf(sectionId);
     if (index === -1) {
       return null;
     }
 
-    const sectionToDelete = sections[index];
-    const fallback = sections[index + 1] ?? sections[index - 1];
-    const fallbackSubsection = fallback?.subsections[0] ?? null;
-    const fallbackPage = fallbackSubsection?.pages[0] ?? null;
+    // Get section data for undo
+    const sectionEntity = this.sectionEntities()[sectionId];
+    if (!sectionEntity) return null;
+    
+    // Build nested section for undo
+    const sectionToDelete = this.buildSectionModel(sectionId);
+    
+    const fallbackId = sectionIds[index + 1] ?? sectionIds[index - 1];
+    const fallbackSubIds = fallbackId ? this.subsectionIdsBySectionId()[fallbackId] || [] : [];
+    const fallbackSubId = fallbackSubIds[0];
+    const fallbackPageIds = fallbackSubId ? this.pageIdsBySubsectionId()[fallbackSubId] || [] : [];
+    const fallbackPageId = fallbackPageIds[0];
 
-    // Store the section for undo (deep clone since section has nested data)
     const command = new DeleteSectionCommand(
       this.store,
       sectionId,
-      JSON.parse(JSON.stringify(sectionToDelete))
+      sectionToDelete
     );
     this.undoRedoService.executeDocumentCommand(command);
 
     return {
-      sectionId: fallback?.id ?? null,
-      subsectionId: fallbackSubsection?.id ?? null,
-      pageId: fallbackPage?.id ?? null,
+      sectionId: fallbackId ?? null,
+      subsectionId: fallbackSubId ?? null,
+      pageId: fallbackPageId ?? null,
     };
   }
 
   renameSection(sectionId: string, title: string): void {
-    const section = this.document.sections.find((s) => s.id === sectionId);
+    const section = this.sectionEntities()[sectionId];
     if (!section) return;
 
     const command = new RenameSectionCommand(
       this.store,
       sectionId,
       title.trim(),
-      section.title // Store previous title only
+      section.title
     );
     this.undoRedoService.executeDocumentCommand(command);
   }
@@ -216,12 +285,8 @@ export class DocumentService {
   // ============================================
 
   addSubsection(sectionId: string): SubsectionSelection | null {
-    const section = this.document.sections.find((s) => s.id === sectionId);
-    if (!section) {
-      return null;
-    }
-
-    const subsectionCount = section.subsections.length + 1;
+    const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
+    const subsectionCount = subIds.length + 1;
     const subsectionTitle = `Subsection ${subsectionCount}`;
     const page = createPageModel(1);
     const subsection = createSubsectionModel(subsectionTitle, [page]);
@@ -243,37 +308,35 @@ export class DocumentService {
     sectionId: string,
     subsectionId: string
   ): SubsectionSelection | null {
-    const section = this.document.sections.find((s) => s.id === sectionId);
-    if (!section) {
-      return null;
-    }
-    const subsections = section.subsections;
-    const index = subsections.findIndex((sub) => sub.id === subsectionId);
+    const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
+    const index = subIds.indexOf(subsectionId);
     if (index === -1) {
       return null;
     }
 
-    const subsectionToDelete = subsections[index];
-    const fallback = subsections[index + 1] ?? subsections[index - 1];
-    const fallbackPage = fallback?.pages[0] ?? null;
+    // Build nested subsection for undo
+    const subsectionToDelete = this.buildSubsectionModel(subsectionId);
+    
+    const fallbackId = subIds[index + 1] ?? subIds[index - 1];
+    const fallbackPageIds = fallbackId ? this.pageIdsBySubsectionId()[fallbackId] || [] : [];
+    const fallbackPageId = fallbackPageIds[0];
 
-    // Store the subsection for undo
     const command = new DeleteSubsectionCommand(
       this.store,
       sectionId,
       subsectionId,
-      JSON.parse(JSON.stringify(subsectionToDelete))
+      subsectionToDelete
     );
     this.undoRedoService.executeDocumentCommand(command);
 
     return {
-      subsectionId: fallback?.id ?? null,
-      pageId: fallbackPage?.id ?? null,
+      subsectionId: fallbackId ?? null,
+      pageId: fallbackPageId ?? null,
     };
   }
 
   renameSubsection(subsectionId: string, title: string): void {
-    const subsection = this.findSubsectionById(subsectionId);
+    const subsection = this.subsectionEntities()[subsectionId];
     if (!subsection) return;
 
     const command = new RenameSubsectionCommand(
@@ -290,11 +353,8 @@ export class DocumentService {
   // ============================================
 
   addPage(subsectionId: string): string | null {
-    const subsection = this.findSubsectionById(subsectionId);
-    if (!subsection) {
-      return null;
-    }
-    const nextNumber = subsection.pages.length + 1;
+    const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
+    const nextNumber = pageIds.length + 1;
     const page = createPageModel(nextNumber);
 
     const command = new AddPageCommand(this.store, subsectionId, page);
@@ -303,40 +363,34 @@ export class DocumentService {
   }
 
   deletePage(subsectionId: string, pageId: string): string | null {
-    const subsection = this.findSubsectionById(subsectionId);
-    if (!subsection) {
-      return null;
-    }
-
-    const pages = subsection.pages;
-    const index = pages.findIndex((page) => page.id === pageId);
+    const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
+    const index = pageIds.indexOf(pageId);
     if (index === -1) {
       return null;
     }
 
-    const pageToDelete = pages[index];
-    const fallback = pages[index + 1] ?? pages[index - 1];
+    // Build page model for undo
+    const pageToDelete = this.buildPageModel(pageId);
+    
+    const fallbackId = pageIds[index + 1] ?? pageIds[index - 1];
 
-    // Store the page for undo
     const command = new DeletePageCommand(
       this.store,
       subsectionId,
       pageId,
-      JSON.parse(JSON.stringify(pageToDelete))
+      pageToDelete
     );
     this.undoRedoService.executeDocumentCommand(command);
 
-    return fallback?.id ?? null;
+    return fallbackId ?? null;
   }
 
-  renamePage(subsectionId: string, pageId: string, title: string): void {
-    const subsection = this.findSubsectionById(subsectionId);
-    const page = subsection?.pages.find((p) => p.id === pageId);
+  renamePage(pageId: string, title: string): void {
+    const page = this.pageEntities()[pageId];
     if (!page) return;
 
     const command = new RenamePageCommand(
       this.store,
-      subsectionId,
       pageId,
       title.trim(),
       page.title ?? ''
@@ -345,13 +399,11 @@ export class DocumentService {
   }
 
   updatePageOrientation(
-    subsectionId: string,
     pageId: string,
     orientation: 'portrait' | 'landscape'
   ): void {
     this.store.dispatch(
       DocumentActions.updatePageOrientation({
-        subsectionId,
         pageId,
         orientation,
       })
@@ -362,39 +414,32 @@ export class DocumentService {
   // CLIPBOARD OPERATIONS
   // ============================================
 
-  copyWidget(subsectionId: string, pageId: string, widgetId: string): void {
-    const widget = this.findWidgetById(subsectionId, pageId, widgetId);
+  copyWidget(pageId: string, widgetId: string): void {
+    const widget = this.widgetEntities()[widgetId];
     if (widget) {
-      this.clipboardService.copyWidgets([widget]);
+      // Convert to WidgetModel (remove pageId)
+      const { pageId: _, ...widgetModel } = widget;
+      this.clipboardService.copyWidgets([widgetModel as WidgetModel]);
     }
   }
 
-  copyWidgets(subsectionId: string, pageId: string, widgetIds: string[]): void {
-    const subsection = this.findSubsectionById(subsectionId);
-    if (!subsection) return;
-
-    const page = subsection.pages.find((p) => p.id === pageId);
-    if (!page) return;
-
-    const widgets = page.widgets.filter((w) => widgetIds.includes(w.id));
+  copyWidgets(pageId: string, widgetIds: string[]): void {
+    const widgets = widgetIds
+      .map(id => this.widgetEntities()[id])
+      .filter((w): w is WidgetEntity => !!w)
+      .map(w => {
+        const { pageId: _, ...widgetModel } = w;
+        return widgetModel as WidgetModel;
+      });
+    
     if (widgets.length > 0) {
       this.clipboardService.copyWidgets(widgets);
     }
   }
 
-  pasteWidgets(subsectionId: string, pageId: string): string[] {
+  pasteWidgets(pageId: string): string[] {
     const copiedWidgets = this.clipboardService.getCopiedWidgets();
     if (copiedWidgets.length === 0) {
-      return [];
-    }
-
-    const subsection = this.findSubsectionById(subsectionId);
-    if (!subsection) {
-      return [];
-    }
-
-    const page = subsection.pages.find((p) => p.id === pageId);
-    if (!page) {
       return [];
     }
 
@@ -403,7 +448,7 @@ export class DocumentService {
     copiedWidgets.forEach((widget) => {
       const clonedWidget = this.widgetFactory.cloneWidget(widget, offset);
       pastedWidgetIds.push(clonedWidget.id);
-      this.addWidget(subsectionId, pageId, clonedWidget);
+      this.addWidget(pageId, clonedWidget);
     });
 
     return pastedWidgetIds;
@@ -414,28 +459,52 @@ export class DocumentService {
   }
 
   // ============================================
-  // HELPER METHODS
+  // HELPER METHODS - Build nested models for undo
   // ============================================
 
-  private findSubsectionById(subsectionId: string): SubsectionModel | undefined {
-    for (const section of this.document.sections) {
-      const found = section.subsections.find((sub) => sub.id === subsectionId);
-      if (found) return found;
-    }
-    return undefined;
+  private buildSectionModel(sectionId: string): SectionModel {
+    const entities = this.sectionEntities();
+    const section = entities[sectionId]!;
+    const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
+    
+    return {
+      id: section.id,
+      title: section.title,
+      subsections: subIds.map((subId: string) => this.buildSubsectionModel(subId)),
+    };
   }
 
-  private findWidgetById(
-    subsectionId: string,
-    pageId: string,
-    widgetId: string
-  ): WidgetModel | undefined {
-    const subsection = this.findSubsectionById(subsectionId);
-    if (!subsection) return undefined;
+  private buildSubsectionModel(subsectionId: string): SubsectionModel {
+    const entities = this.subsectionEntities();
+    const subsection = entities[subsectionId]!;
+    const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
+    
+    return {
+      id: subsection.id,
+      title: subsection.title,
+      pages: pageIds.map((pageId: string) => this.buildPageModel(pageId)),
+    };
+  }
 
-    const page = subsection.pages.find((p) => p.id === pageId);
-    if (!page) return undefined;
-
-    return page.widgets.find((w) => w.id === widgetId);
+  private buildPageModel(pageId: string) {
+    const pageEntities = this.pageEntities();
+    const page = pageEntities[pageId]!;
+    const widgetIds = this.widgetIdsByPageId()[pageId] || [];
+    const widgetEntities = this.widgetEntities();
+    
+    return {
+      id: page.id,
+      number: page.number,
+      title: page.title,
+      background: page.background,
+      orientation: page.orientation,
+      widgets: widgetIds
+        .map((wId: string) => widgetEntities[wId])
+        .filter((w): w is WidgetEntity => !!w)
+        .map((w: WidgetEntity) => {
+          const { pageId: _, ...widgetModel } = w;
+          return widgetModel as WidgetModel;
+        }),
+    };
   }
 }

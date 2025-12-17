@@ -12,7 +12,7 @@ import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
 
 import { PageSize } from '../../../models/document.model';
-import { DocumentService } from '../../../core/services/document.service';
+import { EditorStateService } from '../../../core/services/editor-state.service';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
 import { PageEntity } from '../../../store/document/document.state';
@@ -20,10 +20,8 @@ import { PageEntity } from '../../../store/document/document.state';
 /**
  * PageComponent
  * 
- * FIXED: Now uses pageId + granular selectors exclusively.
- * 
- * Before: [page]="page" → new object on any widget change → all widgets re-render
- * After: [pageId]="pageId" → stable string → page selects its own data
+ * Uses pageId + granular selectors for optimal performance.
+ * Each page selects its own data independently.
  */
 @Component({
   selector: 'app-page',
@@ -36,11 +34,7 @@ export class PageComponent implements OnInit, OnDestroy {
   // INPUTS
   // ============================================
   
-  /**
-   * Page ID - the component selects its own data using this ID
-   */
   @Input({ required: true }) pageId!: string;
-  
   @Input({ required: true }) pageSize!: PageSize;
   @Input({ required: true }) subsectionId!: string;
   @Input() isActive = false;
@@ -50,7 +44,7 @@ export class PageComponent implements OnInit, OnDestroy {
   // ============================================
   
   private readonly store = inject(Store<AppState>);
-  private readonly documentService = inject(DocumentService);
+  private readonly editorState = inject(EditorStateService);
 
   @HostBinding('class.page') hostClass = true;
 
@@ -60,14 +54,12 @@ export class PageComponent implements OnInit, OnDestroy {
   
   /**
    * Widget IDs for this page - STABLE reference
-   * Only changes when widgets are added/removed, NOT when widget content changes
    */
   private readonly _widgetIds = signal<string[]>([]);
   readonly widgetIds = this._widgetIds.asReadonly();
   
   /**
    * Page data from granular selector
-   * Only changes when THIS page's metadata changes, not other pages/widgets
    */
   private readonly _pageData = signal<PageEntity | null>(null);
 
@@ -98,24 +90,24 @@ export class PageComponent implements OnInit, OnDestroy {
   }
 
   get displayLogoUrl(): string {
-    const logo = this.documentService.document.logo;
+    const logo = this.editorState.documentLogo();
     return logo?.url || '/assets/logo.png';
   }
 
   get footerLeftText(): string | undefined {
-    return this.documentService.document.footer?.leftText;
+    return this.editorState.documentFooter()?.leftText;
   }
 
   get footerCenterText(): string | undefined {
-    return this.documentService.document.footer?.centerText;
+    return this.editorState.documentFooter()?.centerText;
   }
 
   get footerSubText(): string | undefined {
-    return this.documentService.document.footer?.centerSubText;
+    return this.editorState.documentFooter()?.centerSubText;
   }
 
   get showPageNumber(): boolean {
-    return this.documentService.document.footer?.showPageNumber !== false;
+    return this.editorState.documentFooter()?.showPageNumber !== false;
   }
   
   get pageNumber(): number {
@@ -132,7 +124,6 @@ export class PageComponent implements OnInit, OnDestroy {
   
   ngOnInit(): void {
     // Subscribe to widget IDs using granular selector
-    // This only emits when widgets are added/removed from this page
     this.widgetIdsSubscription = this.store
       .select(DocumentSelectors.selectWidgetIdsForPage(this.pageId))
       .subscribe(ids => {
@@ -140,7 +131,6 @@ export class PageComponent implements OnInit, OnDestroy {
       });
       
     // Subscribe to page data using granular selector
-    // This only emits when this page's metadata changes
     this.pageDataSubscription = this.store
       .select(DocumentSelectors.selectPageById(this.pageId))
       .subscribe(pageData => {

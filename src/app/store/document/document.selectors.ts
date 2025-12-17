@@ -1,5 +1,4 @@
 import { createFeatureSelector, createSelector } from '@ngrx/store';
-import { Dictionary } from '@ngrx/entity';
 
 import { documentFeatureKey, DocumentState } from './document.reducer';
 import {
@@ -7,7 +6,6 @@ import {
   SubsectionEntity,
   PageEntity,
   WidgetEntity,
-  DocumentMetaState,
 } from './document.state';
 import {
   sectionSelectors,
@@ -15,34 +13,15 @@ import {
   pageSelectors,
   widgetSelectors,
 } from './entity-adapters';
+import { DocumentModel, SectionModel, SubsectionModel } from '../../models/document.model';
+import { PageModel } from '../../models/page.model';
+import { WidgetModel } from '../../models/widget.model';
 
 // ============================================
 // FEATURE SELECTOR
 // ============================================
 
 const selectDocumentState = createFeatureSelector<DocumentState>(documentFeatureKey);
-
-// ============================================
-// LEGACY SELECTORS (for backward compatibility)
-// ============================================
-
-/**
- * @deprecated Use normalized selectors for better performance
- */
-const selectDocument = createSelector(
-  selectDocumentState,
-  (state) => state.document
-);
-
-const selectSections = createSelector(
-  selectDocument,
-  (document) => document.sections
-);
-
-const selectPageSize = createSelector(
-  selectDocument,
-  (document) => document.pageSize
-);
 
 // ============================================
 // NORMALIZED STATE SELECTORS
@@ -70,8 +49,8 @@ const selectDocumentTitle = createSelector(
   (meta) => meta.title
 );
 
-/** Select document page size from normalized state */
-const selectNormalizedPageSize = createSelector(
+/** Select document page size */
+const selectPageSize = createSelector(
   selectDocumentMeta,
   (meta) => meta.pageSize
 );
@@ -110,15 +89,15 @@ const selectSectionIds = createSelector(
   (normalized) => normalized.sectionIds
 );
 
-/** Select all sections as an array */
+/** Select all sections as an array (ordered) */
 const selectAllSections = createSelector(
-  selectSectionState,
-  sectionSelectors.selectAll
+  selectSectionEntities,
+  selectSectionIds,
+  (entities, ids) => ids.map((id: string) => entities[id]).filter((s): s is SectionEntity => !!s)
 );
 
 /**
  * Factory selector: Select a single section by ID
- * Only emits when THIS section changes
  */
 const selectSectionById = (sectionId: string) => createSelector(
   selectSectionEntities,
@@ -155,7 +134,6 @@ const selectSubsectionIdsBySectionId = createSelector(
 
 /**
  * Factory selector: Select a single subsection by ID
- * Only emits when THIS subsection changes
  */
 const selectSubsectionById = (subsectionId: string) => createSelector(
   selectSubsectionEntities,
@@ -178,7 +156,7 @@ const selectSubsectionsForSection = (sectionId: string) => createSelector(
   selectSubsectionIdsBySectionId,
   (entities, idMap) => {
     const ids = idMap[sectionId] ?? [];
-    return ids.map(id => entities[id]).filter((s): s is SubsectionEntity => !!s);
+    return ids.map((id: string) => entities[id]).filter((s): s is SubsectionEntity => !!s);
   }
 );
 
@@ -212,7 +190,6 @@ const selectPageIdsBySubsectionId = createSelector(
 
 /**
  * Factory selector: Select a single page by ID
- * Only emits when THIS page changes
  */
 const selectPageById = (pageId: string) => createSelector(
   selectPageEntities,
@@ -221,7 +198,6 @@ const selectPageById = (pageId: string) => createSelector(
 
 /**
  * Factory selector: Select page IDs for a subsection
- * This is a stable array reference that only changes when pages are added/removed
  */
 const selectPageIdsForSubsection = (subsectionId: string) => createSelector(
   selectPageIdsBySubsectionId,
@@ -236,12 +212,12 @@ const selectPagesForSubsection = (subsectionId: string) => createSelector(
   selectPageIdsBySubsectionId,
   (entities, idMap) => {
     const ids = idMap[subsectionId] ?? [];
-    return ids.map(id => entities[id]).filter((p): p is PageEntity => !!p);
+    return ids.map((id: string) => entities[id]).filter((p): p is PageEntity => !!p);
   }
 );
 
 // ============================================
-// WIDGET SELECTORS (Most Important for Performance!)
+// WIDGET SELECTORS
 // ============================================
 
 /** Select widget EntityState */
@@ -270,10 +246,6 @@ const selectWidgetIdsByPageId = createSelector(
 
 /**
  * Factory selector: Select a single widget by ID
- * 
- * THIS IS THE KEY SELECTOR FOR PERFORMANCE!
- * Only emits when THIS specific widget's data changes.
- * Other widgets changing will NOT trigger this selector.
  */
 const selectWidgetById = (widgetId: string) => createSelector(
   selectWidgetEntities,
@@ -282,10 +254,6 @@ const selectWidgetById = (widgetId: string) => createSelector(
 
 /**
  * Factory selector: Select widget IDs for a page
- * 
- * This returns a stable array reference that only changes when
- * widgets are added/removed from the page (not when widget content changes).
- * This prevents unnecessary ngFor re-renders.
  */
 const selectWidgetIdsForPage = (pageId: string) => createSelector(
   selectWidgetIdsByPageId,
@@ -300,7 +268,7 @@ const selectWidgetsForPage = (pageId: string) => createSelector(
   selectWidgetIdsByPageId,
   (entities, idMap) => {
     const ids = idMap[pageId] ?? [];
-    return ids.map(id => entities[id]).filter((w): w is WidgetEntity => !!w);
+    return ids.map((id: string) => entities[id]).filter((w): w is WidgetEntity => !!w);
   }
 );
 
@@ -333,23 +301,91 @@ const selectTotalPageCount = createSelector(
 );
 
 // ============================================
+// DENORMALIZATION SELECTOR (for export only)
+// ============================================
+
+/**
+ * Convert normalized state back to nested DocumentModel
+ * Used for export functionality
+ */
+const selectDenormalizedDocument = createSelector(
+  selectNormalizedState,
+  (normalized): DocumentModel => {
+    const { meta, sectionIds, subsectionIdsBySectionId, pageIdsBySubsectionId, widgetIdsByPageId } = normalized;
+    const sectionEntities = normalized.sections.entities;
+    const subsectionEntities = normalized.subsections.entities;
+    const pageEntities = normalized.pages.entities;
+    const widgetEntities = normalized.widgets.entities;
+
+    const sections: SectionModel[] = sectionIds.map((sectionId: string) => {
+      const section = sectionEntities[sectionId]!;
+      const subIds = subsectionIdsBySectionId[sectionId] || [];
+      
+      const subsections: SubsectionModel[] = subIds.map((subId: string) => {
+        const subsection = subsectionEntities[subId]!;
+        const pageIds = pageIdsBySubsectionId[subId] || [];
+        
+        const pages: PageModel[] = pageIds.map((pageId: string) => {
+          const page = pageEntities[pageId]!;
+          const wIds = widgetIdsByPageId[pageId] || [];
+          
+          const widgets: WidgetModel[] = wIds.map((wId: string) => {
+            const widget = widgetEntities[wId]!;
+            // Remove pageId from widget when denormalizing
+            const { pageId: _, ...widgetWithoutPageId } = widget;
+            return widgetWithoutPageId as WidgetModel;
+          });
+          
+          return {
+            id: page.id,
+            number: page.number,
+            title: page.title,
+            background: page.background,
+            orientation: page.orientation,
+            widgets,
+          };
+        });
+        
+        return {
+          id: subsection.id,
+          title: subsection.title,
+          pages,
+        };
+      });
+      
+      return {
+        id: section.id,
+        title: section.title,
+        subsections,
+      };
+    });
+
+    return {
+      id: meta.id,
+      title: meta.title,
+      version: meta.version,
+      pageSize: meta.pageSize,
+      metadata: meta.metadata,
+      footer: meta.footer,
+      logo: meta.logo,
+      sections,
+    };
+  }
+);
+
+// ============================================
 // EXPORT ALL SELECTORS
 // ============================================
 
 export const DocumentSelectors = {
-  // Legacy selectors (for backward compatibility)
+  // State
   selectDocumentState,
-  selectDocument,
-  selectSections,
-  selectPageSize,
-  
-  // Normalized state
   selectNormalizedState,
   
   // Document meta
   selectDocumentMeta,
   selectDocumentTitle,
-  selectNormalizedPageSize,
+  selectPageSize,
   selectDocumentFooter,
   selectDocumentLogo,
   
@@ -378,7 +414,7 @@ export const DocumentSelectors = {
   selectPageIdsForSubsection,
   selectPagesForSubsection,
   
-  // Widgets (most important for performance!)
+  // Widgets
   selectWidgetState,
   selectWidgetEntities,
   selectAllWidgets,
@@ -391,4 +427,7 @@ export const DocumentSelectors = {
   // Computed
   selectTotalWidgetCount,
   selectTotalPageCount,
+  
+  // Denormalization (for export)
+  selectDenormalizedDocument,
 };

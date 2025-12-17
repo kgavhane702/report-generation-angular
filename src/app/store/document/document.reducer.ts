@@ -1,5 +1,4 @@
 import { createReducer, on } from '@ngrx/store';
-import { EntityState } from '@ngrx/entity';
 
 import { DocumentModel, SubsectionModel, SectionModel } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
@@ -33,17 +32,13 @@ import {
 export const documentFeatureKey = 'document';
 
 /**
- * Combined Document State
+ * Document State - NORMALIZED ONLY
  * 
- * We maintain both the legacy nested structure AND the new normalized structure
- * during the migration period. The legacy structure is derived from normalized
- * state when needed for backward compatibility.
+ * The legacy nested structure has been removed.
+ * All state is now stored in normalized entity collections.
+ * Use selectors to derive nested structures when needed (e.g., for export).
  */
 export interface DocumentState {
-  /** Legacy nested document structure (derived from normalized state) */
-  document: DocumentModel;
-  
-  /** New normalized state structure */
   normalized: NormalizedDocumentState;
 }
 
@@ -51,77 +46,52 @@ const initialDocument = createInitialDocument();
 const initialNormalized = normalizeDocument(initialDocument);
 
 export const initialState: DocumentState = {
-  document: initialDocument,
   normalized: initialNormalized,
 };
 
 /**
- * Main document reducer
+ * Main document reducer - NORMALIZED ONLY
  */
 export const documentReducer = createReducer(
   initialState,
   
   // ============================================
-  // LEGACY ACTIONS (backward compatibility)
-  // These update BOTH normalized and legacy state
+  // DOCUMENT ACTIONS
   // ============================================
   
   on(DocumentActions.setDocument, (state, { document }) => {
     const normalized = normalizeDocument(document);
-    return {
-      ...state,
-      document,
-      normalized,
-    };
+    return { normalized };
   }),
   
   on(DocumentActions.updateDocumentTitle, (state, { title }) => {
-    const newMeta = { ...state.normalized.meta, title };
-    const newDocument = { ...state.document, title };
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
-        meta: newMeta,
+        meta: { ...state.normalized.meta, title },
       },
     };
   }),
   
   on(DocumentActions.updatePageSize, (state, { pageSize }) => {
     const newPageSize = { ...state.normalized.meta.pageSize, ...pageSize };
-    const newMeta = { ...state.normalized.meta, pageSize: newPageSize };
-    const newDocument = { ...state.document, pageSize: newPageSize };
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
-        meta: newMeta,
+        meta: { ...state.normalized.meta, pageSize: newPageSize },
       },
     };
   }),
   
-  on(DocumentActions.addWidget, (state, { subsectionId, pageId, widget }) => {
-    // Create widget entity
-    const widgetEntity: WidgetEntity = {
-      ...widget,
-      pageId,
-    };
-    
-    // Update normalized state using adapter
+  on(DocumentActions.addWidget, (state, { pageId, widget }) => {
+    const widgetEntity: WidgetEntity = { ...widget, pageId };
     const newWidgets = widgetAdapter.addOne(widgetEntity, state.normalized.widgets);
     const newWidgetIdsByPageId = {
       ...state.normalized.widgetIdsByPageId,
       [pageId]: [...(state.normalized.widgetIdsByPageId[pageId] || []), widget.id],
     };
     
-    // Update legacy state
-    const newDocument = addWidgetLegacy(state.document, { subsectionId, pageId, widget });
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -130,19 +100,13 @@ export const documentReducer = createReducer(
     };
   }),
   
-  on(DocumentActions.updateWidget, (state, { subsectionId, pageId, widgetId, changes }) => {
-    // Update normalized state - ONLY the widget entity changes reference
+  on(DocumentActions.updateWidget, (state, { widgetId, changes }) => {
     const newWidgets = widgetAdapter.updateOne(
       { id: widgetId, changes },
       state.normalized.widgets
     );
     
-    // Update legacy state for backward compatibility
-    const newDocument = updateWidgetLegacy(state.document, { subsectionId, pageId, widgetId, changes });
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -151,11 +115,9 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.addSection, (state, { section }) => {
-    // Normalize the section
     const { normalizedSection, normalizedSubsections, normalizedPages, normalizedWidgets } = 
       normalizeSectionDeep(section);
     
-    // Update all entity collections
     let newSections = sectionAdapter.addOne(normalizedSection, state.normalized.sections);
     let newSubsections = state.normalized.subsections;
     let newPages = state.normalized.pages;
@@ -176,7 +138,6 @@ export const documentReducer = createReducer(
       newWidgets = widgetAdapter.addOne(widget, newWidgets);
     });
     
-    // Update relationship maps
     newSubsectionIdsBySectionId[section.id] = section.subsections.map(s => s.id);
     section.subsections.forEach(sub => {
       newPageIdsBySubsectionId[sub.id] = sub.pages.map(p => p.id);
@@ -187,15 +148,7 @@ export const documentReducer = createReducer(
     
     const newSectionIds = [...state.normalized.sectionIds, section.id];
     
-    // Update legacy state
-    const newDocument = {
-      ...state.document,
-      sections: [...state.document.sections, section],
-    };
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         sections: newSections,
@@ -211,7 +164,6 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.addSubsection, (state, { sectionId, subsection }) => {
-    // Normalize the subsection
     const { normalizedSubsection, normalizedPages, normalizedWidgets } = 
       normalizeSubsectionDeep(subsection, sectionId);
     
@@ -229,7 +181,6 @@ export const documentReducer = createReducer(
       newWidgets = widgetAdapter.addOne(widget, newWidgets);
     });
     
-    // Update relationship maps
     const newSubsectionIdsBySectionId = {
       ...state.normalized.subsectionIdsBySectionId,
       [sectionId]: [...(state.normalized.subsectionIdsBySectionId[sectionId] || []), subsection.id],
@@ -240,12 +191,7 @@ export const documentReducer = createReducer(
       newWidgetIdsByPageId[page.id] = page.widgets.map(w => w.id);
     });
     
-    // Update legacy state
-    const newDocument = addSubsectionLegacy(state.document, sectionId, subsection);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         subsections: newSubsections,
@@ -259,7 +205,6 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.addPage, (state, { subsectionId, page }) => {
-    // Create page entity
     const pageEntity: PageEntity = {
       id: page.id,
       subsectionId,
@@ -269,7 +214,6 @@ export const documentReducer = createReducer(
       orientation: page.orientation,
     };
     
-    // Create widget entities
     const widgetEntities: WidgetEntity[] = page.widgets.map(w => ({
       ...w,
       pageId: page.id,
@@ -282,7 +226,6 @@ export const documentReducer = createReducer(
       newWidgets = widgetAdapter.addOne(widget, newWidgets);
     });
     
-    // Update relationship maps
     const newPageIdsBySubsectionId = {
       ...state.normalized.pageIdsBySubsectionId,
       [subsectionId]: [...(state.normalized.pageIdsBySubsectionId[subsectionId] || []), page.id],
@@ -293,12 +236,7 @@ export const documentReducer = createReducer(
       [page.id]: page.widgets.map(w => w.id),
     };
     
-    // Update legacy state
-    const newDocument = addPageLegacy(state.document, subsectionId, page);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         pages: newPages,
@@ -315,11 +253,7 @@ export const documentReducer = createReducer(
       state.normalized.sections
     );
     
-    const newDocument = renameSectionLegacy(state.document, sectionId, title);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         sections: newSections,
@@ -333,11 +267,7 @@ export const documentReducer = createReducer(
       state.normalized.subsections
     );
     
-    const newDocument = renameSubsectionLegacy(state.document, subsectionId, title);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         subsections: newSubsections,
@@ -345,17 +275,13 @@ export const documentReducer = createReducer(
     };
   }),
   
-  on(DocumentActions.renamePage, (state, { subsectionId, pageId, title }) => {
+  on(DocumentActions.renamePage, (state, { pageId, title }) => {
     const newPages = pageAdapter.updateOne(
       { id: pageId, changes: { title } },
       state.normalized.pages
     );
     
-    const newDocument = renamePageLegacy(state.document, subsectionId, pageId, title);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         pages: newPages,
@@ -363,17 +289,13 @@ export const documentReducer = createReducer(
     };
   }),
   
-  on(DocumentActions.updatePageOrientation, (state, { subsectionId, pageId, orientation }) => {
+  on(DocumentActions.updatePageOrientation, (state, { pageId, orientation }) => {
     const newPages = pageAdapter.updateOne(
       { id: pageId, changes: { orientation } },
       state.normalized.pages
     );
     
-    const newDocument = updatePageOrientationLegacy(state.document, subsectionId, pageId, orientation);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         pages: newPages,
@@ -382,7 +304,6 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.deleteSection, (state, { sectionId }) => {
-    // Get all subsections, pages, and widgets to delete
     const subsectionIds = state.normalized.subsectionIdsBySectionId[sectionId] || [];
     const pageIds: string[] = [];
     const widgetIds: string[] = [];
@@ -396,13 +317,11 @@ export const documentReducer = createReducer(
       });
     });
     
-    // Remove from all collections
     let newSections = sectionAdapter.removeOne(sectionId, state.normalized.sections);
     let newSubsections = subsectionAdapter.removeMany(subsectionIds, state.normalized.subsections);
     let newPages = pageAdapter.removeMany(pageIds, state.normalized.pages);
     let newWidgets = widgetAdapter.removeMany(widgetIds, state.normalized.widgets);
     
-    // Update relationship maps
     const newSectionIds = state.normalized.sectionIds.filter(id => id !== sectionId);
     const newSubsectionIdsBySectionId = { ...state.normalized.subsectionIdsBySectionId };
     delete newSubsectionIdsBySectionId[sectionId];
@@ -413,12 +332,7 @@ export const documentReducer = createReducer(
     const newWidgetIdsByPageId = { ...state.normalized.widgetIdsByPageId };
     pageIds.forEach(pageId => delete newWidgetIdsByPageId[pageId]);
     
-    // Update legacy state
-    const newDocument = deleteSectionLegacy(state.document, sectionId);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         sections: newSections,
@@ -434,7 +348,6 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.deleteSubsection, (state, { sectionId, subsectionId }) => {
-    // Get all pages and widgets to delete
     const pageIds = state.normalized.pageIdsBySubsectionId[subsectionId] || [];
     const widgetIds: string[] = [];
     
@@ -443,12 +356,10 @@ export const documentReducer = createReducer(
       widgetIds.push(...wIds);
     });
     
-    // Remove from collections
     let newSubsections = subsectionAdapter.removeOne(subsectionId, state.normalized.subsections);
     let newPages = pageAdapter.removeMany(pageIds, state.normalized.pages);
     let newWidgets = widgetAdapter.removeMany(widgetIds, state.normalized.widgets);
     
-    // Update relationship maps
     const newSubsectionIdsBySectionId = {
       ...state.normalized.subsectionIdsBySectionId,
       [sectionId]: (state.normalized.subsectionIdsBySectionId[sectionId] || [])
@@ -461,12 +372,7 @@ export const documentReducer = createReducer(
     const newWidgetIdsByPageId = { ...state.normalized.widgetIdsByPageId };
     pageIds.forEach(pageId => delete newWidgetIdsByPageId[pageId]);
     
-    // Update legacy state
-    const newDocument = deleteSubsectionLegacy(state.document, sectionId, subsectionId);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         subsections: newSubsections,
@@ -480,14 +386,11 @@ export const documentReducer = createReducer(
   }),
   
   on(DocumentActions.deletePage, (state, { subsectionId, pageId }) => {
-    // Get all widgets to delete
     const widgetIds = state.normalized.widgetIdsByPageId[pageId] || [];
     
-    // Remove from collections
     let newPages = pageAdapter.removeOne(pageId, state.normalized.pages);
     let newWidgets = widgetAdapter.removeMany(widgetIds, state.normalized.widgets);
     
-    // Update relationship maps
     const newPageIdsBySubsectionId = {
       ...state.normalized.pageIdsBySubsectionId,
       [subsectionId]: (state.normalized.pageIdsBySubsectionId[subsectionId] || [])
@@ -497,12 +400,7 @@ export const documentReducer = createReducer(
     const newWidgetIdsByPageId = { ...state.normalized.widgetIdsByPageId };
     delete newWidgetIdsByPageId[pageId];
     
-    // Update legacy state
-    const newDocument = deletePageLegacy(state.document, subsectionId, pageId);
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         pages: newPages,
@@ -513,23 +411,16 @@ export const documentReducer = createReducer(
     };
   }),
   
-  on(DocumentActions.deleteWidget, (state, { subsectionId, pageId, widgetId }) => {
-    // Remove widget from collection
+  on(DocumentActions.deleteWidget, (state, { pageId, widgetId }) => {
     const newWidgets = widgetAdapter.removeOne(widgetId, state.normalized.widgets);
     
-    // Update relationship map
     const newWidgetIdsByPageId = {
       ...state.normalized.widgetIdsByPageId,
       [pageId]: (state.normalized.widgetIdsByPageId[pageId] || [])
         .filter(id => id !== widgetId),
     };
     
-    // Update legacy state
-    const newDocument = deleteWidgetLegacy(state.document, { subsectionId, pageId, widgetId });
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -539,30 +430,12 @@ export const documentReducer = createReducer(
   }),
   
   // ============================================
-  // NEW ENTITY ACTIONS (normalized state only)
-  // These are more efficient and don't need legacy sync
+  // ENTITY ACTIONS (Normalized)
   // ============================================
   
   on(WidgetActions.updateOne, (state, { id, changes }) => {
-    // ONLY update the widget entity - this is the key optimization!
     const newWidgets = widgetAdapter.updateOne({ id, changes }, state.normalized.widgets);
-    
-    // Derive legacy document from normalized state
-    const newDocument = denormalizeDocument(
-      state.normalized.meta,
-      state.normalized.sections,
-      state.normalized.subsections,
-      state.normalized.pages,
-      newWidgets,
-      state.normalized.sectionIds,
-      state.normalized.subsectionIdsBySectionId,
-      state.normalized.pageIdsBySubsectionId,
-      state.normalized.widgetIdsByPageId
-    );
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -577,21 +450,7 @@ export const documentReducer = createReducer(
       [widget.pageId]: [...(state.normalized.widgetIdsByPageId[widget.pageId] || []), widget.id],
     };
     
-    const newDocument = denormalizeDocument(
-      state.normalized.meta,
-      state.normalized.sections,
-      state.normalized.subsections,
-      state.normalized.pages,
-      newWidgets,
-      state.normalized.sectionIds,
-      state.normalized.subsectionIdsBySectionId,
-      state.normalized.pageIdsBySubsectionId,
-      newWidgetIdsByPageId
-    );
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -611,21 +470,7 @@ export const documentReducer = createReducer(
         .filter(wId => wId !== id),
     };
     
-    const newDocument = denormalizeDocument(
-      state.normalized.meta,
-      state.normalized.sections,
-      state.normalized.subsections,
-      state.normalized.pages,
-      newWidgets,
-      state.normalized.sectionIds,
-      state.normalized.subsectionIdsBySectionId,
-      state.normalized.pageIdsBySubsectionId,
-      newWidgetIdsByPageId
-    );
-    
     return {
-      ...state,
-      document: newDocument,
       normalized: {
         ...state.normalized,
         widgets: newWidgets,
@@ -634,13 +479,27 @@ export const documentReducer = createReducer(
     };
   }),
   
+  on(DocumentMetaActions.updateFooter, (state, { footer }) => {
+    return {
+      normalized: {
+        ...state.normalized,
+        meta: { ...state.normalized.meta, footer },
+      },
+    };
+  }),
+  
+  on(DocumentMetaActions.updateLogo, (state, { logo }) => {
+    return {
+      normalized: {
+        ...state.normalized,
+        meta: { ...state.normalized.meta, logo },
+      },
+    };
+  }),
+  
   on(BulkDocumentActions.loadDocument, (state, { document }) => {
     const normalized = normalizeDocument(document);
-    return {
-      ...state,
-      document,
-      normalized,
-    };
+    return { normalized };
   }),
   
   on(BulkDocumentActions.clearAll, () => initialState),
@@ -718,67 +577,6 @@ function normalizeDocument(doc: DocumentModel): NormalizedDocumentState {
 }
 
 /**
- * Convert NormalizedDocumentState back to DocumentModel
- */
-function denormalizeDocument(
-  meta: DocumentMetaState,
-  sections: EntityState<SectionEntity>,
-  subsections: EntityState<SubsectionEntity>,
-  pages: EntityState<PageEntity>,
-  widgets: EntityState<WidgetEntity>,
-  sectionIds: string[],
-  subsectionIdsBySectionId: Record<string, string[]>,
-  pageIdsBySubsectionId: Record<string, string[]>,
-  widgetIdsByPageId: Record<string, string[]>
-): DocumentModel {
-  return {
-    id: meta.id,
-    title: meta.title,
-    version: meta.version,
-    pageSize: meta.pageSize,
-    metadata: meta.metadata,
-    footer: meta.footer,
-    logo: meta.logo,
-    sections: sectionIds.map(sectionId => {
-      const section = sections.entities[sectionId]!;
-      const subIds = subsectionIdsBySectionId[sectionId] || [];
-      
-      return {
-        id: section.id,
-        title: section.title,
-        subsections: subIds.map(subId => {
-          const subsection = subsections.entities[subId]!;
-          const pageIds = pageIdsBySubsectionId[subId] || [];
-          
-          return {
-            id: subsection.id,
-            title: subsection.title,
-            pages: pageIds.map(pageId => {
-              const page = pages.entities[pageId]!;
-              const widgetIds = widgetIdsByPageId[pageId] || [];
-              
-              return {
-                id: page.id,
-                number: page.number,
-                title: page.title,
-                background: page.background,
-                orientation: page.orientation,
-                widgets: widgetIds.map(widgetId => {
-                  const widget = widgets.entities[widgetId]!;
-                  // Remove pageId from widget when denormalizing
-                  const { pageId: _, ...widgetWithoutPageId } = widget;
-                  return widgetWithoutPageId as WidgetModel;
-                }),
-              };
-            }),
-          };
-        }),
-      };
-    }),
-  };
-}
-
-/**
  * Normalize a section with all its children
  */
 function normalizeSectionDeep(section: SectionModel): {
@@ -840,232 +638,4 @@ function normalizeSubsectionDeep(subsection: SubsectionModel, sectionId: string)
   });
   
   return { normalizedSubsection, normalizedPages, normalizedWidgets };
-}
-
-// ============================================
-// LEGACY HELPER FUNCTIONS (for backward compatibility)
-// ============================================
-
-function addWidgetLegacy(
-  doc: DocumentModel,
-  params: { subsectionId: string; pageId: string; widget: WidgetModel }
-): DocumentModel {
-  const { subsectionId, pageId, widget } = params;
-  const { sectionIndex, subsectionIndex, pageIndex } = findLocation(doc, subsectionId, pageId);
-  
-  if (sectionIndex === -1 || subsectionIndex === -1 || pageIndex === -1) {
-    return doc;
-  }
-  
-  const sections = [...doc.sections];
-  const section = { ...sections[sectionIndex] };
-  const subsections = [...section.subsections];
-  const subsection = { ...subsections[subsectionIndex] };
-  const pages = [...subsection.pages];
-  const page = { ...pages[pageIndex] };
-  
-  page.widgets = [...page.widgets, widget];
-  pages[pageIndex] = page;
-  subsection.pages = pages;
-  subsections[subsectionIndex] = subsection;
-  section.subsections = subsections;
-  sections[sectionIndex] = section;
-  
-  return { ...doc, sections };
-}
-
-function updateWidgetLegacy(
-  doc: DocumentModel,
-  params: { subsectionId: string; pageId: string; widgetId: string; changes: Partial<WidgetModel> }
-): DocumentModel {
-  const { subsectionId, pageId, widgetId, changes } = params;
-  const location = findLocation(doc, subsectionId, pageId);
-  
-  if (location.sectionIndex === -1 || location.subsectionIndex === -1 || location.pageIndex === -1) {
-    return doc;
-  }
-  
-  const sections = [...doc.sections];
-  const section = { ...sections[location.sectionIndex] };
-  const subsections = [...section.subsections];
-  const subsection = { ...subsections[location.subsectionIndex] };
-  const pages = [...subsection.pages];
-  const page = { ...pages[location.pageIndex] };
-  
-  const widgetIndex = page.widgets.findIndex((w) => w.id === widgetId);
-  if (widgetIndex === -1) {
-    return doc;
-  }
-  
-  const widgets = [...page.widgets];
-  widgets[widgetIndex] = { ...widgets[widgetIndex], ...changes };
-  
-  page.widgets = widgets;
-  pages[location.pageIndex] = page;
-  subsection.pages = pages;
-  subsections[location.subsectionIndex] = subsection;
-  section.subsections = subsections;
-  sections[location.sectionIndex] = section;
-  
-  return { ...doc, sections };
-}
-
-function findLocation(
-  doc: DocumentModel,
-  subsectionId: string,
-  pageId: string
-): { sectionIndex: number; subsectionIndex: number; pageIndex: number } {
-  let sectionIndex = -1;
-  let subsectionIndex = -1;
-  let pageIndex = -1;
-  
-  doc.sections.some((section, sIdx) => {
-    const subIdx = section.subsections.findIndex((sub) => sub.id === subsectionId);
-    if (subIdx !== -1) {
-      sectionIndex = sIdx;
-      subsectionIndex = subIdx;
-      pageIndex = section.subsections[subIdx].pages.findIndex((p) => p.id === pageId);
-      return true;
-    }
-    return false;
-  });
-  
-  return { sectionIndex, subsectionIndex, pageIndex };
-}
-
-function addSubsectionLegacy(doc: DocumentModel, sectionId: string, subsection: SubsectionModel): DocumentModel {
-  const sections = doc.sections.map((section) =>
-    section.id === sectionId
-      ? { ...section, subsections: [...section.subsections, subsection] }
-      : section
-  );
-  return { ...doc, sections };
-}
-
-function addPageLegacy(doc: DocumentModel, subsectionId: string, page: PageModel): DocumentModel {
-  const sections = doc.sections.map((section) => ({
-    ...section,
-    subsections: section.subsections.map((subsection) =>
-      subsection.id === subsectionId
-        ? { ...subsection, pages: [...subsection.pages, page] }
-        : subsection
-    ),
-  }));
-  return { ...doc, sections };
-}
-
-function renameSectionLegacy(doc: DocumentModel, sectionId: string, title: string): DocumentModel {
-  const sections = doc.sections.map((section) =>
-    section.id === sectionId ? { ...section, title } : section
-  );
-  return { ...doc, sections };
-}
-
-function renameSubsectionLegacy(doc: DocumentModel, subsectionId: string, title: string): DocumentModel {
-  const sections = doc.sections.map((section) => ({
-    ...section,
-    subsections: section.subsections.map((subsection) =>
-      subsection.id === subsectionId ? { ...subsection, title } : subsection
-    ),
-  }));
-  return { ...doc, sections };
-}
-
-function renamePageLegacy(doc: DocumentModel, subsectionId: string, pageId: string, title: string): DocumentModel {
-  const sections = doc.sections.map((section) => ({
-    ...section,
-    subsections: section.subsections.map((subsection) =>
-      subsection.id === subsectionId
-        ? {
-            ...subsection,
-            pages: subsection.pages.map((page) =>
-              page.id === pageId ? { ...page, title } : page
-            ),
-          }
-        : subsection
-    ),
-  }));
-  return { ...doc, sections };
-}
-
-function updatePageOrientationLegacy(
-  doc: DocumentModel,
-  subsectionId: string,
-  pageId: string,
-  orientation: 'portrait' | 'landscape'
-): DocumentModel {
-  const sections = doc.sections.map((section) => ({
-    ...section,
-    subsections: section.subsections.map((subsection) =>
-      subsection.id === subsectionId
-        ? {
-            ...subsection,
-            pages: subsection.pages.map((page) =>
-              page.id === pageId ? { ...page, orientation } : page
-            ),
-          }
-        : subsection
-    ),
-  }));
-  return { ...doc, sections };
-}
-
-function deleteSectionLegacy(doc: DocumentModel, sectionId: string): DocumentModel {
-  return {
-    ...doc,
-    sections: doc.sections.filter((section) => section.id !== sectionId),
-  };
-}
-
-function deleteSubsectionLegacy(doc: DocumentModel, sectionId: string, subsectionId: string): DocumentModel {
-  const sections = doc.sections.map((section) =>
-    section.id === sectionId
-      ? {
-          ...section,
-          subsections: section.subsections.filter((subsection) => subsection.id !== subsectionId),
-        }
-      : section
-  );
-  return { ...doc, sections };
-}
-
-function deletePageLegacy(doc: DocumentModel, subsectionId: string, pageId: string): DocumentModel {
-  const sections = doc.sections.map((section) => ({
-    ...section,
-    subsections: section.subsections.map((subsection) =>
-      subsection.id === subsectionId
-        ? { ...subsection, pages: subsection.pages.filter((page) => page.id !== pageId) }
-        : subsection
-    ),
-  }));
-  return { ...doc, sections };
-}
-
-function deleteWidgetLegacy(
-  doc: DocumentModel,
-  params: { subsectionId: string; pageId: string; widgetId: string }
-): DocumentModel {
-  const { subsectionId, pageId, widgetId } = params;
-  const location = findLocation(doc, subsectionId, pageId);
-  
-  if (location.sectionIndex === -1 || location.subsectionIndex === -1 || location.pageIndex === -1) {
-    return doc;
-  }
-  
-  const sections = [...doc.sections];
-  const section = { ...sections[location.sectionIndex] };
-  const subsections = [...section.subsections];
-  const subsection = { ...subsections[location.subsectionIndex] };
-  const pages = [...subsection.pages];
-  const page = { ...pages[location.pageIndex] };
-  
-  page.widgets = page.widgets.filter((w) => w.id !== widgetId);
-  
-  pages[location.pageIndex] = page;
-  subsection.pages = pages;
-  subsections[location.subsectionIndex] = subsection;
-  section.subsections = subsections;
-  sections[location.sectionIndex] = section;
-  
-  return { ...doc, sections };
 }
