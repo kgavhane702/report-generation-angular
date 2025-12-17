@@ -49,6 +49,8 @@
         <app-chart-widget
           *ngSwitchCase="'chart'"
           [widget]="$any(widget)"
+          [subsectionId]="subsectionId"
+          [pageId]="pageId"
           (chartPropsChange)="onChartPropsChange($event)"
         ></app-chart-widget>
 
