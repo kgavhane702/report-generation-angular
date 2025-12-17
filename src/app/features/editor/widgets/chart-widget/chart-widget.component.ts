@@ -55,7 +55,6 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   
   // Store pending changes that haven't been saved yet
   private pendingChartData?: ChartData;
-  private pendingProvider?: string;
 
   constructor() {
     // React to export mode changes
@@ -121,7 +120,6 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
           
           // Clear pending data for the old widget
           this.pendingChartData = undefined;
-          this.pendingProvider = undefined;
           this.isChartRendered = false;
           
           if (this.instance) {
@@ -146,7 +144,6 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         if (this.hasChartDataChanged(previousWidget, currentWidget)) {
           // Widget data was updated from parent - clear pending data since it's now saved
           this.pendingChartData = undefined;
-          this.pendingProvider = undefined;
           this.updateChart();
         }
       }
@@ -179,6 +176,13 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return (
       prevData.chartType !== currData.chartType ||
       prevData.title !== currData.title ||
+      prevData.xAxisLabel !== currData.xAxisLabel ||
+      prevData.yAxisLabel !== currData.yAxisLabel ||
+      prevData.showLegend !== currData.showLegend ||
+      prevData.legendPosition !== currData.legendPosition ||
+      prevData.showAxisLines !== currData.showAxisLines ||
+      prevData.showValueLabels !== currData.showValueLabels ||
+      prevData.valueLabelPosition !== currData.valueLabelPosition ||
       JSON.stringify(prevData.series) !== JSON.stringify(currData.series) ||
       JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels)
     );
@@ -209,13 +213,9 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Create a deep copy to ensure Angular detects changes and dialog always gets fresh data
     const clonedChartData = this.deepCloneChartData(chartData);
 
-    // Use pending provider if available, otherwise use widget provider
-    const provider = this.pendingProvider || this.chartProps.provider;
-
     this.dialogData = {
       chartData: clonedChartData,
       widgetId: this.widget.id,
-      provider: provider,
     };
     this.showDialog = true;
     this.cdr.markForCheck();
@@ -239,15 +239,10 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!result.cancelled) {
       // Store pending changes immediately so they're available when dialog reopens
       this.pendingChartData = result.chartData;
-      if (result.provider) {
-        this.pendingProvider = result.provider;
-      }
-      
       // Emit chart props change event
       this.chartPropsChange.emit({
         chartType: result.chartData.chartType,
         data: result.chartData,
-        provider: result.provider,
       });
     }
 

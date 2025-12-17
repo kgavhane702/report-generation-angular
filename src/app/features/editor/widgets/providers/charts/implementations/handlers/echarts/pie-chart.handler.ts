@@ -36,7 +36,7 @@ export class EChartsPieChartHandler implements EChartsChartTypeHandler {
         show: showLegend !== false,
         orient: legendPosition === 'left' || legendPosition === 'right' ? 'vertical' : 'horizontal',
         left: legendPosition === 'left' ? 'left' : legendPosition === 'right' ? 'right' : 'center',
-        top: legendPosition === 'top' ? 'top' : legendPosition === 'bottom' ? 'bottom' : 'bottom',
+        top: legendPosition === 'top' ? 'top' : legendPosition === 'bottom' ? 'bottom' : undefined,
         data: chartLabels,
       },
       series: [

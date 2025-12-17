@@ -20,18 +20,15 @@ import { CommonModule, DOCUMENT } from '@angular/common';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 
 import { ChartData, ChartSeries, ChartType, createDefaultChartData, parseCsvToChartData } from '../../../../../../models/chart-data.model';
-import { ChartRegistryService } from '../registry';
 import * as XLSX from 'xlsx';
 
 export interface ChartConfigDialogData {
   chartData: ChartData;
   widgetId?: string;
-  provider?: string;
 }
 
 export interface ChartConfigDialogResult {
   chartData: ChartData;
-  provider?: string;
   cancelled: boolean;
 }
 
@@ -45,7 +42,6 @@ export interface ChartConfigDialogResult {
 })
 export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit {
   private readonly fb = inject(FormBuilder);
-  private readonly registry = inject(ChartRegistryService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly renderer = inject(Renderer2);
   private readonly document = inject(DOCUMENT);
@@ -58,9 +54,6 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
   @Output() closed = new EventEmitter<ChartConfigDialogResult>();
 
   @ViewChild('dialogContainer', { static: true }) dialogContainer!: ElementRef<HTMLDivElement>;
-
-  availableProviders: Array<{ id: string; label: string }> = [];
-
 
   readonly chartTypes: ChartType[] = [
     'column',
@@ -131,12 +124,6 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
   selectedFileName: string | null = null;
 
   ngOnInit(): void {
-    // Get available providers (excluding placeholder)
-    const allAdapters = this.registry.listAdapters();
-    this.availableProviders = allAdapters
-      .filter(adapter => adapter.id !== 'placeholder')
-      .map(adapter => ({ id: adapter.id, label: adapter.label }));
-
     // Initialize form if data is available
     if (this.data) {
       this.initializeFormFromData();
@@ -160,31 +147,13 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
         // Data changed after initial load - reinitialize with new data
         this.initializeFormFromData();
         this.cdr.markForCheck();
-      } else if (this.availableProviders.length > 0 || this.form) {
-        // First change but providers/form already initialized - reinitialize with latest data
-        this.initializeFormFromData();
       }
     }
   }
 
   private initializeFormFromData(): void {
-    // Ensure providers are loaded
-    if (this.availableProviders.length === 0) {
-      const allAdapters = this.registry.listAdapters();
-      this.availableProviders = allAdapters
-        .filter(adapter => adapter.id !== 'placeholder')
-        .map(adapter => ({ id: adapter.id, label: adapter.label }));
-    }
-
     const chartData = this.data?.chartData || createDefaultChartData();
-    
-    // Auto-select provider: use current provider if available, otherwise use first available
-    const currentProvider = this.data?.provider;
-    const selectedProvider = currentProvider && this.availableProviders.find(p => p.id === currentProvider)
-      ? currentProvider
-      : (this.availableProviders.length > 0 ? this.availableProviders[0].id : 'echarts');
-
-    this.initializeForm(chartData, selectedProvider);
+    this.initializeForm(chartData);
     
     // Unsubscribe from previous subscription if reinitializing
     if (this.chartTypeSubscription) {
@@ -224,9 +193,8 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
     this.destroy$.complete();
   }
 
-  private initializeForm(chartData: ChartData, provider: string): void {
+  private initializeForm(chartData: ChartData): void {
     this.form = this.fb.group({
-      provider: [provider, Validators.required],
       chartType: [chartData.chartType, Validators.required],
       title: [chartData.title || ''],
       xAxisLabel: [chartData.xAxisLabel || ''],
@@ -472,8 +440,7 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
         return;
       }
       const chartData = parseCsvToChartData(csvValue, this.form.value.chartType);
-      const currentProvider = this.form.value.provider || this.data?.provider || 'echarts';
-      this.initializeForm(chartData, currentProvider);
+      this.initializeForm(chartData);
       this.showCsvImport = false;
       this.selectedFileName = null;
       this.cdr.markForCheck();
@@ -550,17 +517,13 @@ export class ChartConfigDialogComponent implements OnInit, OnChanges, OnDestroy,
 
     this.closed.emit({
       chartData,
-      provider: formValue.provider,
       cancelled: false,
     });
   }
 
   cancel(): void {
-    // Get current provider from form or fallback to data provider
-    const currentProvider = this.form?.value?.provider || this.data?.provider;
     this.closed.emit({
       chartData: this.data?.chartData || createDefaultChartData(),
-      provider: currentProvider,
       cancelled: true,
     });
   }

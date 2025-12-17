@@ -14,7 +14,9 @@ export class ChartJsStackedOverlappedBarLineChartHandler implements ChartJsChart
     yAxisLabel?: string,
     showLegend?: boolean,
     legendPosition?: 'top' | 'bottom' | 'left' | 'right',
-    colors?: string[]
+    colors?: string[],
+    showValueLabels?: boolean,
+    valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right'
   ): ChartConfiguration {
     const defaultColors = this.getDefaultColors();
 

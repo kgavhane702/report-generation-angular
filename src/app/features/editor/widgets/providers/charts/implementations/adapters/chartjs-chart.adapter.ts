@@ -74,7 +74,9 @@ export class ChartJsChartAdapter implements ChartAdapter {
       data.yAxisLabel,
       data.showLegend,
       data.legendPosition,
-      data.colors
+      data.colors,
+      data.showValueLabels,
+      data.valueLabelPosition
     );
 
     // Apply showAxisLines setting
@@ -114,7 +116,48 @@ export class ChartJsChartAdapter implements ChartAdapter {
       }
     }
 
+    // Apply value labels setting through Chart.js plugin configuration
+    const showValueLabels = data.showValueLabels !== false;
+    const valueLabelPosition = data.valueLabelPosition || 'top';
+    
+    if (showValueLabels && config.options) {
+      if (!config.options.plugins) {
+        config.options.plugins = {};
+      }
+      
+      // Configure datalabels plugin if available
+      (config.options.plugins as any).datalabels = {
+        display: showValueLabels,
+        anchor: this.getDatalabelsAnchor(valueLabelPosition),
+        align: this.getDatalabelsAlign(valueLabelPosition),
+        offset: valueLabelPosition === 'inside' ? 0 : 5,
+        formatter: (value: number) => value,
+      };
+    }
+
     return config;
+  }
+
+  private getDatalabelsAnchor(position: string): string {
+    switch (position) {
+      case 'top': return 'end';
+      case 'bottom': return 'start';
+      case 'left': return 'end';
+      case 'right': return 'start';
+      case 'inside': return 'center';
+      default: return 'end';
+    }
+  }
+
+  private getDatalabelsAlign(position: string): string {
+    switch (position) {
+      case 'top': return 'top';
+      case 'bottom': return 'bottom';
+      case 'left': return 'left';
+      case 'right': return 'right';
+      case 'inside': return 'center';
+      default: return 'top';
+    }
   }
 }
 

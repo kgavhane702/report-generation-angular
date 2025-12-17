@@ -24,7 +24,9 @@ export interface ChartJsChartTypeHandler extends ChartTypeHandler {
     yAxisLabel?: string,
     showLegend?: boolean,
     legendPosition?: 'top' | 'bottom' | 'left' | 'right',
-    colors?: string[]
+    colors?: string[],
+    showValueLabels?: boolean,
+    valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right'
   ): ChartConfiguration;
 }
 

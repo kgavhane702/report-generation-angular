@@ -14,7 +14,9 @@ export class ChartJsDonutChartHandler implements ChartJsChartTypeHandler {
     yAxisLabel?: string,
     showLegend?: boolean,
     legendPosition?: 'top' | 'bottom' | 'left' | 'right',
-    colors?: string[]
+    colors?: string[],
+    showValueLabels?: boolean,
+    valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right'
   ): ChartConfiguration {
     const firstSeries = series[0] || { name: '', data: [] };
     const chartLabels = labels || firstSeries.data.map((_: number, i: number) => `Item ${i + 1}`);

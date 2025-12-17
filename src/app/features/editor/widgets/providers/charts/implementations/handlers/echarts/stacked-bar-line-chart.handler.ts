@@ -38,7 +38,7 @@ export class EChartsStackedBarLineChartHandler implements EChartsChartTypeHandle
         data: series.map(s => s.name),
         orient: legendPosition === 'left' || legendPosition === 'right' ? 'vertical' : 'horizontal',
         left: legendPosition === 'left' ? 'left' : legendPosition === 'right' ? 'right' : 'center',
-        top: legendPosition === 'top' ? 'top' : legendPosition === 'bottom' ? 'bottom' : 'bottom',
+        top: legendPosition === 'top' ? 'top' : legendPosition === 'bottom' ? 'bottom' : undefined,
       },
       grid: {
         left: '3%',

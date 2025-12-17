@@ -14,20 +14,6 @@
     </div>
 
     <form [formGroup]="form" class="chart-config-dialog__body" (ngSubmit)="save()">
-      <!-- Chart Provider -->
-      <div class="chart-config-dialog__section" *ngIf="availableProviders.length > 1">
-        <label class="chart-config-dialog__label" for="provider">Chart Provider</label>
-        <select
-          id="provider"
-          formControlName="provider"
-          class="chart-config-dialog__select"
-        >
-          <option *ngFor="let provider of availableProviders" [value]="provider.id">
-            {{ provider.label }}
-          </option>
-        </select>
-      </div>
-
       <!-- Chart Type -->
       <div class="chart-config-dialog__section">
         <label class="chart-config-dialog__label" for="chartType">Chart Type</label>
