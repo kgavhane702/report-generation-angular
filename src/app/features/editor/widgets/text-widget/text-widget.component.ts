@@ -24,6 +24,7 @@ import { RichTextEditorService } from '../../../../core/services/rich-text-edito
 import { CkEditorRichTextEditorService } from '../../../../core/services/rich-text-editor/ckeditor-rich-text-editor.service';
 import { RichTextToolbarService } from '../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
+import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
 import { DecoupledEditor } from 'ckeditor5';
 
 /**
@@ -48,7 +49,7 @@ import { DecoupledEditor } from 'ckeditor5';
     { provide: RichTextEditorService, useClass: CkEditorRichTextEditorService },
   ],
 })
-export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit {
+export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterViewInit, FlushableWidget {
   @Input({ required: true }) widget!: WidgetModel;
 
   @Output() editingChange = new EventEmitter<boolean>();
@@ -63,6 +64,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private readonly editorService = inject(RichTextEditorService);
   private readonly toolbarService = inject(RichTextToolbarService);
   private readonly uiState = inject(UIStateService);
+  private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly cdr = inject(ChangeDetectorRef);
   
   // ============================================
@@ -126,6 +128,55 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   }
 
   // ============================================
+  // FLUSHABLE WIDGET INTERFACE
+  // ============================================
+  
+  /**
+   * Widget ID for the FlushableWidget interface
+   */
+  get widgetId(): string {
+    return this.widget.id;
+  }
+  
+  /**
+   * Check if this widget has uncommitted changes
+   * Compares current editor content with what was saved at edit start
+   */
+  hasPendingChanges(): boolean {
+    if (!this.isActivelyEditing()) {
+      return false;
+    }
+    const currentContent = this.localContent();
+    return currentContent !== this.contentAtEditStart;
+  }
+  
+  /**
+   * Force commit all pending changes immediately
+   * Called by PendingChangesRegistry before export
+   */
+  flush(): void {
+    if (this.isActivelyEditing()) {
+      console.log('[TextWidget] Flushing pending changes for:', this.widget.id);
+      
+      // Clear any pending blur timeout
+      if (this.blurTimeoutId !== null) {
+        clearTimeout(this.blurTimeoutId);
+        this.blurTimeoutId = null;
+      }
+      
+      // Commit changes immediately
+      this.commitContentChange();
+      
+      // Exit editing mode
+      this.isActivelyEditing.set(false);
+      this.editingChange.emit(false);
+      
+      // Unregister from pending changes
+      this.pendingChangesRegistry.unregister(this.widget.id);
+    }
+  }
+
+  // ============================================
   // LIFECYCLE
   // ============================================
 
@@ -148,6 +199,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     // Commit any pending changes before destroying
     if (this.isActivelyEditing()) {
       this.commitContentChange();
+      this.pendingChangesRegistry.unregister(this.widget.id);
     }
     
     // Clean up event listener
@@ -283,6 +335,9 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       this.isActivelyEditing.set(true);
       this.contentAtEditStart = this.textProps.contentHtml ?? '';
       this.editingChange.emit(true);
+      
+      // Register with PendingChangesRegistry so export can flush our changes
+      this.pendingChangesRegistry.register(this);
     }
   }
 
@@ -314,6 +369,9 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
         // Exit editing mode
         this.isActivelyEditing.set(false);
         this.editingChange.emit(false);
+        
+        // Unregister from PendingChangesRegistry
+        this.pendingChangesRegistry.unregister(this.widget.id);
       } else if (isStillInsideToolbar && this.currentEditorInstance) {
         // Focus moved to toolbar - refocus editor after toolbar interaction
         const activeElement = document.activeElement;

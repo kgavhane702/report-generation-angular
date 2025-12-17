@@ -8,6 +8,7 @@ import { EditorStateService } from '../../../core/services/editor-state.service'
 import { ExportService } from '../../../core/services/export.service';
 import { ImportService } from '../../../core/services/import.service';
 import { PdfService } from '../../../core/services/pdf.service';
+import { PendingChangesRegistry } from '../../../core/services/pending-changes-registry.service';
 import { WidgetType } from '../../../models/widget.model';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
@@ -25,6 +26,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly exportService = inject(ExportService);
   private readonly importService = inject(ImportService);
   private readonly pdfService = inject(PdfService);
+  private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
   private readonly store = inject(Store<AppState>);
@@ -91,7 +93,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
   }
 
-  exportDocument(): void {
+  async exportDocument(): Promise<void> {
+    // Flush any pending changes from active editors before export
+    await this.pendingChangesRegistry.flushAll();
+    
     const document = this.documentService.document;
     this.exportService.exportToFile(document).catch(() => {
       // Error handling is done in export service
@@ -99,6 +104,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportToClipboard(): Promise<void> {
+    // Flush any pending changes from active editors before export
+    await this.pendingChangesRegistry.flushAll();
+    
     const document = this.documentService.document;
     const success = await this.exportService.exportToClipboard(document);
     if (success) {
@@ -178,6 +186,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async downloadPDF(): Promise<void> {
+    // Flush any pending changes from active editors before export
+    await this.pendingChangesRegistry.flushAll();
+    
     const document = this.documentService.document;
 
     if (!document) {
