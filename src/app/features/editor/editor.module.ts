@@ -14,12 +14,15 @@ import { WidgetContainerComponent } from './widgets/widget-container/widget-cont
 import { TextWidgetComponent } from './widgets/text-widget/text-widget.component';
 import { ChartWidgetComponent } from './widgets/chart-widget/chart-widget.component';
 import { ImageWidgetComponent } from './widgets/image-widget/image-widget.component';
+import { TableWidgetComponent } from './widgets/table-widget/table-widget.component';
 import { ZoomControlsComponent } from './toolbar/zoom-controls/zoom-controls.component';
 import { UndoRedoControlsComponent } from './toolbar/undo-redo-controls/undo-redo-controls.component';
 import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
 import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
 import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-picker/text-widget-color-picker.component';
+import { TableToolbarComponent } from './toolbar/table-toolbar/table-toolbar.component';
+import { TableGridSelectorComponent } from './toolbar/table-grid-selector/table-grid-selector.component';
 
 @NgModule({
   declarations: [
@@ -33,6 +36,7 @@ import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-pick
     TextWidgetComponent,
     ChartWidgetComponent,
     ImageWidgetComponent,
+    TableWidgetComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
   ],
@@ -45,6 +49,8 @@ import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-pick
     ChartConfigDialogComponent,
     RichTextToolbarComponent,
     TextWidgetColorPickerComponent,
+    TableToolbarComponent,
+    TableGridSelectorComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],

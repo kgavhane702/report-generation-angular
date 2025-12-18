@@ -24,7 +24,7 @@ export class EditorShellComponent {
   // Computed signals to determine if toolbars should be shown
   readonly showRichTextToolbar = computed(() => {
     const widget = this.editorState.activeWidget();
-    return widget?.type === 'text';
+    return widget?.type === 'text' || widget?.type === 'table';
   });
 
   @HostListener('window:keydown', ['$event'])

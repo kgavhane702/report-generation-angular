@@ -60,6 +60,13 @@
           (propsChange)="onContentChange($event)"
         ></app-image-widget>
 
+        <app-table-widget
+          *ngSwitchCase="'table'"
+          [widget]="$any(widget)"
+          (editingChange)="onEditingChange($event)"
+          (propsChange)="onContentChange($event)"
+        ></app-table-widget>
+
         <div *ngSwitchDefault class="widget-container__placeholder">
           {{ widget.type }} widget
         </div>

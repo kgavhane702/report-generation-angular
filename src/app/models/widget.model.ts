@@ -6,7 +6,8 @@ export type WidgetType =
   | 'image'
   | 'shape'
   | 'media'
-  | 'object';
+  | 'object'
+  | 'table';
 
 export interface WidgetModel<TProps = WidgetProps> {
   id: UUID;
@@ -35,7 +36,8 @@ export type WidgetProps =
   | ChartWidgetProps
   | ImageWidgetProps
   | ShapeWidgetProps
-  | MediaWidgetProps;
+  | MediaWidgetProps
+  | TableWidgetProps;
 
 export interface TextWidgetProps {
   contentHtml: string;
@@ -78,6 +80,29 @@ export interface MediaWidgetProps {
   autoplay?: boolean;
   loop?: boolean;
   controls?: boolean;
+}
+
+export interface TableWidgetProps {
+  rows: TableRow[];
+  showBorders?: boolean;
+}
+
+export interface TableRow {
+  id: string;
+  cells: TableCell[];
+}
+
+export interface TableCell {
+  id: string;
+  contentHtml: string;
+  style?: TableCellStyle;
+}
+
+export interface TableCellStyle {
+  textAlign?: 'left' | 'center' | 'right';
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
 }
 
 export type CssStyleObject = Partial<

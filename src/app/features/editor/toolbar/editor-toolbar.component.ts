@@ -9,7 +9,8 @@ import { ExportService } from '../../../core/services/export.service';
 import { ImportService } from '../../../core/services/import.service';
 import { PdfService } from '../../../core/services/pdf.service';
 import { PendingChangesRegistry } from '../../../core/services/pending-changes-registry.service';
-import { WidgetType } from '../../../models/widget.model';
+import { WidgetType, TableRow, TableCell } from '../../../models/widget.model';
+import { TableDimensions } from './table-grid-selector/table-grid-selector.component';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
 
@@ -60,6 +61,37 @@ export class EditorToolbarComponent implements AfterViewInit {
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
+  }
+
+  onTableInsert(dimensions: TableDimensions): void {
+    const pageId = this.editorState.activePageId();
+
+    if (!pageId) {
+      return;
+    }
+
+    const rows = this.createTableRows(dimensions.rows, dimensions.columns);
+    const widget = this.widgetFactory.createWidget('table', { rows });
+    this.documentService.addWidget(pageId, widget);
+    this.editorState.setActiveWidget(widget.id);
+  }
+
+  private createTableRows(rowCount: number, colCount: number): TableRow[] {
+    const rows: TableRow[] = [];
+    for (let r = 0; r < rowCount; r++) {
+      const cells: TableCell[] = [];
+      for (let c = 0; c < colCount; c++) {
+        cells.push({
+          id: `cell-${r}-${c}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          contentHtml: '',
+        });
+      }
+      rows.push({
+        id: `row-${r}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        cells,
+      });
+    }
+    return rows;
   }
 
   async exportDocument(): Promise<void> {

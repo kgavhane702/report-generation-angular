@@ -1,0 +1,94 @@
+.table-widget {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+
+  &__table {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    background: transparent;
+  }
+
+  &__row {
+    height: auto;
+  }
+
+  &__cell {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    vertical-align: top;
+    position: relative;
+    min-width: 40px;
+    min-height: 24px;
+    user-select: none;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    &--selected {
+      background: rgba(25, 118, 210, 0.15);
+      border-color: #1976d2;
+
+      &:hover {
+        background: rgba(25, 118, 210, 0.2);
+      }
+    }
+  }
+
+  &__cell-content {
+    width: 100%;
+    height: 100%;
+    min-height: 24px;
+    padding: 4px 8px;
+    outline: none;
+    background: transparent;
+    box-sizing: border-box;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+
+    &:focus {
+      outline: 2px solid #1976d2;
+      outline-offset: -2px;
+      background: rgba(25, 118, 210, 0.04);
+    }
+
+    &:empty::before {
+      content: '\00a0';
+      color: transparent;
+    }
+  }
+
+  &--editing {
+    .table-widget__cell {
+      border-color: rgba(25, 118, 210, 0.3);
+    }
+  }
+}
+
+// Ensure contenteditable inherits font styles
+.table-widget__cell-content {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
+  color: inherit;
+
+  // Reset styles for pasted content
+  * {
+    font-family: inherit;
+  }
+
+  // Bold and italic support
+  b, strong {
+    font-weight: bold;
+  }
+
+  i, em {
+    font-style: italic;
+  }
+}
+

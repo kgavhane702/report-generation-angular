@@ -1,0 +1,36 @@
+<div 
+  class="table-widget" 
+  #tableContainer
+  [class.table-widget--editing]="editing"
+>
+  <table class="table-widget__table">
+    <tbody>
+      <tr 
+        *ngFor="let row of rows; let rowIndex = index; trackBy: trackByRowId"
+        class="table-widget__row"
+      >
+        <td 
+          *ngFor="let cell of row.cells; let cellIndex = index; trackBy: trackByCellId"
+          class="table-widget__cell"
+          [class.table-widget__cell--selected]="isCellSelected(rowIndex, cellIndex)"
+          [attr.data-cell]="rowIndex + '-' + cellIndex"
+          (mousedown)="onCellMouseDown($event, rowIndex, cellIndex)"
+          (mouseenter)="onCellMouseEnter($event, rowIndex, cellIndex)"
+        >
+          <div
+            class="table-widget__cell-content"
+            contenteditable="true"
+            [innerHTML]="cell.contentHtml"
+            [style.text-align]="cell.style?.textAlign || 'left'"
+            [style.vertical-align]="cell.style?.verticalAlign || 'top'"
+            (focus)="onCellFocus($event, rowIndex, cellIndex)"
+            (blur)="onCellBlur($event, rowIndex, cellIndex)"
+            (input)="onCellInput($event, rowIndex, cellIndex)"
+            (keydown)="onCellKeydown($event, rowIndex, cellIndex)"
+          ></div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+

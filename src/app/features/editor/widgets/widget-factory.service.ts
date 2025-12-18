@@ -7,6 +7,8 @@ import {
   ChartWidgetProps,
   TextWidgetProps,
   ImageWidgetProps,
+  TableWidgetProps,
+  TableRow,
   WidgetProps,
 } from '../../../models/widget.model';
 import { createDefaultChartData } from '../../../models/chart-data.model';
@@ -15,7 +17,7 @@ import { createDefaultChartData } from '../../../models/chart-data.model';
   providedIn: 'root',
 })
 export class WidgetFactoryService {
-  createWidget(type: WidgetType): WidgetModel {
+  createWidget(type: WidgetType, props?: Partial<WidgetProps>): WidgetModel {
     switch (type) {
       case 'text':
         return this.createTextWidget();
@@ -23,6 +25,8 @@ export class WidgetFactoryService {
         return this.createChartWidget();
       case 'image':
         return this.createImageWidget();
+      case 'table':
+        return this.createTableWidget(props as Partial<TableWidgetProps>);
       default:
         return this.createFallbackWidget(type);
     }
@@ -73,6 +77,40 @@ export class WidgetFactoryService {
         fit: 'cover',
       },
     };
+  }
+
+  private createTableWidget(props?: Partial<TableWidgetProps>): WidgetModel<TableWidgetProps> {
+    const rows = props?.rows ?? this.createDefaultTableRows(3, 3);
+    
+    return {
+      id: uuid(),
+      type: 'table',
+      position: { x: 80, y: 80 },
+      size: { width: 400, height: 200 },
+      zIndex: 1,
+      props: {
+        rows,
+        showBorders: true,
+      },
+    };
+  }
+
+  private createDefaultTableRows(rowCount: number, colCount: number): TableRow[] {
+    const rows: TableRow[] = [];
+    for (let r = 0; r < rowCount; r++) {
+      const cells = [];
+      for (let c = 0; c < colCount; c++) {
+        cells.push({
+          id: `cell-${r}-${c}-${uuid()}`,
+          contentHtml: '',
+        });
+      }
+      rows.push({
+        id: `row-${r}-${uuid()}`,
+        cells,
+      });
+    }
+    return rows;
   }
 
   private createFallbackWidget(type: WidgetType): WidgetModel {
