@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, HostListener } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 
@@ -47,50 +47,19 @@ export class EditorToolbarComponent implements AfterViewInit {
   isEditingDocumentName = false;
   documentNameValue = '';
   @ViewChild('documentNameInputRef') documentNameInputRef?: ElementRef<HTMLInputElement>;
-  @ViewChild('tableDropdownContainer') tableDropdownContainer?: ElementRef<HTMLElement>;
 
-  // Table dropdown (for advanced table grid selection)
-  showTableDropdown = false;
-
-  addWidget(type: WidgetType, options?: { rows?: number; columns?: number }): void {
+  addWidget(type: WidgetType): void {
     const pageId = this.editorState.activePageId();
 
     if (!pageId) {
       return;
     }
 
-    const widget = this.widgetFactory.createWidget(type, options);
+    const widget = this.widgetFactory.createWidget(type);
     this.documentService.addWidget(pageId, widget);
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
-  }
-
-  toggleTableDropdown(): void {
-    this.showTableDropdown = !this.showTableDropdown;
-  }
-
-  closeTableDropdown(): void {
-    this.showTableDropdown = false;
-  }
-
-
-  onTableGridSelected(result: { rows: number; columns: number }): void {
-    this.closeTableDropdown();
-    if (result.rows > 0 && result.columns > 0) {
-      this.addWidget('advanced-table', {
-        rows: result.rows,
-        columns: result.columns,
-      });
-    }
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    if (this.tableDropdownContainer?.nativeElement && 
-        !this.tableDropdownContainer.nativeElement.contains(event.target as Node)) {
-      this.closeTableDropdown();
-    }
   }
 
   async exportDocument(): Promise<void> {

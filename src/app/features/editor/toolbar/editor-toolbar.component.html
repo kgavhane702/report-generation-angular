@@ -50,32 +50,6 @@
     >
       <span class="material-symbols-outlined">bar_chart</span>
     </button>
-    <div class="editor-toolbar__table-dropdown" #tableDropdownContainer>
-      <button 
-        type="button" 
-        class="editor-toolbar__icon-button editor-toolbar__icon-button--with-dropdown"
-        (click)="toggleTableDropdown()"
-        title="Add Table Widget"
-        #tableButton
-      >
-        <span class="material-symbols-outlined">table</span>
-        <span class="material-symbols-outlined editor-toolbar__dropdown-arrow">arrow_drop_down</span>
-      </button>
-      <div 
-        class="editor-toolbar__dropdown-menu"
-        *ngIf="showTableDropdown"
-        (click)="$event.stopPropagation()"
-        (mousedown)="$event.stopPropagation()"
-      >
-        <div class="editor-toolbar__dropdown-header">
-          <span>Insert Table</span>
-        </div>
-        <app-table-grid-selection-inline
-          (selected)="onTableGridSelected($event)"
-          (cancelled)="closeTableDropdown()"
-        ></app-table-grid-selection-inline>
-      </div>
-    </div>
     <button 
       type="button" 
       class="editor-toolbar__icon-button"

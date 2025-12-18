@@ -441,52 +441,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.onContentChange(props);
   }
   
-  onAdvancedTableCellDataChange(cellData: string[][]): void {
-    const currentWidget = this.displayWidget();
-    if (!currentWidget) return;
-    
-    this.documentService.updateWidget(this.pageId, this.widgetId, {
-      props: {
-        ...currentWidget.props,
-        cellData,
-      } as any,
-    });
-  }
-  
-  onAdvancedTableCellStylesChange(cellStyles: Record<string, any>): void {
-    const currentWidget = this.displayWidget();
-    if (!currentWidget) return;
-    
-    this.documentService.updateWidget(this.pageId, this.widgetId, {
-      props: {
-        ...currentWidget.props,
-        cellStyles,
-      } as any,
-    });
-  }
-  
-  onAdvancedTableStructureChange(structure: {
-    rows: number;
-    columns: number;
-    cellData: string[][];
-    cellStyles: Record<string, any>;
-    mergedCells?: Record<string, { rowspan: number; colspan: number }>;
-  }): void {
-    const currentWidget = this.displayWidget();
-    if (!currentWidget) return;
-    
-    this.documentService.updateWidget(this.pageId, this.widgetId, {
-      props: {
-        ...currentWidget.props,
-        rows: structure.rows,
-        columns: structure.columns,
-        cellData: structure.cellData,
-        cellStyles: structure.cellStyles,
-        mergedCells: structure.mergedCells,
-      } as any,
-    });
-  }
-  
   // ============================================
   // DELETE HANDLING
   // ============================================

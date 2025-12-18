@@ -27,11 +27,6 @@ export class EditorShellComponent {
     return widget?.type === 'text';
   });
 
-  readonly showTableToolbar = computed(() => {
-    const widget = this.editorState.activeWidget();
-    return widget?.type === 'advanced-table';
-  });
-
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
     const target = event.target as HTMLElement;

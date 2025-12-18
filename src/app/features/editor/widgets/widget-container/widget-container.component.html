@@ -54,14 +54,6 @@
           (chartPropsChange)="onChartPropsChange($event)"
         ></app-chart-widget>
 
-        <app-advanced-table-widget
-          *ngSwitchCase="'advanced-table'"
-          [widget]="$any(widget)"
-          (cellDataChange)="onAdvancedTableCellDataChange($event)"
-          (cellStylesChange)="onAdvancedTableCellStylesChange($event)"
-          (structureChange)="onAdvancedTableStructureChange($event)"
-        ></app-advanced-table-widget>
-
         <app-image-widget
           *ngSwitchCase="'image'"
           [widget]="$any(widget)"

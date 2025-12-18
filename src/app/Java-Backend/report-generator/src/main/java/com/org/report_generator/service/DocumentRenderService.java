@@ -15,7 +15,6 @@ import com.org.report_generator.model.document.WidgetSize;
 import com.org.report_generator.service.renderer.GlobalStylesRenderer;
 import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
-import com.org.report_generator.service.renderer.AdvancedTableWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import org.springframework.stereotype.Service;
 
@@ -34,7 +33,6 @@ public class DocumentRenderService {
     private static final int DEFAULT_DPI = 96;
     
     private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
-    private final AdvancedTableWidgetRenderer advancedTableWidgetRenderer = new AdvancedTableWidgetRenderer();
     private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
 
     public String render(DocumentModel document) {
@@ -46,7 +44,6 @@ public class DocumentRenderService {
         html.append("<style>")
                 .append(GlobalStylesRenderer.getCss())
                 .append(TextWidgetRenderer.getCss())
-                .append(AdvancedTableWidgetRenderer.getCss())
                 .append(ImageWidgetRenderer.getCss())
                 .append(PageStylesRenderer.getCss(pages, document))
                 .append("</style></head><body><div class=\"document-container\">");
@@ -135,7 +132,6 @@ public class DocumentRenderService {
 
         return switch (type) {
             case "text" -> textWidgetRenderer.render(props, style);
-            case "advanced-table" -> advancedTableWidgetRenderer.render(props, style);
             case "image" -> imageWidgetRenderer.render(props, style);
             case "chart" -> renderChartWidget(props, style);
             default -> "<div class=\"widget\" style=\"" + style + "\"></div>";

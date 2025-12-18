@@ -5,7 +5,6 @@ import {
   WidgetModel,
   WidgetType,
   ChartWidgetProps,
-  AdvancedTableWidgetProps,
   TextWidgetProps,
   ImageWidgetProps,
   WidgetProps,
@@ -16,14 +15,12 @@ import { createDefaultChartData } from '../../../models/chart-data.model';
   providedIn: 'root',
 })
 export class WidgetFactoryService {
-  createWidget(type: WidgetType, options?: { rows?: number; columns?: number }): WidgetModel {
+  createWidget(type: WidgetType): WidgetModel {
     switch (type) {
       case 'text':
         return this.createTextWidget();
       case 'chart':
         return this.createChartWidget();
-      case 'advanced-table':
-        return this.createAdvancedTableWidget(options?.rows || 3, options?.columns || 3);
       case 'image':
         return this.createImageWidget();
       default:
@@ -59,26 +56,6 @@ export class WidgetFactoryService {
         chartType: defaultChartData.chartType,
         data: defaultChartData,
         renderMode: 'canvas',
-      },
-    };
-  }
-
-  private createAdvancedTableWidget(rows: number, columns: number): WidgetModel<AdvancedTableWidgetProps> {
-    // Calculate default size based on rows and columns
-    const cellWidth = 100;
-    const cellHeight = 40;
-    const defaultWidth = Math.max(columns * cellWidth, 300);
-    const defaultHeight = Math.max(rows * cellHeight, 150);
-    
-    return {
-      id: uuid(),
-      type: 'advanced-table',
-      position: { x: 100, y: 100 },
-      size: { width: defaultWidth, height: defaultHeight },
-      zIndex: 1,
-      props: {
-        rows,
-        columns,
       },
     };
   }

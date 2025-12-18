@@ -18,11 +18,7 @@ import { ZoomControlsComponent } from './toolbar/zoom-controls/zoom-controls.com
 import { UndoRedoControlsComponent } from './toolbar/undo-redo-controls/undo-redo-controls.component';
 import { ChartRegistryInitializer } from './widgets/providers/charts/registry';
 import { ChartConfigDialogComponent } from './widgets/providers/charts/chart-config/chart-config-dialog.component';
-import { TableGridSelectionDialogComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-dialog.component';
-import { TableGridSelectionInlineComponent } from './widgets/providers/table/table-grid-selection/table-grid-selection-inline.component';
 import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-toolbar.component';
-import { TableToolbarComponent } from './toolbar/table-toolbar/table-toolbar.component';
-import { AdvancedTableWidgetComponent } from './widgets/advanced-table-widget/advanced-table-widget.component';
 import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-picker/text-widget-color-picker.component';
 
 @NgModule({
@@ -47,11 +43,7 @@ import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-pick
     DragDropModule,
     CKEditorModule,
     ChartConfigDialogComponent,
-    TableGridSelectionDialogComponent,
-    TableGridSelectionInlineComponent,
-    AdvancedTableWidgetComponent,
     RichTextToolbarComponent,
-    TableToolbarComponent,
     TextWidgetColorPickerComponent,
   ],
   exports: [EditorShellComponent],
