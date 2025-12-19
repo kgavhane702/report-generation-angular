@@ -82,6 +82,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private selectionStart: { row: number; col: number } | null = null;
   private selectionEnd: { row: number; col: number } | null = null;
   private leafRectStart: { x: number; y: number } | null = null;
+  private tableRectStart: { x: number; y: number } | null = null;
 
   get editing(): boolean {
     return this.isActivelyEditing();
@@ -298,6 +299,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
     this.selectionMode = null;
     this.leafRectStart = null;
+    this.tableRectStart = null;
 
     // Debug: log final selection on mouseup for active table widget
     if (this.toolbarService.activeTableWidgetId === this.widget.id) {
@@ -320,7 +322,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const cell = this.getCellFromPoint(event.clientX, event.clientY);
       if (cell) {
         this.selectionEnd = cell;
-        this.updateSelection();
+        this.updateTableSelection({ x: event.clientX, y: event.clientY });
       }
     }
   };
@@ -361,16 +363,17 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.isSelecting = true;
     this.selectionMode = 'table';
     this.leafRectStart = null;
+    this.tableRectStart = { x: event.clientX, y: event.clientY };
     this.selectionStart = { row: rowIndex, col: cellIndex };
     this.selectionEnd = { row: rowIndex, col: cellIndex };
-    this.updateSelection();
+    this.updateTableSelection({ x: event.clientX, y: event.clientY });
   }
 
   onCellMouseEnter(event: MouseEvent, rowIndex: number, cellIndex: number): void {
     if (!this.isSelecting || this.selectionMode !== 'table') return;
 
     this.selectionEnd = { row: rowIndex, col: cellIndex };
-    this.updateSelection();
+    this.updateTableSelection({ x: event.clientX, y: event.clientY });
   }
 
   isCellSelected(rowIndex: number, cellIndex: number): boolean {
@@ -386,8 +389,25 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private updateSelection(): void {
+    // Backwards-compatible entrypoint: table-only selection (no subcells).
+    // Kept for any call sites we didn't refactor.
+    const normal = this.computeNormalTableRectSelection();
+    this.setSelection(normal);
+  }
+
+  private updateTableSelection(currentPoint: { x: number; y: number }): void {
+    const normal = this.computeNormalTableRectSelection();
+    const subCells = this.tableRectStart
+      ? this.computeSubCellRectSelection(this.tableRectStart, currentPoint)
+      : new Set<string>();
+
+    const union = new Set<string>([...normal, ...subCells]);
+    this.setSelection(union);
+  }
+
+  private computeNormalTableRectSelection(): Set<string> {
     if (!this.selectionStart || !this.selectionEnd) {
-      return;
+      return new Set<string>();
     }
 
     const minRow = Math.min(this.selectionStart.row, this.selectionEnd.row);
@@ -395,20 +415,20 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const minCol = Math.min(this.selectionStart.col, this.selectionEnd.col);
     const maxCol = Math.max(this.selectionStart.col, this.selectionEnd.col);
 
-    const newSelection = new Set<string>();
+    const selection = new Set<string>();
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
-        // Preserve existing behavior: when selecting normal cells, do NOT select split cells at all
+        // Preserve existing behavior for normal cells:
+        // - normal cells become selected as r-c
+        // - split parents are NOT selected as r-c
         const cell = this.localRows()?.[r]?.cells?.[c];
         if (cell?.split) {
           continue;
         }
-        newSelection.add(`${r}-${c}`);
+        selection.add(`${r}-${c}`);
       }
     }
-
-    this.setSelection(newSelection);
-    this.cdr.markForCheck();
+    return selection;
   }
 
   clearSelection(): void {
@@ -418,6 +438,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.isSelecting = false;
     this.selectionMode = null;
     this.leafRectStart = null;
+    this.tableRectStart = null;
     this.cdr.markForCheck();
 
     // Debug: log when selection is cleared
@@ -485,6 +506,34 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const selection = new Set<string>();
     const leaves = container.querySelectorAll('.table-widget__cell-content[data-leaf]') as NodeListOf<HTMLElement>;
     leaves.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
+      if (!intersects) return;
+      const id = el.getAttribute('data-leaf');
+      if (id) selection.add(id);
+    });
+
+    return selection;
+  }
+
+  private computeSubCellRectSelection(
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ): Set<string> {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return new Set<string>();
+
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+
+    const selection = new Set<string>();
+    const subLeaves = container.querySelectorAll(
+      '.table-widget__cell-content--subcell[data-leaf]'
+    ) as NodeListOf<HTMLElement>;
+
+    subLeaves.forEach((el) => {
       const rect = el.getBoundingClientRect();
       const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
       if (!intersects) return;
