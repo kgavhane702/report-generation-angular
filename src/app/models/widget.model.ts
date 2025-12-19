@@ -85,6 +85,13 @@ export interface MediaWidgetProps {
 export interface TableWidgetProps {
   rows: TableRow[];
   showBorders?: boolean;
+  /**
+   * Legacy merge representation (overlay-based).
+   * Kept only for backwards compatibility with saved documents.
+   *
+   * New approach: merges are represented inline on `TableCell` via `merge` (anchor)
+   * and `coveredBy` (covered cells), allowing merged areas to behave like normal cells.
+   */
   mergedRegions?: TableMergedRegion[];
 }
 
@@ -126,6 +133,21 @@ export interface TableCell {
    * When present, the cell renders as an RxC grid of child TableCells.
    */
   split?: TableCellSplit;
+  /**
+   * When present on an anchor cell, renders this cell as a real HTML table merge
+   * using `rowspan` / `colspan`.
+   */
+  merge?: TableCellMerge;
+  /**
+   * When present, this cell is covered by a merged anchor cell at the given coordinates.
+   * Covered cells are not rendered as <td> elements.
+   */
+  coveredBy?: { row: number; col: number };
+}
+
+export interface TableCellMerge {
+  rowSpan: number;
+  colSpan: number;
 }
 
 export interface TableCellStyle {
