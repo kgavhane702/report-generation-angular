@@ -80,7 +80,6 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
-  private unmergeSubscription?: Subscription;
 
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
@@ -143,13 +142,6 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       }
       this.applyMergeSelection();
     });
-
-    this.unmergeSubscription = this.toolbarService.unmergeRequested$.subscribe(() => {
-      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
-        return;
-      }
-      this.applyUnmergeSelection();
-    });
   }
 
   ngOnDestroy(): void {
@@ -163,9 +155,6 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
     if (this.mergeSubscription) {
       this.mergeSubscription.unsubscribe();
-    }
-    if (this.unmergeSubscription) {
-      this.unmergeSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
@@ -337,6 +326,25 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   trackByRenderableCell(index: number, item: { colIndex: number; cell: TableCell }): string {
     // Use the actual cell id for stable DOM reuse (even when some cells are skipped due to merges)
+    return item.cell.id;
+  }
+
+  getRenderableSplitCells(cell: TableCell): Array<{ index: number; row: number; col: number; cell: TableCell }> {
+    const split = cell.split;
+    if (!split) return [];
+
+    const cols = Math.max(1, split.cols);
+    return split.cells
+      .map((c, index) => ({
+        index,
+        row: Math.floor(index / cols),
+        col: index % cols,
+        cell: c,
+      }))
+      .filter(x => !x.cell.coveredBy);
+  }
+
+  trackByRenderableSplitCell(index: number, item: { index: number; row: number; col: number; cell: TableCell }): string {
     return item.cell.id;
   }
 
@@ -847,147 +855,36 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private applyMergeSelection(): void {
     this.syncCellContent();
 
-    // New behavior: treat merged cell as a real table cell (rowspan/colspan on the anchor cell).
-    // We only support merging top-level cells (no split sub-cells) for now.
     const selectionIds = Array.from(this.selectedCells());
-    const coords: Array<{ row: number; col: number }> = [];
-    for (const id of selectionIds) {
-      const parsed = this.parseLeafId(id);
-      if (!parsed) continue;
-      if (parsed.path.length > 0) continue; // skip sub-cells
-      coords.push({ row: parsed.row, col: parsed.col });
+    if (selectionIds.length < 2) return;
+
+    const parsedAll = selectionIds
+      .map(id => ({ id, parsed: this.parseLeafId(id) }))
+      .filter((x): x is { id: string; parsed: { row: number; col: number; path: number[] } } => !!x.parsed);
+
+    if (parsedAll.length < 2) return;
+
+    // If selection spans multiple top-level cells, do a table-level merge (even if the user selected split sub-cells).
+    const topLevelKeys = new Set(parsedAll.map(x => `${x.parsed.row}-${x.parsed.col}`));
+    if (topLevelKeys.size >= 2) {
+      this.mergeTopLevelCells(Array.from(topLevelKeys).map(k => {
+        const [r, c] = k.split('-').map(Number);
+        return { row: r, col: c };
+      }));
+      return;
     }
 
-    if (coords.length < 2) return;
-
-    const minRow = Math.min(...coords.map(x => x.row));
-    const maxRow = Math.max(...coords.map(x => x.row));
-    const minCol = Math.min(...coords.map(x => x.col));
-    const maxCol = Math.max(...coords.map(x => x.col));
-
-    // Ensure selection is a full rectangle of mergeable cells
-    const selectedSet = new Set(coords.map(x => `${x.row}-${x.col}`));
-    const rowsSnapshot = this.localRows();
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        if (!selectedSet.has(`${r}-${c}`)) return;
-        const cell = rowsSnapshot?.[r]?.cells?.[c];
-        if (!cell) return;
-        if (cell.coveredBy) return;
-        if (cell.merge) return;
-        if (cell.split) return;
-      }
+    // Otherwise, merge within a split grid (merge sub-cells inside the same parent).
+    const only = parsedAll[0].parsed;
+    if (only.path.length === 0) {
+      // Single top-level cell selected (shouldn't happen with size>=2), nothing to merge.
+      return;
     }
 
-    const anchorRow = minRow;
-    const anchorCol = minCol;
-    const rowSpan = maxRow - minRow + 1;
-    const colSpan = maxCol - minCol + 1;
-
-    // Concatenate content in reading order
-    const contentParts: Array<{ html: string; style?: TableCellStyle }> = [];
-    for (let r = minRow; r <= maxRow; r++) {
-      for (let c = minCol; c <= maxCol; c++) {
-        const cell = rowsSnapshot[r].cells[c];
-        const html = (cell.contentHtml ?? '').trim();
-        if (html) {
-          contentParts.push({ html, style: cell.style });
-        }
-      }
-    }
-
-    const mergedHtml = contentParts.length > 0
-      ? contentParts.map(p => `<div>${p.html}</div>`).join('')
-      : '';
-    const mergedStyle = contentParts.length > 0 ? (contentParts[0].style ? { ...contentParts[0].style } : undefined) : undefined;
-
-    this.localRows.update((rows) => {
-      const next = this.cloneRows(rows);
-      const anchor = next?.[anchorRow]?.cells?.[anchorCol];
-      if (!anchor) return next;
-
-      anchor.merge = { rowSpan, colSpan };
-      anchor.contentHtml = mergedHtml;
-      if (mergedStyle) {
-        anchor.style = mergedStyle;
-      }
-
-      for (let r = minRow; r <= maxRow; r++) {
-        for (let c = minCol; c <= maxCol; c++) {
-          if (r === anchorRow && c === anchorCol) continue;
-          const covered = next?.[r]?.cells?.[c];
-          if (!covered) continue;
-          covered.coveredBy = { row: anchorRow, col: anchorCol };
-          covered.contentHtml = '';
-          covered.split = undefined;
-          covered.merge = undefined;
-        }
-      }
-
-      return next;
-    });
-
-    const rowsAfter = this.localRows();
-    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
-    this.rowsAtEditStart = this.cloneRows(rowsAfter);
-
-    this.setSelection(new Set([`${anchorRow}-${anchorCol}`]));
-    this.cdr.markForCheck();
+    this.mergeWithinSplitGrid(parsedAll.map(x => x.parsed));
   }
 
-  private applyUnmergeSelection(): void {
-    this.syncCellContent();
-
-    const selectionIds = Array.from(this.selectedCells());
-    const rowsSnapshot = this.localRows();
-
-    let anchor: { row: number; col: number } | null = null;
-    for (const id of selectionIds) {
-      const parsed = this.parseLeafId(id);
-      if (!parsed) continue;
-      const base = rowsSnapshot?.[parsed.row]?.cells?.[parsed.col];
-      if (!base) continue;
-
-      if (base.coveredBy) {
-        anchor = { ...base.coveredBy };
-        break;
-      }
-      if (base.merge) {
-        anchor = { row: parsed.row, col: parsed.col };
-        break;
-      }
-    }
-
-    if (!anchor) return;
-
-    this.localRows.update((rows) => {
-      const next = this.cloneRows(rows);
-      const anchorCell = next?.[anchor!.row]?.cells?.[anchor!.col];
-      if (!anchorCell || !anchorCell.merge) return next;
-
-      // Clear merge on anchor
-      anchorCell.merge = undefined;
-
-      // Uncover any cells covered by this anchor
-      for (let r = 0; r < next.length; r++) {
-        for (let c = 0; c < next[r].cells.length; c++) {
-          const cell = next[r].cells[c];
-          if (cell.coveredBy && cell.coveredBy.row === anchor!.row && cell.coveredBy.col === anchor!.col) {
-            cell.coveredBy = undefined;
-          }
-        }
-      }
-
-      return next;
-    });
-
-    const rowsAfter = this.localRows();
-    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
-    this.rowsAtEditStart = this.cloneRows(rowsAfter);
-
-    this.setSelection(new Set([`${anchor.row}-${anchor.col}`]));
-    this.cdr.markForCheck();
-  }
+  // Unmerge intentionally removed (merge + split only).
 
   /**
    * Legacy migration: convert overlay-style `mergedRegions` into inline cell merges.
@@ -1052,6 +949,450 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
 
     return next;
+  }
+
+  private mergeTopLevelCells(coords: Array<{ row: number; col: number }>): void {
+    if (coords.length < 2) return;
+
+    const snapshot = this.localRows();
+    const expanded = this.expandTopLevelSelection(coords, snapshot);
+    if (expanded.size < 2) return;
+
+    const rect = this.getTopLevelBoundingRect(expanded);
+    if (!rect) return;
+
+    const { minRow, maxRow, minCol, maxCol } = rect;
+    if (!this.isValidTopLevelMergeRect(rect, expanded, snapshot)) return;
+
+    const anchorRow = minRow;
+    const anchorCol = minCol;
+    const rowSpan = maxRow - minRow + 1;
+    const colSpan = maxCol - minCol + 1;
+
+    // Build merged content from the original snapshot.
+    const visitedAnchors = new Set<string>();
+    const parts: Array<{ html: string; style?: TableCellStyle }> = [];
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = snapshot?.[r]?.cells?.[c];
+        if (!cell) continue;
+        const anchor = cell.coveredBy ? cell.coveredBy : { row: r, col: c };
+        const key = `${anchor.row}-${anchor.col}`;
+        if (visitedAnchors.has(key)) continue;
+        visitedAnchors.add(key);
+
+        const anchorCell = snapshot?.[anchor.row]?.cells?.[anchor.col];
+        if (!anchorCell) continue;
+        const html = this.serializeCellContent(anchorCell).trim();
+        if (html) {
+          parts.push({ html, style: anchorCell.style });
+        }
+      }
+    }
+
+    const mergedHtml = parts.length > 0 ? parts.map(p => `<div>${p.html}</div>`).join('') : '';
+    const mergedStyle = parts.length > 0 ? (parts[0].style ? { ...parts[0].style } : undefined) : undefined;
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+
+      // Clear any merges fully inside the rectangle (we're re-merging everything into one).
+      this.clearMergesWithinRect(next, rect);
+
+      const anchor = next?.[anchorRow]?.cells?.[anchorCol];
+      if (!anchor) return next;
+
+      anchor.coveredBy = undefined;
+      anchor.merge = { rowSpan, colSpan };
+      anchor.split = undefined; // simplify: merged result becomes a normal single cell
+      anchor.contentHtml = mergedHtml;
+      if (mergedStyle) {
+        anchor.style = mergedStyle;
+      }
+
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          if (r === anchorRow && c === anchorCol) continue;
+          const covered = next?.[r]?.cells?.[c];
+          if (!covered) continue;
+          covered.coveredBy = { row: anchorRow, col: anchorCol };
+          covered.contentHtml = '';
+          covered.split = undefined;
+          covered.merge = undefined;
+        }
+      }
+
+      return next;
+    });
+
+    const rowsAfter = this.localRows();
+    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
+    this.rowsAtEditStart = this.cloneRows(rowsAfter);
+    this.setSelection(new Set([`${anchorRow}-${anchorCol}`]));
+    this.cdr.markForCheck();
+  }
+
+  private mergeWithinSplitGrid(parsed: Array<{ row: number; col: number; path: number[] }>): void {
+    if (parsed.length < 2) return;
+
+    // All must be in the same top-level cell.
+    const baseRow = parsed[0].row;
+    const baseCol = parsed[0].col;
+    if (!parsed.every(p => p.row === baseRow && p.col === baseCol && p.path.length > 0)) {
+      return;
+    }
+
+    // Require same depth and same prefix (siblings in the same split grid)
+    const depth = parsed[0].path.length;
+    if (!parsed.every(p => p.path.length === depth)) return;
+
+    const prefix = parsed[0].path.slice(0, -1);
+    if (!parsed.every(p => this.arraysEqual(p.path.slice(0, -1), prefix))) return;
+
+    const indices = parsed.map(p => p.path[p.path.length - 1]);
+
+    const snapshot = this.localRows();
+    const baseCell = snapshot?.[baseRow]?.cells?.[baseCol];
+    if (!baseCell || baseCell.coveredBy) return;
+
+    const owner = prefix.length === 0 ? baseCell : this.getCellAtPath(baseCell, prefix);
+    if (!owner || !owner.split) return;
+
+    const expanded = this.expandSplitSelection(owner, indices);
+    if (expanded.size < 2) return;
+
+    const rect = this.getSplitBoundingRect(owner.split.cols, expanded);
+    if (!rect) return;
+
+    if (!this.isValidSplitMergeRect(owner, rect, expanded)) return;
+
+    const { minRow, maxRow, minCol, maxCol } = rect;
+    const rowSpan = maxRow - minRow + 1;
+    const colSpan = maxCol - minCol + 1;
+    const anchorIdx = minRow * owner.split.cols + minCol;
+
+    // Build merged content from snapshot owner
+    const visited = new Set<number>();
+    const parts: string[] = [];
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const idx = r * owner.split.cols + c;
+        const cell = owner.split.cells[idx];
+        if (!cell) continue;
+        const anchorCoord = cell.coveredBy ? cell.coveredBy : { row: r, col: c };
+        const anchorIndex = anchorCoord.row * owner.split.cols + anchorCoord.col;
+        if (visited.has(anchorIndex)) continue;
+        visited.add(anchorIndex);
+        const anchorCell = owner.split.cells[anchorIndex];
+        const html = this.serializeCellContent(anchorCell).trim();
+        if (html) parts.push(`<div>${html}</div>`);
+      }
+    }
+    const mergedHtml = parts.join('');
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      const nextBase = next?.[baseRow]?.cells?.[baseCol];
+      if (!nextBase || nextBase.coveredBy) return next;
+
+      const nextOwner = prefix.length === 0 ? nextBase : this.getCellAtPath(nextBase, prefix);
+      if (!nextOwner || !nextOwner.split) return next;
+
+      // Clear merges inside rect (within this split grid)
+      this.clearSplitMergesWithinRect(nextOwner, rect);
+
+      const anchorCell = nextOwner.split.cells[anchorIdx];
+      if (!anchorCell) return next;
+
+      anchorCell.coveredBy = undefined;
+      anchorCell.merge = { rowSpan, colSpan };
+      anchorCell.split = undefined;
+      anchorCell.contentHtml = mergedHtml;
+
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          const idx = r * nextOwner.split.cols + c;
+          if (idx === anchorIdx) continue;
+          const cell = nextOwner.split.cells[idx];
+          if (!cell) continue;
+          cell.coveredBy = { row: minRow, col: minCol };
+          cell.contentHtml = '';
+          cell.split = undefined;
+          cell.merge = undefined;
+        }
+      }
+
+      // If the merge covers the entire split grid, collapse (unsplit) back to a normal cell.
+      if (rowSpan === nextOwner.split.rows && colSpan === nextOwner.split.cols && prefix.length === 0) {
+        const parent = nextBase;
+        parent.split = undefined;
+        parent.contentHtml = mergedHtml;
+      }
+
+      return next;
+    });
+
+    const rowsAfter = this.localRows();
+    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
+    this.rowsAtEditStart = this.cloneRows(rowsAfter);
+
+    if (rowSpan === owner.split.rows && colSpan === owner.split.cols && prefix.length === 0) {
+      this.setSelection(new Set([`${baseRow}-${baseCol}`]));
+    } else {
+      const mergedPath = [...prefix, anchorIdx].join('-');
+      this.setSelection(new Set([this.composeLeafId(baseRow, baseCol, mergedPath)]));
+    }
+    this.cdr.markForCheck();
+  }
+
+  // Unmerge intentionally removed (merge + split only).
+
+  private expandTopLevelSelection(coords: Array<{ row: number; col: number }>, rows: TableRow[]): Set<string> {
+    const expanded = new Set<string>();
+    const queue: Array<{ row: number; col: number }> = [];
+
+    const add = (r: number, c: number) => {
+      const key = `${r}-${c}`;
+      if (expanded.has(key)) return;
+      expanded.add(key);
+      queue.push({ row: r, col: c });
+    };
+
+    // Seed with the initially selected cells
+    for (const c of coords) {
+      add(c.row, c.col);
+    }
+
+    while (queue.length > 0) {
+      const cur = queue.pop()!;
+      const cell = rows?.[cur.row]?.cells?.[cur.col];
+      if (!cell) continue;
+
+      if (cell.coveredBy) {
+        add(cell.coveredBy.row, cell.coveredBy.col);
+        continue;
+      }
+
+      if (cell.merge) {
+        for (let r = cur.row; r < cur.row + cell.merge.rowSpan; r++) {
+          for (let c = cur.col; c < cur.col + cell.merge.colSpan; c++) {
+            add(r, c);
+          }
+        }
+      }
+    }
+
+    return expanded;
+  }
+
+  private getTopLevelBoundingRect(expanded: Set<string>): { minRow: number; maxRow: number; minCol: number; maxCol: number } | null {
+    if (expanded.size === 0) return null;
+    const coords = Array.from(expanded).map(k => {
+      const [r, c] = k.split('-').map(Number);
+      return { r, c };
+    });
+    const minRow = Math.min(...coords.map(x => x.r));
+    const maxRow = Math.max(...coords.map(x => x.r));
+    const minCol = Math.min(...coords.map(x => x.c));
+    const maxCol = Math.max(...coords.map(x => x.c));
+    return { minRow, maxRow, minCol, maxCol };
+  }
+
+  private isValidTopLevelMergeRect(
+    rect: { minRow: number; maxRow: number; minCol: number; maxCol: number },
+    expanded: Set<string>,
+    rows: TableRow[]
+  ): boolean {
+    const { minRow, maxRow, minCol, maxCol } = rect;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const key = `${r}-${c}`;
+        if (!expanded.has(key)) {
+          return false;
+        }
+
+        const cell = rows?.[r]?.cells?.[c];
+        if (!cell) return false;
+
+        // If this coord is covered by a merge whose anchor is outside the rect, invalid.
+        if (cell.coveredBy) {
+          const a = cell.coveredBy;
+          if (a.row < minRow || a.row > maxRow || a.col < minCol || a.col > maxCol) {
+            return false;
+          }
+        }
+
+        // If this coord is a merge anchor that extends outside, invalid.
+        if (!cell.coveredBy && cell.merge) {
+          const endRow = r + cell.merge.rowSpan - 1;
+          const endCol = c + cell.merge.colSpan - 1;
+          if (endRow > maxRow || endCol > maxCol) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private clearMergesWithinRect(
+    rows: TableRow[],
+    rect: { minRow: number; maxRow: number; minCol: number; maxCol: number }
+  ): void {
+    const { minRow, maxRow, minCol, maxCol } = rect;
+
+    // Clear anchor merges inside rect
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = rows?.[r]?.cells?.[c];
+        if (!cell) continue;
+        if (cell.coveredBy) continue;
+        if (cell.merge) {
+          cell.merge = undefined;
+        }
+      }
+    }
+
+    // Clear coveredBy pointers that point to anchors inside rect
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = rows?.[r]?.cells?.[c];
+        if (!cell?.coveredBy) continue;
+        const a = cell.coveredBy;
+        if (a.row >= minRow && a.row <= maxRow && a.col >= minCol && a.col <= maxCol) {
+          cell.coveredBy = undefined;
+        }
+      }
+    }
+  }
+
+  private arraysEqual(a: number[], b: number[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  private expandSplitSelection(owner: TableCell, indices: number[]): Set<number> {
+    if (!owner.split) return new Set<number>();
+    const cols = owner.split.cols;
+    const expanded = new Set<number>();
+    const queue: number[] = [];
+
+    const add = (idx: number) => {
+      if (expanded.has(idx)) return;
+      expanded.add(idx);
+      queue.push(idx);
+    };
+
+    // Seed with the initially selected sub-cells
+    for (const idx of indices) {
+      add(idx);
+    }
+
+    while (queue.length > 0) {
+      const idx = queue.pop()!;
+      const cell = owner.split.cells[idx];
+      if (!cell) continue;
+      const row = Math.floor(idx / cols);
+      const col = idx % cols;
+
+      if (cell.coveredBy) {
+        add(cell.coveredBy.row * cols + cell.coveredBy.col);
+        continue;
+      }
+
+      if (cell.merge) {
+        for (let r = row; r < row + cell.merge.rowSpan; r++) {
+          for (let c = col; c < col + cell.merge.colSpan; c++) {
+            add(r * cols + c);
+          }
+        }
+      }
+    }
+
+    return expanded;
+  }
+
+  private getSplitBoundingRect(cols: number, expanded: Set<number>): { minRow: number; maxRow: number; minCol: number; maxCol: number } | null {
+    if (expanded.size === 0) return null;
+    const coords = Array.from(expanded).map(idx => ({ r: Math.floor(idx / cols), c: idx % cols }));
+    const minRow = Math.min(...coords.map(x => x.r));
+    const maxRow = Math.max(...coords.map(x => x.r));
+    const minCol = Math.min(...coords.map(x => x.c));
+    const maxCol = Math.max(...coords.map(x => x.c));
+    return { minRow, maxRow, minCol, maxCol };
+  }
+
+  private isValidSplitMergeRect(
+    owner: TableCell,
+    rect: { minRow: number; maxRow: number; minCol: number; maxCol: number },
+    expanded: Set<number>
+  ): boolean {
+    if (!owner.split) return false;
+    const cols = owner.split.cols;
+    const { minRow, maxRow, minCol, maxCol } = rect;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const idx = r * cols + c;
+        if (!expanded.has(idx)) return false;
+        const cell = owner.split.cells[idx];
+        if (!cell) return false;
+
+        if (cell.coveredBy) {
+          const a = cell.coveredBy;
+          if (a.row < minRow || a.row > maxRow || a.col < minCol || a.col > maxCol) {
+            return false;
+          }
+        }
+
+        if (!cell.coveredBy && cell.merge) {
+          const endRow = r + cell.merge.rowSpan - 1;
+          const endCol = c + cell.merge.colSpan - 1;
+          if (endRow > maxRow || endCol > maxCol) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private clearSplitMergesWithinRect(
+    owner: TableCell,
+    rect: { minRow: number; maxRow: number; minCol: number; maxCol: number }
+  ): void {
+    if (!owner.split) return;
+    const cols = owner.split.cols;
+    const { minRow, maxRow, minCol, maxCol } = rect;
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const idx = r * cols + c;
+        const cell = owner.split.cells[idx];
+        if (!cell) continue;
+        if (!cell.coveredBy && cell.merge) {
+          cell.merge = undefined;
+        }
+      }
+    }
+
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const idx = r * cols + c;
+        const cell = owner.split.cells[idx];
+        if (!cell?.coveredBy) continue;
+        const a = cell.coveredBy;
+        if (a.row >= minRow && a.row <= maxRow && a.col >= minCol && a.col <= maxCol) {
+          cell.coveredBy = undefined;
+        }
+      }
+    }
   }
 
   private serializeCellContent(cell: { contentHtml: string; split?: { cells: TableCell[] } }): string {
