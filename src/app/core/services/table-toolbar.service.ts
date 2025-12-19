@@ -1,11 +1,17 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { Subject } from 'rxjs';
 
 export interface TableFormattingState {
   isBold: boolean;
   isItalic: boolean;
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
+}
+
+export interface SplitCellRequest {
+  rows: number;
+  cols: number;
 }
 
 /**
@@ -19,9 +25,11 @@ export class TableToolbarService {
   private readonly activeCellSubject = new BehaviorSubject<HTMLElement | null>(null);
   private readonly activeTableWidgetIdSubject = new BehaviorSubject<string | null>(null);
   private readonly selectedCellsSubject = new BehaviorSubject<Set<string>>(new Set());
+  private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
+  public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
@@ -44,6 +52,10 @@ export class TableToolbarService {
 
   get selectedCells(): Set<string> {
     return this.selectedCellsSubject.value;
+  }
+
+  requestSplitCell(request: SplitCellRequest): void {
+    this.splitCellRequestedSubject.next(request);
   }
 
   /**

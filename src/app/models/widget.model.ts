@@ -92,10 +92,24 @@ export interface TableRow {
   cells: TableCell[];
 }
 
+export interface TableCellSplit {
+  rows: number;
+  cols: number;
+  /**
+   * Flattened array (row-major), length = rows * cols
+   */
+  cells: TableCell[];
+}
+
 export interface TableCell {
   id: string;
   contentHtml: string;
   style?: TableCellStyle;
+  /**
+   * Optional split grid inside this cell.
+   * When present, the cell renders as an RxC grid of child TableCells.
+   */
+  split?: TableCellSplit;
 }
 
 export interface TableCellStyle {

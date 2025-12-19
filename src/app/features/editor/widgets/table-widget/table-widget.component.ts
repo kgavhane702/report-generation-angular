@@ -14,6 +14,8 @@ import {
   ElementRef,
   ViewChild,
 } from '@angular/core';
+import { Subscription } from 'rxjs';
+import { v4 as uuid } from 'uuid';
 
 import {
   TableWidgetProps,
@@ -21,7 +23,7 @@ import {
   TableCell,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { TableToolbarService } from '../../../../core/services/table-toolbar.service';
+import { SplitCellRequest, TableToolbarService } from '../../../../core/services/table-toolbar.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
 
@@ -71,6 +73,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   /** Blur timeout for delayed blur handling */
   private blurTimeoutId: number | null = null;
 
+  private splitSubscription?: Subscription;
+
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
   private isSelecting = false;
@@ -105,12 +109,23 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     
     // Register cell getter with toolbar service
     this.toolbarService.setSelectedCellsGetter(() => this.getSelectedCellElements());
+
+    this.splitSubscription = this.toolbarService.splitCellRequested$.subscribe((request) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applySplitToSelection(request);
+    });
   }
 
   ngOnDestroy(): void {
     if (this.isActivelyEditing()) {
       this.commitChanges();
       this.pendingChangesRegistry.unregister(this.widget.id);
+    }
+
+    if (this.splitSubscription) {
+      this.splitSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
@@ -156,10 +171,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
   }
 
-  onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number): void {
+  onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
     const cell = event.target as HTMLElement;
     this.activeCellElement = cell;
-    this.activeCellId = `${rowIndex}-${cellIndex}`;
+    this.activeCellId = subCellIndex === undefined
+      ? `${rowIndex}-${cellIndex}`
+      : `${rowIndex}-${cellIndex}-${subCellIndex}`;
     
     this.toolbarService.setActiveCell(cell, this.widget.id);
     
@@ -176,7 +193,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
   }
 
-  onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number): void {
+  onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
     if (!this.isActivelyEditing()) {
       return;
     }
@@ -209,12 +226,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }, 150);
   }
 
-  onCellInput(event: Event, rowIndex: number, cellIndex: number): void {
+  onCellInput(event: Event, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
     // Content is synced on blur to avoid frequent updates
     this.cdr.markForCheck();
   }
 
-  onCellKeydown(event: KeyboardEvent, rowIndex: number, cellIndex: number): void {
+  onCellKeydown(event: KeyboardEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
     // Handle Tab navigation between cells
     if (event.key === 'Tab') {
       event.preventDefault();
@@ -243,10 +260,10 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       }
       
       if (nextRowIndex >= 0 && nextRowIndex < rows.length) {
-        const nextCell = this.tableContainer?.nativeElement
-          .querySelector(`[data-cell="${nextRowIndex}-${nextCellIndex}"]`) as HTMLElement;
-        if (nextCell) {
-          nextCell.focus();
+        const nextCellContent = this.tableContainer?.nativeElement
+          .querySelector(`[data-cell="${nextRowIndex}-${nextCellIndex}"] .table-widget__cell-content`) as HTMLElement;
+        if (nextCellContent) {
+          nextCellContent.focus();
         }
       }
     }
@@ -288,6 +305,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   onCellMouseDown(event: MouseEvent, rowIndex: number, cellIndex: number): void {
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
+
+    // Mark this table widget as active for toolbar actions (even if no contenteditable is focused)
+    this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
 
     // If shift is held, extend selection
     if (event.shiftKey && this.selectionStart) {
@@ -333,11 +353,13 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
 
     this.selectedCells.set(newSelection);
+    this.toolbarService.setSelectedCells(newSelection);
     this.cdr.markForCheck();
   }
 
   clearSelection(): void {
     this.selectedCells.set(new Set());
+    this.toolbarService.setSelectedCells(new Set());
     this.selectionStart = null;
     this.selectionEnd = null;
     this.isSelecting = false;
@@ -365,12 +387,10 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     
     const elements: HTMLElement[] = [];
     this.selectedCells().forEach(cellId => {
-      const cell = this.tableContainer?.nativeElement.querySelector(
+      const cellNodes = this.tableContainer?.nativeElement.querySelectorAll(
         `[data-cell="${cellId}"] .table-widget__cell-content`
-      ) as HTMLElement;
-      if (cell) {
-        elements.push(cell);
-      }
+      ) as NodeListOf<HTMLElement>;
+      cellNodes.forEach(node => elements.push(node));
     });
     return elements;
   }
@@ -380,13 +400,26 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       return;
     }
     
-    const [rowIndex, cellIndex] = this.activeCellId.split('-').map(Number);
+    const parts = this.activeCellId.split('-').map(Number);
+    const rowIndex = parts[0];
+    const cellIndex = parts[1];
+    const subCellIndex = parts.length > 2 ? parts[2] : null;
     const content = this.activeCellElement.innerHTML;
     
     this.localRows.update(rows => {
       const newRows = this.cloneRows(rows);
-      if (newRows[rowIndex] && newRows[rowIndex].cells[cellIndex]) {
-        newRows[rowIndex].cells[cellIndex].contentHtml = content;
+      const targetCell = newRows[rowIndex]?.cells?.[cellIndex];
+      if (!targetCell) {
+        return newRows;
+      }
+
+      if (subCellIndex === null) {
+        targetCell.contentHtml = content;
+      } else {
+        const splitCell = targetCell.split?.cells?.[subCellIndex];
+        if (splitCell) {
+          splitCell.contentHtml = content;
+        }
       }
       return newRows;
     });
@@ -402,10 +435,88 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private cloneRows(rows: TableRow[]): TableRow[] {
+    const cloneCell = (cell: TableCell): TableCell => ({
+      ...cell,
+      style: cell.style ? { ...cell.style } : undefined,
+      split: cell.split
+        ? {
+            rows: cell.split.rows,
+            cols: cell.split.cols,
+            cells: cell.split.cells.map(cloneCell),
+          }
+        : undefined,
+    });
+
     return rows.map(row => ({
       ...row,
-      cells: row.cells.map(cell => ({ ...cell, style: cell.style ? { ...cell.style } : undefined })),
+      cells: row.cells.map(cloneCell),
     }));
+  }
+
+  private applySplitToSelection(request: SplitCellRequest): void {
+    this.syncCellContent();
+
+    const rowsCount = Math.max(1, Math.trunc(request.rows));
+    const colsCount = Math.max(1, Math.trunc(request.cols));
+    if (rowsCount <= 0 || colsCount <= 0) {
+      return;
+    }
+
+    const selection = this.selectedCells();
+    const targets = selection.size > 0
+      ? Array.from(selection)
+      : (this.activeCellId ? [`${this.activeCellId.split('-')[0]}-${this.activeCellId.split('-')[1]}`] : []);
+
+    if (targets.length === 0) {
+      return;
+    }
+
+    const before = this.cloneRows(this.localRows());
+
+    this.localRows.update((rows) => {
+      const newRows = this.cloneRows(rows);
+      for (const coord of targets) {
+        const [r, c] = coord.split('-').map(Number);
+        const cell = newRows[r]?.cells?.[c];
+        if (!cell) continue;
+        if (cell.split) continue;
+
+        const childCells: TableCell[] = [];
+        for (let i = 0; i < rowsCount * colsCount; i++) {
+          childCells.push({
+            id: `cell-${r}-${c}-${i}-${uuid()}`,
+            contentHtml: '',
+            style: cell.style ? { ...cell.style } : undefined,
+          });
+        }
+
+        // Move existing content into the top-left cell
+        childCells[0].contentHtml = cell.contentHtml || '';
+
+        cell.split = {
+          rows: rowsCount,
+          cols: colsCount,
+          cells: childCells,
+        };
+        cell.contentHtml = '';
+      }
+      return newRows;
+    });
+
+    // Persist immediately (split is a discrete action; no blur needed)
+    const after = this.localRows();
+    if (JSON.stringify(after) !== JSON.stringify(before)) {
+      this.propsChange.emit({ rows: after });
+      // Reset baseline to avoid duplicate emits on blur
+      this.rowsAtEditStart = this.cloneRows(after);
+    }
+
+    // Clear active element reference if it was replaced by split rendering
+    this.activeCellElement = null;
+    this.activeCellId = null;
+    this.toolbarService.setActiveCell(null, this.widget.id);
+
+    this.cdr.markForCheck();
   }
 }
 
