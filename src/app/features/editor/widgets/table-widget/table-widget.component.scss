@@ -86,6 +86,8 @@
   &__cell-content--subcell {
     padding: 4px 6px;
     min-height: 0;
+    overflow: auto;
+    white-space: pre-wrap;
   }
 
   &__covered-leaf {
@@ -118,6 +120,8 @@
     min-height: 24px;
     padding: 6px 8px;
     background: transparent;
+    overflow: auto;
+    white-space: pre-wrap;
   }
 
   &--editing {

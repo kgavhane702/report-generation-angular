@@ -447,6 +447,10 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const leafEl = (event.target as HTMLElement | null)?.closest('.table-widget__cell-content[data-leaf]') as HTMLElement | null;
       const leafId = leafEl?.getAttribute('data-leaf') ?? null;
       if (leafId && leafId.startsWith(this.mergeLeafPrefix)) {
+        // If the user is already focused in this contenteditable, allow normal text selection by dragging.
+        if (document.activeElement === leafEl) {
+          return;
+        }
         this.toolbarService.setActiveCell(leafEl, this.widget.id);
         this.isSelecting = true;
         this.selectionMode = 'leafRect';
@@ -501,6 +505,15 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   onCellMouseDown(event: MouseEvent, rowIndex: number, cellIndex: number): void {
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
+
+    // If the user is already focused in a contenteditable within this cell, allow normal text selection by dragging.
+    const active = document.activeElement as HTMLElement | null;
+    if (active?.classList?.contains('table-widget__cell-content')) {
+      const activeTd = active.closest(`[data-cell="${rowIndex}-${cellIndex}"]`);
+      if (activeTd) {
+        return;
+      }
+    }
 
     // Mark this table widget as active for toolbar actions (even if no contenteditable is focused)
     this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
