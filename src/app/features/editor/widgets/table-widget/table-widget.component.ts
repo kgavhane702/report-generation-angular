@@ -447,10 +447,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const leafEl = (event.target as HTMLElement | null)?.closest('.table-widget__cell-content[data-leaf]') as HTMLElement | null;
       const leafId = leafEl?.getAttribute('data-leaf') ?? null;
       if (leafId && leafId.startsWith(this.mergeLeafPrefix)) {
-        // If the user is already focused in this contenteditable, allow normal text selection by dragging.
-        if (document.activeElement === leafEl) {
-          return;
-        }
+        // NOTE: Do not early-return when already focused.
+        // If we return here, selection won't update when switching between merged split sub-cells
+        // and you can't start drag-selection from the active merged cell.
         this.toolbarService.setActiveCell(leafEl, this.widget.id);
         this.isSelecting = true;
         this.selectionMode = 'leafRect';
@@ -506,14 +505,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
 
-    // If the user is already focused in a contenteditable within this cell, allow normal text selection by dragging.
-    const active = document.activeElement as HTMLElement | null;
-    if (active?.classList?.contains('table-widget__cell-content')) {
-      const activeTd = active.closest(`[data-cell="${rowIndex}-${cellIndex}"]`);
-      if (activeTd) {
-        return;
-      }
-    }
+    // NOTE:
+    // We intentionally DO NOT early-return when a contenteditable inside this cell is focused.
+    // Previously, we returned to "allow text selection by dragging", but that caused two UX bugs:
+    // - Clicking different sub-cells inside the same split parent kept the previous leaf id selected/logged.
+    // - If a cell was in edit mode, you couldn't start cell-selection dragging from that cell.
+    // This table widget behaves more like a spreadsheet: dragging selects cells (not text).
 
     // Mark this table widget as active for toolbar actions (even if no contenteditable is focused)
     this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
