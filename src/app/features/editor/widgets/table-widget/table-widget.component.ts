@@ -278,8 +278,14 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private handleDocumentMouseDown = (event: MouseEvent): void => {
-    // Check if click is outside the table
-    if (this.tableContainer?.nativeElement && !this.tableContainer.nativeElement.contains(event.target as Node)) {
+    // Check if click is outside the table AND outside the table toolbar.
+    // If we clear selection when the user clicks the toolbar, multi-cell actions (like Split) won't work.
+    const target = event.target as Node | null;
+    const isInsideTable = !!(target && this.tableContainer?.nativeElement?.contains(target));
+    const toolbarElement = document.querySelector('app-table-toolbar');
+    const isInsideToolbar = !!(target && toolbarElement?.contains(target));
+
+    if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar) {
       this.clearSelection();
     }
   };
@@ -287,6 +293,11 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private handleDocumentMouseUp = (): void => {
     if (this.isSelecting) {
       this.isSelecting = false;
+    }
+
+    // Debug: log final selection on mouseup for active table widget
+    if (this.toolbarService.activeTableWidgetId === this.widget.id) {
+      this.logSelectedCells('mouseUp');
     }
   };
 
@@ -364,6 +375,11 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.selectionEnd = null;
     this.isSelecting = false;
     this.cdr.markForCheck();
+
+    // Debug: log when selection is cleared
+    if (this.toolbarService.activeTableWidgetId === this.widget.id) {
+      this.logSelectedCells('clearSelection');
+    }
   }
 
   private getCellFromPoint(x: number, y: number): { row: number; col: number } | null {
@@ -451,6 +467,13 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       ...row,
       cells: row.cells.map(cloneCell),
     }));
+  }
+
+  private logSelectedCells(reason: string): void {
+    const selected = Array.from(this.selectedCells());
+    (window as any).__tableWidgetSelectedCells = selected;
+    // eslint-disable-next-line no-console
+    console.log(`[TableWidget ${this.widget.id}] selectedCells (${reason}):`, selected);
   }
 
   private applySplitToSelection(request: SplitCellRequest): void {
