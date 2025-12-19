@@ -17,50 +17,48 @@
           (mousedown)="onCellMouseDown($event, rowIndex, cellIndex)"
           (mouseenter)="onCellMouseEnter($event, rowIndex, cellIndex)"
         >
-          <ng-container *ngIf="!cell.split; else splitCell">
-            <div
-              class="table-widget__cell-content"
-              contenteditable="true"
-              [attr.data-leaf]="rowIndex + '-' + cellIndex"
-              [innerHTML]="cell.contentHtml"
-              [style.text-align]="cell.style?.textAlign || 'left'"
-              [style.vertical-align]="cell.style?.verticalAlign || 'top'"
-              (focus)="onCellFocus($event, rowIndex, cellIndex)"
-              (blur)="onCellBlur($event, rowIndex, cellIndex)"
-              (input)="onCellInput($event, rowIndex, cellIndex)"
-              (keydown)="onCellKeydown($event, rowIndex, cellIndex)"
-            ></div>
-          </ng-container>
-
-          <ng-template #splitCell>
-            <div
-              class="table-widget__split-grid"
-              [style.gridTemplateColumns]="'repeat(' + cell.split!.cols + ', 1fr)'"
-              [style.gridTemplateRows]="'repeat(' + cell.split!.rows + ', 1fr)'"
-            >
-              <div
-                *ngFor="let subCell of cell.split!.cells; let subIndex = index; trackBy: trackByCellId"
-                class="table-widget__sub-cell"
-                [class.table-widget__sub-cell--selected]="isSubCellSelected(rowIndex, cellIndex, subIndex)"
-              >
-                <div
-                  class="table-widget__cell-content table-widget__cell-content--subcell"
-                  contenteditable="true"
-                  [attr.data-leaf]="rowIndex + '-' + cellIndex + '-' + subIndex"
-                  [innerHTML]="subCell.contentHtml"
-                  [style.text-align]="subCell.style?.textAlign || 'left'"
-                  [style.vertical-align]="subCell.style?.verticalAlign || 'top'"
-                  (focus)="onCellFocus($event, rowIndex, cellIndex, subIndex)"
-                  (blur)="onCellBlur($event, rowIndex, cellIndex, subIndex)"
-                  (input)="onCellInput($event, rowIndex, cellIndex, subIndex)"
-                  (keydown)="onCellKeydown($event, rowIndex, cellIndex, subIndex)"
-                ></div>
-              </div>
-            </div>
-          </ng-template>
+          <ng-container
+            *ngTemplateOutlet="cellRenderer; context: { cell: cell, rowIndex: rowIndex, cellIndex: cellIndex, path: '' }"
+          ></ng-container>
         </td>
       </tr>
     </tbody>
   </table>
 </div>
+
+<ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
+  <ng-container *ngIf="!cell.split; else splitRenderer">
+    <div
+      class="table-widget__cell-content"
+      [class.table-widget__cell-content--subcell]="path !== ''"
+      contenteditable="true"
+      [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
+      [innerHTML]="cell.contentHtml"
+      [style.text-align]="cell.style?.textAlign || 'left'"
+      [style.vertical-align]="cell.style?.verticalAlign || 'top'"
+      (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
+      (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
+      (input)="onCellInput($event, rowIndex, cellIndex, path)"
+      (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+    ></div>
+  </ng-container>
+
+  <ng-template #splitRenderer>
+    <div
+      class="table-widget__split-grid"
+      [style.gridTemplateColumns]="'repeat(' + cell.split!.cols + ', 1fr)'"
+      [style.gridTemplateRows]="'repeat(' + cell.split!.rows + ', 1fr)'"
+    >
+      <div
+        *ngFor="let child of cell.split!.cells; let i = index; trackBy: trackByCellId"
+        class="table-widget__sub-cell"
+        [class.table-widget__sub-cell--selected]="isLeafSelected(rowIndex, cellIndex, appendPath(path, i))"
+      >
+        <ng-container
+          *ngTemplateOutlet="cellRenderer; context: { cell: child, rowIndex: rowIndex, cellIndex: cellIndex, path: appendPath(path, i) }"
+        ></ng-container>
+      </div>
+    </div>
+  </ng-template>
+</ng-template>
 

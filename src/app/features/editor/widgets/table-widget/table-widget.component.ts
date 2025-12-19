@@ -43,6 +43,8 @@ import { PendingChangesRegistry, FlushableWidget } from '../../../../core/servic
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, FlushableWidget {
+  private readonly maxSplitDepth = 4;
+
   @Input({ required: true }) widget!: WidgetModel;
 
   @Output() editingChange = new EventEmitter<boolean>();
@@ -174,12 +176,22 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
   }
 
-  onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
+  composeLeafId(rowIndex: number, cellIndex: number, path: string): string {
+    return path ? `${rowIndex}-${cellIndex}-${path}` : `${rowIndex}-${cellIndex}`;
+  }
+
+  appendPath(path: string, index: number): string {
+    return path ? `${path}-${index}` : `${index}`;
+  }
+
+  isLeafSelected(rowIndex: number, cellIndex: number, path: string): boolean {
+    return this.selectedCells().has(this.composeLeafId(rowIndex, cellIndex, path));
+  }
+
+  onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
     const cell = event.target as HTMLElement;
     this.activeCellElement = cell;
-    this.activeCellId = subCellIndex === undefined
-      ? `${rowIndex}-${cellIndex}`
-      : `${rowIndex}-${cellIndex}-${subCellIndex}`;
+    this.activeCellId = leafPath ? this.composeLeafId(rowIndex, cellIndex, leafPath) : `${rowIndex}-${cellIndex}`;
     
     this.toolbarService.setActiveCell(cell, this.widget.id);
     
@@ -196,7 +208,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
   }
 
-  onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
+  onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
     if (!this.isActivelyEditing()) {
       return;
     }
@@ -229,12 +241,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }, 150);
   }
 
-  onCellInput(event: Event, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
+  onCellInput(event: Event, rowIndex: number, cellIndex: number, leafPath?: string): void {
     // Content is synced on blur to avoid frequent updates
     this.cdr.markForCheck();
   }
 
-  onCellKeydown(event: KeyboardEvent, rowIndex: number, cellIndex: number, subCellIndex?: number): void {
+  onCellKeydown(event: KeyboardEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
     // Handle Tab navigation between cells
     if (event.key === 'Tab') {
       event.preventDefault();
@@ -383,10 +395,6 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       return false;
     }
     return this.selectedCells().has(`${rowIndex}-${cellIndex}`);
-  }
-
-  isSubCellSelected(rowIndex: number, cellIndex: number, subCellIndex: number): boolean {
-    return this.selectedCells().has(`${rowIndex}-${cellIndex}-${subCellIndex}`);
   }
 
   private updateSelection(): void {
@@ -550,29 +558,42 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       return;
     }
     
-    const parts = this.activeCellId.split('-').map(Number);
-    const rowIndex = parts[0];
-    const cellIndex = parts[1];
-    const subCellIndex = parts.length > 2 ? parts[2] : null;
+    const parts = this.activeCellId.split('-');
+    const rowIndex = Number(parts[0]);
+    const cellIndex = Number(parts[1]);
+    const path = parts.slice(2).map(Number);
     const content = this.activeCellElement.innerHTML;
     
     this.localRows.update(rows => {
       const newRows = this.cloneRows(rows);
-      const targetCell = newRows[rowIndex]?.cells?.[cellIndex];
-      if (!targetCell) {
+      const baseCell = newRows[rowIndex]?.cells?.[cellIndex];
+      if (!baseCell) {
         return newRows;
       }
 
-      if (subCellIndex === null) {
-        targetCell.contentHtml = content;
-      } else {
-        const splitCell = targetCell.split?.cells?.[subCellIndex];
-        if (splitCell) {
-          splitCell.contentHtml = content;
-        }
+      if (path.length === 0) {
+        baseCell.contentHtml = content;
+        return newRows;
+      }
+
+      const leaf = this.getCellAtPath(baseCell, path);
+      if (leaf) {
+        leaf.contentHtml = content;
       }
       return newRows;
     });
+  }
+
+  private getCellAtPath(root: TableCell, path: number[]): TableCell | null {
+    let current: TableCell = root;
+    for (const idx of path) {
+      const next = current.split?.cells?.[idx];
+      if (!next) {
+        return null;
+      }
+      current = next;
+    }
+    return current;
   }
 
   private commitChanges(): void {
@@ -620,19 +641,15 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
 
     const selection = this.selectedCells();
-    const parentTargets = new Set<string>();
-    selection.forEach((leafId) => {
-      const parts = leafId.split('-');
-      if (parts.length >= 2) {
-        parentTargets.add(`${parts[0]}-${parts[1]}`);
-      }
-    });
+    const targetLeafIds = new Set<string>();
 
-    const targets = parentTargets.size > 0
-      ? Array.from(parentTargets)
-      : (this.activeCellId ? [`${this.activeCellId.split('-')[0]}-${this.activeCellId.split('-')[1]}`] : []);
+    if (selection.size > 0) {
+      selection.forEach(id => targetLeafIds.add(id));
+    } else if (this.activeCellId) {
+      targetLeafIds.add(this.activeCellId);
+    }
 
-    if (targets.length === 0) {
+    if (targetLeafIds.size === 0) {
       return;
     }
 
@@ -640,30 +657,48 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
     this.localRows.update((rows) => {
       const newRows = this.cloneRows(rows);
-      for (const coord of targets) {
-        const [r, c] = coord.split('-').map(Number);
-        const cell = newRows[r]?.cells?.[c];
-        if (!cell) continue;
-        if (cell.split) continue;
+      for (const leafId of targetLeafIds) {
+        const parts = leafId.split('-');
+        if (parts.length < 2) continue;
+        const r = Number(parts[0]);
+        const c = Number(parts[1]);
+        const path = parts.slice(2).map(Number);
+
+        // Limit recursion depth to keep UI and data manageable.
+        // Depth is the number of indices in the path; splitting increases it by 1.
+        if (path.length >= this.maxSplitDepth) {
+          continue;
+        }
+
+        const baseCell = newRows[r]?.cells?.[c];
+        if (!baseCell) continue;
+
+        const targetCell = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
+        if (!targetCell) continue;
+        if (targetCell.split) continue;
+
+        const idPrefix = path.length > 0
+          ? `cell-${r}-${c}-${path.join('_')}`
+          : `cell-${r}-${c}`;
 
         const childCells: TableCell[] = [];
         for (let i = 0; i < rowsCount * colsCount; i++) {
           childCells.push({
-            id: `cell-${r}-${c}-${i}-${uuid()}`,
+            id: `${idPrefix}-${i}-${uuid()}`,
             contentHtml: '',
-            style: cell.style ? { ...cell.style } : undefined,
+            style: targetCell.style ? { ...targetCell.style } : undefined,
           });
         }
 
-        // Move existing content into the top-left cell
-        childCells[0].contentHtml = cell.contentHtml || '';
+        // Move existing content into the top-left child
+        childCells[0].contentHtml = targetCell.contentHtml || '';
 
-        cell.split = {
+        targetCell.split = {
           rows: rowsCount,
           cols: colsCount,
           cells: childCells,
         };
-        cell.contentHtml = '';
+        targetCell.contentHtml = '';
       }
       return newRows;
     });
