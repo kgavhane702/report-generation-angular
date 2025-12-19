@@ -339,7 +339,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
     // If selection starts inside a split cell, do leaf-rectangle selection
     if (isSplitParent) {
-      event.preventDefault();
+      // IMPORTANT: don't preventDefault here, otherwise the browser won't focus
+      // the contenteditable sub-cell and typing won't work.
       this.isSelecting = true;
       this.selectionMode = 'leafRect';
       this.selectionStart = null;
