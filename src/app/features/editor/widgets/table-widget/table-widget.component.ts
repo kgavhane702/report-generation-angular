@@ -78,8 +78,10 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
   private isSelecting = false;
+  private selectionMode: 'table' | 'leafRect' | null = null;
   private selectionStart: { row: number; col: number } | null = null;
   private selectionEnd: { row: number; col: number } | null = null;
+  private leafRectStart: { x: number; y: number } | null = null;
 
   get editing(): boolean {
     return this.isActivelyEditing();
@@ -294,6 +296,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (this.isSelecting) {
       this.isSelecting = false;
     }
+    this.selectionMode = null;
+    this.leafRectStart = null;
 
     // Debug: log final selection on mouseup for active table widget
     if (this.toolbarService.activeTableWidgetId === this.widget.id) {
@@ -302,14 +306,22 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   };
 
   private handleDocumentMouseMove = (event: MouseEvent): void => {
-    if (!this.isSelecting || !this.selectionStart) {
+    if (!this.isSelecting) {
       return;
     }
 
-    const cell = this.getCellFromPoint(event.clientX, event.clientY);
-    if (cell) {
-      this.selectionEnd = cell;
-      this.updateSelection();
+    if (this.selectionMode === 'leafRect' && this.leafRectStart) {
+      const selection = this.computeLeafRectSelection(this.leafRectStart, { x: event.clientX, y: event.clientY });
+      this.setSelection(selection);
+      return;
+    }
+
+    if (this.selectionMode === 'table' && this.selectionStart) {
+      const cell = this.getCellFromPoint(event.clientX, event.clientY);
+      if (cell) {
+        this.selectionEnd = cell;
+        this.updateSelection();
+      }
     }
   };
 
@@ -320,8 +332,25 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     // Mark this table widget as active for toolbar actions (even if no contenteditable is focused)
     this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
 
+    const cellModel = this.localRows()?.[rowIndex]?.cells?.[cellIndex];
+    const isSplitParent = !!cellModel?.split;
+
+    // If selection starts inside a split cell, do leaf-rectangle selection
+    if (isSplitParent) {
+      event.preventDefault();
+      this.isSelecting = true;
+      this.selectionMode = 'leafRect';
+      this.selectionStart = null;
+      this.selectionEnd = null;
+      this.leafRectStart = { x: event.clientX, y: event.clientY };
+
+      const initialLeafId = this.getLeafIdFromPoint(event.clientX, event.clientY);
+      this.setSelection(initialLeafId ? new Set([initialLeafId]) : new Set());
+      return;
+    }
+
     // If shift is held, extend selection
-    if (event.shiftKey && this.selectionStart) {
+    if (event.shiftKey && this.selectionMode === 'table' && this.selectionStart) {
       event.preventDefault();
       this.selectionEnd = { row: rowIndex, col: cellIndex };
       this.updateSelection();
@@ -330,20 +359,30 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
     // Start new selection
     this.isSelecting = true;
+    this.selectionMode = 'table';
+    this.leafRectStart = null;
     this.selectionStart = { row: rowIndex, col: cellIndex };
     this.selectionEnd = { row: rowIndex, col: cellIndex };
     this.updateSelection();
   }
 
   onCellMouseEnter(event: MouseEvent, rowIndex: number, cellIndex: number): void {
-    if (!this.isSelecting) return;
+    if (!this.isSelecting || this.selectionMode !== 'table') return;
 
     this.selectionEnd = { row: rowIndex, col: cellIndex };
     this.updateSelection();
   }
 
   isCellSelected(rowIndex: number, cellIndex: number): boolean {
+    const cellModel = this.localRows()?.[rowIndex]?.cells?.[cellIndex];
+    if (cellModel?.split) {
+      return false;
+    }
     return this.selectedCells().has(`${rowIndex}-${cellIndex}`);
+  }
+
+  isSubCellSelected(rowIndex: number, cellIndex: number, subCellIndex: number): boolean {
+    return this.selectedCells().has(`${rowIndex}-${cellIndex}-${subCellIndex}`);
   }
 
   private updateSelection(): void {
@@ -359,21 +398,26 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const newSelection = new Set<string>();
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
+        // Preserve existing behavior: when selecting normal cells, do NOT select split cells at all
+        const cell = this.localRows()?.[r]?.cells?.[c];
+        if (cell?.split) {
+          continue;
+        }
         newSelection.add(`${r}-${c}`);
       }
     }
 
-    this.selectedCells.set(newSelection);
-    this.toolbarService.setSelectedCells(newSelection);
+    this.setSelection(newSelection);
     this.cdr.markForCheck();
   }
 
   clearSelection(): void {
-    this.selectedCells.set(new Set());
-    this.toolbarService.setSelectedCells(new Set());
+    this.setSelection(new Set());
     this.selectionStart = null;
     this.selectionEnd = null;
     this.isSelecting = false;
+    this.selectionMode = null;
+    this.leafRectStart = null;
     this.cdr.markForCheck();
 
     // Debug: log when selection is cleared
@@ -402,13 +446,53 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (!this.tableContainer?.nativeElement) return [];
     
     const elements: HTMLElement[] = [];
-    this.selectedCells().forEach(cellId => {
-      const cellNodes = this.tableContainer?.nativeElement.querySelectorAll(
-        `[data-cell="${cellId}"] .table-widget__cell-content`
-      ) as NodeListOf<HTMLElement>;
-      cellNodes.forEach(node => elements.push(node));
+    this.selectedCells().forEach(leafId => {
+      const node = this.tableContainer?.nativeElement.querySelector(
+        `.table-widget__cell-content[data-leaf="${leafId}"]`
+      ) as HTMLElement | null;
+      if (node) {
+        elements.push(node);
+      }
     });
     return elements;
+  }
+
+  private setSelection(selection: Set<string>): void {
+    this.selectedCells.set(selection);
+    this.toolbarService.setSelectedCells(selection);
+    this.cdr.markForCheck();
+  }
+
+  private getLeafIdFromPoint(x: number, y: number): string | null {
+    const element = document.elementFromPoint(x, y);
+    if (!element) return null;
+    const leafEl = (element as HTMLElement).closest('.table-widget__cell-content[data-leaf]') as HTMLElement | null;
+    return leafEl?.getAttribute('data-leaf') ?? null;
+  }
+
+  private computeLeafRectSelection(
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ): Set<string> {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return new Set();
+
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+
+    const selection = new Set<string>();
+    const leaves = container.querySelectorAll('.table-widget__cell-content[data-leaf]') as NodeListOf<HTMLElement>;
+    leaves.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
+      if (!intersects) return;
+      const id = el.getAttribute('data-leaf');
+      if (id) selection.add(id);
+    });
+
+    return selection;
   }
 
   private syncCellContent(): void {
@@ -486,8 +570,16 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
 
     const selection = this.selectedCells();
-    const targets = selection.size > 0
-      ? Array.from(selection)
+    const parentTargets = new Set<string>();
+    selection.forEach((leafId) => {
+      const parts = leafId.split('-');
+      if (parts.length >= 2) {
+        parentTargets.add(`${parts[0]}-${parts[1]}`);
+      }
+    });
+
+    const targets = parentTargets.size > 0
+      ? Array.from(parentTargets)
       : (this.activeCellId ? [`${this.activeCellId.split('-')[0]}-${this.activeCellId.split('-')[1]}`] : []);
 
     if (targets.length === 0) {

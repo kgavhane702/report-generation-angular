@@ -74,6 +74,12 @@
     border: 1px solid rgba(0, 0, 0, 0.08);
     box-sizing: border-box;
     overflow: hidden;
+    background: transparent;
+  }
+
+  &__sub-cell--selected {
+    background: rgba(25, 118, 210, 0.12);
+    border-color: #1976d2;
   }
 
   &__cell-content--subcell {
