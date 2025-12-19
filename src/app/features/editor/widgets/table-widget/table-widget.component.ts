@@ -13,6 +13,7 @@ import {
   signal,
   ElementRef,
   ViewChild,
+  untracked,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
@@ -21,6 +22,8 @@ import {
   TableWidgetProps,
   TableRow,
   TableCell,
+  TableMergedRegion,
+  TableCellStyle,
   WidgetModel,
 } from '../../../../models/widget.model';
 import { SplitCellRequest, TableToolbarService } from '../../../../core/services/table-toolbar.service';
@@ -44,6 +47,8 @@ import { PendingChangesRegistry, FlushableWidget } from '../../../../core/servic
 })
 export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, FlushableWidget {
   private readonly maxSplitDepth = 4;
+  private readonly mergeLeafPrefix = 'merge:';
+  private readonly mergeLeafPathSeparator = '#';
 
   @Input({ required: true }) widget!: WidgetModel;
 
@@ -59,12 +64,14 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   /** Local copy of rows during editing */
   private readonly localRows = signal<TableRow[]>([]);
+  private readonly localMergedRegions = signal<TableMergedRegion[]>([]);
   
   /** Track if we're actively editing */
   private readonly isActivelyEditing = signal<boolean>(false);
   
   /** Rows at edit start for comparison */
   private rowsAtEditStart: TableRow[] = [];
+  private mergedRegionsAtEditStart: TableMergedRegion[] = [];
   
   /** Currently active cell element */
   private activeCellElement: HTMLElement | null = null;
@@ -76,6 +83,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private blurTimeoutId: number | null = null;
 
   private splitSubscription?: Subscription;
+  private mergeSubscription?: Subscription;
+  private unmergeSubscription?: Subscription;
 
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
@@ -98,6 +107,10 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return this.localRows();
   }
 
+  get mergedRegions(): TableMergedRegion[] {
+    return this.localMergedRegions();
+  }
+
   get widgetId(): string {
     return this.widget.id;
   }
@@ -108,6 +121,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   ngOnInit(): void {
     this.localRows.set(this.cloneRows(this.tableProps.rows));
+    this.localMergedRegions.set(this.cloneMergedRegions(this.tableProps.mergedRegions ?? []));
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
     document.addEventListener('mouseup', this.handleDocumentMouseUp);
     document.addEventListener('mousemove', this.handleDocumentMouseMove);
@@ -121,6 +135,20 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       }
       this.applySplitToSelection(request);
     });
+
+    this.mergeSubscription = this.toolbarService.mergeCellsRequested$.subscribe(() => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyMergeSelection();
+    });
+
+    this.unmergeSubscription = this.toolbarService.unmergeRequested$.subscribe(() => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyUnmergeSelection();
+    });
   }
 
   ngOnDestroy(): void {
@@ -131,6 +159,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
     if (this.splitSubscription) {
       this.splitSubscription.unsubscribe();
+    }
+    if (this.mergeSubscription) {
+      this.mergeSubscription.unsubscribe();
+    }
+    if (this.unmergeSubscription) {
+      this.unmergeSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
@@ -150,6 +184,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['widget'] && !this.isActivelyEditing()) {
       this.localRows.set(this.cloneRows(this.tableProps.rows));
+      this.localMergedRegions.set(this.cloneMergedRegions(this.tableProps.mergedRegions ?? []));
     }
   }
 
@@ -157,7 +192,15 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (!this.isActivelyEditing()) {
       return false;
     }
-    return JSON.stringify(this.localRows()) !== JSON.stringify(this.rowsAtEditStart);
+    const current = {
+      rows: this.localRows(),
+      mergedRegions: this.localMergedRegions(),
+    };
+    const baseline = {
+      rows: this.rowsAtEditStart,
+      mergedRegions: this.mergedRegionsAtEditStart,
+    };
+    return JSON.stringify(current) !== JSON.stringify(baseline);
   }
 
   flush(): void {
@@ -188,6 +231,104 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return this.selectedCells().has(this.composeLeafId(rowIndex, cellIndex, path));
   }
 
+  isLeafCoveredByMerge(leafId: string): boolean {
+    if (leafId.startsWith(this.mergeLeafPrefix)) {
+      return false;
+    }
+    return this.localMergedRegions().some(r => r.leafIds.includes(leafId));
+  }
+
+  getMergedRegionRect(region: TableMergedRegion): { left: number; top: number; width: number; height: number } | null {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return null;
+
+    const containerRect = container.getBoundingClientRect();
+    let minLeft = Number.POSITIVE_INFINITY;
+    let minTop = Number.POSITIVE_INFINITY;
+    let maxRight = Number.NEGATIVE_INFINITY;
+    let maxBottom = Number.NEGATIVE_INFINITY;
+
+    for (const leafId of region.leafIds) {
+      const el = container.querySelector(`.table-widget__cell-content[data-leaf="${leafId}"]`) as HTMLElement | null;
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      minLeft = Math.min(minLeft, r.left);
+      minTop = Math.min(minTop, r.top);
+      maxRight = Math.max(maxRight, r.right);
+      maxBottom = Math.max(maxBottom, r.bottom);
+    }
+
+    if (!isFinite(minLeft) || !isFinite(minTop) || !isFinite(maxRight) || !isFinite(maxBottom)) {
+      return null;
+    }
+
+    // Convert viewport coords -> container content coords (includes scroll)
+    const left = minLeft - containerRect.left + container.scrollLeft;
+    const top = minTop - containerRect.top + container.scrollTop;
+    const width = maxRight - minLeft;
+    const height = maxBottom - minTop;
+    return { left, top, width, height };
+  }
+
+  onMergeFocus(event: FocusEvent, regionId: string): void {
+    const cell = event.target as HTMLElement;
+    this.activeCellElement = cell;
+    this.activeCellId = cell.getAttribute('data-leaf') ?? `${this.mergeLeafPrefix}${regionId}`;
+    this.toolbarService.setActiveCell(cell, this.widget.id);
+
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId);
+      this.blurTimeoutId = null;
+    }
+
+    if (!this.isActivelyEditing()) {
+      this.isActivelyEditing.set(true);
+      this.rowsAtEditStart = this.cloneRows(this.localRows());
+      this.mergedRegionsAtEditStart = this.cloneMergedRegions(this.localMergedRegions());
+      this.editingChange.emit(true);
+      this.pendingChangesRegistry.register(this);
+    }
+  }
+
+  onMergeBlur(event: FocusEvent, regionId: string): void {
+    if (!this.isActivelyEditing()) {
+      return;
+    }
+    this.syncCellContent();
+
+    this.blurTimeoutId = window.setTimeout(() => {
+      const activeElement = document.activeElement;
+      const toolbarElement = document.querySelector('app-table-toolbar');
+
+      const isStillInsideTable = activeElement &&
+        this.tableContainer?.nativeElement?.contains(activeElement);
+      const isStillInsideToolbar = activeElement &&
+        toolbarElement?.contains(activeElement);
+
+      if (!isStillInsideTable && !isStillInsideToolbar) {
+        this.commitChanges();
+
+        this.isActivelyEditing.set(false);
+        this.editingChange.emit(false);
+        this.activeCellElement = null;
+        this.activeCellId = null;
+
+        this.toolbarService.clearActiveCell();
+        this.pendingChangesRegistry.unregister(this.widget.id);
+      }
+
+      this.blurTimeoutId = null;
+    }, 150);
+  }
+
+  onMergeInput(event: Event, regionId: string): void {
+    this.cdr.markForCheck();
+  }
+
+  onMergeKeydown(event: KeyboardEvent, regionId: string): void {
+    // keep for parity / future keyboard navigation
+  }
+
   onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
     const cell = event.target as HTMLElement;
     this.activeCellElement = cell;
@@ -203,6 +344,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (!this.isActivelyEditing()) {
       this.isActivelyEditing.set(true);
       this.rowsAtEditStart = this.cloneRows(this.localRows());
+      this.mergedRegionsAtEditStart = this.cloneMergedRegions(this.localMergedRegions());
       this.editingChange.emit(true);
       this.pendingChangesRegistry.register(this);
     }
@@ -299,6 +441,23 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const isInsideTable = !!(target && this.tableContainer?.nativeElement?.contains(target));
     const toolbarElement = document.querySelector('app-table-toolbar');
     const isInsideToolbar = !!(target && toolbarElement?.contains(target));
+
+    // If click starts inside a merged overlay cell, start leaf-rect selection here.
+    if (isInsideTable) {
+      const leafEl = (event.target as HTMLElement | null)?.closest('.table-widget__cell-content[data-leaf]') as HTMLElement | null;
+      const leafId = leafEl?.getAttribute('data-leaf') ?? null;
+      if (leafId && leafId.startsWith(this.mergeLeafPrefix)) {
+        this.toolbarService.setActiveCell(leafEl, this.widget.id);
+        this.isSelecting = true;
+        this.selectionMode = 'leafRect';
+        this.selectionStart = null;
+        this.selectionEnd = null;
+        this.tableRectStart = null;
+        this.leafRectStart = { x: event.clientX, y: event.clientY };
+        this.setSelection(new Set([leafId]));
+        return;
+      }
+    }
 
     if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar) {
       this.clearSelection();
@@ -409,9 +568,56 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const subCells = this.tableRectStart
       ? this.computeSubCellRectSelection(this.tableRectStart, currentPoint)
       : new Set<string>();
+    const merged = this.tableRectStart
+      ? this.computeMergedRectSelection(this.tableRectStart, currentPoint)
+      : new Set<string>();
 
-    const union = new Set<string>([...normal, ...subCells]);
+    const union = new Set<string>([...normal, ...subCells, ...merged]);
     this.setSelection(union);
+  }
+
+  private computeMergedRectSelection(
+    start: { x: number; y: number },
+    end: { x: number; y: number }
+  ): Set<string> {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return new Set<string>();
+
+    const x1 = Math.min(start.x, end.x);
+    const x2 = Math.max(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const y2 = Math.max(start.y, end.y);
+
+    const selection = new Set<string>();
+    const regions = this.localMergedRegions();
+
+    for (const region of regions) {
+      let minLeft = Number.POSITIVE_INFINITY;
+      let minTop = Number.POSITIVE_INFINITY;
+      let maxRight = Number.NEGATIVE_INFINITY;
+      let maxBottom = Number.NEGATIVE_INFINITY;
+
+      for (const leafId of region.leafIds) {
+        const el = container.querySelector(`.table-widget__cell-content[data-leaf="${leafId}"]`) as HTMLElement | null;
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        minLeft = Math.min(minLeft, r.left);
+        minTop = Math.min(minTop, r.top);
+        maxRight = Math.max(maxRight, r.right);
+        maxBottom = Math.max(maxBottom, r.bottom);
+      }
+
+      if (!isFinite(minLeft) || !isFinite(minTop) || !isFinite(maxRight) || !isFinite(maxBottom)) {
+        continue;
+      }
+
+      const intersects = maxRight >= x1 && minLeft <= x2 && maxBottom >= y1 && minTop <= y2;
+      if (intersects) {
+        selection.add(`${this.mergeLeafPrefix}${region.id}`);
+      }
+    }
+
+    return selection;
   }
 
   private computeNormalTableRectSelection(): Set<string> {
@@ -488,9 +694,39 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private setSelection(selection: Set<string>): void {
-    this.selectedCells.set(selection);
-    this.toolbarService.setSelectedCells(selection);
+    const normalized = this.normalizeSelection(selection);
+    this.selectedCells.set(normalized);
+    this.toolbarService.setSelectedCells(normalized);
     this.cdr.markForCheck();
+  }
+
+  private normalizeSelection(selection: Set<string>): Set<string> {
+    if (selection.size === 0) return selection;
+
+    const regions = this.localMergedRegions();
+    const normalized = new Set<string>();
+
+    selection.forEach((id) => {
+      if (id.startsWith(this.mergeLeafPrefix)) {
+        normalized.add(id);
+        return;
+      }
+
+      const region = regions.find(r => r.leafIds.includes(id));
+      if (region) {
+        normalized.add(`${this.mergeLeafPrefix}${region.id}`);
+        return;
+      }
+
+      if (this.isLeafCoveredByMerge(id)) {
+        // Shouldn't happen generally (covered leaves are disabled), but keep safe.
+        return;
+      }
+
+      normalized.add(id);
+    });
+
+    return normalized;
   }
 
   private getLeafIdFromPoint(x: number, y: number): string | null {
@@ -519,7 +755,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
       if (!intersects) return;
       const id = el.getAttribute('data-leaf');
-      if (id) selection.add(id);
+      if (!id) return;
+      if (this.isLeafCoveredByMerge(id)) return;
+      selection.add(id);
     });
 
     return selection;
@@ -547,7 +785,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
       if (!intersects) return;
       const id = el.getAttribute('data-leaf');
-      if (id) selection.add(id);
+      if (!id) return;
+      if (this.isLeafCoveredByMerge(id)) return;
+      selection.add(id);
     });
 
     return selection;
@@ -557,30 +797,56 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (!this.activeCellElement || !this.activeCellId) {
       return;
     }
-    
+
+    // Merged overlay cell editing
+    if (this.activeCellId.startsWith(this.mergeLeafPrefix)) {
+      const { regionId, path } = this.parseMergeLeafId(this.activeCellId);
+      const content = this.activeCellElement.innerHTML;
+      untracked(() => {
+        this.localMergedRegions.update((regions) => {
+          const next = this.cloneMergedRegions(regions);
+          const idx = next.findIndex(r => r.id === regionId);
+          if (idx >= 0) {
+            if (path.length === 0) {
+              next[idx].contentHtml = content;
+            } else {
+              const leaf = this.getCellAtPathFromMergedRegion(next[idx], path);
+              if (leaf) {
+                leaf.contentHtml = content;
+              }
+            }
+          }
+          return next;
+        });
+      });
+      return;
+    }
+
     const parts = this.activeCellId.split('-');
     const rowIndex = Number(parts[0]);
     const cellIndex = Number(parts[1]);
     const path = parts.slice(2).map(Number);
     const content = this.activeCellElement.innerHTML;
     
-    this.localRows.update(rows => {
-      const newRows = this.cloneRows(rows);
-      const baseCell = newRows[rowIndex]?.cells?.[cellIndex];
-      if (!baseCell) {
-        return newRows;
-      }
+    untracked(() => {
+      this.localRows.update(rows => {
+        const newRows = this.cloneRows(rows);
+        const baseCell = newRows[rowIndex]?.cells?.[cellIndex];
+        if (!baseCell) {
+          return newRows;
+        }
 
-      if (path.length === 0) {
-        baseCell.contentHtml = content;
-        return newRows;
-      }
+        if (path.length === 0) {
+          baseCell.contentHtml = content;
+          return newRows;
+        }
 
-      const leaf = this.getCellAtPath(baseCell, path);
-      if (leaf) {
-        leaf.contentHtml = content;
-      }
-      return newRows;
+        const leaf = this.getCellAtPath(baseCell, path);
+        if (leaf) {
+          leaf.contentHtml = content;
+        }
+        return newRows;
+      });
     });
   }
 
@@ -596,12 +862,41 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return current;
   }
 
+  private parseMergeLeafId(mergeLeafId: string): { regionId: string; path: number[] } {
+    const raw = mergeLeafId.slice(this.mergeLeafPrefix.length);
+    const sepIdx = raw.indexOf(this.mergeLeafPathSeparator);
+    if (sepIdx < 0) {
+      return { regionId: raw, path: [] };
+    }
+    const regionId = raw.slice(0, sepIdx);
+    const pathStr = raw.slice(sepIdx + 1);
+    const path = pathStr ? pathStr.split('-').map(n => Number(n)).filter(n => Number.isFinite(n)) : [];
+    return { regionId, path };
+  }
+
+  private getCellAtPathFromMergedRegion(region: TableMergedRegion, path: number[]): TableCell | null {
+    if (path.length === 0) return null;
+    let current: TableCell | null = region.split?.cells?.[path[0]] ?? null;
+    if (!current) return null;
+    for (const idx of path.slice(1)) {
+      const nextCell: TableCell | null = current.split?.cells?.[idx] ?? null;
+      if (!nextCell) return null;
+      current = nextCell;
+    }
+    return current;
+  }
+
   private commitChanges(): void {
     const currentRows = this.localRows();
+    const currentMergedRegions = this.localMergedRegions();
     const originalRows = this.rowsAtEditStart;
-    
-    if (JSON.stringify(currentRows) !== JSON.stringify(originalRows)) {
-      this.propsChange.emit({ rows: currentRows });
+    const originalMergedRegions = this.mergedRegionsAtEditStart;
+
+    const current = { rows: currentRows, mergedRegions: currentMergedRegions };
+    const original = { rows: originalRows, mergedRegions: originalMergedRegions };
+
+    if (JSON.stringify(current) !== JSON.stringify(original)) {
+      this.propsChange.emit({ rows: currentRows, mergedRegions: currentMergedRegions });
     }
   }
 
@@ -621,6 +916,33 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return rows.map(row => ({
       ...row,
       cells: row.cells.map(cloneCell),
+    }));
+  }
+
+  private cloneMergedRegions(regions: TableMergedRegion[]): TableMergedRegion[] {
+    const cloneCell = (cell: TableCell): TableCell => ({
+      ...cell,
+      style: cell.style ? { ...cell.style } : undefined,
+      split: cell.split
+        ? {
+            rows: cell.split.rows,
+            cols: cell.split.cols,
+            cells: cell.split.cells.map(cloneCell),
+          }
+        : undefined,
+    });
+
+    return regions.map(r => ({
+      ...r,
+      leafIds: [...r.leafIds],
+      style: r.style ? { ...r.style } : undefined,
+      split: r.split
+        ? {
+            rows: r.split.rows,
+            cols: r.split.cols,
+            cells: r.split.cells.map(cloneCell),
+          }
+        : undefined,
     }));
   }
 
@@ -653,11 +975,18 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       return;
     }
 
-    const before = this.cloneRows(this.localRows());
+    const before = {
+      rows: this.cloneRows(this.localRows()),
+      mergedRegions: this.cloneMergedRegions(this.localMergedRegions()),
+    };
 
     this.localRows.update((rows) => {
       const newRows = this.cloneRows(rows);
       for (const leafId of targetLeafIds) {
+        // Split inside merged overlay region
+        if (leafId.startsWith(this.mergeLeafPrefix)) {
+          continue;
+        }
         const parts = leafId.split('-');
         if (parts.length < 2) continue;
         const r = Number(parts[0]);
@@ -703,12 +1032,69 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       return newRows;
     });
 
+    // Apply splits to merged regions separately
+    const mergeTargets = Array.from(targetLeafIds).filter(id => id.startsWith(this.mergeLeafPrefix));
+    if (mergeTargets.length > 0) {
+      this.localMergedRegions.update((regions) => {
+        const next = this.cloneMergedRegions(regions);
+        for (const mergeLeafId of mergeTargets) {
+          const { regionId, path } = this.parseMergeLeafId(mergeLeafId);
+          const idx = next.findIndex(r => r.id === regionId);
+          if (idx < 0) continue;
+
+          if (path.length >= this.maxSplitDepth) {
+            continue;
+          }
+
+          // Split region root
+          if (path.length === 0) {
+            if (next[idx].split) continue;
+            const childCells: TableCell[] = [];
+            for (let i = 0; i < rowsCount * colsCount; i++) {
+              childCells.push({
+                id: `merge-${regionId}-${i}-${uuid()}`,
+                contentHtml: '',
+                style: next[idx].style ? { ...next[idx].style } : undefined,
+              });
+            }
+            childCells[0].contentHtml = next[idx].contentHtml || '';
+            next[idx].split = { rows: rowsCount, cols: colsCount, cells: childCells };
+            next[idx].contentHtml = '';
+            continue;
+          }
+
+          // Split a nested cell inside region
+          const targetCell = this.getCellAtPathFromMergedRegion(next[idx], path);
+          if (!targetCell) continue;
+          if (targetCell.split) continue;
+
+          const childCells: TableCell[] = [];
+          for (let i = 0; i < rowsCount * colsCount; i++) {
+            childCells.push({
+              id: `merge-${regionId}-${path.join('_')}-${i}-${uuid()}`,
+              contentHtml: '',
+              style: targetCell.style ? { ...targetCell.style } : undefined,
+            });
+          }
+          childCells[0].contentHtml = targetCell.contentHtml || '';
+          targetCell.split = { rows: rowsCount, cols: colsCount, cells: childCells };
+          targetCell.contentHtml = '';
+        }
+        return next;
+      });
+    }
+
     // Persist immediately (split is a discrete action; no blur needed)
-    const after = this.localRows();
+    const after = {
+      rows: this.localRows(),
+      mergedRegions: this.localMergedRegions(),
+    };
+
     if (JSON.stringify(after) !== JSON.stringify(before)) {
-      this.propsChange.emit({ rows: after });
+      this.propsChange.emit({ rows: after.rows, mergedRegions: after.mergedRegions });
       // Reset baseline to avoid duplicate emits on blur
-      this.rowsAtEditStart = this.cloneRows(after);
+      this.rowsAtEditStart = this.cloneRows(after.rows);
+      this.mergedRegionsAtEditStart = this.cloneMergedRegions(after.mergedRegions);
     }
 
     // Clear active element reference if it was replaced by split rendering
@@ -717,6 +1103,235 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.toolbarService.setActiveCell(null, this.widget.id);
 
     this.cdr.markForCheck();
+  }
+
+  private applyMergeSelection(): void {
+    this.syncCellContent();
+
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return;
+
+    const selectionIds = Array.from(this.selectedCells());
+    if (selectionIds.length < 2) {
+      return;
+    }
+
+    // Compute selection bounding box from selected items (leaf cells + merged overlays)
+    let minLeft = Number.POSITIVE_INFINITY;
+    let minTop = Number.POSITIVE_INFINITY;
+    let maxRight = Number.NEGATIVE_INFINITY;
+    let maxBottom = Number.NEGATIVE_INFINITY;
+
+    const regions = this.localMergedRegions();
+
+    for (const id of selectionIds) {
+      const el = container.querySelector(`.table-widget__cell-content[data-leaf="${id}"]`) as HTMLElement | null;
+      if (!el) {
+        continue;
+      }
+      const r = el.getBoundingClientRect();
+      minLeft = Math.min(minLeft, r.left);
+      minTop = Math.min(minTop, r.top);
+      maxRight = Math.max(maxRight, r.right);
+      maxBottom = Math.max(maxBottom, r.bottom);
+    }
+
+    if (!isFinite(minLeft) || !isFinite(minTop) || !isFinite(maxRight) || !isFinite(maxBottom)) {
+      return;
+    }
+
+    const eps = 2.0;
+    const leftBound = minLeft - eps;
+    const topBound = minTop - eps;
+    const rightBound = maxRight + eps;
+    const bottomBound = maxBottom + eps;
+
+    // Covered leaves are all non-merge leaves whose CENTER lies inside the selection bounds.
+    // This avoids false negatives from 1px borders/gaps and matches user expectation:
+    // merge rectangle between selected extremes.
+    const coveredLeafIds: Array<{ id: string; top: number; left: number }> = [];
+    const allLeafEls = container.querySelectorAll('.table-widget__cell-content[data-leaf]') as NodeListOf<HTMLElement>;
+    for (const el of Array.from(allLeafEls)) {
+      const id = el.getAttribute('data-leaf');
+      if (!id || id.startsWith(this.mergeLeafPrefix)) continue;
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      if (cx >= leftBound && cx <= rightBound && cy >= topBound && cy <= bottomBound) {
+        coveredLeafIds.push({ id, top: r.top, left: r.left });
+      }
+    }
+
+    if (coveredLeafIds.length < 2) return;
+
+    // Determine which existing merged regions are fully/partially inside this merge (consumed)
+    const leafToRegionId = new Map<string, string>();
+    for (const r of regions) {
+      for (const leafId of r.leafIds) {
+        leafToRegionId.set(leafId, r.id);
+      }
+    }
+
+    const consumedRegionIds = new Set<string>();
+    for (const leaf of coveredLeafIds) {
+      const rid = leafToRegionId.get(leaf.id);
+      if (rid) consumedRegionIds.add(rid);
+    }
+
+    // Anchor leaf = top-left
+    coveredLeafIds.sort((a, b) => (a.top - b.top) || (a.left - b.left));
+    const anchorLeafId = coveredLeafIds[0].id;
+
+    // Concatenate contents in reading order; merged regions contribute once (at their first encountered leaf).
+    const usedRegionIds = new Set<string>();
+    const parts: Array<{ top: number; left: number; html: string; style?: TableCellStyle }> = [];
+
+    for (const leaf of coveredLeafIds) {
+      const rid = leafToRegionId.get(leaf.id);
+      if (rid) {
+        if (usedRegionIds.has(rid)) continue;
+        usedRegionIds.add(rid);
+        const region = regions.find(r => r.id === rid);
+        if (region) {
+          const html = (this.serializeMergedRegionContent(region) ?? '').trim();
+          if (html) {
+            parts.push({ top: leaf.top, left: leaf.left, html, style: region.style });
+          }
+        }
+        continue;
+      }
+
+      const cell = this.getLeafCellById(leaf.id);
+      const html = (cell?.contentHtml ?? '').trim();
+      if (html) {
+        parts.push({ top: leaf.top, left: leaf.left, html, style: cell?.style });
+      }
+    }
+
+    parts.sort((a, b) => (a.top - b.top) || (a.left - b.left));
+    const mergedHtml = parts.length > 0 ? parts.map(p => `<div>${p.html}</div>`).join('') : '';
+    const mergedStyle = parts.length > 0 ? (parts[0].style ? { ...parts[0].style } : undefined) : undefined;
+
+    const regionId = uuid();
+    const region: TableMergedRegion = {
+      id: regionId,
+      leafIds: coveredLeafIds.map(x => x.id),
+      anchorLeafId,
+      contentHtml: mergedHtml,
+      style: mergedStyle,
+    };
+
+    // Clear contents of all covered leaves
+    this.localRows.update((rows) => {
+      const newRows = this.cloneRows(rows);
+      for (const x of coveredLeafIds) {
+        this.setLeafCellContent(newRows, x.id, '');
+      }
+      return newRows;
+    });
+
+    // Remove consumed regions and add the new one
+    const nextRegions = regions.filter(r => !consumedRegionIds.has(r.id));
+    this.localMergedRegions.set([...this.cloneMergedRegions(nextRegions), region]);
+
+    // Persist immediately
+    const rowsAfter = this.localRows();
+    const mergedAfter = this.localMergedRegions();
+    this.propsChange.emit({ rows: rowsAfter, mergedRegions: mergedAfter });
+    this.rowsAtEditStart = this.cloneRows(rowsAfter);
+    this.mergedRegionsAtEditStart = this.cloneMergedRegions(mergedAfter);
+
+    // Select the merged cell overlay
+    this.setSelection(new Set([`${this.mergeLeafPrefix}${regionId}`]));
+    this.cdr.markForCheck();
+  }
+
+  private applyUnmergeSelection(): void {
+    this.syncCellContent();
+
+    const selection = Array.from(this.selectedCells());
+    const regions = this.localMergedRegions();
+
+    let region: TableMergedRegion | undefined;
+    if (selection.length === 1 && selection[0].startsWith(this.mergeLeafPrefix)) {
+      const { regionId } = this.parseMergeLeafId(selection[0]);
+      region = regions.find(r => r.id === regionId);
+    } else {
+      // If selection hits a covered leaf, unmerge that region
+      for (const leaf of selection) {
+        const hit = regions.find(r => r.leafIds.includes(leaf));
+        if (hit) {
+          region = hit;
+          break;
+        }
+      }
+    }
+
+    if (!region) return;
+
+    // Remove region
+    const remaining = regions.filter(r => r.id !== region!.id);
+    this.localMergedRegions.set(this.cloneMergedRegions(remaining));
+
+    // Put merged content back into anchor
+    this.localRows.update((rows) => {
+      const newRows = this.cloneRows(rows);
+      this.setLeafCellContent(newRows, region!.anchorLeafId, this.serializeMergedRegionContent(region!) || '');
+      return newRows;
+    });
+
+    const rowsAfter = this.localRows();
+    const mergedAfter = this.localMergedRegions();
+    this.propsChange.emit({ rows: rowsAfter, mergedRegions: mergedAfter });
+    this.rowsAtEditStart = this.cloneRows(rowsAfter);
+    this.mergedRegionsAtEditStart = this.cloneMergedRegions(mergedAfter);
+
+    // Select the anchor leaf after unmerge
+    this.setSelection(new Set([region.anchorLeafId]));
+    this.cdr.markForCheck();
+  }
+
+  private getLeafCellById(leafId: string): TableCell | null {
+    const parts = leafId.split('-');
+    if (parts.length < 2) return null;
+    const r = Number(parts[0]);
+    const c = Number(parts[1]);
+    const path = parts.slice(2).map(Number);
+    const base = this.localRows()?.[r]?.cells?.[c];
+    if (!base) return null;
+    return path.length === 0 ? base : this.getCellAtPath(base, path);
+  }
+
+  private setLeafCellContent(rows: TableRow[], leafId: string, contentHtml: string): void {
+    const parts = leafId.split('-');
+    if (parts.length < 2) return;
+    const r = Number(parts[0]);
+    const c = Number(parts[1]);
+    const path = parts.slice(2).map(Number);
+    const base = rows[r]?.cells?.[c];
+    if (!base) return;
+    const target = path.length === 0 ? base : this.getCellAtPath(base, path);
+    if (!target) return;
+    target.contentHtml = contentHtml;
+  }
+
+  private serializeMergedRegionContent(region: TableMergedRegion): string {
+    // If not split, contentHtml is authoritative
+    if (!region.split) {
+      return region.contentHtml ?? '';
+    }
+    return this.serializeCellContent({ contentHtml: region.contentHtml ?? '', split: region.split });
+  }
+
+  private serializeCellContent(cell: { contentHtml: string; split?: { cells: TableCell[] } }): string {
+    if (!cell.split) {
+      return cell.contentHtml ?? '';
+    }
+    const parts = cell.split.cells
+      .map(c => this.serializeCellContent(c))
+      .map(s => (s ?? '').trim())
+      .filter(Boolean);
+    return parts.length > 0 ? parts.map(h => `<div>${h}</div>`).join('') : '';
   }
 }
 

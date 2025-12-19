@@ -59,6 +59,16 @@ export class TableToolbarComponent {
     this.splitDialogOpen = false;
   }
 
+  onMergeClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.requestMergeCells();
+  }
+
+  onUnmergeClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.requestUnmerge();
+  }
+
   onBoldClick(event: MouseEvent): void {
     event.preventDefault();
     this.toolbarService.applyBold();

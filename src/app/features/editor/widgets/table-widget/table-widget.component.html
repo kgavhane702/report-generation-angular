@@ -24,15 +24,95 @@
       </tr>
     </tbody>
   </table>
+
+  <div class="table-widget__merge-layer" *ngIf="mergedRegions.length > 0">
+    <div
+      class="table-widget__merged-cell"
+      *ngFor="let region of mergedRegions"
+      [style.left.px]="getMergedRegionRect(region)?.left"
+      [style.top.px]="getMergedRegionRect(region)?.top"
+      [style.width.px]="getMergedRegionRect(region)?.width"
+      [style.height.px]="getMergedRegionRect(region)?.height"
+    >
+      <ng-container *ngIf="!region.split; else mergedSplit">
+        <div
+          class="table-widget__cell-content table-widget__merged-content"
+          contenteditable="true"
+          [attr.data-leaf]="'merge:' + region.id"
+          [innerHTML]="region.contentHtml"
+          [style.text-align]="region.style?.textAlign || 'left'"
+          [style.vertical-align]="region.style?.verticalAlign || 'top'"
+          (focus)="onMergeFocus($event, region.id)"
+          (blur)="onMergeBlur($event, region.id)"
+          (input)="onMergeInput($event, region.id)"
+          (keydown)="onMergeKeydown($event, region.id)"
+        ></div>
+      </ng-container>
+
+      <ng-template #mergedSplit>
+        <div
+          class="table-widget__split-grid"
+          [style.gridTemplateColumns]="'repeat(' + region.split!.cols + ', 1fr)'"
+          [style.gridTemplateRows]="'repeat(' + region.split!.rows + ', 1fr)'"
+        >
+          <div
+            *ngFor="let child of region.split!.cells; let i = index"
+            class="table-widget__sub-cell"
+          >
+            <ng-container
+              *ngTemplateOutlet="mergedCellRenderer; context: { cell: child, regionId: region.id, path: '' + i }"
+            ></ng-container>
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </div>
 </div>
+
+<ng-template #mergedCellRenderer let-cell="cell" let-regionId="regionId" let-path="path">
+  <ng-container *ngIf="!cell.split; else mergedCellSplit">
+    <div
+      class="table-widget__cell-content table-widget__merged-content"
+      [class.table-widget__cell-content--subcell]="path !== ''"
+      contenteditable="true"
+      [attr.data-leaf]="'merge:' + regionId + '#' + path"
+      [innerHTML]="cell.contentHtml"
+      [style.text-align]="cell.style?.textAlign || 'left'"
+      [style.vertical-align]="cell.style?.verticalAlign || 'top'"
+      (focus)="onMergeFocus($event, regionId)"
+      (blur)="onMergeBlur($event, regionId)"
+      (input)="onMergeInput($event, regionId)"
+      (keydown)="onMergeKeydown($event, regionId)"
+    ></div>
+  </ng-container>
+
+  <ng-template #mergedCellSplit>
+    <div
+      class="table-widget__split-grid"
+      [style.gridTemplateColumns]="'repeat(' + cell.split!.cols + ', 1fr)'"
+      [style.gridTemplateRows]="'repeat(' + cell.split!.rows + ', 1fr)'"
+    >
+      <div
+        *ngFor="let child of cell.split!.cells; let j = index; trackBy: trackByCellId"
+        class="table-widget__sub-cell"
+      >
+        <ng-container
+          *ngTemplateOutlet="mergedCellRenderer; context: { cell: child, regionId: regionId, path: path + '-' + j }"
+        ></ng-container>
+      </div>
+    </div>
+  </ng-template>
+</ng-template>
 
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
   <ng-container *ngIf="!cell.split; else splitRenderer">
     <div
       class="table-widget__cell-content"
       [class.table-widget__cell-content--subcell]="path !== ''"
-      contenteditable="true"
       [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
+      [attr.contenteditable]="isLeafCoveredByMerge(composeLeafId(rowIndex, cellIndex, path)) ? 'false' : 'true'"
+      [attr.tabindex]="isLeafCoveredByMerge(composeLeafId(rowIndex, cellIndex, path)) ? -1 : 0"
+      [class.table-widget__covered-leaf]="isLeafCoveredByMerge(composeLeafId(rowIndex, cellIndex, path))"
       [innerHTML]="cell.contentHtml"
       [style.text-align]="cell.style?.textAlign || 'left'"
       [style.vertical-align]="cell.style?.verticalAlign || 'top'"
@@ -61,4 +141,3 @@
     </div>
   </ng-template>
 </ng-template>
-

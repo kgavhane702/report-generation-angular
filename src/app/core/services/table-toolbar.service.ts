@@ -26,10 +26,14 @@ export class TableToolbarService {
   private readonly activeTableWidgetIdSubject = new BehaviorSubject<string | null>(null);
   private readonly selectedCellsSubject = new BehaviorSubject<Set<string>>(new Set());
   private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
+  private readonly mergeCellsRequestedSubject = new Subject<void>();
+  private readonly unmergeRequestedSubject = new Subject<void>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
   public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
+  public readonly mergeCellsRequested$: Observable<void> = this.mergeCellsRequestedSubject.asObservable();
+  public readonly unmergeRequested$: Observable<void> = this.unmergeRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
@@ -56,6 +60,14 @@ export class TableToolbarService {
 
   requestSplitCell(request: SplitCellRequest): void {
     this.splitCellRequestedSubject.next(request);
+  }
+
+  requestMergeCells(): void {
+    this.mergeCellsRequestedSubject.next();
+  }
+
+  requestUnmerge(): void {
+    this.unmergeRequestedSubject.next();
   }
 
   /**

@@ -85,6 +85,22 @@ export interface MediaWidgetProps {
 export interface TableWidgetProps {
   rows: TableRow[];
   showBorders?: boolean;
+  mergedRegions?: TableMergedRegion[];
+}
+
+export interface TableMergedRegion {
+  id: string;
+  /** Leaf IDs (data-leaf values) covered by this merge */
+  leafIds: string[];
+  /** The top-left leaf in the region */
+  anchorLeafId: string;
+  /** Editable merged content */
+  contentHtml: string;
+  style?: TableCellStyle;
+  /**
+   * Optional split grid inside this merged region (so merged cells can be split further).
+   */
+  split?: TableCellSplit;
 }
 
 export interface TableRow {
