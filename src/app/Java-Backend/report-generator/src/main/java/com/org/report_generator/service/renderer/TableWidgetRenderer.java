@@ -31,12 +31,16 @@ public class TableWidgetRenderer {
             width: 100%;
             height: 100%;
             border-collapse: collapse;
+            border-spacing: 0;
             table-layout: fixed;
             background: transparent;
         }
         
         .widget-table .table-widget__cell {
-            border: 1px solid rgba(0, 0, 0, 0.12);
+            /* Use opaque colors for reliable PDF rendering (some engines ignore rgba borders). */
+            border-width: 1px;
+            border-style: solid;
+            border-color: #cbd5e1;
             padding: 0;
             margin: 0;
             background: transparent;
@@ -46,6 +50,26 @@ public class TableWidgetRenderer {
             min-height: 24px;
         }
         
+        /* Matches frontend wrapper: handles background + vertical alignment (top/middle/bottom). */
+        .widget-table .table-widget__cell-surface {
+            width: 100%;
+            height: 100%;
+            min-height: 24px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start; /* top */
+            background: transparent;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='middle'] {
+            justify-content: center;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='bottom'] {
+            justify-content: flex-end;
+        }
+
         .widget-table .table-widget__cell-content {
             width: 100%;
             height: 100%;
@@ -60,9 +84,8 @@ public class TableWidgetRenderer {
             font-family: inherit;
             font-size: inherit;
             line-height: 1.5;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
+            /* Do NOT use flex on content node; inline wrappers like <b>/<span> can become flex items and break lines. */
+            display: block;
         }
         
         /* Embedded bold/italic */
@@ -80,7 +103,9 @@ public class TableWidgetRenderer {
         }
         
         .widget-table .table-widget__sub-cell {
-            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-width: 1px;
+            border-style: solid;
+            border-color: #e2e8f0;
             box-sizing: border-box;
             overflow: hidden;
             background: transparent;
@@ -125,11 +150,9 @@ public class TableWidgetRenderer {
                     int rowSpan = mergeNode.path("rowSpan").asInt(1);
                     int colSpan = mergeNode.path("colSpan").asInt(1);
 
-                    String tdStyle = buildCellStyle(cellNode, true, true);
                     html.append("<td class=\"table-widget__cell\"");
                     if (rowSpan > 1) html.append(" rowspan=\"").append(rowSpan).append("\"");
                     if (colSpan > 1) html.append(" colspan=\"").append(colSpan).append("\"");
-                    if (!tdStyle.isEmpty()) html.append(" style=\"").append(escapeHtmlAttribute(tdStyle)).append("\"");
                     html.append(">");
 
                     html.append(renderCellInner(cellNode));
@@ -175,21 +198,14 @@ public class TableWidgetRenderer {
                     int rowSpan = mergeNode.path("rowSpan").asInt(1);
                     int colSpan = mergeNode.path("colSpan").asInt(1);
 
-                    // Sub-cell container should receive background fill (if any).
-                    String subCellStyle = buildCellStyle(child, false, true);
-
                     sb.append("<div class=\"table-widget__sub-cell\" style=\"")
                       .append("grid-row-start: ").append(r + 1).append(";")
                       .append("grid-column-start: ").append(c + 1).append(";")
                       .append("grid-row-end: span ").append(Math.max(1, rowSpan)).append(";")
                       .append("grid-column-end: span ").append(Math.max(1, colSpan)).append(";");
-
-                    if (!subCellStyle.isEmpty()) {
-                        sb.append(escapeHtmlAttribute(subCellStyle));
-                    }
                     sb.append("\">");
 
-                    sb.append(renderContentDiv(child));
+                    sb.append(renderCellSurface(child));
                     sb.append("</div>");
                 }
             }
@@ -198,16 +214,13 @@ public class TableWidgetRenderer {
             return sb.toString();
         }
 
-        return renderContentDiv(cellNode);
+        return renderCellSurface(cellNode);
     }
 
-    private String renderContentDiv(JsonNode cellNode) {
-        // Content div should NOT carry background-color; backgrounds are applied on td/sub-cell container.
-        String divStyle = buildCellStyle(cellNode, false, false);
-        String verticalFlex = buildVerticalAlignFlex(cellNode);
-        if (!verticalFlex.isEmpty()) {
-            divStyle = divStyle + verticalFlex;
-        }
+    private String renderCellSurface(JsonNode cellNode) {
+        String verticalAlign = getVerticalAlign(cellNode);
+        String surfaceStyle = buildSurfaceStyle(cellNode);
+        String contentStyle = buildContentStyle(cellNode);
 
         String content = "";
         JsonNode contentNode = cellNode.path("contentHtml");
@@ -218,32 +231,33 @@ public class TableWidgetRenderer {
             content = "&nbsp;";
         }
 
-        // For PDF we don't need contenteditable / data attributes; apply styles directly.
         StringBuilder sb = new StringBuilder();
+        sb.append("<div class=\"table-widget__cell-surface\"");
+        if (!verticalAlign.isEmpty()) {
+            sb.append(" data-vertical-align=\"").append(escapeHtmlAttribute(verticalAlign)).append("\"");
+        }
+        if (!surfaceStyle.isEmpty()) {
+            sb.append(" style=\"").append(escapeHtmlAttribute(surfaceStyle)).append("\"");
+        }
+        sb.append(">");
+
         sb.append("<div class=\"table-widget__cell-content\"");
-        if (!divStyle.isEmpty()) sb.append(" style=\"").append(escapeHtmlAttribute(divStyle)).append("\"");
+        if (!contentStyle.isEmpty()) {
+            sb.append(" style=\"").append(escapeHtmlAttribute(contentStyle)).append("\"");
+        }
         sb.append(">").append(content).append("</div>");
+
+        sb.append("</div>");
         return sb.toString();
     }
 
-    /**
-     * Map TableCellStyle.verticalAlign to a flexbox justify-content rule for the content container,
-     * matching the frontend behavior (top/middle/bottom).
-     */
-    private String buildVerticalAlignFlex(JsonNode cellNode) {
+    private String getVerticalAlign(JsonNode cellNode) {
         JsonNode styleNode = cellNode.path("style");
         if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
-            return "";
+            return "top";
         }
         String verticalAlign = styleNode.path("verticalAlign").asText("");
-        if (verticalAlign.isBlank()) {
-            return "";
-        }
-        return switch (verticalAlign) {
-            case "middle" -> "justify-content: center;";
-            case "bottom" -> "justify-content: flex-end;";
-            default -> "justify-content: flex-start;";
-        };
+        return verticalAlign.isBlank() ? "top" : verticalAlign;
     }
 
     /**
@@ -288,6 +302,51 @@ public class TableWidgetRenderer {
                 // Ensure table cells default to transparent rather than inheriting unexpected backgrounds.
                 style.append("background-color: transparent;");
             }
+        }
+
+        return style.toString();
+    }
+
+    private String buildSurfaceStyle(JsonNode cellNode) {
+        JsonNode styleNode = cellNode.path("style");
+        if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
+            return "";
+        }
+
+        StringBuilder style = new StringBuilder();
+
+        String textAlign = styleNode.path("textAlign").asText("");
+        if (!textAlign.isBlank()) {
+            style.append("text-align: ").append(textAlign).append(";");
+        }
+
+        String backgroundColor = styleNode.path("backgroundColor").asText("");
+        if (!backgroundColor.isBlank() && !"transparent".equalsIgnoreCase(backgroundColor)) {
+            style.append("background-color: ").append(backgroundColor).append(";");
+        } else {
+            style.append("background-color: transparent;");
+        }
+
+        return style.toString();
+    }
+
+    private String buildContentStyle(JsonNode cellNode) {
+        // Content div should NOT carry background-color (surface handles it).
+        JsonNode styleNode = cellNode.path("style");
+        if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
+            return "";
+        }
+
+        StringBuilder style = new StringBuilder();
+
+        String fontWeight = styleNode.path("fontWeight").asText("");
+        if (!fontWeight.isBlank()) {
+            style.append("font-weight: ").append(fontWeight).append(";");
+        }
+
+        String fontStyle = styleNode.path("fontStyle").asText("");
+        if (!fontStyle.isBlank()) {
+            style.append("font-style: ").append(fontStyle).append(";");
         }
 
         return style.toString();

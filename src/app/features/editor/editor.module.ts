@@ -23,6 +23,7 @@ import { RichTextToolbarComponent } from './toolbar/rich-text-toolbar/rich-text-
 import { TextWidgetColorPickerComponent } from './toolbar/text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from './toolbar/table-toolbar/table-toolbar.component';
 import { TableGridSelectorComponent } from './toolbar/table-grid-selector/table-grid-selector.component';
+import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 
 @NgModule({
   declarations: [
@@ -51,6 +52,7 @@ import { TableGridSelectorComponent } from './toolbar/table-grid-selector/table-
     TextWidgetColorPickerComponent,
     TableToolbarComponent,
     TableGridSelectorComponent,
+    SafeHtmlPipe,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],

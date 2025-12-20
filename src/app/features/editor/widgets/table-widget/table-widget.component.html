@@ -31,21 +31,24 @@
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
   <ng-container *ngIf="!cell.split; else splitRenderer">
     <div
-      class="table-widget__cell-content"
-      [class.table-widget__cell-content--subcell]="path !== ''"
-      [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
+      class="table-widget__cell-surface"
       [attr.data-vertical-align]="cell.style?.verticalAlign || 'top'"
-      contenteditable="true"
-      tabindex="0"
-      [innerHTML]="cell.contentHtml"
       [style.text-align]="cell.style?.textAlign || 'left'"
-      [style.vertical-align]="cell.style?.verticalAlign || 'top'"
       [style.background-color]="cell.style?.backgroundColor || 'transparent'"
-      (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
-      (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
-      (input)="onCellInput($event, rowIndex, cellIndex, path)"
-      (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
-    ></div>
+    >
+      <div
+        class="table-widget__cell-content"
+        [class.table-widget__cell-content--subcell]="path !== ''"
+        [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
+        contenteditable="true"
+        tabindex="0"
+        [innerHTML]="cell.contentHtml | safeHtml"
+        (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
+        (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
+        (input)="onCellInput($event, rowIndex, cellIndex, path)"
+        (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+      ></div>
+    </div>
   </ng-container>
 
   <ng-template #splitRenderer>

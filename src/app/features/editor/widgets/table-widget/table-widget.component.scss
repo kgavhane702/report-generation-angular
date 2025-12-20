@@ -63,9 +63,10 @@
     box-sizing: border-box;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
+    // IMPORTANT:
+    // Do NOT make the contenteditable itself a flex container. Inline wrappers inserted by bold/italic/color
+    // (e.g. <b>, <span style="...">) become flex items and can force unwanted new lines.
+    display: block;
 
     &:focus {
       outline: 2px solid #1976d2;
@@ -79,13 +80,22 @@
     }
   }
 
-  // Vertical alignment simulation for contenteditable divs.
-  // (CSS `vertical-align` doesn't affect block-level elements, but we still keep it on the element for persistence/state.)
-  &__cell-content[data-vertical-align='middle'] {
+  // Wrapper surface (handles cell-level background + vertical alignment).
+  &__cell-surface {
+    width: 100%;
+    height: 100%;
+    min-height: 24px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; // top
+  }
+
+  &__cell-surface[data-vertical-align='middle'] {
     justify-content: center;
   }
 
-  &__cell-content[data-vertical-align='bottom'] {
+  &__cell-surface[data-vertical-align='bottom'] {
     justify-content: flex-end;
   }
 
