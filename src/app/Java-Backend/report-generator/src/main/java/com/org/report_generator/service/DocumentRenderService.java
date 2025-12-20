@@ -138,7 +138,7 @@ public class DocumentRenderService {
             case "image" -> imageWidgetRenderer.render(props, style);
             case "chart" -> renderChartWidget(props, style);
             case "table", "table-widget", "tablewidget" -> tableWidgetRenderer.render(props, style);
-            default -> "<div class=\"widget\" style=\"" + style + "\"></div>";
+            default -> "<div class=\"widget\" style=\"" + escapeHtmlAttribute(style) + "\"></div>";
         };
     }
 
@@ -171,15 +171,21 @@ public class DocumentRenderService {
 
     private String renderChartWidget(JsonNode props, String style) {
         if (props == null) {
-            return "<div class=\"widget widget-chart\" style=\"" + style + "\"></div>";
+            return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\"></div>";
         }
         String image = props.path("exportedImage").asText("");
         if (!image.isBlank()) {
             String chartType = props.path("chartType").asText("N/A");
-            return "<div class=\"widget widget-chart\" style=\"" + style + "\"><img src=\"" + image + "\" alt=\"Chart: " + chartType + "\" style=\"width: 100%; height: 100%; object-fit: contain;\" /></div>";
+            String escapedSrc = escapeHtmlAttribute(image);
+            String escapedAlt = escapeHtmlAttribute("Chart: " + chartType);
+            return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\">"
+                    + "<img src=\"" + escapedSrc + "\" alt=\"" + escapedAlt + "\" style=\"width: 100%; height: 100%; object-fit: contain;\" />"
+                    + "</div>";
         }
         String chartType = props.path("chartType").asText("N/A");
-        return "<div class=\"widget widget-chart\" style=\"" + style + "\"><div class=\"chart-placeholder\">Chart: " + chartType + "</div></div>";
+        return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\">"
+                + "<div class=\"chart-placeholder\">Chart: " + escapeHtml(chartType) + "</div>"
+                + "</div>";
     }
 
     private double mmToPx(double mm, int dpi) {
@@ -202,6 +208,11 @@ public class DocumentRenderService {
                     .replace(">", "&gt;")
                     .replace("\"", "&quot;")
                     .replace("'", "&#39;");
+    }
+
+    private String escapeHtmlAttribute(String input) {
+        // Same escaping rules work for attributes and are sufficient to prevent quote-breaking.
+        return escapeHtml(input);
     }
 
     private String renderLogo(DocumentModel document, double pageWidth, double pageHeight) {
@@ -230,8 +241,10 @@ public class DocumentRenderService {
                 style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
         }
 
-        return "<div class=\"page__logo-placeholder\" style=\"" + style + "\">" +
-                "<img src=\"" + logo.getUrl() + "\" alt=\"Logo\" class=\"page__logo-image\" />" +
+        String escapedStyle = escapeHtmlAttribute(style);
+        String escapedUrl = escapeHtmlAttribute(logo.getUrl());
+        return "<div class=\"page__logo-placeholder\" style=\"" + escapedStyle + "\">" +
+                "<img src=\"" + escapedUrl + "\" alt=\"Logo\" class=\"page__logo-image\" />" +
                 "</div>";
     }
 

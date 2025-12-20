@@ -302,7 +302,7 @@ public class TextWidgetRenderer {
      */
     public String render(JsonNode props, String widgetStyle) {
         if (props == null) {
-            return "<div class=\"widget widget-text\" style=\"" + widgetStyle + "\"></div>";
+            return "<div class=\"widget widget-text\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
         
         JsonNode contentHtmlNode = props.path("contentHtml");
@@ -329,7 +329,22 @@ public class TextWidgetRenderer {
             }
         }
 
-        return "<div class=\"widget widget-text\" style=\"" + finalStyle + "\">" + content + "</div>";
+        return "<div class=\"widget widget-text\" style=\"" + escapeHtmlAttribute(finalStyle.toString()) + "\">" + content + "</div>";
+    }
+
+    /**
+     * Escape HTML attribute values to prevent markup breakage/XSS.
+     * (We still allow rich HTML in contentHtml; this is only for attribute contexts like style.)
+     */
+    private String escapeHtmlAttribute(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        return input.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
     
     /**

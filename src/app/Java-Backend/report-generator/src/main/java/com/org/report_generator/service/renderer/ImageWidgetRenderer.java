@@ -46,7 +46,7 @@ public class ImageWidgetRenderer {
      */
     public String render(JsonNode props, String widgetStyle) {
         if (props == null) {
-            return "<div class=\"widget widget-image\" style=\"" + widgetStyle + "\"></div>";
+            return "<div class=\"widget widget-image\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
         
         String src = props.path("src").asText("");
@@ -59,7 +59,7 @@ public class ImageWidgetRenderer {
         String fit = props.path("fit").asText("cover");
         
         if (src.isBlank()) {
-            return "<div class=\"widget widget-image\" style=\"" + widgetStyle + "\"></div>";
+            return "<div class=\"widget widget-image\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
         
         // Determine object-fit CSS value
@@ -74,7 +74,7 @@ public class ImageWidgetRenderer {
         String escapedAlt = escapeHtmlAttribute(alt);
         
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"widget widget-image\" style=\"").append(widgetStyle).append("\">");
+        html.append("<div class=\"widget widget-image\" style=\"").append(escapeHtmlAttribute(widgetStyle)).append("\">");
         html.append("<img src=\"").append(escapedSrc).append("\" ");
         html.append("alt=\"").append(escapedAlt).append("\" ");
         html.append("style=\"width: 100%; height: 100%; object-fit: ").append(objectFit).append(";\" />");

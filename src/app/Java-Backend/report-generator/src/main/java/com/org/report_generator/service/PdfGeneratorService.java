@@ -47,8 +47,12 @@ public class PdfGeneratorService {
                     .setWaitUntil(WaitUntilState.NETWORKIDLE)
                     .setTimeout(30_000));
             
-            // Wait a bit to ensure all content including footer is fully rendered
-            page.waitForTimeout(500);
+            // Ensure fonts and images are fully loaded before PDF snapshot for more stable layout.
+            // (Avoids alignment shifts in long documents.)
+            page.waitForFunction("() => (document.fonts ? document.fonts.status === 'loaded' : true)", null,
+                    new Page.WaitForFunctionOptions().setTimeout(30_000));
+            page.waitForFunction("() => Array.from(document.images || []).every(img => img.complete)", null,
+                    new Page.WaitForFunctionOptions().setTimeout(30_000));
 
             PdfOptions options = new PdfOptions()
                     .setFormat("A4")

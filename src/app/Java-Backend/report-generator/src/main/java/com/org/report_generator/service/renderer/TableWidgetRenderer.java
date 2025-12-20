@@ -95,16 +95,16 @@ public class TableWidgetRenderer {
 
     public String render(JsonNode props, String widgetStyle) {
         if (props == null || props.isNull()) {
-            return "<div class=\"widget widget-table\" style=\"" + widgetStyle + "\"></div>";
+            return "<div class=\"widget widget-table\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
 
         JsonNode rowsNode = props.path("rows");
         if (rowsNode.isMissingNode() || !rowsNode.isArray() || rowsNode.size() == 0) {
-            return "<div class=\"widget widget-table\" style=\"" + widgetStyle + "\"></div>";
+            return "<div class=\"widget widget-table\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
 
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"widget widget-table\" style=\"").append(widgetStyle).append("\">");
+        html.append("<div class=\"widget widget-table\" style=\"").append(escapeHtmlAttribute(widgetStyle)).append("\">");
         html.append("<div class=\"table-widget\"><table class=\"table-widget__table\"><tbody>");
 
         for (JsonNode rowNode : rowsNode) {
