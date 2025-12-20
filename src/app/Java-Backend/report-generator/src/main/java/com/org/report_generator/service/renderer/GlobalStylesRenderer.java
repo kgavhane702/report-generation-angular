@@ -10,6 +10,8 @@ public class GlobalStylesRenderer {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
         
         html, body {

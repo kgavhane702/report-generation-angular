@@ -44,7 +44,8 @@ public class PdfGeneratorService {
 
             Page page = context.newPage();
             page.setContent(html, new Page.SetContentOptions()
-                    .setWaitUntil(WaitUntilState.NETWORKIDLE)
+                    // Faster than NETWORKIDLE; we explicitly wait for fonts/images below for layout stability.
+                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                     .setTimeout(30_000));
             
             // Ensure fonts and images are fully loaded before PDF snapshot for more stable layout.

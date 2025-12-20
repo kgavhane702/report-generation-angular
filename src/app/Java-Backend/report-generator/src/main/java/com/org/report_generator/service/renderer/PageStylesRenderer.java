@@ -34,6 +34,14 @@ public class PageStylesRenderer {
             overflow: visible;
             box-sizing: border-box;
         }
+
+        @media print {
+            /* Avoid subtle layout shifts from shadows/borders in print mode */
+            .page__surface {
+                box-shadow: none !important;
+                border: none !important;
+            }
+        }
         
         .page__logo-placeholder {
             position: absolute;
