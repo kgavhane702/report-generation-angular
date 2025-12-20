@@ -4,10 +4,14 @@
   [class.table-widget--editing]="editing"
 >
   <table class="table-widget__table">
+    <colgroup>
+      <col *ngFor="let f of colFractions" [style.width.%]="f * 100" />
+    </colgroup>
     <tbody>
       <tr 
         *ngFor="let row of rows; let rowIndex = index; trackBy: trackByRowId"
         class="table-widget__row"
+        [style.height.%]="rowFractionsView[rowIndex] * 100"
       >
         <td 
           *ngFor="let rc of getRenderableRowCells(rowIndex); trackBy: trackByRenderableCell"
@@ -29,6 +33,22 @@
       </tr>
     </tbody>
   </table>
+
+  <!-- Column/Row resize overlay -->
+  <div class="table-widget__resize-overlay" aria-hidden="true">
+    <div
+      *ngFor="let h of colResizeHandles"
+      class="table-widget__resize-handle table-widget__resize-handle--col"
+      [style.left.%]="h.leftPercent"
+      (pointerdown)="onColResizePointerDown($event, h.boundaryIndex)"
+    ></div>
+    <div
+      *ngFor="let h of rowResizeHandles"
+      class="table-widget__resize-handle table-widget__resize-handle--row"
+      [style.top.%]="h.topPercent"
+      (pointerdown)="onRowResizePointerDown($event, h.boundaryIndex)"
+    ></div>
+  </div>
 </div>
 
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
@@ -46,20 +66,36 @@
         contenteditable="true"
         tabindex="0"
         [innerHTML]="cell.contentHtml | safeHtml"
-        (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
-        (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
-        (input)="onCellInput($event, rowIndex, cellIndex, path)"
-        (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
-      ></div>
+      (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
+      (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
+      (input)="onCellInput($event, rowIndex, cellIndex, path)"
+      (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+    ></div>
     </div>
   </ng-container>
 
   <ng-template #splitRenderer>
     <div
       class="table-widget__split-grid"
-      [style.gridTemplateColumns]="'repeat(' + cell.split!.cols + ', 1fr)'"
-      [style.gridTemplateRows]="'repeat(' + cell.split!.rows + ', 1fr)'"
+      [style.gridTemplateColumns]="getSplitGridTemplateColumns(cell.split!, getSplitKey(rowIndex, cellIndex, path))"
+      [style.gridTemplateRows]="getSplitGridTemplateRows(cell.split!, getSplitKey(rowIndex, cellIndex, path))"
     >
+      <!-- Resize handles inside split grid -->
+      <div class="table-widget__split-resize-overlay" aria-hidden="true">
+        <div
+          *ngFor="let h of getSplitColResizeHandles(cell.split!, getSplitKey(rowIndex, cellIndex, path))"
+          class="table-widget__resize-handle table-widget__resize-handle--col table-widget__resize-handle--split"
+          [style.left.%]="h.leftPercent"
+          (pointerdown)="onSplitColResizePointerDown($event, rowIndex, cellIndex, path, h.boundaryIndex)"
+        ></div>
+        <div
+          *ngFor="let h of getSplitRowResizeHandles(cell.split!, getSplitKey(rowIndex, cellIndex, path))"
+          class="table-widget__resize-handle table-widget__resize-handle--row table-widget__resize-handle--split"
+          [style.top.%]="h.topPercent"
+          (pointerdown)="onSplitRowResizePointerDown($event, rowIndex, cellIndex, path, h.boundaryIndex)"
+        ></div>
+      </div>
+
       <div
         *ngFor="let item of getRenderableSplitCells(cell); trackBy: trackByRenderableSplitCell"
         class="table-widget__sub-cell"

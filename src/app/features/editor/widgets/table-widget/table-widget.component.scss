@@ -12,8 +12,12 @@
     background: transparent;
   }
 
+  &__table > tbody {
+    height: 100%;
+  }
+
   &__row {
-    height: auto;
+    height: auto; // overridden by inline % height when row resizing is enabled
   }
 
   &__cell {
@@ -26,6 +30,7 @@
     min-width: 40px;
     min-height: 24px;
     user-select: none;
+    overflow: hidden; // keep row/col sizing deterministic; cell content scrolls instead of expanding the grid
 
     &:hover {
       background: rgba(0, 0, 0, 0.02);
@@ -67,6 +72,8 @@
     // Do NOT make the contenteditable itself a flex container. Inline wrappers inserted by bold/italic/color
     // (e.g. <b>, <span style="...">) become flex items and can force unwanted new lines.
     display: block;
+    overflow: auto;
+    max-height: 100%;
 
     &:focus {
       outline: 2px solid #1976d2;
@@ -89,6 +96,7 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-start; // top
+    overflow: hidden;
   }
 
   &__cell-surface[data-vertical-align='middle'] {
@@ -104,6 +112,7 @@
     width: 100%;
     height: 100%;
     min-height: 24px;
+    position: relative;
   }
 
   &__sub-cell {
@@ -128,6 +137,86 @@
       z-index: 10; // Above cell content background
       box-sizing: border-box;
     }
+  }
+
+  // ============================================
+  // Column/Row resize overlay
+  // ============================================
+
+  &__resize-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 30; // above selection overlays
+  }
+
+  &__resize-handle {
+    position: absolute;
+    pointer-events: auto;
+    background: transparent;
+    user-select: none;
+    touch-action: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      background: rgba(15, 23, 42, 0.25);
+      opacity: 0;
+      transition: opacity 120ms ease;
+      border-radius: 2px;
+    }
+
+    &:hover::after,
+    &:active::after {
+      opacity: 1;
+    }
+  }
+
+  &__resize-handle--col {
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    transform: translateX(-50%);
+    cursor: col-resize;
+
+    &::after {
+      top: 12px;
+      bottom: 12px;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+    }
+  }
+
+  &__resize-handle--row {
+    left: 0;
+    right: 0;
+    height: 10px;
+    transform: translateY(-50%);
+    cursor: row-resize;
+
+    &::after {
+      left: 12px;
+      right: 12px;
+      top: 50%;
+      height: 2px;
+      transform: translateY(-50%);
+    }
+  }
+
+  &__resize-handle--split {
+    z-index: 5;
+
+    &::after {
+      background: rgba(15, 23, 42, 0.32);
+    }
+  }
+
+  &__split-resize-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
   }
 
   &__cell-content--subcell {

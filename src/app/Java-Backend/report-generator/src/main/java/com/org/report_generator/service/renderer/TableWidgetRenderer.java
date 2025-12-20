@@ -2,6 +2,8 @@ package com.org.report_generator.service.renderer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.Locale;
+
 /**
  * Renderer for table widgets (table-widget) matching the frontend table model:
  * - rows[].cells[] with inline merge/coveredBy and optional split grids
@@ -128,14 +130,45 @@ public class TableWidgetRenderer {
             return "<div class=\"widget widget-table\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
 
+        // Optional persisted sizing (fractions that sum to 1)
+        int rowCount = rowsNode.size();
+        int colCount = 1;
+        JsonNode firstRow = rowsNode.get(0);
+        if (firstRow != null && !firstRow.isNull()) {
+            JsonNode firstCells = firstRow.path("cells");
+            if (firstCells.isArray() && firstCells.size() > 0) {
+                colCount = firstCells.size();
+            }
+        }
+
+        double[] colFractions = parseFractions(props.path("columnFractions"), colCount);
+        double[] rowFractions = parseFractions(props.path("rowFractions"), rowCount);
+
         StringBuilder html = new StringBuilder();
         html.append("<div class=\"widget widget-table\" style=\"").append(escapeHtmlAttribute(widgetStyle)).append("\">");
-        html.append("<div class=\"table-widget\"><table class=\"table-widget__table\"><tbody>");
+        html.append("<div class=\"table-widget\"><table class=\"table-widget__table\">");
 
+        // Column sizing via <colgroup> for stable fixed-layout tables (matches frontend)
+        html.append("<colgroup>");
+        for (double f : colFractions) {
+            double pct = f * 100d;
+            html.append("<col style=\"width: ")
+                .append(String.format(Locale.ROOT, "%.6f", pct))
+                .append("%;\" />");
+        }
+        html.append("</colgroup>");
+
+        html.append("<tbody>");
+
+        int rowIndex = 0;
         for (JsonNode rowNode : rowsNode) {
             if (rowNode == null || rowNode.isNull()) continue;
             JsonNode cellsNode = rowNode.path("cells");
-            html.append("<tr class=\"table-widget__row\">");
+
+            double rowPct = (rowIndex >= 0 && rowIndex < rowFractions.length) ? (rowFractions[rowIndex] * 100d) : (100d / Math.max(1, rowCount));
+            html.append("<tr class=\"table-widget__row\" style=\"height: ")
+                .append(String.format(Locale.ROOT, "%.6f", rowPct))
+                .append("%;\">");
 
             if (cellsNode.isArray()) {
                 for (JsonNode cellNode : cellsNode) {
@@ -166,6 +199,7 @@ public class TableWidgetRenderer {
             }
 
             html.append("</tr>");
+            rowIndex++;
         }
 
         html.append("</tbody></table></div>");
@@ -180,10 +214,13 @@ public class TableWidgetRenderer {
             int cols = Math.max(1, splitNode.path("cols").asInt(1));
             JsonNode splitCells = splitNode.path("cells");
 
+            double[] splitColFractions = parseFractions(splitNode.path("columnFractions"), cols);
+            double[] splitRowFractions = parseFractions(splitNode.path("rowFractions"), rows);
+
             StringBuilder sb = new StringBuilder();
             sb.append("<div class=\"table-widget__split-grid\" style=\"")
-              .append("grid-template-columns: repeat(").append(cols).append(", 1fr);")
-              .append("grid-template-rows: repeat(").append(rows).append(", 1fr);")
+              .append("grid-template-columns: ").append(buildPercentTrackList(splitColFractions)).append(";")
+              .append("grid-template-rows: ").append(buildPercentTrackList(splitRowFractions)).append(";")
               .append("\">");
 
             if (splitCells.isArray()) {
@@ -386,6 +423,49 @@ public class TableWidgetRenderer {
         }
 
         return style.toString();
+    }
+
+    private double[] parseFractions(JsonNode node, int count) {
+        int n = Math.max(1, count);
+        double[] out = new double[n];
+
+        if (node != null && node.isArray() && node.size() == n) {
+            double sum = 0d;
+            for (int i = 0; i < n; i++) {
+                double v = node.get(i).asDouble(0d);
+                if (!Double.isFinite(v) || v <= 0d) {
+                    v = 0d;
+                }
+                out[i] = v;
+                sum += v;
+            }
+            if (sum > 0d) {
+                for (int i = 0; i < n; i++) {
+                    out[i] = out[i] / sum;
+                }
+                return out;
+            }
+        }
+
+        // Default equal fractions
+        double eq = 1d / n;
+        for (int i = 0; i < n; i++) {
+            out[i] = eq;
+        }
+        return out;
+    }
+
+    private String buildPercentTrackList(double[] fractions) {
+        if (fractions == null || fractions.length == 0) {
+            return "1fr";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fractions.length; i++) {
+            if (i > 0) sb.append(' ');
+            double pct = fractions[i] * 100d;
+            sb.append(String.format(Locale.ROOT, "%.6f", pct)).append('%');
+        }
+        return sb.toString();
     }
 
     private String escapeHtmlAttribute(String input) {

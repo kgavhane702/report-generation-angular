@@ -86,6 +86,16 @@ export interface TableWidgetProps {
   rows: TableRow[];
   showBorders?: boolean;
   /**
+   * Column sizing as fractions (sum to 1). Length should equal the top-level column count.
+   * Used by the table widget for resizable columns and by PDF export for consistent layout.
+   */
+  columnFractions?: number[];
+  /**
+   * Row sizing as fractions (sum to 1). Length should equal the top-level row count.
+   * Used by the table widget for resizable rows and by PDF export for consistent layout.
+   */
+  rowFractions?: number[];
+  /**
    * Legacy merge representation (overlay-based).
    * Kept only for backwards compatibility with saved documents.
    *
@@ -122,6 +132,12 @@ export interface TableCellSplit {
    * Flattened array (row-major), length = rows * cols
    */
   cells: TableCell[];
+  /**
+   * Optional sizing inside the split grid.
+   * Fractions must sum to 1. If missing or invalid, the UI falls back to equal sizing.
+   */
+  columnFractions?: number[];
+  rowFractions?: number[];
 }
 
 export interface TableCell {

@@ -47,6 +47,10 @@ import { PendingChangesRegistry, FlushableWidget } from '../../../../core/servic
 })
 export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, FlushableWidget {
   private readonly maxSplitDepth = 4;
+  private readonly minColPx = 40;
+  private readonly minRowPx = 24;
+  private readonly minSplitColPx = 20;
+  private readonly minSplitRowPx = 20;
 
   @Input({ required: true }) widget!: WidgetModel;
 
@@ -62,6 +66,46 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   /** Local copy of rows during editing */
   private readonly localRows = signal<TableRow[]>([]);
+
+  /** Persisted sizing state (fractions that sum to 1) */
+  private readonly columnFractions = signal<number[]>([]);
+  private readonly rowFractions = signal<number[]>([]);
+
+  /** Live preview during resize drag */
+  private readonly previewColumnFractions = signal<number[] | null>(null);
+  private readonly previewRowFractions = signal<number[] | null>(null);
+
+  private isResizingGrid = false;
+  private readonly previewSplitKey = signal<string | null>(null);
+  private readonly previewSplitColumnFractions = signal<number[] | null>(null);
+  private readonly previewSplitRowFractions = signal<number[] | null>(null);
+  private activeGridResize:
+    | {
+        kind: 'col' | 'row';
+        boundaryIndex: number; // boundary between (i-1) and i
+        startClientX: number;
+        startClientY: number;
+        startFractions: number[];
+        tableWidthPx: number; // unscaled layout px
+        tableHeightPx: number; // unscaled layout px
+        zoomScale: number; // 1.0 = 100%
+      }
+    | null = null;
+  private activeSplitResize:
+    | {
+        kind: 'col' | 'row';
+        boundaryIndex: number; // boundary between (i-1) and i
+        ownerRow: number;
+        ownerCol: number;
+        ownerPath: string;
+        startClientX: number;
+        startClientY: number;
+        startFractions: number[];
+        gridWidthPx: number; // unscaled layout px
+        gridHeightPx: number; // unscaled layout px
+        zoomScale: number; // 1.0 = 100%
+      }
+    | null = null;
   
   /** Track if we're actively editing */
   private readonly isActivelyEditing = signal<boolean>(false);
@@ -112,6 +156,102 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return this.localRows();
   }
 
+  get colFractions(): number[] {
+    const cols = this.getTopLevelColCount(this.localRows());
+    const current = this.previewColumnFractions() ?? this.columnFractions();
+    return this.normalizeFractions(current, cols);
+  }
+
+  get rowFractionsView(): number[] {
+    const rows = this.getTopLevelRowCount(this.localRows());
+    const current = this.previewRowFractions() ?? this.rowFractions();
+    return this.normalizeFractions(current, rows);
+  }
+
+  get colResizeHandles(): Array<{ boundaryIndex: number; leftPercent: number }> {
+    const f = this.colFractions;
+    if (f.length <= 1) return [];
+    const out: Array<{ boundaryIndex: number; leftPercent: number }> = [];
+    let acc = 0;
+    for (let i = 1; i < f.length; i++) {
+      acc += f[i - 1];
+      out.push({ boundaryIndex: i, leftPercent: acc * 100 });
+    }
+    return out;
+  }
+
+  get rowResizeHandles(): Array<{ boundaryIndex: number; topPercent: number }> {
+    const f = this.rowFractionsView;
+    if (f.length <= 1) return [];
+    const out: Array<{ boundaryIndex: number; topPercent: number }> = [];
+    let acc = 0;
+    for (let i = 1; i < f.length; i++) {
+      acc += f[i - 1];
+      out.push({ boundaryIndex: i, topPercent: acc * 100 });
+    }
+    return out;
+  }
+
+  getSplitKey(rowIndex: number, cellIndex: number, path: string): string {
+    // Unique key for a split owner cell (works for nested splits too).
+    return `${rowIndex}-${cellIndex}${path ? `-${path}` : ''}`;
+  }
+
+  getSplitGridTemplateColumns(split: NonNullable<TableCell['split']>, splitKey: string): string {
+    const cols = Math.max(1, split.cols);
+    const f =
+      this.previewSplitKey() === splitKey
+        ? this.previewSplitColumnFractions()
+        : split.columnFractions ?? null;
+    const normalized = this.normalizeFractions(f ?? [], cols);
+    // Use % for deterministic sizing inside the cell (works well in PDF too).
+    return normalized.map(x => `${(x * 100).toFixed(6)}%`).join(' ');
+  }
+
+  getSplitGridTemplateRows(split: NonNullable<TableCell['split']>, splitKey: string): string {
+    const rows = Math.max(1, split.rows);
+    const f =
+      this.previewSplitKey() === splitKey
+        ? this.previewSplitRowFractions()
+        : split.rowFractions ?? null;
+    const normalized = this.normalizeFractions(f ?? [], rows);
+    return normalized.map(x => `${(x * 100).toFixed(6)}%`).join(' ');
+  }
+
+  getSplitColResizeHandles(split: NonNullable<TableCell['split']>, splitKey: string): Array<{ boundaryIndex: number; leftPercent: number }> {
+    const cols = Math.max(1, split.cols);
+    if (cols <= 1) return [];
+    const f =
+      this.previewSplitKey() === splitKey
+        ? this.previewSplitColumnFractions()
+        : split.columnFractions ?? null;
+    const normalized = this.normalizeFractions(f ?? [], cols);
+    const out: Array<{ boundaryIndex: number; leftPercent: number }> = [];
+    let acc = 0;
+    for (let i = 1; i < normalized.length; i++) {
+      acc += normalized[i - 1];
+      out.push({ boundaryIndex: i, leftPercent: acc * 100 });
+    }
+    return out;
+  }
+
+  getSplitRowResizeHandles(split: NonNullable<TableCell['split']>, splitKey: string): Array<{ boundaryIndex: number; topPercent: number }> {
+    const rows = Math.max(1, split.rows);
+    if (rows <= 1) return [];
+    const f =
+      this.previewSplitKey() === splitKey
+        ? this.previewSplitRowFractions()
+        : split.rowFractions ?? null;
+    const normalized = this.normalizeFractions(f ?? [], rows);
+    const out: Array<{ boundaryIndex: number; topPercent: number }> = [];
+    let acc = 0;
+    for (let i = 1; i < normalized.length; i++) {
+      acc += normalized[i - 1];
+      out.push({ boundaryIndex: i, topPercent: acc * 100 });
+    }
+    return out;
+  }
+
   get widgetId(): string {
     return this.widget.id;
   }
@@ -132,6 +272,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const initialRows = this.cloneRows(this.tableProps.rows);
     const migrated = this.migrateLegacyMergedRegions(initialRows, this.tableProps.mergedRegions ?? []);
     this.localRows.set(migrated);
+    this.initializeFractionsFromProps();
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
     document.addEventListener('mouseup', this.handleDocumentMouseUp);
     document.addEventListener('mousemove', this.handleDocumentMouseMove);
@@ -249,6 +390,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
     document.removeEventListener('mouseup', this.handleDocumentMouseUp);
     document.removeEventListener('mousemove', this.handleDocumentMouseMove);
+    this.teardownGridResizeListeners();
+    this.teardownSplitResizeListeners();
     
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
@@ -265,6 +408,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const nextRows = this.cloneRows(this.tableProps.rows);
       const migrated = this.migrateLegacyMergedRegions(nextRows, this.tableProps.mergedRegions ?? []);
       this.localRows.set(migrated);
+      this.initializeFractionsFromProps();
     }
   }
 
@@ -438,6 +582,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private handleDocumentMouseDown = (event: MouseEvent): void => {
+    if (this.isResizingGrid) return;
     // Check if click is outside the table AND outside the table toolbar.
     // If we clear selection when the user clicks the toolbar, multi-cell actions (like Split) won't work.
     const target = event.target as Node | null;
@@ -458,6 +603,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   };
 
   private handleDocumentMouseUp = (): void => {
+    if (this.isResizingGrid) return;
     if (this.isSelecting) {
       this.isSelecting = false;
     }
@@ -525,6 +671,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   private handleDocumentMouseMove = (event: MouseEvent): void => {
+    if (this.isResizingGrid) return;
     if (!this.isSelecting) {
       return;
     }
@@ -545,6 +692,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   };
 
   onCellMouseDown(event: MouseEvent, rowIndex: number, cellIndex: number): void {
+    if (this.isResizingGrid) return;
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
 
@@ -595,6 +743,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   }
 
   onCellMouseEnter(event: MouseEvent, rowIndex: number, cellIndex: number): void {
+    if (this.isResizingGrid) return;
     if (!this.isSelecting || this.selectionMode !== 'table') return;
 
     this.selectionEnd = { row: rowIndex, col: cellIndex };
@@ -899,7 +1048,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     // Persist immediately (discrete formatting action).
     const afterRows = this.localRows();
     if (JSON.stringify(afterRows) !== JSON.stringify(beforeRows)) {
-      this.propsChange.emit({ rows: afterRows, mergedRegions: [] });
+      this.emitPropsChange(afterRows);
       // Reset baseline to avoid duplicate emits on blur
       this.rowsAtEditStart = this.cloneRows(afterRows);
     }
@@ -944,7 +1093,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
     if (JSON.stringify(currentRows) !== JSON.stringify(originalRows)) {
       // Always clear legacy mergedRegions when we emit, since merges are now inline on cells.
-      this.propsChange.emit({ rows: currentRows, mergedRegions: [] });
+      this.emitPropsChange(currentRows);
     }
   }
 
@@ -1043,6 +1192,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
           rows: rowsCount,
           cols: colsCount,
           cells: childCells,
+          rowFractions: Array.from({ length: rowsCount }, () => 1 / rowsCount),
+          columnFractions: Array.from({ length: colsCount }, () => 1 / colsCount),
         };
         targetCell.contentHtml = '';
       }
@@ -1053,7 +1204,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const afterRows = this.localRows();
 
     if (JSON.stringify(afterRows) !== JSON.stringify(beforeRows)) {
-      this.propsChange.emit({ rows: afterRows, mergedRegions: [] });
+      this.emitPropsChange(afterRows);
       // Reset baseline to avoid duplicate emits on blur
       this.rowsAtEditStart = this.cloneRows(afterRows);
     }
@@ -1422,7 +1573,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     });
 
     const rowsAfter = this.localRows();
-    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
+    this.emitPropsChange(rowsAfter);
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
 
     // Update selection to the merged sub-cell (or top-level cell if the composed grid collapsed).
@@ -1625,7 +1776,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     });
 
     const rowsAfter = this.localRows();
-    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
+    this.emitPropsChange(rowsAfter);
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
     this.setSelection(new Set([`${anchorRow}-${anchorCol}`]));
     this.cdr.markForCheck();
@@ -1732,7 +1883,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     });
 
     const rowsAfter = this.localRows();
-    this.propsChange.emit({ rows: rowsAfter, mergedRegions: [] });
+    this.emitPropsChange(rowsAfter);
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
 
     if (rowSpan === owner.split.rows && colSpan === owner.split.cols && prefix.length === 0) {
@@ -2003,6 +2154,472 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       .map(s => (s ?? '').trim())
       .filter(Boolean);
     return parts.length > 0 ? parts.map(h => `<div>${h}</div>`).join('') : '';
+  }
+
+  // ============================================
+  // Column/Row resize (persisted + zoom-safe)
+  // ============================================
+
+  onColResizePointerDown(event: PointerEvent, boundaryIndex: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid) return;
+
+    this.syncCellContent();
+
+    const cols = this.getTopLevelColCount(this.localRows());
+    if (cols <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= cols) return;
+
+    const tableRect = this.getTableRect();
+    if (!tableRect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
+    const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
+
+    this.isResizingGrid = true;
+    this.activeGridResize = {
+      kind: 'col',
+      boundaryIndex,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...this.colFractions],
+      tableWidthPx,
+      tableHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installGridResizeListeners();
+  }
+
+  onRowResizePointerDown(event: PointerEvent, boundaryIndex: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid) return;
+
+    this.syncCellContent();
+
+    const rows = this.getTopLevelRowCount(this.localRows());
+    if (rows <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= rows) return;
+
+    const tableRect = this.getTableRect();
+    if (!tableRect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
+    const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
+
+    this.isResizingGrid = true;
+    this.activeGridResize = {
+      kind: 'row',
+      boundaryIndex,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...this.rowFractionsView],
+      tableWidthPx,
+      tableHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installGridResizeListeners();
+  }
+
+  private installGridResizeListeners(): void {
+    window.addEventListener('pointermove', this.handleGridResizePointerMove, { passive: false });
+    window.addEventListener('pointerup', this.handleGridResizePointerUp, { passive: false });
+    window.addEventListener('pointercancel', this.handleGridResizePointerUp, { passive: false });
+  }
+
+  private teardownGridResizeListeners(): void {
+    window.removeEventListener('pointermove', this.handleGridResizePointerMove as any);
+    window.removeEventListener('pointerup', this.handleGridResizePointerUp as any);
+    window.removeEventListener('pointercancel', this.handleGridResizePointerUp as any);
+  }
+
+  private handleGridResizePointerMove = (event: PointerEvent): void => {
+    if (!this.isResizingGrid || !this.activeGridResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const r = this.activeGridResize;
+    const scale = r.zoomScale;
+
+    if (r.kind === 'col') {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const leftIdx = i - 1;
+      const rightIdx = i;
+      const total = start[leftIdx] + start[rightIdx];
+
+      const deltaScreen = event.clientX - r.startClientX;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.tableWidthPx;
+
+      const minFLeft = this.minColPx / r.tableWidthPx;
+      const minFRight = this.minColPx / r.tableWidthPx;
+
+      const next = [...start];
+      const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
+      next[leftIdx] = clampedLeft;
+      next[rightIdx] = total - clampedLeft;
+      this.previewColumnFractions.set(this.normalizeFractions(next, next.length));
+    } else {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const topIdx = i - 1;
+      const bottomIdx = i;
+      const total = start[topIdx] + start[bottomIdx];
+
+      const deltaScreen = event.clientY - r.startClientY;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.tableHeightPx;
+
+      const minFTop = this.minRowPx / r.tableHeightPx;
+      const minFBottom = this.minRowPx / r.tableHeightPx;
+
+      const next = [...start];
+      const clampedTop = this.clamp(start[topIdx] + deltaF, minFTop, total - minFBottom);
+      next[topIdx] = clampedTop;
+      next[bottomIdx] = total - clampedTop;
+      this.previewRowFractions.set(this.normalizeFractions(next, next.length));
+    }
+
+    this.cdr.markForCheck();
+  };
+
+  private handleGridResizePointerUp = (event: PointerEvent): void => {
+    if (!this.isResizingGrid || !this.activeGridResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rows = this.localRows();
+
+    if (this.activeGridResize.kind === 'col') {
+      const nextCols = this.previewColumnFractions() ?? this.colFractions;
+      this.columnFractions.set(this.normalizeFractions(nextCols, nextCols.length));
+      this.previewColumnFractions.set(null);
+    } else {
+      const nextRows = this.previewRowFractions() ?? this.rowFractionsView;
+      this.rowFractions.set(this.normalizeFractions(nextRows, nextRows.length));
+      this.previewRowFractions.set(null);
+    }
+
+    // Persist immediately (discrete sizing action).
+    this.emitPropsChange(rows);
+
+    this.isResizingGrid = false;
+    this.activeGridResize = null;
+    this.teardownGridResizeListeners();
+    this.cdr.markForCheck();
+  };
+
+  onSplitColResizePointerDown(
+    event: PointerEvent,
+    ownerRow: number,
+    ownerCol: number,
+    ownerPath: string,
+    boundaryIndex: number
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid) return;
+
+    this.syncCellContent();
+
+    const owner = this.getCellByOwnerPath(ownerRow, ownerCol, ownerPath);
+    const split = owner?.split;
+    if (!owner || !split) return;
+    const cols = Math.max(1, split.cols);
+    if (cols <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= cols) return;
+
+    const gridRect = this.getSplitGridRectFromEvent(event);
+    if (!gridRect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const gridWidthPx = Math.max(1, gridRect.width / zoomScale);
+    const gridHeightPx = Math.max(1, gridRect.height / zoomScale);
+
+    const splitKey = this.getSplitKey(ownerRow, ownerCol, ownerPath);
+    const start = this.normalizeFractions(split.columnFractions ?? [], cols);
+
+    this.isResizingGrid = true;
+    this.previewSplitKey.set(splitKey);
+    this.activeSplitResize = {
+      kind: 'col',
+      boundaryIndex,
+      ownerRow,
+      ownerCol,
+      ownerPath,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...start],
+      gridWidthPx,
+      gridHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installSplitResizeListeners();
+  }
+
+  onSplitRowResizePointerDown(
+    event: PointerEvent,
+    ownerRow: number,
+    ownerCol: number,
+    ownerPath: string,
+    boundaryIndex: number
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid) return;
+
+    this.syncCellContent();
+
+    const owner = this.getCellByOwnerPath(ownerRow, ownerCol, ownerPath);
+    const split = owner?.split;
+    if (!owner || !split) return;
+    const rows = Math.max(1, split.rows);
+    if (rows <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= rows) return;
+
+    const gridRect = this.getSplitGridRectFromEvent(event);
+    if (!gridRect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const gridWidthPx = Math.max(1, gridRect.width / zoomScale);
+    const gridHeightPx = Math.max(1, gridRect.height / zoomScale);
+
+    const splitKey = this.getSplitKey(ownerRow, ownerCol, ownerPath);
+    const start = this.normalizeFractions(split.rowFractions ?? [], rows);
+
+    this.isResizingGrid = true;
+    this.previewSplitKey.set(splitKey);
+    this.activeSplitResize = {
+      kind: 'row',
+      boundaryIndex,
+      ownerRow,
+      ownerCol,
+      ownerPath,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...start],
+      gridWidthPx,
+      gridHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installSplitResizeListeners();
+  }
+
+  private installSplitResizeListeners(): void {
+    window.addEventListener('pointermove', this.handleSplitResizePointerMove, { passive: false });
+    window.addEventListener('pointerup', this.handleSplitResizePointerUp, { passive: false });
+    window.addEventListener('pointercancel', this.handleSplitResizePointerUp, { passive: false });
+  }
+
+  private teardownSplitResizeListeners(): void {
+    window.removeEventListener('pointermove', this.handleSplitResizePointerMove as any);
+    window.removeEventListener('pointerup', this.handleSplitResizePointerUp as any);
+    window.removeEventListener('pointercancel', this.handleSplitResizePointerUp as any);
+  }
+
+  private handleSplitResizePointerMove = (event: PointerEvent): void => {
+    if (!this.isResizingGrid || !this.activeSplitResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const r = this.activeSplitResize;
+    const scale = r.zoomScale;
+
+    if (r.kind === 'col') {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const leftIdx = i - 1;
+      const rightIdx = i;
+      const total = start[leftIdx] + start[rightIdx];
+
+      const deltaScreen = event.clientX - r.startClientX;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.gridWidthPx;
+
+      const minFLeft = this.minSplitColPx / r.gridWidthPx;
+      const minFRight = this.minSplitColPx / r.gridWidthPx;
+
+      const next = [...start];
+      const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
+      next[leftIdx] = clampedLeft;
+      next[rightIdx] = total - clampedLeft;
+      this.previewSplitColumnFractions.set(this.normalizeFractions(next, next.length));
+    } else {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const topIdx = i - 1;
+      const bottomIdx = i;
+      const total = start[topIdx] + start[bottomIdx];
+
+      const deltaScreen = event.clientY - r.startClientY;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.gridHeightPx;
+
+      const minFTop = this.minSplitRowPx / r.gridHeightPx;
+      const minFBottom = this.minSplitRowPx / r.gridHeightPx;
+
+      const next = [...start];
+      const clampedTop = this.clamp(start[topIdx] + deltaF, minFTop, total - minFBottom);
+      next[topIdx] = clampedTop;
+      next[bottomIdx] = total - clampedTop;
+      this.previewSplitRowFractions.set(this.normalizeFractions(next, next.length));
+    }
+
+    this.cdr.markForCheck();
+  };
+
+  private handleSplitResizePointerUp = (event: PointerEvent): void => {
+    if (!this.isResizingGrid || !this.activeSplitResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const r = this.activeSplitResize;
+    const rowsSnapshot = this.localRows();
+
+    const nextCols = this.previewSplitColumnFractions();
+    const nextRows = this.previewSplitRowFractions();
+
+    // Commit to the model (single update) then emit props once.
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      const base = next?.[r.ownerRow]?.cells?.[r.ownerCol];
+      if (!base) return next;
+      const pathArr = this.parsePathString(r.ownerPath);
+      const owner = pathArr.length === 0 ? base : this.getCellAtPath(base, pathArr);
+      if (!owner || !owner.split) return next;
+
+      if (r.kind === 'col' && nextCols) {
+        owner.split.columnFractions = this.normalizeFractions(nextCols, owner.split.cols);
+      }
+      if (r.kind === 'row' && nextRows) {
+        owner.split.rowFractions = this.normalizeFractions(nextRows, owner.split.rows);
+      }
+      return next;
+    });
+
+    this.emitPropsChange(this.localRows());
+
+    // Clear preview + state
+    this.previewSplitKey.set(null);
+    this.previewSplitColumnFractions.set(null);
+    this.previewSplitRowFractions.set(null);
+    this.activeSplitResize = null;
+    this.isResizingGrid = false;
+    this.teardownSplitResizeListeners();
+    this.cdr.markForCheck();
+  };
+
+  private getSplitGridRectFromEvent(event: PointerEvent): DOMRect | null {
+    const el = event.target as HTMLElement | null;
+    if (!el) return null;
+    const grid = el.closest('.table-widget__split-grid') as HTMLElement | null;
+    return grid?.getBoundingClientRect() ?? null;
+  }
+
+  private parsePathString(path: string): number[] {
+    if (!path) return [];
+    const parts = path.split('-').filter(Boolean);
+    const out: number[] = [];
+    for (const p of parts) {
+      const n = Number(p);
+      if (!Number.isFinite(n)) return [];
+      out.push(n);
+    }
+    return out;
+  }
+
+  private getCellByOwnerPath(row: number, col: number, path: string): TableCell | null {
+    const base = this.localRows()?.[row]?.cells?.[col];
+    if (!base) return null;
+    const pathArr = this.parsePathString(path);
+    return pathArr.length === 0 ? base : this.getCellAtPath(base, pathArr);
+  }
+
+  private getTableRect(): DOMRect | null {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return null;
+    const table = container.querySelector('table.table-widget__table') as HTMLTableElement | null;
+    return table?.getBoundingClientRect() ?? null;
+  }
+
+  private initializeFractionsFromProps(): void {
+    const rows = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rows);
+    const colCount = this.getTopLevelColCount(rows);
+
+    const nextCols = this.normalizeFractions(this.tableProps.columnFractions ?? [], colCount);
+    const nextRows = this.normalizeFractions(this.tableProps.rowFractions ?? [], rowCount);
+
+    this.columnFractions.set(nextCols);
+    this.rowFractions.set(nextRows);
+  }
+
+  private getTopLevelRowCount(rows: TableRow[]): number {
+    return Math.max(1, rows.length);
+  }
+
+  private getTopLevelColCount(rows: TableRow[]): number {
+    const first = rows?.[0];
+    return Math.max(1, first?.cells?.length ?? 1);
+  }
+
+  private normalizeFractions(input: number[], count: number): number[] {
+    const n = Math.max(1, Math.trunc(count));
+    if (!Array.isArray(input) || input.length !== n) {
+      return Array.from({ length: n }, () => 1 / n);
+    }
+
+    const cleaned = input.map((x) => (Number.isFinite(x) && x > 0 ? x : 0));
+    const sum = cleaned.reduce((a, b) => a + b, 0);
+    if (sum <= 0) {
+      return Array.from({ length: n }, () => 1 / n);
+    }
+    return cleaned.map((x) => x / sum);
+  }
+
+  private clamp(v: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  private emitPropsChange(rows: TableRow[]): void {
+    this.propsChange.emit({
+      rows,
+      mergedRegions: [],
+      columnFractions: this.normalizeFractions(this.columnFractions(), this.getTopLevelColCount(rows)),
+      rowFractions: this.normalizeFractions(this.rowFractions(), this.getTopLevelRowCount(rows)),
+    });
   }
 }
 

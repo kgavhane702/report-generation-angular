@@ -81,6 +81,10 @@ export class WidgetFactoryService {
 
   private createTableWidget(props?: Partial<TableWidgetProps>): WidgetModel<TableWidgetProps> {
     const rows = props?.rows ?? this.createDefaultTableRows(3, 3);
+    const rowCount = Math.max(1, rows.length);
+    const colCount = Math.max(1, rows[0]?.cells?.length ?? 1);
+    const defaultRowFractions = Array.from({ length: rowCount }, () => 1 / rowCount);
+    const defaultColFractions = Array.from({ length: colCount }, () => 1 / colCount);
     
     return {
       id: uuid(),
@@ -91,6 +95,8 @@ export class WidgetFactoryService {
       props: {
         rows,
         showBorders: true,
+        rowFractions: props?.rowFractions && props.rowFractions.length === rowCount ? props.rowFractions : defaultRowFractions,
+        columnFractions: props?.columnFractions && props.columnFractions.length === colCount ? props.columnFractions : defaultColFractions,
       },
     };
   }
