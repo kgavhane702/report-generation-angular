@@ -1,4 +1,14 @@
 <div class="editor-shell">
+  <div class="editor-shell__export-overlay" *ngIf="showExportOverlay()">
+    <div class="editor-shell__export-card" role="status" aria-live="polite">
+      <div class="editor-shell__spinner" aria-hidden="true"></div>
+      <div class="editor-shell__export-text">
+        <div class="editor-shell__export-title">{{ exportUi.message() || 'Exporting…' }}</div>
+        <div class="editor-shell__export-subtitle">Please wait. Do not click or switch sections while export is running.</div>
+      </div>
+    </div>
+  </div>
+
   <header class="editor-shell__toolbar">
     <app-editor-toolbar></app-editor-toolbar>
   </header>

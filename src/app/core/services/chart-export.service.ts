@@ -3,6 +3,7 @@ import { ChartWidgetProps, WidgetModel } from '../../models/widget.model';
 import { DocumentModel } from '../../models/document.model';
 import { EditorStateService } from './editor-state.service';
 import { ChartRenderRegistry } from './chart-render-registry.service';
+import { ExportUiStateService } from './export-ui-state.service';
 
 /**
  * Chart location info for export
@@ -33,6 +34,7 @@ export class ChartExportService {
   private readonly renderRegistry = inject(ChartRenderRegistry);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
+  private readonly exportUi = inject(ExportUiStateService);
 
   /**
    * Export a single chart widget to base64 image
@@ -164,9 +166,14 @@ export class ChartExportService {
     console.log('[ChartExport] Entered export mode');
 
     try {
+      this.exportUi.start('Exporting charts…');
+
       // Process each subsection
-      for (const [subsectionId, charts] of chartsBySubsection) {
+      const entries = Array.from(chartsBySubsection.entries());
+      for (let i = 0; i < entries.length; i++) {
+        const [subsectionId, charts] = entries[i];
         console.log('[ChartExport] Processing subsection:', subsectionId, 'with', charts.length, 'charts');
+        this.exportUi.updateMessage(`Exporting charts… (${i + 1}/${entries.length})`);
         
         // Navigate to subsection to make charts visible
         await this.navigateToSubsection(subsectionId);
@@ -209,6 +216,7 @@ export class ChartExportService {
     } finally {
       // Exit export mode
       this.renderRegistry.exitExportMode();
+      this.exportUi.stop();
       console.log('[ChartExport] Exited export mode');
       
       // Restore original navigation state
@@ -357,6 +365,7 @@ export class ChartExportService {
     console.log('[ChartExport] waitForChartsToRegister:', widgetIds);
     
     return new Promise(resolve => {
+      const timeoutMs = 15_000;
       const checkRegistration = () => {
         const registered = widgetIds.filter(id => 
           this.renderRegistry.getState(id) !== undefined
@@ -391,6 +400,16 @@ export class ChartExportService {
           resolve();
         }
       });
+
+      // Fail-safe: don't hang export forever if a chart never registers.
+      window.setTimeout(() => {
+        if (!subscription.closed) {
+          const missing = widgetIds.filter(id => this.renderRegistry.getState(id) === undefined);
+          console.warn('[ChartExport] Registration timeout. Continuing export with missing charts:', missing);
+          subscription.unsubscribe();
+          resolve();
+        }
+      }, timeoutMs);
     });
   }
 

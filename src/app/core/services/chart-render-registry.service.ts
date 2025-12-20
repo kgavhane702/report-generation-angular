@@ -211,8 +211,10 @@ export class ChartRenderRegistry {
   }
   
   /**
-   * Wait for a specific chart to render (Promise-based, no timeout)
-   * Uses reactive stream - resolves when chart signals rendered
+   * Wait for a specific chart to render.
+   *
+   * In export mode we add a timeout fail-safe so PDF export cannot hang forever
+   * if a chart never reaches rendered/error (e.g. adapter failure, DOM issues).
    */
   waitForChart(widgetId: string): Promise<ChartRenderState> {
     const currentState = this._chartStates().get(widgetId);
@@ -221,17 +223,34 @@ export class ChartRenderRegistry {
     if (currentState?.status === 'rendered' || currentState?.status === 'error') {
       return Promise.resolve(currentState);
     }
-    
-    // Wait for state change
-    return firstValueFrom(
-      this._stateChange$.pipe(
-        filter(({ widgetId: id, state }) => 
-          id === widgetId && (state.status === 'rendered' || state.status === 'error')
-        ),
-        take(1),
-        map(({ state }) => state)
-      )
+
+    const waitForState$ = this._stateChange$.pipe(
+      filter(({ widgetId: id, state }) =>
+        id === widgetId && (state.status === 'rendered' || state.status === 'error')
+      ),
+      take(1),
+      map(({ state }) => state)
     );
+
+    // Only apply timeout during export (normal UI interactions shouldn't be time-limited).
+    const timeoutMs = this._exportMode() ? 20_000 : 0;
+    if (timeoutMs <= 0) {
+      return firstValueFrom(waitForState$);
+    }
+
+    const timeout$ = timer(timeoutMs).pipe(
+      map(() => {
+        // Best-effort: mark error if state exists (registered); otherwise just return an error result.
+        const existing = this._chartStates().get(widgetId);
+        if (existing) {
+          this.markError(widgetId, `Export timeout after ${timeoutMs}ms`);
+          return this._chartStates().get(widgetId) ?? { widgetId, status: 'error' as const, error: `Export timeout after ${timeoutMs}ms` };
+        }
+        return { widgetId, status: 'error' as const, error: `Export timeout after ${timeoutMs}ms` };
+      })
+    );
+
+    return firstValueFrom(race(waitForState$, timeout$));
   }
   
   /**

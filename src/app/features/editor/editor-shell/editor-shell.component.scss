@@ -8,6 +8,67 @@
   overflow: hidden;
 }
 
+.editor-shell__export-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: all;
+}
+
+.editor-shell__export-card {
+  width: min(520px, 100%);
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.editor-shell__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 3px solid rgba(148, 163, 184, 0.5);
+  border-top-color: #2563eb;
+  animation: editorShellSpin 0.9s linear infinite;
+  flex: 0 0 auto;
+}
+
+.editor-shell__export-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.editor-shell__export-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-shell__export-subtitle {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+@keyframes editorShellSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .editor-shell__toolbar {
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   background: #ffffff;
