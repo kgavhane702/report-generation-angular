@@ -6,6 +6,7 @@
   background: #fff;
   border-radius: 4px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  flex-wrap: wrap;
 
   &__group {
     display: flex;
@@ -66,6 +67,59 @@
     font-size: 12px;
     font-weight: 600;
     line-height: 1;
+  }
+
+  &__color-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.02);
+  }
+
+  &__color-control--disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  &__color-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    user-select: none;
+  }
+
+  &__color-input {
+    width: 28px;
+    height: 24px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  &__swatches {
+    display: grid;
+    grid-template-columns: repeat(6, 12px);
+    gap: 4px;
+    align-items: center;
+  }
+
+  &__swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    padding: 0;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  &__swatch:hover {
+    transform: scale(1.1);
   }
 }
 

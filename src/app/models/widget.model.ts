@@ -155,6 +155,10 @@ export interface TableCellStyle {
   verticalAlign?: 'top' | 'middle' | 'bottom';
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
+  /**
+   * Cell fill / background color (applies to the cell container, not selected text).
+   */
+  backgroundColor?: string;
 }
 
 export type CssStyleObject = Partial<

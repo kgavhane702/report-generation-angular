@@ -170,6 +170,95 @@
       </svg>
     </button>
   </div>
+
+  <div class="table-toolbar__separator"></div>
+
+  <div class="table-toolbar__group">
+    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
+      <div class="table-toolbar__color-label" title="Text color">A</div>
+      <input
+        type="color"
+        class="table-toolbar__color-input"
+        [value]="textColor"
+        (change)="onTextColorPick($event)"
+        [disabled]="!hasActiveCell"
+        title="Text color"
+      />
+      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
+        <button
+          *ngFor="let c of colorPalette"
+          type="button"
+          class="table-toolbar__swatch"
+          [style.background-color]="c.value"
+          [attr.title]="c.label"
+          (mousedown)="onSwatchTextColor($event, c.value)"
+        ></button>
+      </div>
+    </div>
+
+    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
+      <div class="table-toolbar__color-label" title="Text highlight">HL</div>
+      <input
+        type="color"
+        class="table-toolbar__color-input"
+        [value]="highlightColor"
+        (change)="onHighlightPick($event)"
+        [disabled]="!hasActiveCell"
+        title="Text highlight"
+      />
+      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
+        <button
+          *ngFor="let c of colorPalette"
+          type="button"
+          class="table-toolbar__swatch"
+          [style.background-color]="c.value"
+          [attr.title]="c.label"
+          (mousedown)="onSwatchHighlight($event, c.value)"
+        ></button>
+      </div>
+    </div>
+
+    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
+      <div class="table-toolbar__color-label" title="Cell fill">Fill</div>
+      <input
+        type="color"
+        class="table-toolbar__color-input"
+        [value]="cellFillColor"
+        (change)="onCellFillPick($event)"
+        [disabled]="!hasActiveCell"
+        title="Cell fill"
+      />
+      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
+        <button
+          *ngFor="let c of colorPalette"
+          type="button"
+          class="table-toolbar__swatch"
+          [style.background-color]="c.value"
+          [attr.title]="c.label"
+          (mousedown)="onSwatchCellFill($event, c.value)"
+        ></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-toolbar__separator"></div>
+
+  <div class="table-toolbar__group">
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="isFormatPainterActive"
+      (mousedown)="onFormatPainterClick($event)"
+      title="Format painter (cell formatting)"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 6h12l2 2v3H3z"></path>
+        <path d="M6 11v9"></path>
+        <path d="M6 20h8"></path>
+        <path d="M16 11v4"></path>
+      </svg>
+    </button>
+  </div>
 </div>
 
 <div

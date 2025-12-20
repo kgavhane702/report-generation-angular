@@ -40,6 +40,7 @@
       [innerHTML]="cell.contentHtml"
       [style.text-align]="cell.style?.textAlign || 'left'"
       [style.vertical-align]="cell.style?.verticalAlign || 'top'"
+      [style.background-color]="cell.style?.backgroundColor || 'transparent'"
       (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
       (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
       (input)="onCellInput($event, rowIndex, cellIndex, path)"

@@ -82,6 +82,13 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private mergeSubscription?: Subscription;
   private textAlignSubscription?: Subscription;
   private verticalAlignSubscription?: Subscription;
+  private cellBackgroundSubscription?: Subscription;
+  private formatPainterSubscription?: Subscription;
+
+  /** One-shot format painter state (cell-level only) */
+  private formatPainterArmed = false;
+  private formatPainterBaselineSelection: Set<string> = new Set();
+  private formatPainterBaselineActiveCellId: string | null = null;
 
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
@@ -158,6 +165,42 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       }
       this.applyStyleToSelection({ verticalAlign: align });
     });
+
+    this.cellBackgroundSubscription = this.toolbarService.cellBackgroundColorRequested$.subscribe((color) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ backgroundColor: color });
+    });
+
+    this.formatPainterSubscription = this.toolbarService.formatPainterRequested$.subscribe((enabled) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+
+      if (!enabled) {
+        this.formatPainterArmed = false;
+        this.formatPainterBaselineSelection = new Set();
+        this.formatPainterBaselineActiveCellId = null;
+        return;
+      }
+
+      const sourceLeafId =
+        this.activeCellId ??
+        (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
+
+      const sourceCell = sourceLeafId ? this.getCellModelByLeafId(sourceLeafId) : null;
+      const capturedStyle: Partial<TableCellStyle> = {
+        textAlign: sourceCell?.style?.textAlign ?? 'left',
+        verticalAlign: sourceCell?.style?.verticalAlign ?? 'top',
+        backgroundColor: sourceCell?.style?.backgroundColor ?? '',
+      };
+
+      this.toolbarService.setFormatPainterStyle(capturedStyle);
+      this.formatPainterArmed = true;
+      this.formatPainterBaselineSelection = new Set(this.selectedCells());
+      this.formatPainterBaselineActiveCellId = this.activeCellId;
+    });
   }
 
   ngOnDestroy(): void {
@@ -177,6 +220,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
     if (this.verticalAlignSubscription) {
       this.verticalAlignSubscription.unsubscribe();
+    }
+    if (this.cellBackgroundSubscription) {
+      this.cellBackgroundSubscription.unsubscribe();
+    }
+    if (this.formatPainterSubscription) {
+      this.formatPainterSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
@@ -391,11 +440,64 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.leafRectStart = null;
     this.tableRectStart = null;
 
+    if (this.formatPainterArmed && this.toolbarService.formatPainterActive() && this.toolbarService.activeTableWidgetId === this.widget.id) {
+      const captured = this.toolbarService.getFormatPainterStyle();
+      if (captured) {
+        const currentSelection = this.selectedCells();
+        const targetSelectionIsUsed = currentSelection.size > 0 || this.formatPainterBaselineSelection.size > 0;
+        const targetChanged = targetSelectionIsUsed
+          ? !this.setEquals(currentSelection, this.formatPainterBaselineSelection)
+          : (this.activeCellId !== this.formatPainterBaselineActiveCellId);
+
+        const hasTarget = currentSelection.size > 0 || !!this.activeCellId;
+
+        if (targetChanged && hasTarget) {
+          // Apply to current selection/cell and then auto-disable (one-shot).
+          this.applyStyleToSelection(captured);
+          this.formatPainterArmed = false;
+          this.formatPainterBaselineSelection = new Set();
+          this.formatPainterBaselineActiveCellId = null;
+          this.toolbarService.clearFormatPainter();
+        }
+      }
+    }
+
     // Debug: log final selection on mouseup for active table widget
     if (this.toolbarService.activeTableWidgetId === this.widget.id) {
       this.logSelectedCells('mouseUp');
     }
   };
+
+  private setEquals(a: Set<string>, b: Set<string>): boolean {
+    if (a.size !== b.size) return false;
+    for (const v of a) {
+      if (!b.has(v)) return false;
+    }
+    return true;
+  }
+
+  private getCellModelByLeafId(leafId: string): TableCell | null {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return null;
+
+    let r = parsed.row;
+    let c = parsed.col;
+    const path = parsed.path;
+
+    let baseCell = this.localRows()?.[r]?.cells?.[c];
+    if (!baseCell) return null;
+
+    if (baseCell.coveredBy) {
+      const a = baseCell.coveredBy;
+      r = a.row;
+      c = a.col;
+      baseCell = this.localRows()?.[r]?.cells?.[c];
+      if (!baseCell) return null;
+    }
+
+    const target = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
+    return target ?? null;
+  }
 
   private handleDocumentMouseMove = (event: MouseEvent): void => {
     if (!this.isSelecting) {
