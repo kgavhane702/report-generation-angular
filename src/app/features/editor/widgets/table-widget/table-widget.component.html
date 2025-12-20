@@ -34,6 +34,7 @@
       class="table-widget__cell-content"
       [class.table-widget__cell-content--subcell]="path !== ''"
       [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
+      [attr.data-vertical-align]="cell.style?.verticalAlign || 'top'"
       contenteditable="true"
       tabindex="0"
       [innerHTML]="cell.contentHtml"

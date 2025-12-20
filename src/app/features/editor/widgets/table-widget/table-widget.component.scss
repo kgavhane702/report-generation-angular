@@ -51,6 +51,9 @@
     box-sizing: border-box;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 
     &:focus {
       outline: 2px solid #1976d2;
@@ -62,6 +65,16 @@
       content: '\00a0';
       color: transparent;
     }
+  }
+
+  // Vertical alignment simulation for contenteditable divs.
+  // (CSS `vertical-align` doesn't affect block-level elements, but we still keep it on the element for persistence/state.)
+  &__cell-content[data-vertical-align='middle'] {
+    justify-content: center;
+  }
+
+  &__cell-content[data-vertical-align='bottom'] {
+    justify-content: flex-end;
   }
 
   &__split-grid {

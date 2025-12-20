@@ -28,12 +28,16 @@ export class TableToolbarService {
   private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
   private readonly mergeCellsRequestedSubject = new Subject<void>();
   private readonly unmergeRequestedSubject = new Subject<void>();
+  private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right'>();
+  private readonly verticalAlignRequestedSubject = new Subject<'top' | 'middle' | 'bottom'>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
   public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
   public readonly mergeCellsRequested$: Observable<void> = this.mergeCellsRequestedSubject.asObservable();
   public readonly unmergeRequested$: Observable<void> = this.unmergeRequestedSubject.asObservable();
+  public readonly textAlignRequested$: Observable<'left' | 'center' | 'right'> = this.textAlignRequestedSubject.asObservable();
+  public readonly verticalAlignRequested$: Observable<'top' | 'middle' | 'bottom'> = this.verticalAlignRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
@@ -125,7 +129,10 @@ export class TableToolbarService {
       });
     } else if (this.activeCell) {
       this.activeCell.style.textAlign = align;
+    } else {
+      return;
     }
+    this.textAlignRequestedSubject.next(align);
     this.formattingState.update(state => ({ ...state, textAlign: align }));
   }
 
@@ -140,7 +147,10 @@ export class TableToolbarService {
       });
     } else if (this.activeCell) {
       this.activeCell.style.verticalAlign = align;
+    } else {
+      return;
     }
+    this.verticalAlignRequestedSubject.next(align);
     this.formattingState.update(state => ({ ...state, verticalAlign: align }));
   }
 
@@ -158,8 +168,8 @@ export class TableToolbarService {
     const isItalic = document.queryCommandState('italic');
     
     const computedStyle = window.getComputedStyle(cell);
-    const textAlign = (computedStyle.textAlign || 'left') as 'left' | 'center' | 'right';
-    const verticalAlign = (computedStyle.verticalAlign || 'top') as 'top' | 'middle' | 'bottom';
+    const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
+    const verticalAlign = ((cell.style.verticalAlign || computedStyle.verticalAlign || 'top') as 'top' | 'middle' | 'bottom');
 
     this.formattingState.set({
       isBold,

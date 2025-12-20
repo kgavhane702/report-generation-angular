@@ -80,6 +80,8 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
 
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
+  private textAlignSubscription?: Subscription;
+  private verticalAlignSubscription?: Subscription;
 
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
@@ -142,6 +144,20 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       }
       this.applyMergeSelection();
     });
+
+    this.textAlignSubscription = this.toolbarService.textAlignRequested$.subscribe((align) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ textAlign: align });
+    });
+
+    this.verticalAlignSubscription = this.toolbarService.verticalAlignRequested$.subscribe((align) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ verticalAlign: align });
+    });
   }
 
   ngOnDestroy(): void {
@@ -155,6 +171,12 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
     if (this.mergeSubscription) {
       this.mergeSubscription.unsubscribe();
+    }
+    if (this.textAlignSubscription) {
+      this.textAlignSubscription.unsubscribe();
+    }
+    if (this.verticalAlignSubscription) {
+      this.verticalAlignSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
@@ -691,6 +713,71 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
         return newRows;
       });
     });
+  }
+
+  private applyStyleToSelection(stylePatch: Partial<TableCellStyle>): void {
+    // Keep content model in sync before applying style changes.
+    this.syncCellContent();
+
+    const selection = this.selectedCells();
+    const targetLeafIds = new Set<string>();
+
+    if (selection.size > 0) {
+      selection.forEach(id => targetLeafIds.add(id));
+    } else if (this.activeCellId) {
+      targetLeafIds.add(this.activeCellId);
+    }
+
+    if (targetLeafIds.size === 0) {
+      return;
+    }
+
+    const beforeRows = this.cloneRows(this.localRows());
+
+    this.localRows.update((rows) => {
+      const newRows = this.cloneRows(rows);
+
+      for (const leafId of targetLeafIds) {
+        const parsed = this.parseLeafId(leafId);
+        if (!parsed) continue;
+
+        let r = parsed.row;
+        let c = parsed.col;
+        const path = parsed.path;
+
+        let baseCell = newRows?.[r]?.cells?.[c];
+        if (!baseCell) continue;
+
+        // Safety: if a covered cell id somehow sneaks in, redirect to its anchor.
+        if (baseCell.coveredBy) {
+          const a = baseCell.coveredBy;
+          r = a.row;
+          c = a.col;
+          baseCell = newRows?.[r]?.cells?.[c];
+          if (!baseCell) continue;
+        }
+
+        const target = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
+        if (!target) continue;
+
+        target.style = {
+          ...(target.style ?? {}),
+          ...stylePatch,
+        };
+      }
+
+      return newRows;
+    });
+
+    // Persist immediately (discrete formatting action).
+    const afterRows = this.localRows();
+    if (JSON.stringify(afterRows) !== JSON.stringify(beforeRows)) {
+      this.propsChange.emit({ rows: afterRows, mergedRegions: [] });
+      // Reset baseline to avoid duplicate emits on blur
+      this.rowsAtEditStart = this.cloneRows(afterRows);
+    }
+
+    this.cdr.markForCheck();
   }
 
   private getCellAtPath(root: TableCell, path: number[]): TableCell | null {
