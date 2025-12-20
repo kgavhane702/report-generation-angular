@@ -4,15 +4,15 @@
     (mousedown)="toggleDropdown($event)" 
     [attr.title]="title || (currentColor || 'Transparent')"
     [class.color-picker__trigger--disabled]="disabled"
+    [class.color-picker__trigger--icon]="!!icon"
   >
     <span *ngIf="icon" class="color-picker__icon" [class.material-symbols-outlined]="isMaterialIcon(icon)">{{ icon }}</span>
     <span *ngIf="label && !icon" class="color-picker__label">{{ label }}</span>
     <div
       class="color-picker__preview"
-      [style.background-color]="getDisplayColor()"
+      [style.background-color]="currentColor ? currentColor : null"
       [class.color-picker__preview--transparent]="!currentColor"
     >
-      <span *ngIf="!currentColor" class="color-picker__transparent-icon">×</span>
     </div>
   </div>
 

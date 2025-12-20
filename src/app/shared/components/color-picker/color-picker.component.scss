@@ -28,8 +28,17 @@
   }
 }
 
+/* Toolbar-style icon button */
+.color-picker__trigger--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+}
+
 .color-picker__icon {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   color: #475569;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   
@@ -47,18 +56,16 @@
 }
 
 .color-picker__preview {
-  width: 0.875rem;
-  height: 0.875rem;
-  border-radius: 0.125rem;
-  border: 1px solid #d1d5db;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* Small underline indicator (cleaner than the old corner square overlay) */
   position: absolute;
-  bottom: 0.125rem;
-  right: 0.125rem;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-sizing: border-box;
 }
 
 .color-picker__preview--transparent {
@@ -69,14 +76,6 @@
     linear-gradient(-45deg, transparent 75%, #ccc 75%);
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-}
-
-.color-picker__transparent-icon {
-  display: block;
-  color: #64748b;
-  font-size: 1rem;
-  font-weight: bold;
-  line-height: 1;
 }
 
 .color-picker__dropdown {
