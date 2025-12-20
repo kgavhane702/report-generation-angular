@@ -3,19 +3,17 @@ import {
   Component,
   computed,
   inject,
-  signal,
-  HostListener,
-  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { TextWidgetProps } from '../../../../models/widget.model';
+import { ColorPickerComponent, ColorOption } from '../../../../shared/components/color-picker/color-picker.component';
 
 @Component({
   selector: 'app-text-widget-color-picker',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ColorPickerComponent],
   templateUrl: './text-widget-color-picker.component.html',
   styleUrls: ['./text-widget-color-picker.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,7 +21,6 @@ import { TextWidgetProps } from '../../../../models/widget.model';
 export class TextWidgetColorPickerComponent {
   private readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
-  private readonly elementRef = inject(ElementRef);
 
   readonly isTextWidgetSelected = computed(() => {
     const context = this.editorState.activeWidgetContext();
@@ -39,10 +36,8 @@ export class TextWidgetColorPickerComponent {
     return '';
   });
 
-  readonly showDropdown = signal(false);
-
   // Color palette matching the inspector panel
-  readonly colorPalette = [
+  readonly colorPalette: ColorOption[] = [
     { value: '', label: 'Transparent' },
     { value: '#ffffff', label: 'White' },
     { value: '#ef4444', label: 'Red' },
@@ -62,12 +57,6 @@ export class TextWidgetColorPickerComponent {
     { value: '#000000', label: 'Black' },
   ];
 
-  toggleDropdown(): void {
-    if (this.isTextWidgetSelected()) {
-      this.showDropdown.update((value) => !value);
-    }
-  }
-
   selectColor(color: string): void {
     const context = this.editorState.activeWidgetContext();
     if (!context || context.widget.type !== 'text') {
@@ -81,27 +70,6 @@ export class TextWidgetColorPickerComponent {
         backgroundColor: color,
       } as TextWidgetProps,
     });
-
-    this.showDropdown.set(false);
-  }
-
-  onCustomColorChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.value) {
-      this.selectColor(input.value);
-    }
-  }
-
-  getDisplayColor(): string {
-    const color = this.currentColor();
-    return color || 'transparent';
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.showDropdown.set(false);
-    }
   }
 }
 

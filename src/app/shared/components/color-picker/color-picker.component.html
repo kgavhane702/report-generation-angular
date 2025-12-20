@@ -1,0 +1,46 @@
+<div class="color-picker">
+  <div 
+    class="color-picker__trigger" 
+    (mousedown)="toggleDropdown($event)" 
+    [attr.title]="title || (currentColor || 'Transparent')"
+    [class.color-picker__trigger--disabled]="disabled"
+  >
+    <span *ngIf="icon" class="color-picker__icon" [class.material-symbols-outlined]="isMaterialIcon(icon)">{{ icon }}</span>
+    <span *ngIf="label && !icon" class="color-picker__label">{{ label }}</span>
+    <div
+      class="color-picker__preview"
+      [style.background-color]="getDisplayColor()"
+      [class.color-picker__preview--transparent]="!currentColor"
+    >
+      <span *ngIf="!currentColor" class="color-picker__transparent-icon">×</span>
+    </div>
+  </div>
+
+  <div class="color-picker__dropdown" *ngIf="showDropdown() && !disabled" (mousedown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
+    <div class="color-picker__custom" *ngIf="showLabel">
+      <input
+        type="color"
+        [value]="currentColor || '#ffffff'"
+        (change)="onCustomColorChange($event)"
+        class="color-picker__color-input"
+        title="Custom Color"
+      />
+      <span class="color-picker__color-value">{{ currentColor || 'transparent' }}</span>
+    </div>
+    <div class="color-picker__swatches">
+      <button
+        *ngFor="let color of colorPalette"
+        type="button"
+        class="color-picker__swatch"
+        [style.background-color]="color.value || 'transparent'"
+        [class.color-picker__swatch--active]="(currentColor || '') === color.value"
+        [class.color-picker__swatch--transparent]="!color.value"
+        [attr.title]="color.label"
+        (mousedown)="selectColor(color.value, $event)"
+      >
+        <span *ngIf="!color.value" class="color-picker__transparent-icon">×</span>
+      </button>
+    </div>
+  </div>
+</div>
+

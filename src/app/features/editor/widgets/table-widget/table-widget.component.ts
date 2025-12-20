@@ -426,8 +426,15 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     const isInsideTable = !!(target && this.tableContainer?.nativeElement?.contains(target));
     const toolbarElement = document.querySelector('app-table-toolbar');
     const isInsideToolbar = !!(target && toolbarElement?.contains(target));
+    
+    // Also check if click is inside a color picker dropdown (which may be positioned outside toolbar)
+    const isInsideColorPicker = !!(target && (
+      (target as Element).closest('.color-picker') ||
+      (target as Element).closest('.color-picker__dropdown') ||
+      (target as Element).closest('.color-picker__trigger')
+    ));
 
-    if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar) {
+    if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar && !isInsideColorPicker) {
       this.clearSelection();
     }
   };
