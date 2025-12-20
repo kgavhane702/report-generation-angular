@@ -26,7 +26,7 @@ import {
   TableCellStyle,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { SplitCellRequest, TableToolbarService } from '../../../../core/services/table-toolbar.service';
+import { CellBorderRequest, SplitCellRequest, TableToolbarService } from '../../../../core/services/table-toolbar.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
 
@@ -83,6 +83,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   private textAlignSubscription?: Subscription;
   private verticalAlignSubscription?: Subscription;
   private cellBackgroundSubscription?: Subscription;
+  private cellBorderSubscription?: Subscription;
   private formatPainterSubscription?: Subscription;
 
   /** One-shot format painter state (cell-level only) */
@@ -173,6 +174,17 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       this.applyStyleToSelection({ backgroundColor: color });
     });
 
+    this.cellBorderSubscription = this.toolbarService.cellBorderRequested$.subscribe((border: CellBorderRequest) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({
+        borderColor: border.color ?? undefined,
+        borderWidth: border.width ?? undefined,
+        borderStyle: border.style ?? undefined,
+      });
+    });
+
     this.formatPainterSubscription = this.toolbarService.formatPainterRequested$.subscribe((enabled) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -194,6 +206,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
         textAlign: sourceCell?.style?.textAlign ?? 'left',
         verticalAlign: sourceCell?.style?.verticalAlign ?? 'top',
         backgroundColor: sourceCell?.style?.backgroundColor ?? '',
+        borderColor: sourceCell?.style?.borderColor,
+        borderWidth: sourceCell?.style?.borderWidth,
+        borderStyle: sourceCell?.style?.borderStyle,
       };
 
       this.toolbarService.setFormatPainterStyle(capturedStyle);
@@ -223,6 +238,9 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
     if (this.cellBackgroundSubscription) {
       this.cellBackgroundSubscription.unsubscribe();
+    }
+    if (this.cellBorderSubscription) {
+      this.cellBorderSubscription.unsubscribe();
     }
     if (this.formatPainterSubscription) {
       this.formatPainterSubscription.unsubscribe();

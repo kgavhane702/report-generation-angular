@@ -15,6 +15,12 @@ export interface SplitCellRequest {
   cols: number;
 }
 
+export interface CellBorderRequest {
+  color: string | null;
+  width: number | null;
+  style: 'solid' | 'dashed' | 'dotted' | 'none' | null;
+}
+
 /**
  * Service to manage the active table cell and formatting state for table widgets.
  * Similar to RichTextToolbarService but for table cells with contenteditable.
@@ -32,6 +38,7 @@ export class TableToolbarService {
   private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right'>();
   private readonly verticalAlignRequestedSubject = new Subject<'top' | 'middle' | 'bottom'>();
   private readonly cellBackgroundColorRequestedSubject = new Subject<string>();
+  private readonly cellBorderRequestedSubject = new Subject<CellBorderRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
@@ -42,6 +49,7 @@ export class TableToolbarService {
   public readonly textAlignRequested$: Observable<'left' | 'center' | 'right'> = this.textAlignRequestedSubject.asObservable();
   public readonly verticalAlignRequested$: Observable<'top' | 'middle' | 'bottom'> = this.verticalAlignRequestedSubject.asObservable();
   public readonly cellBackgroundColorRequested$: Observable<string> = this.cellBackgroundColorRequestedSubject.asObservable();
+  public readonly cellBorderRequested$: Observable<CellBorderRequest> = this.cellBorderRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
@@ -237,6 +245,14 @@ export class TableToolbarService {
       return;
     }
     this.cellBackgroundColorRequestedSubject.next(color || '');
+  }
+
+  /**
+   * Apply border styling to selected cells (persisted by the table widget model).
+   * Note: Border is applied by the widget to the cell container (<td> / sub-cell), not to the contenteditable itself.
+   */
+  applyCellBorder(border: CellBorderRequest): void {
+    this.cellBorderRequestedSubject.next(border);
   }
 
   /**

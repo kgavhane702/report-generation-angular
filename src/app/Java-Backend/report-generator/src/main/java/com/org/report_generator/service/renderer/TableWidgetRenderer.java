@@ -150,9 +150,14 @@ public class TableWidgetRenderer {
                     int rowSpan = mergeNode.path("rowSpan").asInt(1);
                     int colSpan = mergeNode.path("colSpan").asInt(1);
 
+                    String borderStyle = buildBorderStyle(cellNode);
+
                     html.append("<td class=\"table-widget__cell\"");
                     if (rowSpan > 1) html.append(" rowspan=\"").append(rowSpan).append("\"");
                     if (colSpan > 1) html.append(" colspan=\"").append(colSpan).append("\"");
+                    if (!borderStyle.isEmpty()) {
+                        html.append(" style=\"").append(escapeHtmlAttribute(borderStyle)).append("\"");
+                    }
                     html.append(">");
 
                     html.append(renderCellInner(cellNode));
@@ -203,6 +208,11 @@ public class TableWidgetRenderer {
                       .append("grid-column-start: ").append(c + 1).append(";")
                       .append("grid-row-end: span ").append(Math.max(1, rowSpan)).append(";")
                       .append("grid-column-end: span ").append(Math.max(1, colSpan)).append(";");
+
+                    String borderStyle = buildBorderStyle(child);
+                    if (!borderStyle.isEmpty()) {
+                        sb.append(escapeHtmlAttribute(borderStyle));
+                    }
                     sb.append("\">");
 
                     sb.append(renderCellSurface(child));
@@ -347,6 +357,32 @@ public class TableWidgetRenderer {
         String fontStyle = styleNode.path("fontStyle").asText("");
         if (!fontStyle.isBlank()) {
             style.append("font-style: ").append(fontStyle).append(";");
+        }
+
+        return style.toString();
+    }
+
+    private String buildBorderStyle(JsonNode cellNode) {
+        JsonNode styleNode = cellNode.path("style");
+        if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
+            return "";
+        }
+
+        String borderStyle = styleNode.path("borderStyle").asText("");
+        String borderColor = styleNode.path("borderColor").asText("");
+        int borderWidth = styleNode.path("borderWidth").asInt(0);
+
+        StringBuilder style = new StringBuilder();
+
+        if (!borderStyle.isBlank()) {
+            // Allow explicit "none" to remove borders
+            style.append("border-style: ").append(borderStyle).append(";");
+        }
+        if (borderWidth > 0) {
+            style.append("border-width: ").append(borderWidth).append("px;");
+        }
+        if (!borderColor.isBlank()) {
+            style.append("border-color: ").append(borderColor).append(";");
         }
 
         return style.toString();

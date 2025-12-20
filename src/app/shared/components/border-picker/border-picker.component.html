@@ -1,0 +1,123 @@
+<div class="border-picker">
+  <div
+    class="border-picker__trigger"
+    (mousedown)="toggleDropdown($event)"
+    [attr.title]="title || 'Border'"
+    [class.border-picker__trigger--disabled]="disabled"
+  >
+    <span class="border-picker__icon">Border</span>
+    <span
+      class="border-picker__preview-line"
+      [style.border-bottom]="getPreviewBorder()"
+      [class.border-picker__preview-line--none]="value.style === 'none'"
+    ></span>
+  </div>
+
+  <div
+    class="border-picker__dropdown"
+    *ngIf="showDropdown() && !disabled"
+    (mousedown)="$event.stopPropagation()"
+    (click)="$event.stopPropagation()"
+  >
+    <div class="border-picker__header">
+      <div class="border-picker__header-title">Border</div>
+      <div class="border-picker__header-preview">
+        <span class="border-picker__header-preview-label">Preview</span>
+        <span class="border-picker__header-preview-line" [style.border-bottom]="getPreviewBorder()"></span>
+      </div>
+    </div>
+
+    <div class="border-picker__row">
+      <label class="border-picker__label" title="Border width">
+        <span>Width</span>
+        <input
+          type="number"
+          class="border-picker__input"
+          min="1"
+          max="20"
+          [ngModel]="value.width"
+          (ngModelChange)="setWidth($event)"
+        />
+      </label>
+
+      <label class="border-picker__label" title="Custom color">
+        <span>Color</span>
+        <input
+          type="color"
+          class="border-picker__color-input"
+          [value]="value.color || '#cbd5e1'"
+          (change)="onCustomColorChange($event)"
+        />
+      </label>
+    </div>
+
+    <div class="border-picker__section">
+      <div class="border-picker__section-title">Style</div>
+      <div class="border-picker__styles">
+        <button
+          type="button"
+          class="border-picker__style"
+          [class.border-picker__style--active]="value.style === 'solid'"
+          (mousedown)="setStyle('solid', $event)"
+        >
+          <span class="border-picker__style-line" [style.border-bottom]="value.width + 'px solid ' + (value.color || '#cbd5e1')"></span>
+          <span class="border-picker__style-text">Solid</span>
+        </button>
+
+        <button
+          type="button"
+          class="border-picker__style"
+          [class.border-picker__style--active]="value.style === 'dashed'"
+          (mousedown)="setStyle('dashed', $event)"
+        >
+          <span class="border-picker__style-line" [style.border-bottom]="value.width + 'px dashed ' + (value.color || '#cbd5e1')"></span>
+          <span class="border-picker__style-text">Dashed</span>
+        </button>
+
+        <button
+          type="button"
+          class="border-picker__style"
+          [class.border-picker__style--active]="value.style === 'dotted'"
+          (mousedown)="setStyle('dotted', $event)"
+        >
+          <span class="border-picker__style-line" [style.border-bottom]="value.width + 'px dotted ' + (value.color || '#cbd5e1')"></span>
+          <span class="border-picker__style-text">Dotted</span>
+        </button>
+
+        <button
+          type="button"
+          class="border-picker__style"
+          [class.border-picker__style--active]="value.style === 'none'"
+          (mousedown)="setStyle('none', $event)"
+          title="Remove custom border (falls back to default cell border)"
+        >
+          <span class="border-picker__style-line border-picker__style-line--none"></span>
+          <span class="border-picker__style-text">None</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="border-picker__section">
+      <div class="border-picker__section-title">Color</div>
+      <div class="border-picker__swatches">
+        <button
+          *ngFor="let c of colorPalette"
+          type="button"
+          class="border-picker__swatch"
+          [class.border-picker__swatch--active]="(value.color || '') === c.value"
+          [class.border-picker__swatch--transparent]="!c.value"
+          [style.background-color]="c.value || 'transparent'"
+          [attr.title]="c.label"
+          (mousedown)="setColor(c.value, $event)"
+        >
+          <span *ngIf="!c.value" class="border-picker__transparent-icon">×</span>
+        </button>
+      </div>
+      <div class="border-picker__hint">
+        Pick <b>Transparent</b> to clear the custom border and use the table’s default borders.
+      </div>
+    </div>
+  </div>
+</div>
+
+

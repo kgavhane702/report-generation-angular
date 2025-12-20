@@ -16,6 +16,9 @@
           [attr.data-cell]="rowIndex + '-' + rc.colIndex"
           [attr.rowspan]="rc.cell.merge?.rowSpan || null"
           [attr.colspan]="rc.cell.merge?.colSpan || null"
+          [style.border-color]="rc.cell.style?.borderColor || null"
+          [style.border-width.px]="rc.cell.style?.borderWidth ?? null"
+          [style.border-style]="rc.cell.style?.borderStyle || null"
           (mousedown)="onCellMouseDown($event, rowIndex, rc.colIndex)"
           (mouseenter)="onCellMouseEnter($event, rowIndex, rc.colIndex)"
         >
@@ -64,6 +67,9 @@
         [style.gridColumnStart]="item.col + 1"
         [style.gridRowEnd]="'span ' + (item.cell.merge?.rowSpan || 1)"
         [style.gridColumnEnd]="'span ' + (item.cell.merge?.colSpan || 1)"
+        [style.border-color]="item.cell.style?.borderColor || null"
+        [style.border-width.px]="item.cell.style?.borderWidth ?? null"
+        [style.border-style]="item.cell.style?.borderStyle || null"
         [class.table-widget__sub-cell--selected]="isLeafSelected(rowIndex, cellIndex, appendPath(path, item.index))"
       >
         <ng-container

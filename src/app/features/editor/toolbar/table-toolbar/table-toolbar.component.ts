@@ -7,6 +7,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TableToolbarService } from '../../../../core/services/table-toolbar.service';
 import { ColorPickerComponent, ColorOption } from '../../../../shared/components/color-picker/color-picker.component';
+import { BorderPickerComponent, BorderValue } from '../../../../shared/components/border-picker/border-picker.component';
 
 /**
  * TableToolbarComponent
@@ -17,7 +18,7 @@ import { ColorPickerComponent, ColorOption } from '../../../../shared/components
 @Component({
   selector: 'app-table-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, ColorPickerComponent],
+  imports: [CommonModule, FormsModule, ColorPickerComponent, BorderPickerComponent],
   templateUrl: './table-toolbar.component.html',
   styleUrls: ['./table-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,6 +67,9 @@ export class TableToolbarComponent {
   textColor = '#000000';
   highlightColor = '#fff59d';
   cellFillColor = '';
+  borderColor = '';
+  borderWidth = 1;
+  borderStyle: 'solid' | 'dashed' | 'dotted' | 'none' = 'solid';
 
   get formattingState() {
     return this.toolbarService.formattingState();
@@ -147,6 +151,25 @@ export class TableToolbarComponent {
     if (!this.hasActiveCell) return;
     this.cellFillColor = color;
     this.toolbarService.applyCellBackgroundColor(color);
+  }
+
+  onBorderValueChange(value: BorderValue): void {
+    if (!this.hasActiveCell) return;
+    this.borderColor = value.color;
+    this.borderWidth = value.width;
+    this.borderStyle = value.style;
+
+    // Transparent => clear custom border and fall back to default cell border.
+    if (!value.color || value.style === 'none') {
+      this.toolbarService.applyCellBorder({ color: null, width: null, style: null });
+      return;
+    }
+
+    this.toolbarService.applyCellBorder({
+      color: value.color,
+      width: Math.max(1, Math.min(20, Math.trunc(Number(value.width) || 1))),
+      style: value.style,
+    });
   }
 
   onFormatPainterClick(event: MouseEvent): void {

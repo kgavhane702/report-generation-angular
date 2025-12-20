@@ -203,6 +203,15 @@
       title="Cell fill"
       (colorSelected)="onCellFillSelected($event)"
     ></app-color-picker>
+
+    <!-- Border (single dropdown with live preview: color + style + width) -->
+    <app-border-picker
+      [disabled]="!hasActiveCell"
+      title="Border"
+      [colorPalette]="highlightFillPalette"
+      [value]="{ color: borderColor, width: borderWidth, style: borderStyle }"
+      (valueChange)="onBorderValueChange($event)"
+    ></app-border-picker>
   </div>
 
   <div class="table-toolbar__separator"></div>

@@ -159,6 +159,14 @@ export interface TableCellStyle {
    * Cell fill / background color (applies to the cell container, not selected text).
    */
   backgroundColor?: string;
+  /**
+   * Optional cell border styling (applies to the cell container: <td> for normal cells,
+   * and .table-widget__sub-cell for split cells).
+   */
+  borderColor?: string;
+  /** Border width in pixels. */
+  borderWidth?: number;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
 }
 
 export type CssStyleObject = Partial<
