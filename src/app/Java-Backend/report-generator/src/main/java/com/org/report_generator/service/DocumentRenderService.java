@@ -16,6 +16,7 @@ import com.org.report_generator.service.renderer.GlobalStylesRenderer;
 import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
+import com.org.report_generator.service.renderer.TableWidgetRenderer;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class DocumentRenderService {
     
     private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
     private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
+    private final TableWidgetRenderer tableWidgetRenderer = new TableWidgetRenderer();
 
     public String render(DocumentModel document) {
         List<Page> pages = collectPages(document);
@@ -45,6 +47,7 @@ public class DocumentRenderService {
                 .append(GlobalStylesRenderer.getCss())
                 .append(TextWidgetRenderer.getCss())
                 .append(ImageWidgetRenderer.getCss())
+                .append(TableWidgetRenderer.getCss())
                 .append(PageStylesRenderer.getCss(pages, document))
                 .append("</style></head><body><div class=\"document-container\">");
 
@@ -134,6 +137,7 @@ public class DocumentRenderService {
             case "text" -> textWidgetRenderer.render(props, style);
             case "image" -> imageWidgetRenderer.render(props, style);
             case "chart" -> renderChartWidget(props, style);
+            case "table", "table-widget", "tablewidget" -> tableWidgetRenderer.render(props, style);
             default -> "<div class=\"widget\" style=\"" + style + "\"></div>";
         };
     }
