@@ -174,69 +174,137 @@
   <div class="table-toolbar__separator"></div>
 
   <div class="table-toolbar__group">
-    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
-      <div class="table-toolbar__color-label" title="Text color">A</div>
-      <input
-        type="color"
-        class="table-toolbar__color-input"
-        [value]="textColor"
-        (change)="onTextColorPick($event)"
+    <!-- Text Color Picker -->
+    <div class="table-toolbar__color-picker" [class.table-toolbar__color-picker--disabled]="!hasActiveCell">
+      <button
+        type="button"
+        class="table-toolbar__color-trigger"
+        (mousedown)="toggleTextColorDropdown($event)"
         [disabled]="!hasActiveCell"
         title="Text color"
-      />
-      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
-        <button
-          *ngFor="let c of colorPalette"
-          type="button"
-          class="table-toolbar__swatch"
-          [style.background-color]="c.value"
-          [attr.title]="c.label"
-          (mousedown)="onSwatchTextColor($event, c.value)"
-        ></button>
+      >
+        <span class="table-toolbar__color-icon">A</span>
+        <div
+          class="table-toolbar__color-preview"
+          [style.background-color]="textColor"
+        ></div>
+      </button>
+      <div class="table-toolbar__color-dropdown" *ngIf="showTextColorDropdown() && hasActiveCell" (mousedown)="$event.stopPropagation()">
+        <div class="table-toolbar__color-dropdown-header">
+          <span class="table-toolbar__color-dropdown-title">Text Color</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-custom">
+          <input
+            type="color"
+            class="table-toolbar__color-dropdown-input"
+            [value]="textColor"
+            (change)="onTextColorPick($event)"
+            title="More colors"
+          />
+          <span class="table-toolbar__color-dropdown-label">More colors</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-swatches">
+          <button
+            *ngFor="let c of textColorPalette"
+            type="button"
+            class="table-toolbar__color-dropdown-swatch"
+            [style.background-color]="c.value"
+            [attr.title]="c.label"
+            (mousedown)="onSwatchTextColor($event, c.value)"
+          ></button>
+        </div>
       </div>
     </div>
 
-    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
-      <div class="table-toolbar__color-label" title="Text highlight">HL</div>
-      <input
-        type="color"
-        class="table-toolbar__color-input"
-        [value]="highlightColor"
-        (change)="onHighlightPick($event)"
+    <!-- Text Highlight Picker -->
+    <div class="table-toolbar__color-picker" [class.table-toolbar__color-picker--disabled]="!hasActiveCell">
+      <button
+        type="button"
+        class="table-toolbar__color-trigger"
+        (mousedown)="toggleHighlightDropdown($event)"
         [disabled]="!hasActiveCell"
         title="Text highlight"
-      />
-      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
-        <button
-          *ngFor="let c of colorPalette"
-          type="button"
-          class="table-toolbar__swatch"
-          [style.background-color]="c.value"
-          [attr.title]="c.label"
-          (mousedown)="onSwatchHighlight($event, c.value)"
-        ></button>
+      >
+        <span class="table-toolbar__color-icon">HL</span>
+        <div
+          class="table-toolbar__color-preview"
+          [class.table-toolbar__color-preview--transparent]="!highlightColor"
+          [style.background-color]="highlightColor || 'transparent'"
+        ></div>
+      </button>
+      <div class="table-toolbar__color-dropdown" *ngIf="showHighlightDropdown() && hasActiveCell" (mousedown)="$event.stopPropagation()">
+        <div class="table-toolbar__color-dropdown-header">
+          <span class="table-toolbar__color-dropdown-title">Text Highlight</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-custom">
+          <input
+            type="color"
+            class="table-toolbar__color-dropdown-input"
+            [value]="highlightColor"
+            (change)="onHighlightPick($event)"
+            title="More colors"
+          />
+          <span class="table-toolbar__color-dropdown-label">More colors</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-swatches">
+          <button
+            *ngFor="let c of highlightFillPalette"
+            type="button"
+            class="table-toolbar__color-dropdown-swatch"
+            [class.table-toolbar__color-dropdown-swatch--transparent]="!c.value"
+            [style.background-color]="c.value || 'transparent'"
+            [attr.title]="c.label"
+            (mousedown)="onSwatchHighlight($event, c.value)"
+          >
+            <span *ngIf="!c.value" class="table-toolbar__color-dropdown-swatch-icon">×</span>
+          </button>
+        </div>
       </div>
     </div>
 
-    <div class="table-toolbar__color-control" [class.table-toolbar__color-control--disabled]="!hasActiveCell">
-      <div class="table-toolbar__color-label" title="Cell fill">Fill</div>
-      <input
-        type="color"
-        class="table-toolbar__color-input"
-        [value]="cellFillColor"
-        (change)="onCellFillPick($event)"
+    <!-- Cell Fill Picker -->
+    <div class="table-toolbar__color-picker" [class.table-toolbar__color-picker--disabled]="!hasActiveCell">
+      <button
+        type="button"
+        class="table-toolbar__color-trigger"
+        (mousedown)="toggleCellFillDropdown($event)"
         [disabled]="!hasActiveCell"
         title="Cell fill"
-      />
-      <div class="table-toolbar__swatches" *ngIf="hasActiveCell">
-        <button
-          *ngFor="let c of colorPalette"
-          type="button"
-          class="table-toolbar__swatch"
-          [style.background-color]="c.value"
-          [attr.title]="c.label"
-          (mousedown)="onSwatchCellFill($event, c.value)"
-        ></button>
+      >
+        <span class="table-toolbar__color-icon">Fill</span>
+        <div
+          class="table-toolbar__color-preview"
+          [class.table-toolbar__color-preview--transparent]="!cellFillColor"
+          [style.background-color]="cellFillColor || 'transparent'"
+        ></div>
+      </button>
+      <div class="table-toolbar__color-dropdown" *ngIf="showCellFillDropdown() && hasActiveCell" (mousedown)="$event.stopPropagation()">
+        <div class="table-toolbar__color-dropdown-header">
+          <span class="table-toolbar__color-dropdown-title">Cell Fill</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-custom">
+          <input
+            type="color"
+            class="table-toolbar__color-dropdown-input"
+            [value]="cellFillColor"
+            (change)="onCellFillPick($event)"
+            title="More colors"
+          />
+          <span class="table-toolbar__color-dropdown-label">More colors</span>
+        </div>
+        <div class="table-toolbar__color-dropdown-swatches">
+          <button
+            *ngFor="let c of highlightFillPalette"
+            type="button"
+            class="table-toolbar__color-dropdown-swatch"
+            [class.table-toolbar__color-dropdown-swatch--transparent]="!c.value"
+            [style.background-color]="c.value || 'transparent'"
+            [attr.title]="c.label"
+            (mousedown)="onSwatchCellFill($event, c.value)"
+          >
+            <span *ngIf="!c.value" class="table-toolbar__color-dropdown-swatch-icon">×</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

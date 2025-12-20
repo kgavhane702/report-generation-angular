@@ -2,6 +2,9 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  signal,
+  HostListener,
+  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -23,14 +26,20 @@ import { TableToolbarService } from '../../../../core/services/table-toolbar.ser
 })
 export class TableToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
+  private readonly elementRef = inject(ElementRef);
 
   splitDialogOpen = false;
   splitRows = 2;
   splitCols = 2;
   splitMax = 20;
 
-  // Shared palette (kept simple to avoid losing selection/caret inside contenteditable)
-  readonly colorPalette: Array<{ value: string; label: string }> = [
+  // Dropdown states
+  readonly showTextColorDropdown = signal(false);
+  readonly showHighlightDropdown = signal(false);
+  readonly showCellFillDropdown = signal(false);
+
+  // Text color palette
+  readonly textColorPalette: Array<{ value: string; label: string }> = [
     { value: '#000000', label: 'Black' },
     { value: '#1f2937', label: 'Dark Gray' },
     { value: '#9ca3af', label: 'Gray' },
@@ -45,10 +54,26 @@ export class TableToolbarComponent {
     { value: '#fbbf24', label: 'Amber' },
   ];
 
+  // Highlight and fill palette (includes transparent)
+  readonly highlightFillPalette: Array<{ value: string; label: string }> = [
+    { value: '', label: 'Transparent' },
+    { value: '#fff59d', label: 'Yellow' },
+    { value: '#ffccbc', label: 'Orange' },
+    { value: '#c5e1a5', label: 'Green' },
+    { value: '#b3e5fc', label: 'Light Blue' },
+    { value: '#ce93d8', label: 'Purple' },
+    { value: '#f8bbd0', label: 'Pink' },
+    { value: '#ffffff', label: 'White' },
+    { value: '#f3f4f6', label: 'Light Gray' },
+    { value: '#9ca3af', label: 'Gray' },
+    { value: '#1f2937', label: 'Dark Gray' },
+    { value: '#000000', label: 'Black' },
+  ];
+
   // Defaults for custom inputs
   textColor = '#000000';
   highlightColor = '#fff59d';
-  cellFillColor = '#ffffff';
+  cellFillColor = '';
 
   get formattingState() {
     return this.toolbarService.formattingState();
@@ -114,52 +139,103 @@ export class TableToolbarComponent {
     this.toolbarService.applyVerticalAlign(align);
   }
 
+  toggleTextColorDropdown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasActiveCell) return;
+    this.showTextColorDropdown.update(v => !v);
+    // Close other dropdowns
+    this.showHighlightDropdown.set(false);
+    this.showCellFillDropdown.set(false);
+  }
+
+  toggleHighlightDropdown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasActiveCell) return;
+    this.showHighlightDropdown.update(v => !v);
+    // Close other dropdowns
+    this.showTextColorDropdown.set(false);
+    this.showCellFillDropdown.set(false);
+  }
+
+  toggleCellFillDropdown(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasActiveCell) return;
+    this.showCellFillDropdown.update(v => !v);
+    // Close other dropdowns
+    this.showTextColorDropdown.set(false);
+    this.showHighlightDropdown.set(false);
+  }
+
   onTextColorPick(event: Event): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     const input = event.target as HTMLInputElement;
     const color = input.value || this.textColor;
     this.textColor = color;
     this.toolbarService.applyTextColor(color);
+    this.showTextColorDropdown.set(false);
   }
 
   onHighlightPick(event: Event): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     const input = event.target as HTMLInputElement;
     const color = input.value || this.highlightColor;
     this.highlightColor = color;
     this.toolbarService.applyTextHighlight(color);
+    this.showHighlightDropdown.set(false);
   }
 
   onCellFillPick(event: Event): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     const input = event.target as HTMLInputElement;
     const color = input.value || this.cellFillColor;
     this.cellFillColor = color;
     this.toolbarService.applyCellBackgroundColor(color);
+    this.showCellFillDropdown.set(false);
   }
 
   onSwatchTextColor(event: MouseEvent, color: string): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     this.textColor = color;
     this.toolbarService.applyTextColor(color);
+    this.showTextColorDropdown.set(false);
   }
 
   onSwatchHighlight(event: MouseEvent, color: string): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     this.highlightColor = color;
     this.toolbarService.applyTextHighlight(color);
+    this.showHighlightDropdown.set(false);
   }
 
   onSwatchCellFill(event: MouseEvent, color: string): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
     this.cellFillColor = color;
     this.toolbarService.applyCellBackgroundColor(color);
+    this.showCellFillDropdown.set(false);
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.elementRef.nativeElement.contains(event.target)) {
+      this.showTextColorDropdown.set(false);
+      this.showHighlightDropdown.set(false);
+      this.showCellFillDropdown.set(false);
+    }
   }
 
   onFormatPainterClick(event: MouseEvent): void {

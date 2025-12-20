@@ -69,57 +69,172 @@
     line-height: 1;
   }
 
-  &__color-control {
+  &__color-picker {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 0 6px;
-    border-radius: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    background: rgba(0, 0, 0, 0.02);
   }
 
-  &__color-control--disabled {
+  &__color-picker--disabled {
     opacity: 0.5;
     pointer-events: none;
   }
 
-  &__color-label {
-    font-size: 11px;
+  &__color-trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    position: relative;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 0, 0, 0.2);
+    }
+
+    &:active {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  &__color-icon {
+    font-size: 12px;
     font-weight: 700;
     color: #334155;
     user-select: none;
+    line-height: 1;
   }
 
-  &__color-input {
-    width: 28px;
-    height: 24px;
+  &__color-preview {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
+  &__color-preview--transparent {
+    background-image: 
+      linear-gradient(45deg, #ccc 25%, transparent 25%),
+      linear-gradient(-45deg, #ccc 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ccc 75%),
+      linear-gradient(-45deg, transparent 75%, #ccc 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  }
+
+  &__color-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: #fff;
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: 6px;
-    padding: 0;
-    background: transparent;
-    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    z-index: 1000;
+    min-width: 200px;
   }
 
-  &__swatches {
-    display: grid;
-    grid-template-columns: repeat(6, 12px);
-    gap: 4px;
+  &__color-dropdown-header {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  &__color-dropdown-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  &__color-dropdown-custom {
+    display: flex;
     align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   }
 
-  &__swatch {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+  &__color-dropdown-input {
+    width: 32px;
+    height: 24px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  &__color-dropdown-label {
+    font-size: 11px;
+    color: #64748b;
+    user-select: none;
+  }
+
+  &__color-dropdown-swatches {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+  }
+
+  &__color-dropdown-swatch {
+    width: 100%;
+    aspect-ratio: 1;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
     padding: 0;
     cursor: pointer;
     background: transparent;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+
+    &:hover {
+      transform: scale(1.1);
+      border-color: rgba(0, 0, 0, 0.3);
+      z-index: 1;
+    }
   }
 
-  &__swatch:hover {
-    transform: scale(1.1);
+  &__color-dropdown-swatch-text {
+    font-size: 10px;
+    font-weight: 700;
+    color: inherit;
+    pointer-events: none;
+  }
+
+  &__color-dropdown-swatch--transparent {
+    background-image: 
+      linear-gradient(45deg, #ccc 25%, transparent 25%),
+      linear-gradient(-45deg, #ccc 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #ccc 75%),
+      linear-gradient(-45deg, transparent 75%, #ccc 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+  }
+
+  &__color-dropdown-swatch-icon {
+    font-size: 14px;
+    font-weight: bold;
+    color: #64748b;
+    line-height: 1;
+    pointer-events: none;
   }
 }
 
