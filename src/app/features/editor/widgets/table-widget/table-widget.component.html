@@ -81,9 +81,29 @@
   <ng-template #splitRenderer>
     <div
       class="table-widget__split-grid"
-      [style.gridTemplateColumns]="'repeat(' + cell.split!.cols + ', 1fr)'"
-      [style.gridTemplateRows]="'repeat(' + cell.split!.rows + ', 1fr)'"
+      [style.gridTemplateColumns]="getSplitGridTemplateColumns(rowIndex, cellIndex, path, cell)"
+      [style.gridTemplateRows]="getSplitGridTemplateRows(rowIndex, cellIndex, path, cell)"
     >
+      <!-- Split-grid resize overlay -->
+      <div class="table-widget__split-resize-overlay" aria-hidden="true">
+        <div
+          *ngFor="let s of getSplitColResizeSegments(rowIndex, cellIndex, path, cell)"
+          class="table-widget__resize-handle table-widget__resize-handle--col"
+          [style.left.%]="s.leftPercent"
+          [style.top.%]="s.topPercent"
+          [style.height.%]="s.heightPercent"
+          (pointerdown)="onSplitColResizePointerDown($event, rowIndex, cellIndex, path, s.boundaryIndex)"
+        ></div>
+        <div
+          *ngFor="let s of getSplitRowResizeSegments(rowIndex, cellIndex, path, cell)"
+          class="table-widget__resize-handle table-widget__resize-handle--row"
+          [style.top.%]="s.topPercent"
+          [style.left.%]="s.leftPercent"
+          [style.width.%]="s.widthPercent"
+          (pointerdown)="onSplitRowResizePointerDown($event, rowIndex, cellIndex, path, s.boundaryIndex)"
+        ></div>
+      </div>
+
       <div
         *ngFor="let item of getRenderableSplitCells(cell); trackBy: trackByRenderableSplitCell"
         class="table-widget__sub-cell"

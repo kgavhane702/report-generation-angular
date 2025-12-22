@@ -132,6 +132,16 @@ export interface TableCellSplit {
    * Flattened array (row-major), length = rows * cols
    */
   cells: TableCell[];
+  /**
+   * Optional persisted sizing for split grid columns (fractions that sum to 1).
+   * Length should equal `cols`. When missing, UI defaults to equal columns.
+   */
+  columnFractions?: number[];
+  /**
+   * Optional persisted sizing for split grid rows (fractions that sum to 1).
+   * Length should equal `rows`. When missing, UI defaults to equal rows.
+   */
+  rowFractions?: number[];
 }
 
 export interface TableCell {

@@ -214,10 +214,24 @@ public class TableWidgetRenderer {
             int cols = Math.max(1, splitNode.path("cols").asInt(1));
             JsonNode splitCells = splitNode.path("cells");
 
+            // Optional persisted sizing for split grids (fractions that sum to 1)
+            double[] splitColFractions = parseFractions(splitNode.path("columnFractions"), cols);
+            double[] splitRowFractions = parseFractions(splitNode.path("rowFractions"), rows);
+
             StringBuilder sb = new StringBuilder();
             sb.append("<div class=\"table-widget__split-grid\" style=\"")
-              .append("grid-template-columns: repeat(").append(cols).append(", 1fr);")
-              .append("grid-template-rows: repeat(").append(rows).append(", 1fr);")
+              .append("grid-template-columns: ");
+            for (double f : splitColFractions) {
+                double pct = f * 100d;
+                sb.append(String.format(Locale.ROOT, "%.6f", pct)).append("% ");
+            }
+            sb.append(";")
+              .append("grid-template-rows: ");
+            for (double f : splitRowFractions) {
+                double pct = f * 100d;
+                sb.append(String.format(Locale.ROOT, "%.6f", pct)).append("% ");
+            }
+            sb.append(";")
               .append("\">");
 
             if (splitCells.isArray()) {

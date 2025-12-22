@@ -55,6 +55,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly maxSplitDepth = 4;
   private readonly minColPx = 40;
   private readonly minRowPx = 24;
+  // Split sub-cells can be smaller than top-level table cells.
+  private readonly minSplitColPx = 24;
+  private readonly minSplitRowPx = 18;
 
   @Input({ required: true }) widget!: WidgetModel;
 
@@ -103,6 +106,29 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         zoomScale: number; // 1.0 = 100%
       }
     | null = null;
+
+  // ============================================
+  // Split-grid resize (per split cell)
+  // ============================================
+
+  private isResizingSplitGrid = false;
+  private activeSplitResize:
+    | {
+        kind: 'col' | 'row';
+        ownerLeafId: string; // leaf id of the split owner cell (row-col[-path])
+        boundaryIndex: number; // boundary between (i-1) and i within split grid
+        pointerId: number;
+        startClientX: number;
+        startClientY: number;
+        startFractions: number[];
+        containerWidthPx: number; // unscaled layout px
+        containerHeightPx: number; // unscaled layout px
+        zoomScale: number; // 1.0 = 100%
+      }
+    | null = null;
+
+  private readonly previewSplitColFractions = signal<Map<string, number[]>>(new Map());
+  private readonly previewSplitRowFractions = signal<Map<string, number[]>>(new Map());
   
   /** Track if we're actively editing */
   private readonly isActivelyEditing = signal<boolean>(false);
@@ -362,6 +388,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     document.removeEventListener('mouseup', this.handleDocumentMouseUp);
     document.removeEventListener('mousemove', this.handleDocumentMouseMove);
     this.teardownGridResizeListeners();
+    this.teardownSplitResizeListeners();
 
     if (this.resizeSegmentsRaf !== null) {
       cancelAnimationFrame(this.resizeSegmentsRaf);
@@ -567,8 +594,152 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return item.cell.id;
   }
 
+  private composeOwnerLeafId(rowIndex: number, cellIndex: number, path: string): string {
+    return path ? `${rowIndex}-${cellIndex}-${path}` : `${rowIndex}-${cellIndex}`;
+  }
+
+  getSplitGridTemplateColumns(rowIndex: number, cellIndex: number, path: string, cell: TableCell): string {
+    if (!cell.split) return '';
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const f = this.getSplitColFractions(ownerLeafId, cell);
+    return f.map(x => `${x * 100}%`).join(' ');
+  }
+
+  getSplitGridTemplateRows(rowIndex: number, cellIndex: number, path: string, cell: TableCell): string {
+    if (!cell.split) return '';
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const f = this.getSplitRowFractions(ownerLeafId, cell);
+    return f.map(x => `${x * 100}%`).join(' ');
+  }
+
+  private getSplitColFractions(ownerLeafId: string, cell: TableCell): number[] {
+    if (!cell.split) return [];
+    const cols = Math.max(1, cell.split.cols);
+    const preview = this.previewSplitColFractions().get(ownerLeafId);
+    const current = preview ?? cell.split.columnFractions ?? [];
+    return this.normalizeFractions(current, cols);
+  }
+
+  private getSplitRowFractions(ownerLeafId: string, cell: TableCell): number[] {
+    if (!cell.split) return [];
+    const rows = Math.max(1, cell.split.rows);
+    const preview = this.previewSplitRowFractions().get(ownerLeafId);
+    const current = preview ?? cell.split.rowFractions ?? [];
+    return this.normalizeFractions(current, rows);
+  }
+
+  getSplitColResizeSegments(rowIndex: number, cellIndex: number, path: string, cell: TableCell): ColResizeSegment[] {
+    if (!cell.split) return [];
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const colCount = Math.max(1, cell.split.cols);
+    const rowCount = Math.max(1, cell.split.rows);
+    if (colCount <= 1 || rowCount <= 0) return [];
+
+    const colFractions = this.getSplitColFractions(ownerLeafId, cell);
+    const rowFractions = this.getSplitRowFractions(ownerLeafId, cell);
+
+    const acc = (arr: number[], endExclusive: number): number =>
+      arr.slice(0, Math.max(0, endExclusive)).reduce((a, b) => a + b, 0);
+    const sumRange = (arr: number[], start: number, endInclusive: number): number =>
+      arr.slice(Math.max(0, start), Math.max(0, endInclusive) + 1).reduce((a, b) => a + b, 0);
+
+    const split = cell.split;
+    const anchorKey = (r: number, c: number): string => {
+      const idx = r * colCount + c;
+      const cc = split.cells[idx];
+      if (!cc) return `${r}-${c}`;
+      if (cc.coveredBy) return `${cc.coveredBy.row}-${cc.coveredBy.col}`;
+      return `${r}-${c}`;
+    };
+
+    const segments: ColResizeSegment[] = [];
+    for (let boundaryIndex = 1; boundaryIndex < colCount; boundaryIndex++) {
+      let segStartRow: number | null = null;
+      for (let r = 0; r < rowCount; r++) {
+        const hasBorder = anchorKey(r, boundaryIndex - 1) !== anchorKey(r, boundaryIndex);
+        if (hasBorder) {
+          if (segStartRow === null) segStartRow = r;
+        } else if (segStartRow !== null) {
+          const segEndRow = r - 1;
+          segments.push({
+            boundaryIndex,
+            leftPercent: acc(colFractions, boundaryIndex) * 100,
+            topPercent: acc(rowFractions, segStartRow) * 100,
+            heightPercent: sumRange(rowFractions, segStartRow, segEndRow) * 100,
+          });
+          segStartRow = null;
+        }
+      }
+      if (segStartRow !== null) {
+        const segEndRow = rowCount - 1;
+        segments.push({
+          boundaryIndex,
+          leftPercent: acc(colFractions, boundaryIndex) * 100,
+          topPercent: acc(rowFractions, segStartRow) * 100,
+          heightPercent: sumRange(rowFractions, segStartRow, segEndRow) * 100,
+        });
+      }
+    }
+    return segments;
+  }
+
+  getSplitRowResizeSegments(rowIndex: number, cellIndex: number, path: string, cell: TableCell): RowResizeSegment[] {
+    if (!cell.split) return [];
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const colCount = Math.max(1, cell.split.cols);
+    const rowCount = Math.max(1, cell.split.rows);
+    if (rowCount <= 1 || colCount <= 0) return [];
+
+    const colFractions = this.getSplitColFractions(ownerLeafId, cell);
+    const rowFractions = this.getSplitRowFractions(ownerLeafId, cell);
+
+    const acc = (arr: number[], endExclusive: number): number =>
+      arr.slice(0, Math.max(0, endExclusive)).reduce((a, b) => a + b, 0);
+    const sumRange = (arr: number[], start: number, endInclusive: number): number =>
+      arr.slice(Math.max(0, start), Math.max(0, endInclusive) + 1).reduce((a, b) => a + b, 0);
+
+    const split = cell.split;
+    const anchorKey = (r: number, c: number): string => {
+      const idx = r * colCount + c;
+      const cc = split.cells[idx];
+      if (!cc) return `${r}-${c}`;
+      if (cc.coveredBy) return `${cc.coveredBy.row}-${cc.coveredBy.col}`;
+      return `${r}-${c}`;
+    };
+
+    const segments: RowResizeSegment[] = [];
+    for (let boundaryIndex = 1; boundaryIndex < rowCount; boundaryIndex++) {
+      let segStartCol: number | null = null;
+      for (let c = 0; c < colCount; c++) {
+        const hasBorder = anchorKey(boundaryIndex - 1, c) !== anchorKey(boundaryIndex, c);
+        if (hasBorder) {
+          if (segStartCol === null) segStartCol = c;
+        } else if (segStartCol !== null) {
+          const segEndCol = c - 1;
+          segments.push({
+            boundaryIndex,
+            topPercent: acc(rowFractions, boundaryIndex) * 100,
+            leftPercent: acc(colFractions, segStartCol) * 100,
+            widthPercent: sumRange(colFractions, segStartCol, segEndCol) * 100,
+          });
+          segStartCol = null;
+        }
+      }
+      if (segStartCol !== null) {
+        const segEndCol = colCount - 1;
+        segments.push({
+          boundaryIndex,
+          topPercent: acc(rowFractions, boundaryIndex) * 100,
+          leftPercent: acc(colFractions, segStartCol) * 100,
+          widthPercent: sumRange(colFractions, segStartCol, segEndCol) * 100,
+        });
+      }
+    }
+    return segments;
+  }
+
   private handleDocumentMouseDown = (event: MouseEvent): void => {
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
     // Check if click is outside the table AND outside the table toolbar.
     // If we clear selection when the user clicks the toolbar, multi-cell actions (like Split) won't work.
     const target = event.target as Node | null;
@@ -589,7 +760,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   };
 
   private handleDocumentMouseUp = (): void => {
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
     if (this.isSelecting) {
       this.isSelecting = false;
     }
@@ -657,7 +828,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   private handleDocumentMouseMove = (event: MouseEvent): void => {
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
     if (!this.isSelecting) {
       return;
     }
@@ -678,7 +849,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   };
 
   onCellMouseDown(event: MouseEvent, rowIndex: number, cellIndex: number): void {
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
 
@@ -729,7 +900,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   onCellMouseEnter(event: MouseEvent, rowIndex: number, cellIndex: number): void {
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
     if (!this.isSelecting || this.selectionMode !== 'table') return;
 
     this.selectionEnd = { row: rowIndex, col: cellIndex };
@@ -1094,6 +1265,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
             rows: cell.split.rows,
             cols: cell.split.cols,
             cells: cell.split.cells.map(cloneCell),
+            columnFractions: cell.split.columnFractions ? [...cell.split.columnFractions] : undefined,
+            rowFractions: cell.split.rowFractions ? [...cell.split.rowFractions] : undefined,
           }
         : undefined,
     });
@@ -1178,6 +1351,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
           rows: rowsCount,
           cols: colsCount,
           cells: childCells,
+          columnFractions: Array.from({ length: colsCount }, () => 1 / colsCount),
+          rowFractions: Array.from({ length: rowsCount }, () => 1 / rowsCount),
         };
         targetCell.contentHtml = '';
       }
@@ -1614,6 +1789,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
             rows: cell.split.rows,
             cols: cell.split.cols,
             cells: cell.split.cells.map(c => this.cloneCellDeep(c)),
+            columnFractions: cell.split.columnFractions ? [...cell.split.columnFractions] : undefined,
+            rowFractions: cell.split.rowFractions ? [...cell.split.rowFractions] : undefined,
           }
         : undefined,
     };
@@ -2149,7 +2326,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   onColResizePointerDown(event: PointerEvent, boundaryIndex: number): void {
     event.preventDefault();
     event.stopPropagation();
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
     this.syncCellContent();
 
@@ -2188,7 +2365,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   onRowResizePointerDown(event: PointerEvent, boundaryIndex: number): void {
     event.preventDefault();
     event.stopPropagation();
-    if (this.isResizingGrid) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
     this.syncCellContent();
 
@@ -2235,6 +2412,267 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     window.removeEventListener('pointerup', this.handleGridResizePointerUp as any);
     window.removeEventListener('pointercancel', this.handleGridResizePointerUp as any);
   }
+
+  // ============================================
+  // Split-grid resize (persisted + zoom-safe)
+  // ============================================
+
+  onSplitColResizePointerDown(
+    event: PointerEvent,
+    rowIndex: number,
+    cellIndex: number,
+    path: string,
+    boundaryIndex: number
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    this.syncCellContent();
+
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const owner = this.getCellModelByLeafId(ownerLeafId);
+    if (!owner?.split) return;
+
+    const cols = Math.max(1, owner.split.cols);
+    if (cols <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= cols) return;
+
+    const splitGridEl = (event.target as HTMLElement | null)?.closest('.table-widget__split-grid') as HTMLElement | null;
+    const rect = splitGridEl?.getBoundingClientRect();
+    if (!rect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const containerWidthPx = Math.max(1, rect.width / zoomScale);
+    const containerHeightPx = Math.max(1, rect.height / zoomScale);
+
+    this.isResizingSplitGrid = true;
+    this.activeSplitResize = {
+      kind: 'col',
+      ownerLeafId,
+      boundaryIndex,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...this.getSplitColFractions(ownerLeafId, owner)],
+      containerWidthPx,
+      containerHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installSplitResizeListeners();
+  }
+
+  onSplitRowResizePointerDown(
+    event: PointerEvent,
+    rowIndex: number,
+    cellIndex: number,
+    path: string,
+    boundaryIndex: number
+  ): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    this.syncCellContent();
+
+    const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
+    const owner = this.getCellModelByLeafId(ownerLeafId);
+    if (!owner?.split) return;
+
+    const rows = Math.max(1, owner.split.rows);
+    if (rows <= 1) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= rows) return;
+
+    const splitGridEl = (event.target as HTMLElement | null)?.closest('.table-widget__split-grid') as HTMLElement | null;
+    const rect = splitGridEl?.getBoundingClientRect();
+    if (!rect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const containerWidthPx = Math.max(1, rect.width / zoomScale);
+    const containerHeightPx = Math.max(1, rect.height / zoomScale);
+
+    this.isResizingSplitGrid = true;
+    this.activeSplitResize = {
+      kind: 'row',
+      ownerLeafId,
+      boundaryIndex,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...this.getSplitRowFractions(ownerLeafId, owner)],
+      containerWidthPx,
+      containerHeightPx,
+      zoomScale,
+    };
+
+    try {
+      (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+    } catch {
+      // ignore
+    }
+
+    this.installSplitResizeListeners();
+  }
+
+  private installSplitResizeListeners(): void {
+    window.addEventListener('pointermove', this.handleSplitResizePointerMove, { passive: false });
+    window.addEventListener('pointerup', this.handleSplitResizePointerUp, { passive: false });
+    window.addEventListener('pointercancel', this.handleSplitResizePointerUp, { passive: false });
+  }
+
+  private teardownSplitResizeListeners(): void {
+    window.removeEventListener('pointermove', this.handleSplitResizePointerMove as any);
+    window.removeEventListener('pointerup', this.handleSplitResizePointerUp as any);
+    window.removeEventListener('pointercancel', this.handleSplitResizePointerUp as any);
+  }
+
+  private finishSplitResize(): void {
+    if (!this.isResizingSplitGrid || !this.activeSplitResize) return;
+
+    const r = this.activeSplitResize;
+
+    const owner = this.getCellModelByLeafId(r.ownerLeafId);
+    if (owner?.split) {
+      const finalColFractions =
+        this.previewSplitColFractions().get(r.ownerLeafId) ?? (r.kind === 'col' ? r.startFractions : null);
+      const finalRowFractions =
+        this.previewSplitRowFractions().get(r.ownerLeafId) ?? (r.kind === 'row' ? r.startFractions : null);
+
+      this.localRows.update((rows) => {
+        const next = this.cloneRows(rows);
+        const parsed = this.parseLeafId(r.ownerLeafId);
+        if (!parsed) return next;
+
+        let baseCell = next?.[parsed.row]?.cells?.[parsed.col];
+        if (!baseCell) return next;
+
+        // Safety: if leaf id points to a covered top-level cell, redirect to its anchor
+        if (baseCell.coveredBy) {
+          const a = baseCell.coveredBy;
+          baseCell = next?.[a.row]?.cells?.[a.col];
+          if (!baseCell) return next;
+        }
+
+        const target = parsed.path.length === 0 ? baseCell : this.getCellAtPath(baseCell, parsed.path);
+        if (!target?.split) return next;
+
+        if (r.kind === 'col' && finalColFractions) {
+          target.split.columnFractions = this.normalizeFractions(finalColFractions, Math.max(1, target.split.cols));
+        }
+        if (r.kind === 'row' && finalRowFractions) {
+          target.split.rowFractions = this.normalizeFractions(finalRowFractions, Math.max(1, target.split.rows));
+        }
+
+        return next;
+      });
+
+      // Persist immediately (discrete sizing action).
+      this.emitPropsChange(this.localRows());
+    }
+
+    // Clear previews for this owner (even if owner disappeared)
+    const colMap = new Map(this.previewSplitColFractions());
+    colMap.delete(r.ownerLeafId);
+    this.previewSplitColFractions.set(colMap);
+
+    const rowMap = new Map(this.previewSplitRowFractions());
+    rowMap.delete(r.ownerLeafId);
+    this.previewSplitRowFractions.set(rowMap);
+
+    this.isResizingSplitGrid = false;
+    this.activeSplitResize = null;
+    this.teardownSplitResizeListeners();
+    this.cdr.markForCheck();
+  }
+
+  private handleSplitResizePointerMove = (event: PointerEvent): void => {
+    if (!this.isResizingSplitGrid || !this.activeSplitResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const r = this.activeSplitResize;
+    if (event.pointerId !== r.pointerId) return;
+
+    // Fallback: if mouse button was released but pointerup was missed, stop resizing.
+    if (event.pointerType === 'mouse' && event.buttons === 0) {
+      this.finishSplitResize();
+      return;
+    }
+
+    const owner = this.getCellModelByLeafId(r.ownerLeafId);
+    if (!owner?.split) return;
+
+    const scale = r.zoomScale;
+
+    if (r.kind === 'col') {
+      const cols = Math.max(1, owner.split.cols);
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const leftIdx = i - 1;
+      const rightIdx = i;
+      if (start.length !== cols) return;
+      const total = start[leftIdx] + start[rightIdx];
+
+      const deltaScreen = event.clientX - r.startClientX;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.containerWidthPx;
+
+      const minFLeft = this.minSplitColPx / r.containerWidthPx;
+      const minFRight = this.minSplitColPx / r.containerWidthPx;
+
+      const next = [...start];
+      const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
+      next[leftIdx] = clampedLeft;
+      next[rightIdx] = total - clampedLeft;
+
+      const map = new Map(this.previewSplitColFractions());
+      map.set(r.ownerLeafId, this.normalizeFractions(next, cols));
+      this.previewSplitColFractions.set(map);
+    } else {
+      const rows = Math.max(1, owner.split.rows);
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const topIdx = i - 1;
+      const bottomIdx = i;
+      if (start.length !== rows) return;
+      const total = start[topIdx] + start[bottomIdx];
+
+      const deltaScreen = event.clientY - r.startClientY;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.containerHeightPx;
+
+      const minFTop = this.minSplitRowPx / r.containerHeightPx;
+      const minFBottom = this.minSplitRowPx / r.containerHeightPx;
+
+      const next = [...start];
+      const clampedTop = this.clamp(start[topIdx] + deltaF, minFTop, total - minFBottom);
+      next[topIdx] = clampedTop;
+      next[bottomIdx] = total - clampedTop;
+
+      const map = new Map(this.previewSplitRowFractions());
+      map.set(r.ownerLeafId, this.normalizeFractions(next, rows));
+      this.previewSplitRowFractions.set(map);
+    }
+
+    this.cdr.markForCheck();
+  };
+
+  private handleSplitResizePointerUp = (event: PointerEvent): void => {
+    if (!this.isResizingSplitGrid || !this.activeSplitResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const r = this.activeSplitResize;
+    if (event.pointerId !== r.pointerId) return;
+    this.finishSplitResize();
+  };
 
   private handleGridResizePointerMove = (event: PointerEvent): void => {
     if (!this.isResizingGrid || !this.activeGridResize) return;
