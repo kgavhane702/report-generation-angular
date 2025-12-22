@@ -66,7 +66,9 @@
     background: transparent;
     box-sizing: border-box;
     word-wrap: break-word;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
     // IMPORTANT:
     // Do NOT make the contenteditable itself a flex container. Inline wrappers inserted by bold/italic/color
     // (e.g. <b>, <span style="...">) become flex items and can force unwanted new lines.

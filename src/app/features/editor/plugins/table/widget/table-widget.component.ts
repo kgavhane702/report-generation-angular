@@ -574,8 +574,46 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   onCellInput(event: Event, rowIndex: number, cellIndex: number, leafPath?: string): void {
-    // Content is synced on blur to avoid frequent updates
+    // Content is synced on blur to avoid frequent updates.
+    // But we *do* auto-grow the table/widget when content needs more vertical space,
+    // so the <td>/<tr> height expands with typing instead of the inner DIV overflowing.
+    const el = event.target as HTMLElement | null;
+    if (el) {
+      this.maybeAutoGrowToFit(el, rowIndex, cellIndex);
+    }
     this.cdr.markForCheck();
+  }
+
+  private maybeAutoGrowToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number): void {
+    // If the content isn't overflowing vertically, nothing to do.
+    const clientH = contentEl.clientHeight;
+    const scrollH = contentEl.scrollHeight;
+    if (!Number.isFinite(clientH) || !Number.isFinite(scrollH) || clientH <= 0) return;
+
+    const overflow = scrollH - clientH;
+    // Allow 1px tolerance to avoid jitter due to sub-pixel rounding.
+    if (overflow <= 1) return;
+
+    // Add a small buffer so we don't grow on every single keystroke near a boundary.
+    const bufferPx = 4;
+    const stepPx = 8;
+    const deltaPx = Math.min(600, this.roundUpPx(overflow + bufferPx, stepPx));
+    if (deltaPx <= 0) return;
+
+    const topCell = this.localRows()?.[rowIndex]?.cells?.[cellIndex];
+    const rowSpan = Math.max(1, topCell?.merge?.rowSpan ?? 1);
+
+    // Keep existing row pixel sizes stable, and grow only the active row-span area.
+    // Order matters: fractions are computed using the *current* widget height.
+    this.growTopLevelRowSpanFractions(rowIndex, rowSpan, deltaPx);
+    this.growWidgetSizeBy(0, deltaPx);
+    this.scheduleRecomputeResizeSegments();
+  }
+
+  private roundUpPx(v: number, step: number): number {
+    const s = Math.max(1, Math.floor(step));
+    const n = Number.isFinite(v) ? v : 0;
+    return Math.ceil(n / s) * s;
   }
 
   onCellKeydown(event: KeyboardEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
