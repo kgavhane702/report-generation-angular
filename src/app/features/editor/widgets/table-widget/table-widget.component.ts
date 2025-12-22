@@ -37,6 +37,7 @@ import {
 } from '../../../../core/services/table-toolbar.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
+import { DraftStateService } from '../../../../core/services/draft-state.service';
 
 type ColResizeSegment = { boundaryIndex: number; leftPercent: number; topPercent: number; heightPercent: number };
 type RowResizeSegment = { boundaryIndex: number; topPercent: number; leftPercent: number; widthPercent: number };
@@ -74,6 +75,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly toolbarService = inject(TableToolbarService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
+  private readonly draftState = inject(DraftStateService);
   private readonly cdr = inject(ChangeDetectorRef);
 
   /** Local copy of rows during editing */
@@ -1575,6 +1577,54 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.normalizeFractions(next, next.length);
   }
 
+  /**
+   * Insert a new fraction while preserving existing row/col pixel sizes,
+   * assuming the widget grows by (donorFraction * oldWidgetSizePx).
+   *
+   * Existing fractions are scaled by 1/(1+donorFraction); the inserted fraction is donorFraction/(1+donorFraction).
+   */
+  private insertFractionsKeepPxWithGrow(
+    current: number[],
+    oldCount: number,
+    insertIndex: number,
+    placement: 'before' | 'after'
+  ): { nextFractions: number[]; donorFraction: number } {
+    const n = Math.max(1, Math.trunc(oldCount));
+    const base = this.normalizeFractions(current ?? [], n);
+
+    const clampedInsert = Math.max(0, Math.min(n, Math.trunc(insertIndex)));
+    const donorIndex =
+      placement === 'before'
+        ? Math.min(clampedInsert, n - 1)
+        : Math.max(0, Math.min(n - 1, clampedInsert - 1));
+
+    const donorFraction = base[donorIndex] ?? (1 / n);
+    const scale = 1 + donorFraction;
+    const scaled = base.map((x) => x / scale);
+    const inserted = donorFraction / scale;
+    scaled.splice(clampedInsert, 0, inserted);
+    return { nextFractions: this.normalizeFractions(scaled, scaled.length), donorFraction };
+  }
+
+  private growWidgetSizeBy(deltaWidthPx: number, deltaHeightPx: number): void {
+    const cur = this.widget?.size;
+    if (!cur) return;
+
+    const dw = Number.isFinite(deltaWidthPx) ? deltaWidthPx : 0;
+    const dh = Number.isFinite(deltaHeightPx) ? deltaHeightPx : 0;
+
+    const nextWidth = Math.max(20, Math.round(cur.width + dw));
+    const nextHeight = Math.max(20, Math.round(cur.height + dh));
+
+    if (nextWidth === cur.width && nextHeight === cur.height) {
+      return;
+    }
+
+    // Same persistence path as manual widget resizing (resize handles).
+    this.draftState.updateDraftSize(this.widget.id, { width: nextWidth, height: nextHeight });
+    this.draftState.commitDraft(this.widget.id);
+  }
+
   private rebuildTopLevelCoveredBy(rows: TableRow[]): void {
     const rowCount = rows.length;
     const colCount = this.getTopLevelColCount(rows);
@@ -1694,13 +1744,26 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     const remappedActive = this.activeCellId ? this.remapLeafIdForTableInsert(this.activeCellId, axis, clampedInsert) : null;
 
-    // Update persisted fractions (top-level).
+    // Update persisted fractions (top-level) and grow widget so the table doesn't squeeze.
+    // This keeps existing row/col pixel sizes and gives the inserted row/col the same size as its neighbor.
     if (axis === 'row') {
-      const next = this.insertFractions(this.rowFractions(), oldRowCount, clampedInsert, placement);
-      this.rowFractions.set(next);
+      const { nextFractions, donorFraction } = this.insertFractionsKeepPxWithGrow(
+        this.rowFractions(),
+        oldRowCount,
+        clampedInsert,
+        placement
+      );
+      this.rowFractions.set(nextFractions);
+      this.growWidgetSizeBy(0, donorFraction * this.widget.size.height);
     } else {
-      const next = this.insertFractions(this.columnFractions(), oldColCount, clampedInsert, placement);
-      this.columnFractions.set(next);
+      const { nextFractions, donorFraction } = this.insertFractionsKeepPxWithGrow(
+        this.columnFractions(),
+        oldColCount,
+        clampedInsert,
+        placement
+      );
+      this.columnFractions.set(nextFractions);
+      this.growWidgetSizeBy(donorFraction * this.widget.size.width, 0);
     }
 
     this.localRows.update((rows) => {
