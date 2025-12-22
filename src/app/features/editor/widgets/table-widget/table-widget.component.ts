@@ -1625,6 +1625,64 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.draftState.commitDraft(this.widget.id);
   }
 
+  private growTopLevelRowSpanFractions(anchorRow: number, rowSpan: number, deltaPx: number): void {
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const oldH = this.widget.size.height;
+    const add = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (add <= 0 || oldH <= 0) return;
+
+    const base = this.normalizeFractions(this.rowFractions(), rowCount);
+    const oldPx = base.map((f) => f * oldH);
+    const newH = oldH + add;
+
+    const start = Math.max(0, Math.min(rowCount - 1, Math.trunc(anchorRow)));
+    const span = Math.max(1, Math.trunc(rowSpan));
+    const end = Math.min(rowCount - 1, start + span - 1);
+    const indices = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    const spanTotal = indices.reduce((sum, i) => sum + oldPx[i], 0);
+    const per = spanTotal > 0 ? null : add / indices.length;
+
+    const newPx = [...oldPx];
+    for (const i of indices) {
+      const share = spanTotal > 0 ? (oldPx[i] / spanTotal) : (per! / add);
+      newPx[i] = oldPx[i] + add * share;
+    }
+
+    const next = newPx.map((px) => px / newH);
+    this.rowFractions.set(this.normalizeFractions(next, next.length));
+  }
+
+  private growTopLevelColSpanFractions(anchorCol: number, colSpan: number, deltaPx: number): void {
+    const rowsModel = this.localRows();
+    const colCount = this.getTopLevelColCount(rowsModel);
+    const oldW = this.widget.size.width;
+    const add = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (add <= 0 || oldW <= 0) return;
+
+    const base = this.normalizeFractions(this.columnFractions(), colCount);
+    const oldPx = base.map((f) => f * oldW);
+    const newW = oldW + add;
+
+    const start = Math.max(0, Math.min(colCount - 1, Math.trunc(anchorCol)));
+    const span = Math.max(1, Math.trunc(colSpan));
+    const end = Math.min(colCount - 1, start + span - 1);
+    const indices = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    const spanTotal = indices.reduce((sum, i) => sum + oldPx[i], 0);
+    const per = spanTotal > 0 ? null : add / indices.length;
+
+    const newPx = [...oldPx];
+    for (const i of indices) {
+      const share = spanTotal > 0 ? (oldPx[i] / spanTotal) : (per! / add);
+      newPx[i] = oldPx[i] + add * share;
+    }
+
+    const next = newPx.map((px) => px / newW);
+    this.columnFractions.set(this.normalizeFractions(next, next.length));
+  }
+
   private rebuildTopLevelCoveredBy(rows: TableRow[]): void {
     const rowCount = rows.length;
     const colCount = this.getTopLevelColCount(rows);
@@ -1845,6 +1903,41 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const axisCount = axis === 'row' ? oldRows : oldCols;
     const clampedInsert = Math.max(0, Math.min(axisCount, Math.trunc(insertIndex)));
 
+    // Compute how much the overall table should grow to avoid squeezing when the split grid gains a row/col.
+    const topLevelCell = snapshot?.[target.ownerRow]?.cells?.[target.ownerCol];
+    const rowSpan = Math.max(1, topLevelCell?.merge?.rowSpan ?? 1);
+    const colSpan = Math.max(1, topLevelCell?.merge?.colSpan ?? 1);
+
+    const rowCount = this.getTopLevelRowCount(snapshot);
+    const colCount = this.getTopLevelColCount(snapshot);
+    const topRowFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const topColFractions = this.normalizeFractions(this.columnFractions(), colCount);
+    const spanRowFraction = topRowFractions
+      .slice(target.ownerRow, Math.min(rowCount, target.ownerRow + rowSpan))
+      .reduce((a, b) => a + b, 0);
+    const spanColFraction = topColFractions
+      .slice(target.ownerCol, Math.min(colCount, target.ownerCol + colSpan))
+      .reduce((a, b) => a + b, 0);
+    const ownerHeightPx = spanRowFraction * this.widget.size.height;
+    const ownerWidthPx = spanColFraction * this.widget.size.width;
+
+    const splitFractions = axis === 'row' ? (ownerSnap.split.rowFractions ?? []) : (ownerSnap.split.columnFractions ?? []);
+    const { nextFractions: nextSplitFractions, donorFraction } = this.insertFractionsKeepPxWithGrow(
+      splitFractions,
+      axisCount,
+      clampedInsert,
+      placement
+    );
+    const growPx = donorFraction * (axis === 'row' ? ownerHeightPx : ownerWidthPx);
+
+    if (axis === 'row') {
+      this.growTopLevelRowSpanFractions(target.ownerRow, rowSpan, growPx);
+      this.growWidgetSizeBy(0, growPx);
+    } else {
+      this.growTopLevelColSpanFractions(target.ownerCol, colSpan, growPx);
+      this.growWidgetSizeBy(growPx, 0);
+    }
+
     // Precompute merge anchors to expand (based on snapshot coords within this split).
     const expandAnchors: Array<{ r: number; c: number }> = [];
     for (let r = 0; r < oldRows; r++) {
@@ -1894,13 +1987,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const newRowCells: TableCell[] = Array.from({ length: curCols }, () => ({ id: uuid(), contentHtml: '' }));
         grid.splice(clampedInsert, 0, newRowCells);
         split.rows = curRows + 1;
-        split.rowFractions = this.insertFractions(split.rowFractions ?? [], curRows, clampedInsert, placement);
+        split.rowFractions = nextSplitFractions;
       } else {
         for (let r = 0; r < grid.length; r++) {
           grid[r].splice(clampedInsert, 0, { id: uuid(), contentHtml: '' });
         }
         split.cols = curCols + 1;
-        split.columnFractions = this.insertFractions(split.columnFractions ?? [], curCols, clampedInsert, placement);
+        split.columnFractions = nextSplitFractions;
       }
 
       // Flatten back.
@@ -1932,6 +2025,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.activeCellElement = null;
 
     this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
 
     if (remappedActive) {
       window.setTimeout(() => {
