@@ -101,6 +101,33 @@ public class TableWidgetRenderer {
         .widget-table .table-widget__cell-content strong { font-weight: 700; }
         .widget-table .table-widget__cell-content i,
         .widget-table .table-widget__cell-content em { font-style: italic; }
+        .widget-table .table-widget__cell-content u { text-decoration: underline; }
+        .widget-table .table-widget__cell-content s,
+        .widget-table .table-widget__cell-content strike,
+        .widget-table .table-widget__cell-content del { text-decoration: line-through; }
+
+        /* Superscript/Subscript */
+        .widget-table .table-widget__cell-content sup {
+            vertical-align: super;
+            font-size: 0.75em;
+            line-height: 0;
+            position: relative;
+            top: -0.4em;
+        }
+        .widget-table .table-widget__cell-content sub {
+            vertical-align: sub;
+            font-size: 0.75em;
+            line-height: 0;
+            position: relative;
+            bottom: -0.2em;
+        }
+
+        /* Indent typically produces blockquote or inline margins; keep it readable. */
+        .widget-table .table-widget__cell-content blockquote {
+            margin: 0.25em 0 0.25em 1em;
+            padding-left: 0.75em;
+            border-left: 3px solid #e2e8f0;
+        }
         
         /* Split grid inside a cell */
         .widget-table .table-widget__split-grid {

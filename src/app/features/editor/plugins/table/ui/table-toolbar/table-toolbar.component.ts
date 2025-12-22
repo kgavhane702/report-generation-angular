@@ -191,6 +191,59 @@ export class TableToolbarComponent {
     this.toolbarService.applyItalic();
   }
 
+  onUnderlineClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.applyUnderline();
+  }
+
+  onStrikethroughClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.applyStrikethrough();
+  }
+
+  onSuperscriptClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.applySuperscript();
+  }
+
+  onSubscriptClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.applySubscript();
+  }
+
+  onIncreaseIndentClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.increaseIndent();
+  }
+
+  onDecreaseIndentClick(event: MouseEvent): void {
+    event.preventDefault();
+    this.toolbarService.decreaseIndent();
+  }
+
+  // Line height
+  readonly lineHeights: Array<string> = ['1', '1.15', '1.3', '1.4', '1.5', '1.75', '2'];
+  lineHeightDropdownOpen = false;
+
+  openLineHeightDropdown(event?: MouseEvent): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!this.hasActiveCell) return;
+    this.lineHeightDropdownOpen = true;
+  }
+
+  closeLineHeightDropdown(): void {
+    this.lineHeightDropdownOpen = false;
+  }
+
+  onLineHeightPick(v: string): void {
+    if (!this.hasActiveCell) return;
+    this.toolbarService.applyLineHeight(v);
+    this.lineHeightDropdownOpen = false;
+  }
+
   onAlignClick(event: MouseEvent, align: 'left' | 'center' | 'right'): void {
     event.preventDefault();
     this.toolbarService.applyTextAlign(align);

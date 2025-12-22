@@ -6,6 +6,10 @@ import { TableCellStyle } from '../../models/widget.model';
 export interface TableFormattingState {
   isBold: boolean;
   isItalic: boolean;
+  isUnderline: boolean;
+  isStrikethrough: boolean;
+  isSuperscript: boolean;
+  isSubscript: boolean;
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
   fontFamily: string;
@@ -75,6 +79,10 @@ export class TableToolbarService {
   readonly formattingState = signal<TableFormattingState>({
     isBold: false,
     isItalic: false,
+    isUnderline: false,
+    isStrikethrough: false,
+    isSuperscript: false,
+    isSubscript: false,
     textAlign: 'left',
     verticalAlign: 'top',
     fontFamily: '',
@@ -182,6 +190,7 @@ export class TableToolbarService {
    */
   applyBold(): void {
     if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
     document.execCommand('bold', false);
     this.updateFormattingState();
   }
@@ -191,7 +200,109 @@ export class TableToolbarService {
    */
   applyItalic(): void {
     if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
     document.execCommand('italic', false);
+    this.updateFormattingState();
+  }
+
+  applyUnderline(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('underline', false);
+    this.updateFormattingState();
+  }
+
+  applyStrikethrough(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('strikeThrough', false);
+    this.updateFormattingState();
+  }
+
+  applySuperscript(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('superscript', false);
+    this.updateFormattingState();
+  }
+
+  applySubscript(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('subscript', false);
+    this.updateFormattingState();
+  }
+
+  increaseIndent(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('indent', false);
+    this.updateFormattingState();
+  }
+
+  decreaseIndent(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    document.execCommand('outdent', false);
+    this.updateFormattingState();
+  }
+
+  /**
+   * Apply line-height by styling the nearest block element inside the selection.
+   * If selection is non-collapsed, we wrap the selected contents in a <span style="line-height: ...">.
+   */
+  applyLineHeight(lineHeight: string): void {
+    if (!this.activeCell) return;
+    const lh = (lineHeight ?? '').toString().trim();
+    if (!lh) return;
+
+    this.restoreSelectionIfNeeded();
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+
+    // Accept common values like "1.2", "1.4", "2", "20px"
+    const normalized = this.normalizeLineHeight(lh);
+    if (!normalized) return;
+
+    if (range.collapsed) {
+      const node = range.startContainer;
+      const el = (node instanceof Element ? node : node.parentElement) as Element | null;
+      const block = (el?.closest('p, div, li, blockquote') ?? el) as HTMLElement | null;
+      if (block && this.activeCell.contains(block)) {
+        block.style.lineHeight = normalized;
+      } else if (this.activeCell) {
+        // Fallback: wrap entire cell contents.
+        const wrapper = document.createElement('div');
+        wrapper.style.lineHeight = normalized;
+        wrapper.innerHTML = this.activeCell.innerHTML;
+        this.activeCell.innerHTML = wrapper.outerHTML;
+      }
+    } else {
+      const span = document.createElement('span');
+      span.style.lineHeight = normalized;
+      try {
+        range.surroundContents(span);
+      } catch {
+        // Range may partially select non-text nodes; extract+wrap is more resilient.
+        const frag = range.extractContents();
+        span.appendChild(frag);
+        range.insertNode(span);
+      }
+
+      // Reset selection around the newly inserted span.
+      try {
+        selection.removeAllRanges();
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(span);
+        selection.addRange(nextRange);
+      } catch {
+        // ignore
+      }
+    }
+
     this.updateFormattingState();
   }
 
@@ -353,6 +464,10 @@ export class TableToolbarService {
 
     const isBold = document.queryCommandState('bold');
     const isItalic = document.queryCommandState('italic');
+    const isUnderline = document.queryCommandState('underline');
+    const isStrikethrough = document.queryCommandState('strikeThrough');
+    const isSuperscript = document.queryCommandState('superscript');
+    const isSubscript = document.queryCommandState('subscript');
     
     const computedStyle = window.getComputedStyle(cell);
     const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
@@ -369,11 +484,33 @@ export class TableToolbarService {
     this.formattingState.set({
       isBold,
       isItalic,
+      isUnderline,
+      isStrikethrough,
+      isSuperscript,
+      isSubscript,
       textAlign,
       verticalAlign,
       fontFamily,
       fontSizePx,
     });
+  }
+
+  private normalizeLineHeight(input: string): string | null {
+    const v = (input ?? '').trim();
+    if (!v) return null;
+    // unitless number
+    if (/^\d+(\.\d+)?$/.test(v)) {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return String(n);
+    }
+    // px only (keep tight to avoid weird units in PDF)
+    if (/^\d+(\.\d+)?px$/.test(v)) {
+      const n = Number(v.replace(/px$/, ''));
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return `${n}px`;
+    }
+    return null;
   }
 
   /**
