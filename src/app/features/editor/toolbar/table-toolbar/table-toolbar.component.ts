@@ -1,7 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
+  HostListener,
   inject,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -25,6 +28,8 @@ import { BorderPickerComponent, BorderValue } from '../../../../shared/component
 })
 export class TableToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
+
+  @ViewChild('fontSizeWrap', { static: false }) fontSizeWrap?: ElementRef<HTMLElement>;
 
   splitDialogOpen = false;
   splitRows = 2;
@@ -83,7 +88,54 @@ export class TableToolbarComponent {
     { label: 'Verdana', value: 'Verdana' },
   ];
 
+  // Full list (shown in our custom dropdown; no internal scroll).
   readonly fontSizes: Array<number> = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
+
+  fontSizeDropdownOpen = false;
+
+  get fontFamilyModel(): string {
+    const current = this.formattingState.fontFamily ?? '';
+    const first = current.split(',')[0]?.trim() ?? '';
+    if (!first) return '';
+    const normalized = this.normalizeFontFamily(first);
+    const known = this.fontFamilies.some((f) => f.value === normalized);
+    return known ? normalized : '';
+  }
+
+  private normalizeFontFamily(family: string): string {
+    const f = (family ?? '').trim();
+    if (!f) return '';
+    if (f.startsWith('"') || f.startsWith("'")) return f;
+    if (/\s/.test(f)) return `"${f}"`;
+    return f;
+  }
+
+  @HostListener('document:mousedown', ['$event'])
+  onDocumentMouseDown(event: MouseEvent): void {
+    if (!this.fontSizeDropdownOpen) return;
+    const target = event.target as Node | null;
+    if (!target) return;
+    if (this.fontSizeWrap?.nativeElement?.contains(target)) return;
+    this.fontSizeDropdownOpen = false;
+  }
+
+  openFontSizeDropdown(event?: MouseEvent): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!this.hasActiveCell) return;
+    this.fontSizeDropdownOpen = true;
+  }
+
+  closeFontSizeDropdown(): void {
+    this.fontSizeDropdownOpen = false;
+  }
+
+  onFontSizePick(size: number): void {
+    this.onFontSizeChange(size);
+    this.fontSizeDropdownOpen = false;
+  }
 
   get formattingState() {
     return this.toolbarService.formattingState();
@@ -197,9 +249,9 @@ export class TableToolbarComponent {
     this.toolbarService.applyFontFamily(value);
   }
 
-  onFontSizeChange(value: string): void {
+  onFontSizeChange(value: string | number | null): void {
     if (!this.hasActiveCell) return;
-    const v = (value ?? '').trim();
+    const v = (value ?? '').toString().trim();
     if (!v) {
       this.toolbarService.applyFontSizePx(null);
       return;
@@ -231,6 +283,18 @@ export class TableToolbarComponent {
     event.preventDefault();
     if (!this.hasActiveCell) return;
     this.toolbarService.requestInsert({ axis: 'col', placement: 'after' });
+  }
+
+  onDeleteRow(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestDelete({ axis: 'row' });
+  }
+
+  onDeleteCol(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestDelete({ axis: 'col' });
   }
 }
 

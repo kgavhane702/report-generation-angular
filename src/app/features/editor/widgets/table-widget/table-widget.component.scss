@@ -70,7 +70,10 @@
     // IMPORTANT:
     // Do NOT make the contenteditable itself a flex container. Inline wrappers inserted by bold/italic/color
     // (e.g. <b>, <span style="...">) become flex items and can force unwanted new lines.
-    display: block;
+    //
+    // We use a table/table-cell wrapper for vertical alignment instead (see __cell-surface).
+    display: table-cell;
+    vertical-align: top;
 
     &:focus {
       outline: 2px solid #1976d2;
@@ -90,17 +93,15 @@
     height: 100%;
     min-height: 24px;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start; // top
+    display: table;
   }
 
-  &__cell-surface[data-vertical-align='middle'] {
-    justify-content: center;
+  &__cell-surface[data-vertical-align='middle'] .table-widget__cell-content {
+    vertical-align: middle;
   }
 
-  &__cell-surface[data-vertical-align='bottom'] {
-    justify-content: flex-end;
+  &__cell-surface[data-vertical-align='bottom'] .table-widget__cell-content {
+    vertical-align: bottom;
   }
 
   &__split-grid {

@@ -107,6 +107,42 @@
         <path d="M19 9l3 3-3 3"></path>
       </svg>
     </button>
+
+    <div class="table-toolbar__mini-separator" aria-hidden="true"></div>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onDeleteRow($event)"
+      title="Delete row"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 10h16"></path>
+        <path d="M4 14h16"></path>
+        <path d="M7 7h10"></path>
+        <path d="M9 7v14"></path>
+        <path d="M15 7v14"></path>
+        <path d="M6 7l1-3h10l1 3"></path>
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onDeleteCol($event)"
+      title="Delete column"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 4v16"></path>
+        <path d="M14 4v16"></path>
+        <path d="M7 7h10"></path>
+        <path d="M9 7v14"></path>
+        <path d="M15 7v14"></path>
+        <path d="M6 7l1-3h10l1 3"></path>
+      </svg>
+    </button>
   </div>
 
   <div class="table-toolbar__separator"></div>
@@ -148,7 +184,7 @@
       <select
         class="table-toolbar__select"
         [disabled]="!hasActiveCell"
-        [ngModel]="formattingState.fontFamily"
+        [ngModel]="fontFamilyModel"
         (ngModelChange)="onFontFamilyChange($event)"
         (mousedown)="$event.stopPropagation()"
       >
@@ -158,16 +194,41 @@
 
     <label class="table-toolbar__field" title="Font size">
       <span class="table-toolbar__field-label">Size</span>
-      <select
-        class="table-toolbar__select table-toolbar__select--small"
-        [disabled]="!hasActiveCell"
-        [ngModel]="formattingState.fontSizePx ?? ''"
-        (ngModelChange)="onFontSizeChange($event)"
-        (mousedown)="$event.stopPropagation()"
-      >
-        <option value="">Auto</option>
-        <option *ngFor="let s of fontSizes" [value]="s">{{ s }}</option>
-      </select>
+      <div class="table-toolbar__combo-wrap" #fontSizeWrap (mousedown)="$event.stopPropagation()">
+        <input
+          class="table-toolbar__combo table-toolbar__combo--small"
+          [disabled]="!hasActiveCell"
+          [ngModel]="formattingState.fontSizePx ?? ''"
+          (ngModelChange)="onFontSizeChange($event)"
+          (mousedown)="openFontSizeDropdown($event)"
+          (focus)="openFontSizeDropdown()"
+          (keydown.enter)="$event.preventDefault(); closeFontSizeDropdown()"
+          type="number"
+          min="6"
+          max="96"
+          step="1"
+          placeholder="Auto"
+        />
+
+        <div *ngIf="fontSizeDropdownOpen" class="table-toolbar__combo-dropdown" aria-label="Font size options">
+          <button
+            type="button"
+            class="table-toolbar__combo-item"
+            (mousedown)="$event.preventDefault(); onFontSizeChange(''); closeFontSizeDropdown()"
+            title="Auto"
+          >
+            Auto
+          </button>
+          <button
+            *ngFor="let s of fontSizes"
+            type="button"
+            class="table-toolbar__combo-item"
+            (mousedown)="$event.preventDefault(); onFontSizePick(s)"
+          >
+            {{ s }}
+          </button>
+        </div>
+      </div>
     </label>
   </div>
 

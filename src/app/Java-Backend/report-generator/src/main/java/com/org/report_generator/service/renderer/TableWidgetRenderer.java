@@ -58,18 +58,8 @@ public class TableWidgetRenderer {
             height: 100%;
             min-height: 24px;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start; /* top */
+            display: table;
             background: transparent;
-        }
-
-        .widget-table .table-widget__cell-surface[data-vertical-align='middle'] {
-            justify-content: center;
-        }
-
-        .widget-table .table-widget__cell-surface[data-vertical-align='bottom'] {
-            justify-content: flex-end;
         }
 
         .widget-table .table-widget__cell-content {
@@ -87,7 +77,16 @@ public class TableWidgetRenderer {
             font-size: inherit;
             line-height: 1.5;
             /* Do NOT use flex on content node; inline wrappers like <b>/<span> can become flex items and break lines. */
-            display: block;
+            display: table-cell;
+            vertical-align: top;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='middle'] .table-widget__cell-content {
+            vertical-align: middle;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='bottom'] .table-widget__cell-content {
+            vertical-align: bottom;
         }
         
         /* Embedded bold/italic */
@@ -263,7 +262,8 @@ public class TableWidgetRenderer {
                     }
                     sb.append("\">");
 
-                    sb.append(renderCellSurface(child));
+                    // Recurse so nested split grids render correctly (split-inside-split).
+                    sb.append(renderCellInner(child));
                     sb.append("</div>");
                 }
             }

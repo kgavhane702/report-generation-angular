@@ -21,6 +21,13 @@
     margin: 0 4px;
   }
 
+  &__mini-separator {
+    width: 1px;
+    height: 18px;
+    background: rgba(0, 0, 0, 0.12);
+    margin: 0 2px;
+  }
+
   &__button {
     display: flex;
     align-items: center;
@@ -115,6 +122,78 @@
   &__select--small {
     width: 76px;
     padding: 0 8px;
+  }
+
+  &__combo {
+    height: 32px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    padding: 0 10px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+    outline: none;
+    max-width: 180px;
+
+    &:hover {
+      border-color: rgba(0, 0, 0, 0.25);
+    }
+
+    &:focus {
+      border-color: rgba(25, 118, 210, 0.6);
+      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  &__combo--small {
+    width: 76px;
+    padding: 0 8px;
+  }
+
+  &__combo-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  &__combo-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    padding: 8px;
+    z-index: 1000;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    min-width: 220px;
+  }
+
+  &__combo-item {
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    &:active {
+      background: rgba(0, 0, 0, 0.1);
+    }
   }
 
   &__color-picker {

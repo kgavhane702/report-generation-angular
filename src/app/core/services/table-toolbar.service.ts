@@ -28,6 +28,10 @@ export interface TableInsertRequest {
   placement: 'before' | 'after';
 }
 
+export interface TableDeleteRequest {
+  axis: 'row' | 'col';
+}
+
 /**
  * Service to manage the active table cell and formatting state for table widgets.
  * Similar to RichTextToolbarService but for table cells with contenteditable.
@@ -49,6 +53,7 @@ export class TableToolbarService {
   private readonly fontFamilyRequestedSubject = new Subject<string>();
   private readonly fontSizeRequestedSubject = new Subject<number | null>();
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
+  private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
@@ -63,6 +68,7 @@ export class TableToolbarService {
   public readonly fontFamilyRequested$: Observable<string> = this.fontFamilyRequestedSubject.asObservable();
   public readonly fontSizeRequested$: Observable<number | null> = this.fontSizeRequestedSubject.asObservable();
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
+  public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
@@ -115,6 +121,10 @@ export class TableToolbarService {
 
   requestInsert(request: TableInsertRequest): void {
     this.insertRequestedSubject.next(request);
+  }
+
+  requestDelete(request: TableDeleteRequest): void {
+    this.deleteRequestedSubject.next(request);
   }
 
   requestFormatPainterToggle(): void {

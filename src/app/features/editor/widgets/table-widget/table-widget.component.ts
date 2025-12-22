@@ -32,6 +32,7 @@ import {
 import {
   CellBorderRequest,
   SplitCellRequest,
+  TableDeleteRequest,
   TableInsertRequest,
   TableToolbarService,
 } from '../../../../core/services/table-toolbar.service';
@@ -155,6 +156,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
   private insertSubscription?: Subscription;
+  private deleteSubscription?: Subscription;
   private textAlignSubscription?: Subscription;
   private verticalAlignSubscription?: Subscription;
   private cellBackgroundSubscription?: Subscription;
@@ -291,6 +293,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.applyInsert(request);
     });
 
+    this.deleteSubscription = this.toolbarService.deleteRequested$.subscribe((request: TableDeleteRequest) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyDelete(request);
+    });
+
     this.textAlignSubscription = this.toolbarService.textAlignRequested$.subscribe((align) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -403,6 +412,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     if (this.insertSubscription) {
       this.insertSubscription.unsubscribe();
+    }
+    if (this.deleteSubscription) {
+      this.deleteSubscription.unsubscribe();
     }
     if (this.textAlignSubscription) {
       this.textAlignSubscription.unsubscribe();
@@ -1367,6 +1379,34 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.insertIntoTable(axis, placement, insertIndex);
   }
 
+  private applyDelete(request: TableDeleteRequest): void {
+    this.syncCellContent();
+
+    const baseLeafId =
+      this.activeCellId ??
+      (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
+    if (!baseLeafId) return;
+
+    const axis = request.axis;
+    const target = this.resolveInsertTarget(baseLeafId, axis);
+
+    if (target.kind === 'split') {
+      const bounds = this.computeSplitBoundsForSelection(target, axis, this.selectedCells(), baseLeafId);
+      if (!bounds) return;
+      // bounds are inclusive; delete the range selected by bounds for the axis.
+      const start = axis === 'row' ? bounds.minRow : bounds.minCol;
+      const end = axis === 'row' ? bounds.maxRow : bounds.maxCol;
+      this.deleteFromSplit(target, axis, start, end);
+      return;
+    }
+
+    const bounds = this.computeTableBoundsForSelection(this.selectedCells(), baseLeafId);
+    if (!bounds) return;
+    const start = axis === 'row' ? bounds.minRow : bounds.minCol;
+    const end = axis === 'row' ? bounds.maxRow : bounds.maxCol;
+    this.deleteFromTable(axis, start, end);
+  }
+
   private resolveInsertTarget(leafId: string, axis: 'row' | 'col'): { kind: 'table' } | { kind: 'split'; ownerRow: number; ownerCol: number; ownerPath: number[] } {
     const parsed = this.parseLeafId(leafId);
     if (!parsed) return { kind: 'table' };
@@ -1523,6 +1563,29 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.formatLeafId(row, col, parsed.path);
   }
 
+  private remapLeafIdForTableDelete(
+    leafId: string,
+    axis: 'row' | 'col',
+    deleteStart: number,
+    deleteEnd: number
+  ): string | null {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return null;
+
+    const start = Math.min(deleteStart, deleteEnd);
+    const end = Math.max(deleteStart, deleteEnd);
+    const removedCount = end - start + 1;
+
+    const isDeleted = axis === 'row'
+      ? parsed.row >= start && parsed.row <= end
+      : parsed.col >= start && parsed.col <= end;
+    if (isDeleted) return null;
+
+    const row = axis === 'row' && parsed.row > end ? parsed.row - removedCount : parsed.row;
+    const col = axis === 'col' && parsed.col > end ? parsed.col - removedCount : parsed.col;
+    return this.formatLeafId(row, col, parsed.path);
+  }
+
   private remapLeafIdForSplitInsert(
     leafId: string,
     target: { ownerRow: number; ownerCol: number; ownerPath: number[] },
@@ -1554,6 +1617,47 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.formatLeafId(parsed.row, parsed.col, nextPath);
   }
 
+  private remapLeafIdForSplitDelete(
+    leafId: string,
+    target: { ownerRow: number; ownerCol: number; ownerPath: number[] },
+    axis: 'row' | 'col',
+    deleteStart: number,
+    deleteEnd: number,
+    oldCols: number,
+    newCols: number
+  ): string | null {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return null;
+    if (parsed.row !== target.ownerRow || parsed.col !== target.ownerCol) return leafId;
+
+    const depth = target.ownerPath.length;
+    if (parsed.path.length <= depth) return leafId;
+    for (let i = 0; i < depth; i++) {
+      if (parsed.path[i] !== target.ownerPath[i]) return leafId;
+    }
+
+    const start = Math.min(deleteStart, deleteEnd);
+    const end = Math.max(deleteStart, deleteEnd);
+    const removedCount = end - start + 1;
+
+    const childIdx = parsed.path[depth];
+    const oldRow = Math.floor(childIdx / oldCols);
+    const oldCol = childIdx % oldCols;
+
+    const isDeleted = axis === 'row'
+      ? oldRow >= start && oldRow <= end
+      : oldCol >= start && oldCol <= end;
+    if (isDeleted) return null;
+
+    const nextRow = axis === 'row' && oldRow > end ? oldRow - removedCount : oldRow;
+    const nextCol = axis === 'col' && oldCol > end ? oldCol - removedCount : oldCol;
+    const nextIdx = nextRow * newCols + nextCol;
+
+    const nextPath = [...parsed.path];
+    nextPath[depth] = nextIdx;
+    return this.formatLeafId(parsed.row, parsed.col, nextPath);
+  }
+
   private insertFractions(
     current: number[],
     oldCount: number,
@@ -1575,6 +1679,26 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     next[donorIndex] = donor - half;
     next.splice(clampedInsert, 0, half);
     return this.normalizeFractions(next, next.length);
+  }
+
+  private deleteFractionsKeepPxWithShrink(
+    current: number[],
+    oldCount: number,
+    deleteStart: number,
+    deleteEnd: number
+  ): { nextFractions: number[]; removedFraction: number; removedCount: number } | null {
+    const n = Math.max(1, Math.trunc(oldCount));
+    const base = this.normalizeFractions(current ?? [], n);
+    const start = Math.max(0, Math.min(n - 1, Math.min(deleteStart, deleteEnd)));
+    const end = Math.max(0, Math.min(n - 1, Math.max(deleteStart, deleteEnd)));
+    const removedCount = end - start + 1;
+    if (removedCount >= n) return null;
+
+    const removedFraction = base.slice(start, end + 1).reduce((a, b) => a + b, 0);
+    const keep = base.filter((_, idx) => idx < start || idx > end);
+    const denom = Math.max(1e-9, 1 - removedFraction);
+    const next = keep.map((f) => f / denom);
+    return { nextFractions: this.normalizeFractions(next, next.length), removedFraction, removedCount };
   }
 
   /**
@@ -1677,6 +1801,64 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     for (const i of indices) {
       const share = spanTotal > 0 ? (oldPx[i] / spanTotal) : (per! / add);
       newPx[i] = oldPx[i] + add * share;
+    }
+
+    const next = newPx.map((px) => px / newW);
+    this.columnFractions.set(this.normalizeFractions(next, next.length));
+  }
+
+  private shrinkTopLevelRowSpanFractions(anchorRow: number, rowSpan: number, deltaPx: number): void {
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const oldH = this.widget.size.height;
+    const sub = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (sub <= 0 || oldH <= 0) return;
+
+    const base = this.normalizeFractions(this.rowFractions(), rowCount);
+    const oldPx = base.map((f) => f * oldH);
+    const newH = Math.max(20, oldH - sub);
+
+    const start = Math.max(0, Math.min(rowCount - 1, Math.trunc(anchorRow)));
+    const span = Math.max(1, Math.trunc(rowSpan));
+    const end = Math.min(rowCount - 1, start + span - 1);
+    const indices = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    const spanTotal = indices.reduce((sum, i) => sum + oldPx[i], 0);
+    const dec = Math.min(sub, spanTotal);
+
+    const newPx = [...oldPx];
+    for (const i of indices) {
+      const share = spanTotal > 0 ? (oldPx[i] / spanTotal) : (1 / indices.length);
+      newPx[i] = Math.max(1, oldPx[i] - dec * share);
+    }
+
+    const next = newPx.map((px) => px / newH);
+    this.rowFractions.set(this.normalizeFractions(next, next.length));
+  }
+
+  private shrinkTopLevelColSpanFractions(anchorCol: number, colSpan: number, deltaPx: number): void {
+    const rowsModel = this.localRows();
+    const colCount = this.getTopLevelColCount(rowsModel);
+    const oldW = this.widget.size.width;
+    const sub = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (sub <= 0 || oldW <= 0) return;
+
+    const base = this.normalizeFractions(this.columnFractions(), colCount);
+    const oldPx = base.map((f) => f * oldW);
+    const newW = Math.max(20, oldW - sub);
+
+    const start = Math.max(0, Math.min(colCount - 1, Math.trunc(anchorCol)));
+    const span = Math.max(1, Math.trunc(colSpan));
+    const end = Math.min(colCount - 1, start + span - 1);
+    const indices = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    const spanTotal = indices.reduce((sum, i) => sum + oldPx[i], 0);
+    const dec = Math.min(sub, spanTotal);
+
+    const newPx = [...oldPx];
+    for (const i of indices) {
+      const share = spanTotal > 0 ? (oldPx[i] / spanTotal) : (1 / indices.length);
+      newPx[i] = Math.max(1, oldPx[i] - dec * share);
     }
 
     const next = newPx.map((px) => px / newW);
@@ -2035,6 +2217,317 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         node?.focus();
       }, 0);
     }
+  }
+
+  private deleteFromTable(axis: 'row' | 'col', deleteStart: number, deleteEnd: number): void {
+    const snapshot = this.localRows();
+    const oldRowCount = this.getTopLevelRowCount(snapshot);
+    const oldColCount = this.getTopLevelColCount(snapshot);
+
+    const n = axis === 'row' ? oldRowCount : oldColCount;
+    if (n <= 1) return;
+
+    const start = Math.max(0, Math.min(n - 1, Math.min(deleteStart, deleteEnd)));
+    const end = Math.max(0, Math.min(n - 1, Math.max(deleteStart, deleteEnd)));
+    const removedCount = end - start + 1;
+    if (removedCount >= n) return;
+
+    // Fractions + widget shrink to keep remaining px sizes.
+    if (axis === 'row') {
+      const res = this.deleteFractionsKeepPxWithShrink(this.rowFractions(), oldRowCount, start, end);
+      if (!res) return;
+      const removedPx = res.removedFraction * this.widget.size.height;
+      this.rowFractions.set(res.nextFractions);
+      this.growWidgetSizeBy(0, -removedPx);
+    } else {
+      const res = this.deleteFractionsKeepPxWithShrink(this.columnFractions(), oldColCount, start, end);
+      if (!res) return;
+      const removedPx = res.removedFraction * this.widget.size.width;
+      this.columnFractions.set(res.nextFractions);
+      this.growWidgetSizeBy(-removedPx, 0);
+    }
+
+    // Remap selection + active id before we mutate.
+    const selectionBefore = this.selectedCells();
+    const remappedSelection = new Set<string>();
+    for (const id of selectionBefore) {
+      const mapped = this.remapLeafIdForTableDelete(id, axis, start, end);
+      if (mapped) remappedSelection.add(mapped);
+    }
+    const remappedActive = this.activeCellId ? this.remapLeafIdForTableDelete(this.activeCellId, axis, start, end) : null;
+
+    // Capture merge anchors from snapshot so we can shrink spans safely.
+    type MergeMeta = { oldR: number; oldC: number; rowSpan: number; colSpan: number };
+    const merges: MergeMeta[] = [];
+    for (let r = 0; r < oldRowCount; r++) {
+      for (let c = 0; c < oldColCount; c++) {
+        const cell = snapshot?.[r]?.cells?.[c];
+        if (!cell || cell.coveredBy || !cell.merge) continue;
+        merges.push({
+          oldR: r,
+          oldC: c,
+          rowSpan: Math.max(1, cell.merge.rowSpan),
+          colSpan: Math.max(1, cell.merge.colSpan),
+        });
+      }
+    }
+
+    const deletedBefore = (idx: number): number => {
+      if (idx <= start) return 0;
+      if (idx > end) return removedCount;
+      // idx is inside deleted range; caller should avoid.
+      return idx - start;
+    };
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+
+      if (axis === 'row') {
+        next.splice(start, removedCount);
+      } else {
+        for (const row of next) {
+          row.cells.splice(start, removedCount);
+        }
+      }
+
+      const newRowCount = this.getTopLevelRowCount(next);
+      const newColCount = this.getTopLevelColCount(next);
+
+      // Clear all top-level merges; we'll restore adjusted ones.
+      for (let r = 0; r < newRowCount; r++) {
+        for (let c = 0; c < newColCount; c++) {
+          const cell = next?.[r]?.cells?.[c];
+          if (!cell) continue;
+          cell.merge = undefined;
+        }
+      }
+
+      // Reapply merges with shrink/shift rules.
+      for (const m of merges) {
+        const oldAnchorDeleted = axis === 'row'
+          ? m.oldR >= start && m.oldR <= end
+          : m.oldC >= start && m.oldC <= end;
+        if (oldAnchorDeleted) continue;
+
+        const newR = axis === 'row' ? m.oldR - deletedBefore(m.oldR) : m.oldR;
+        const newC = axis === 'col' ? m.oldC - deletedBefore(m.oldC) : m.oldC;
+        if (newR < 0 || newC < 0) continue;
+        if (newR >= newRowCount || newC >= newColCount) continue;
+
+        const overlap = (spanStart: number, spanLen: number): number => {
+          const spanEnd = spanStart + spanLen - 1;
+          const oStart = Math.max(spanStart, start);
+          const oEnd = Math.min(spanEnd, end);
+          return oEnd >= oStart ? (oEnd - oStart + 1) : 0;
+        };
+
+        let rowSpan = m.rowSpan;
+        let colSpan = m.colSpan;
+        if (axis === 'row') {
+          rowSpan = Math.max(1, rowSpan - overlap(m.oldR, m.rowSpan));
+        } else {
+          colSpan = Math.max(1, colSpan - overlap(m.oldC, m.colSpan));
+        }
+
+        if (rowSpan === 1 && colSpan === 1) {
+          continue;
+        }
+
+        const anchor = next?.[newR]?.cells?.[newC];
+        if (!anchor) continue;
+        anchor.merge = { rowSpan, colSpan };
+      }
+
+      this.rebuildTopLevelCoveredBy(next);
+      return next;
+    });
+
+    const afterRows = this.localRows();
+    this.emitPropsChange(afterRows);
+    this.rowsAtEditStart = this.cloneRows(afterRows);
+
+    this.setSelection(remappedSelection);
+    this.activeCellId = remappedActive;
+    this.activeCellElement = null;
+
+    this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
+  }
+
+  private deleteFromSplit(
+    target: { kind: 'split'; ownerRow: number; ownerCol: number; ownerPath: number[] },
+    axis: 'row' | 'col',
+    deleteStart: number,
+    deleteEnd: number
+  ): void {
+    const snapshot = this.localRows();
+    const base = snapshot?.[target.ownerRow]?.cells?.[target.ownerCol];
+    if (!base) return;
+    const ownerSnap = target.ownerPath.length === 0 ? base : this.getCellAtPath(base, target.ownerPath);
+    if (!ownerSnap?.split) return;
+
+    const split = ownerSnap.split;
+    const oldRows = Math.max(1, split.rows);
+    const oldCols = Math.max(1, split.cols);
+    const n = axis === 'row' ? oldRows : oldCols;
+    if (n <= 1) return;
+
+    const start = Math.max(0, Math.min(n - 1, Math.min(deleteStart, deleteEnd)));
+    const end = Math.max(0, Math.min(n - 1, Math.max(deleteStart, deleteEnd)));
+    const removedCount = end - start + 1;
+    if (removedCount >= n) return;
+
+    // Determine split owner cell size in px based on top-level span (handles merged owner cell).
+    const topLevelCell = snapshot?.[target.ownerRow]?.cells?.[target.ownerCol];
+    const rowSpan = Math.max(1, topLevelCell?.merge?.rowSpan ?? 1);
+    const colSpan = Math.max(1, topLevelCell?.merge?.colSpan ?? 1);
+
+    const rowCount = this.getTopLevelRowCount(snapshot);
+    const colCount = this.getTopLevelColCount(snapshot);
+    const topRowFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const topColFractions = this.normalizeFractions(this.columnFractions(), colCount);
+    const spanRowFraction = topRowFractions
+      .slice(target.ownerRow, Math.min(rowCount, target.ownerRow + rowSpan))
+      .reduce((a, b) => a + b, 0);
+    const spanColFraction = topColFractions
+      .slice(target.ownerCol, Math.min(colCount, target.ownerCol + colSpan))
+      .reduce((a, b) => a + b, 0);
+    const ownerHeightPx = spanRowFraction * this.widget.size.height;
+    const ownerWidthPx = spanColFraction * this.widget.size.width;
+
+    // Update split fractions + compute shrink.
+    const fractions = axis === 'row' ? (split.rowFractions ?? []) : (split.columnFractions ?? []);
+    const res = this.deleteFractionsKeepPxWithShrink(fractions, n, start, end);
+    if (!res) return;
+    const shrinkPx = res.removedFraction * (axis === 'row' ? ownerHeightPx : ownerWidthPx);
+
+    if (axis === 'row') {
+      this.shrinkTopLevelRowSpanFractions(target.ownerRow, rowSpan, shrinkPx);
+      this.growWidgetSizeBy(0, -shrinkPx);
+    } else {
+      this.shrinkTopLevelColSpanFractions(target.ownerCol, colSpan, shrinkPx);
+      this.growWidgetSizeBy(-shrinkPx, 0);
+    }
+
+    const newCols = axis === 'col' ? (oldCols - removedCount) : oldCols;
+
+    // Remap selection + active id before we mutate.
+    const selectionBefore = this.selectedCells();
+    const remappedSelection = new Set<string>();
+    for (const id of selectionBefore) {
+      const mapped = this.remapLeafIdForSplitDelete(id, target, axis, start, end, oldCols, newCols);
+      if (mapped) remappedSelection.add(mapped);
+    }
+    const remappedActive = this.activeCellId
+      ? this.remapLeafIdForSplitDelete(this.activeCellId, target, axis, start, end, oldCols, newCols)
+      : null;
+
+    // Capture split merges from snapshot so we can shrink spans safely.
+    type SplitMergeMeta = { oldR: number; oldC: number; rowSpan: number; colSpan: number };
+    const merges: SplitMergeMeta[] = [];
+    for (let r = 0; r < oldRows; r++) {
+      for (let c = 0; c < oldCols; c++) {
+        const idx = r * oldCols + c;
+        const cell = split.cells[idx];
+        if (!cell || cell.coveredBy || !cell.merge) continue;
+        merges.push({
+          oldR: r,
+          oldC: c,
+          rowSpan: Math.max(1, cell.merge.rowSpan),
+          colSpan: Math.max(1, cell.merge.colSpan),
+        });
+      }
+    }
+
+    const deletedBefore = (idx: number): number => (idx > end ? removedCount : 0);
+    const overlap = (spanStart: number, spanLen: number): number => {
+      const spanEnd = spanStart + spanLen - 1;
+      const oStart = Math.max(spanStart, start);
+      const oEnd = Math.min(spanEnd, end);
+      return oEnd >= oStart ? (oEnd - oStart + 1) : 0;
+    };
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      const baseCell = next?.[target.ownerRow]?.cells?.[target.ownerCol];
+      if (!baseCell) return next;
+      const owner = target.ownerPath.length === 0 ? baseCell : this.getCellAtPath(baseCell, target.ownerPath);
+      if (!owner?.split) return next;
+
+      const s = owner.split;
+      const curRows = Math.max(1, s.rows);
+      const curCols = Math.max(1, s.cols);
+
+      // Rebuild as row arrays.
+      const grid: TableCell[][] = [];
+      for (let r = 0; r < curRows; r++) {
+        grid.push(s.cells.slice(r * curCols, (r + 1) * curCols));
+      }
+
+      if (axis === 'row') {
+        grid.splice(start, removedCount);
+        s.rows = curRows - removedCount;
+        s.rowFractions = res.nextFractions;
+      } else {
+        for (let r = 0; r < grid.length; r++) {
+          grid[r].splice(start, removedCount);
+        }
+        s.cols = curCols - removedCount;
+        s.columnFractions = res.nextFractions;
+      }
+
+      s.cells = grid.flat();
+
+      const newRows = Math.max(1, s.rows);
+      const newColsNow = Math.max(1, s.cols);
+
+      // Clear split merges; restore adjusted ones.
+      for (const cell of s.cells) {
+        if (!cell) continue;
+        cell.merge = undefined;
+      }
+
+      for (const m of merges) {
+        const oldAnchorDeleted = axis === 'row'
+          ? m.oldR >= start && m.oldR <= end
+          : m.oldC >= start && m.oldC <= end;
+        if (oldAnchorDeleted) continue;
+
+        const newR = axis === 'row' ? m.oldR - deletedBefore(m.oldR) : m.oldR;
+        const newC = axis === 'col' ? m.oldC - deletedBefore(m.oldC) : m.oldC;
+        if (newR < 0 || newC < 0) continue;
+        if (newR >= newRows || newC >= newColsNow) continue;
+
+        let rowSpan2 = m.rowSpan;
+        let colSpan2 = m.colSpan;
+        if (axis === 'row') {
+          rowSpan2 = Math.max(1, rowSpan2 - overlap(m.oldR, m.rowSpan));
+        } else {
+          colSpan2 = Math.max(1, colSpan2 - overlap(m.oldC, m.colSpan));
+        }
+
+        if (rowSpan2 === 1 && colSpan2 === 1) continue;
+
+        const idx = newR * newColsNow + newC;
+        const anchor = s.cells[idx];
+        if (!anchor) continue;
+        anchor.merge = { rowSpan: rowSpan2, colSpan: colSpan2 };
+      }
+
+      this.rebuildSplitCoveredBy(owner);
+      return next;
+    });
+
+    const afterRows = this.localRows();
+    this.emitPropsChange(afterRows);
+    this.rowsAtEditStart = this.cloneRows(afterRows);
+
+    this.setSelection(remappedSelection);
+    this.activeCellId = remappedActive;
+    this.activeCellElement = null;
+
+    this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
   }
 
   private applySplitToSelection(request: SplitCellRequest): void {
