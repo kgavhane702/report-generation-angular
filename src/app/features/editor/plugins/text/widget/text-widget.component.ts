@@ -25,6 +25,7 @@ import { CkEditorRichTextEditorService } from '../../../../../core/services/rich
 import { RichTextToolbarService } from '../../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../../core/services/pending-changes-registry.service';
+import { DraftStateService } from '../../../../../core/services/draft-state.service';
 import { DecoupledEditor } from 'ckeditor5';
 
 /**
@@ -65,6 +66,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private readonly toolbarService = inject(RichTextToolbarService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
+  private readonly draftState = inject(DraftStateService);
   private readonly cdr = inject(ChangeDetectorRef);
   
   // ============================================
@@ -106,6 +108,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private isEditorInitialized = false;
   private blurTimeoutId: number | null = null;
   private isClickingInsideEditor = false;
+  private autoGrowRaf: number | null = null;
 
   // ============================================
   // PUBLIC GETTERS
@@ -166,6 +169,11 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       
       // Commit changes immediately
       this.commitContentChange();
+
+      // Persist any auto-grown size (we keep size in draft while typing for smoothness).
+      if (this.draftState.hasDraft(this.widget.id)) {
+        this.draftState.commitDraft(this.widget.id);
+      }
       
       // Exit editing mode
       this.isActivelyEditing.set(false);
@@ -200,6 +208,11 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     if (this.isActivelyEditing()) {
       this.commitContentChange();
       this.pendingChangesRegistry.unregister(this.widget.id);
+    }
+
+    if (this.autoGrowRaf !== null) {
+      cancelAnimationFrame(this.autoGrowRaf);
+      this.autoGrowRaf = null;
     }
     
     // Clean up event listener
@@ -273,6 +286,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       editor.model.document.on('change:data', () => {
         // Update local content signal (no store update!)
         this.localContent.set(editor.getData());
+        this.scheduleAutoGrow();
         this.cdr.markForCheck();
       });
 
@@ -365,6 +379,11 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       if (!isStillInsideEditor && !isStillInsideToolbar && !this.isClickingInsideEditor) {
         // Commit the content change - this is the ONLY time we update the store
         this.commitContentChange();
+
+        // Persist any auto-grown size now that editing is complete.
+        if (this.draftState.hasDraft(this.widget.id)) {
+          this.draftState.commitDraft(this.widget.id);
+        }
         
         // Exit editing mode
         this.isActivelyEditing.set(false);
@@ -448,5 +467,50 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     if (currentContent !== originalContent) {
       this.propsChange.emit({ contentHtml: currentContent });
     }
+  }
+
+  private scheduleAutoGrow(): void {
+    if (!this.isActivelyEditing()) return;
+    if (this.autoGrowRaf !== null) return;
+
+    this.autoGrowRaf = window.requestAnimationFrame(() => {
+      this.autoGrowRaf = null;
+      this.maybeAutoGrowToFit();
+    });
+  }
+
+  private maybeAutoGrowToFit(): void {
+    const editor = this.currentEditorInstance;
+    if (!editor) return;
+
+    const editable = editor.ui.getEditableElement() as HTMLElement | null;
+    if (!editable) return;
+
+    const curSize = this.widget?.size;
+    if (!curSize) return;
+
+    const clientH = editable.clientHeight;
+    const scrollH = editable.scrollHeight;
+    if (!Number.isFinite(clientH) || !Number.isFinite(scrollH) || clientH <= 0) return;
+
+    const overflow = scrollH - clientH;
+    if (overflow <= 1) return;
+
+    const bufferPx = 6;
+    const stepPx = 8;
+    const deltaPx = Math.min(800, this.roundUpPx(overflow + bufferPx, stepPx));
+    if (deltaPx <= 0) return;
+
+    const nextHeight = Math.max(20, Math.round(curSize.height + deltaPx));
+    if (nextHeight === curSize.height) return;
+
+    // Keep this in draft while typing; commit on blur/flush.
+    this.draftState.updateDraftSize(this.widget.id, { width: curSize.width, height: nextHeight });
+  }
+
+  private roundUpPx(v: number, step: number): number {
+    const s = Math.max(1, Math.floor(step));
+    const n = Number.isFinite(v) ? v : 0;
+    return Math.ceil(n / s) * s;
   }
 }

@@ -24,7 +24,8 @@
   color: #0f172a; // Dark text for default transparent/light backgrounds
   background: inherit; // Inherit background color from parent
   cursor: text;
-  overflow-y: auto;
+  /* Match table widget behavior: no internal scrollbars; widget grows to fit content. */
+  overflow: hidden;
 }
 
 // Remove padding from paragraph tags inside CKEditor
