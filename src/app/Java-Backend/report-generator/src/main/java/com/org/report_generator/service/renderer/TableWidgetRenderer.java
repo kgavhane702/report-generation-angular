@@ -17,15 +17,21 @@ public class TableWidgetRenderer {
             width: 100%;
             height: 100%;
             position: relative;
-            overflow: hidden;
+            /* Avoid clipping when UI auto-grows rows/widget during typing. */
+            overflow: visible;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             color: #0f172a;
+            /* Defaults that can be overridden per-widget (e.g. showBorders=false) */
+            --table-border-style: solid;
+            --table-border-width: 1px;
+            --table-border-color: #cbd5e1;
+            --subcell-border-color: #e2e8f0;
         }
         
         .widget-table .table-widget {
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            overflow: visible;
             position: relative;
         }
         
@@ -40,9 +46,9 @@ public class TableWidgetRenderer {
         
         .widget-table .table-widget__cell {
             /* Use opaque colors for reliable PDF rendering (some engines ignore rgba borders). */
-            border-width: 1px;
-            border-style: solid;
-            border-color: #cbd5e1;
+            border-width: var(--table-border-width);
+            border-style: var(--table-border-style);
+            border-color: var(--table-border-color);
             padding: 0;
             margin: 0;
             background: transparent;
@@ -70,6 +76,7 @@ public class TableWidgetRenderer {
             box-sizing: border-box;
             word-wrap: break-word;
             overflow-wrap: break-word;
+            word-break: break-word;
             white-space: pre-wrap;
             background: transparent;
             color: inherit;
@@ -104,9 +111,9 @@ public class TableWidgetRenderer {
         }
         
         .widget-table .table-widget__sub-cell {
-            border-width: 1px;
-            border-style: solid;
-            border-color: #e2e8f0;
+            border-width: var(--table-border-width);
+            border-style: var(--table-border-style);
+            border-color: var(--subcell-border-color);
             box-sizing: border-box;
             overflow: hidden;
             background: transparent;
@@ -129,6 +136,12 @@ public class TableWidgetRenderer {
             return "<div class=\"widget widget-table\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
 
+        boolean showBorders = true;
+        JsonNode showBordersNode = props.path("showBorders");
+        if (!showBordersNode.isMissingNode() && !showBordersNode.isNull()) {
+            showBorders = showBordersNode.asBoolean(true);
+        }
+
         // Optional persisted sizing (fractions that sum to 1)
         int rowCount = rowsNode.size();
         int colCount = 1;
@@ -144,7 +157,13 @@ public class TableWidgetRenderer {
         double[] rowFractions = parseFractions(props.path("rowFractions"), rowCount);
 
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"widget widget-table\" style=\"").append(escapeHtmlAttribute(widgetStyle)).append("\">");
+        StringBuilder outerStyle = new StringBuilder(widgetStyle);
+        if (!showBorders) {
+            // Hide default grid borders (explicit per-cell borders can still override via inline style)
+            outerStyle.append("--table-border-style: none; --table-border-width: 0px;");
+        }
+
+        html.append("<div class=\"widget widget-table\" style=\"").append(escapeHtmlAttribute(outerStyle.toString())).append("\">");
         html.append("<div class=\"table-widget\"><table class=\"table-widget__table\">");
 
         // Column sizing via <colgroup> for stable fixed-layout tables (matches frontend)

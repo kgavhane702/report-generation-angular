@@ -153,6 +153,17 @@ public class DocumentRenderService {
         style.append("width: ").append(Optional.ofNullable(size.getWidth()).orElse(0d)).append("px;");
         style.append("height: ").append(Optional.ofNullable(size.getHeight()).orElse(0d)).append("px;");
 
+        // Match frontend stacking order.
+        if (widget.getZIndex() != null) {
+            style.append("z-index: ").append(widget.getZIndex()).append(";");
+        }
+
+        // Optional rotation (degrees). Keep origin at top-left to match absolute positioning expectations.
+        if (widget.getRotation() != null && Double.isFinite(widget.getRotation()) && Math.abs(widget.getRotation()) > 0.00001d) {
+            style.append("transform-origin: top left;");
+            style.append("transform: rotate(").append(widget.getRotation()).append("deg);");
+        }
+
         JsonNode styleNode = widget.getStyle();
         if (styleNode != null && styleNode.isObject()) {
             Iterator<String> fields = styleNode.fieldNames();
@@ -160,11 +171,48 @@ public class DocumentRenderService {
                 String key = fields.next();
                 JsonNode value = styleNode.get(key);
                 if (value != null && !value.isNull()) {
-                    style.append(camelToKebab(key)).append(": ").append(value.asText()).append(";");
+                    style.append(camelToKebab(key)).append(": ").append(formatCssValue(key, value)).append(";");
                 }
             }
         }
         return style.toString();
+    }
+
+    /**
+     * Frontend style objects can contain numbers for some properties.
+     * CSS needs units for a few of them; keep others unitless.
+     */
+    private String formatCssValue(String styleKey, JsonNode valueNode) {
+        if (valueNode == null || valueNode.isNull()) {
+            return "";
+        }
+        if (!valueNode.isNumber()) {
+            return valueNode.asText();
+        }
+
+        String key = styleKey == null ? "" : styleKey;
+        double v = valueNode.asDouble();
+
+        // Unitless by default (safe for opacity, lineHeight, fontWeight).
+        boolean needsPx =
+                key.equals("borderRadius") ||
+                key.equals("fontSize") ||
+                key.equals("letterSpacing");
+
+        if (needsPx) {
+            // Preserve integer-ish values as integers to avoid "12.0px"
+            long asLong = (long) v;
+            if (Math.abs(v - asLong) < 0.0000001d) {
+                return asLong + "px";
+            }
+            return v + "px";
+        }
+
+        long asLong = (long) v;
+        if (Math.abs(v - asLong) < 0.0000001d) {
+            return Long.toString(asLong);
+        }
+        return Double.toString(v);
     }
 
 

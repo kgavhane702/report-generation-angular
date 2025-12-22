@@ -17,6 +17,9 @@ public class Widget {
     private String type;
     private WidgetPosition position = new WidgetPosition();
     private WidgetSize size = new WidgetSize();
+    private Integer zIndex;
+    private Double rotation;
+    private Boolean locked;
     private JsonNode props;
     private JsonNode style;
 }
