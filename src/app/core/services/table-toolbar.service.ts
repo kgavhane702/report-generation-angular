@@ -8,6 +8,8 @@ export interface TableFormattingState {
   isItalic: boolean;
   textAlign: 'left' | 'center' | 'right';
   verticalAlign: 'top' | 'middle' | 'bottom';
+  fontFamily: string;
+  fontSizePx: number | null;
 }
 
 export interface SplitCellRequest {
@@ -39,6 +41,8 @@ export class TableToolbarService {
   private readonly verticalAlignRequestedSubject = new Subject<'top' | 'middle' | 'bottom'>();
   private readonly cellBackgroundColorRequestedSubject = new Subject<string>();
   private readonly cellBorderRequestedSubject = new Subject<CellBorderRequest>();
+  private readonly fontFamilyRequestedSubject = new Subject<string>();
+  private readonly fontSizeRequestedSubject = new Subject<number | null>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
@@ -50,6 +54,8 @@ export class TableToolbarService {
   public readonly verticalAlignRequested$: Observable<'top' | 'middle' | 'bottom'> = this.verticalAlignRequestedSubject.asObservable();
   public readonly cellBackgroundColorRequested$: Observable<string> = this.cellBackgroundColorRequestedSubject.asObservable();
   public readonly cellBorderRequested$: Observable<CellBorderRequest> = this.cellBorderRequestedSubject.asObservable();
+  public readonly fontFamilyRequested$: Observable<string> = this.fontFamilyRequestedSubject.asObservable();
+  public readonly fontSizeRequested$: Observable<number | null> = this.fontSizeRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
@@ -58,6 +64,8 @@ export class TableToolbarService {
     isItalic: false,
     textAlign: 'left',
     verticalAlign: 'top',
+    fontFamily: '',
+    fontSizePx: null,
   });
 
   /** One-shot format painter state (cell-level only) */
@@ -256,6 +264,63 @@ export class TableToolbarService {
   }
 
   /**
+   * Apply font family to selected cells or active cell (cell-level formatting).
+   */
+  applyFontFamily(fontFamily: string): void {
+    const value = (fontFamily ?? '').trim();
+    const cells = this.getSelectedCellElements?.() ?? [];
+    if (cells.length > 0) {
+      cells.forEach(cell => {
+        if (value) {
+          cell.style.fontFamily = value;
+        } else {
+          cell.style.removeProperty('font-family');
+        }
+      });
+    } else if (this.activeCell) {
+      if (value) {
+        this.activeCell.style.fontFamily = value;
+      } else {
+        this.activeCell.style.removeProperty('font-family');
+      }
+    } else {
+      return;
+    }
+
+    this.fontFamilyRequestedSubject.next(value);
+    this.formattingState.update(state => ({ ...state, fontFamily: value }));
+  }
+
+  /**
+   * Apply font size (px) to selected cells or active cell (cell-level formatting).
+   * Pass null to reset to default.
+   */
+  applyFontSizePx(px: number | null): void {
+    const value = px === null ? null : Math.max(6, Math.min(96, Math.trunc(Number(px))));
+    const cells = this.getSelectedCellElements?.() ?? [];
+    if (cells.length > 0) {
+      cells.forEach(cell => {
+        if (value === null) {
+          cell.style.removeProperty('font-size');
+        } else {
+          cell.style.fontSize = `${value}px`;
+        }
+      });
+    } else if (this.activeCell) {
+      if (value === null) {
+        this.activeCell.style.removeProperty('font-size');
+      } else {
+        this.activeCell.style.fontSize = `${value}px`;
+      }
+    } else {
+      return;
+    }
+
+    this.fontSizeRequestedSubject.next(value);
+    this.formattingState.update(state => ({ ...state, fontSizePx: value }));
+  }
+
+  /**
    * Update formatting state based on current selection
    */
   updateFormattingState(): void {
@@ -271,12 +336,22 @@ export class TableToolbarService {
     const computedStyle = window.getComputedStyle(cell);
     const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
     const verticalAlign = ((cell.style.verticalAlign || computedStyle.verticalAlign || 'top') as 'top' | 'middle' | 'bottom');
+    const fontFamily = (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
+    const fontSizeRaw = (cell.style.fontSize || computedStyle.fontSize || '').trim();
+    const fontSizePx = (() => {
+      const m = fontSizeRaw.match(/^(\d+(?:\.\d+)?)px$/);
+      if (!m) return null;
+      const v = Math.round(Number(m[1]));
+      return Number.isFinite(v) ? v : null;
+    })();
 
     this.formattingState.set({
       isBold,
       isItalic,
       textAlign,
       verticalAlign,
+      fontFamily,
+      fontSizePx,
     });
   }
 

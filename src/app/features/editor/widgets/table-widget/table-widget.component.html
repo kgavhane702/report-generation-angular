@@ -62,6 +62,8 @@
       [attr.data-vertical-align]="cell.style?.verticalAlign || 'top'"
       [style.text-align]="cell.style?.textAlign || 'left'"
       [style.background-color]="cell.style?.backgroundColor || 'transparent'"
+      [style.font-family]="cell.style?.fontFamily || null"
+      [style.font-size.px]="cell.style?.fontSizePx ?? null"
     >
       <div
         class="table-widget__cell-content"

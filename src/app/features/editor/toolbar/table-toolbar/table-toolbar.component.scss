@@ -69,6 +69,54 @@
     line-height: 1;
   }
 
+  &__field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px;
+    user-select: none;
+  }
+
+  &__field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  &__select {
+    height: 32px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 6px;
+    padding: 0 10px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    max-width: 180px;
+
+    &:hover {
+      border-color: rgba(0, 0, 0, 0.25);
+    }
+
+    &:focus {
+      border-color: rgba(25, 118, 210, 0.6);
+      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  &__select--small {
+    width: 76px;
+    padding: 0 8px;
+  }
+
   &__color-picker {
     position: relative;
     display: flex;

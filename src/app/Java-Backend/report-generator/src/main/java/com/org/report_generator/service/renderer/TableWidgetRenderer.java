@@ -397,6 +397,16 @@ public class TableWidgetRenderer {
 
         StringBuilder style = new StringBuilder();
 
+        String fontFamily = styleNode.path("fontFamily").asText("");
+        if (!fontFamily.isBlank()) {
+            style.append("font-family: ").append(fontFamily).append(";");
+        }
+
+        int fontSizePx = styleNode.path("fontSizePx").asInt(0);
+        if (fontSizePx > 0) {
+            style.append("font-size: ").append(fontSizePx).append("px;");
+        }
+
         String fontWeight = styleNode.path("fontWeight").asText("");
         if (!fontWeight.isBlank()) {
             style.append("font-weight: ").append(fontWeight).append(";");

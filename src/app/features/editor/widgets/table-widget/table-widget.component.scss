@@ -211,9 +211,10 @@
   }
 
   &__cell-content--subcell {
-    // Default stays the same; we'll only shrink via container queries when the sub-cell is small.
-    --subcell-font-size: inherit;
-    font-size: var(--subcell-font-size);
+    // Default stays the same. When sub-cells get tiny, we scale down relative to the inherited font size,
+    // but never below a minimum (prevents the tiny scrollbars without changing default look).
+    --subcell-font-scale: 1;
+    font-size: clamp(10px, calc(1em * var(--subcell-font-scale)), 1em);
     padding: 4px 6px;
     min-height: 0;
     overflow: hidden; // avoid tiny scrollbars; focus can still scroll if needed
@@ -229,7 +230,7 @@
   // When a sub-cell is short, shrink font + padding down to a minimum to prevent scrollbars.
   @container table-subcell (max-height: 28px) {
     .table-widget__cell-content--subcell {
-      --subcell-font-size: 12px;
+      --subcell-font-scale: 0.9;
       line-height: 1.2;
       padding: 2px 4px;
     }
@@ -237,7 +238,7 @@
 
   @container table-subcell (max-height: 22px) {
     .table-widget__cell-content--subcell {
-      --subcell-font-size: 11px;
+      --subcell-font-scale: 0.82;
       padding: 1px 3px;
     }
   }
@@ -245,7 +246,7 @@
   // Minimum font size cap (don’t go smaller than this).
   @container table-subcell (max-height: 18px) {
     .table-widget__cell-content--subcell {
-      --subcell-font-size: 10px;
+      --subcell-font-scale: 0.74;
       padding: 1px 2px;
     }
   }

@@ -71,6 +71,20 @@ export class TableToolbarComponent {
   borderWidth = 1;
   borderStyle: 'solid' | 'dashed' | 'dotted' | 'none' = 'solid';
 
+  // Font controls
+  readonly fontFamilies: Array<{ label: string; value: string }> = [
+    { label: 'Default', value: '' },
+    { label: 'Inter', value: 'Inter' },
+    { label: 'Arial', value: 'Arial' },
+    { label: 'Calibri', value: 'Calibri' },
+    { label: 'Georgia', value: 'Georgia' },
+    { label: 'Times New Roman', value: '"Times New Roman"' },
+    { label: 'Courier New', value: '"Courier New"' },
+    { label: 'Verdana', value: 'Verdana' },
+  ];
+
+  readonly fontSizes: Array<number> = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
+
   get formattingState() {
     return this.toolbarService.formattingState();
   }
@@ -176,6 +190,23 @@ export class TableToolbarComponent {
     event.preventDefault();
     if (!this.hasActiveCell) return;
     this.toolbarService.requestFormatPainterToggle();
+  }
+
+  onFontFamilyChange(value: string): void {
+    if (!this.hasActiveCell) return;
+    this.toolbarService.applyFontFamily(value);
+  }
+
+  onFontSizeChange(value: string): void {
+    if (!this.hasActiveCell) return;
+    const v = (value ?? '').trim();
+    if (!v) {
+      this.toolbarService.applyFontSizePx(null);
+      return;
+    }
+    const px = Math.max(6, Math.min(96, Math.trunc(Number(v))));
+    if (!Number.isFinite(px)) return;
+    this.toolbarService.applyFontSizePx(px);
   }
 }
 

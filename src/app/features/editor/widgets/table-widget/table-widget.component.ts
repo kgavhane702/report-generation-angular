@@ -151,6 +151,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private verticalAlignSubscription?: Subscription;
   private cellBackgroundSubscription?: Subscription;
   private cellBorderSubscription?: Subscription;
+  private fontFamilySubscription?: Subscription;
+  private fontSizeSubscription?: Subscription;
   private formatPainterSubscription?: Subscription;
 
   /** One-shot format painter state (cell-level only) */
@@ -306,6 +308,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       });
     });
 
+    this.fontFamilySubscription = this.toolbarService.fontFamilyRequested$.subscribe((fontFamily: string) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ fontFamily: fontFamily || undefined });
+    });
+
+    this.fontSizeSubscription = this.toolbarService.fontSizeRequested$.subscribe((fontSizePx: number | null) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ fontSizePx: fontSizePx ?? undefined });
+    });
+
     this.formatPainterSubscription = this.toolbarService.formatPainterRequested$.subscribe((enabled) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -326,6 +342,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const capturedStyle: Partial<TableCellStyle> = {
         textAlign: sourceCell?.style?.textAlign ?? 'left',
         verticalAlign: sourceCell?.style?.verticalAlign ?? 'top',
+        fontFamily: sourceCell?.style?.fontFamily ?? '',
+        fontSizePx: sourceCell?.style?.fontSizePx ?? undefined,
         backgroundColor: sourceCell?.style?.backgroundColor ?? '',
         borderColor: sourceCell?.style?.borderColor,
         borderWidth: sourceCell?.style?.borderWidth,
@@ -379,6 +397,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     if (this.cellBorderSubscription) {
       this.cellBorderSubscription.unsubscribe();
+    }
+    if (this.fontFamilySubscription) {
+      this.fontFamilySubscription.unsubscribe();
+    }
+    if (this.fontSizeSubscription) {
+      this.fontSizeSubscription.unsubscribe();
     }
     if (this.formatPainterSubscription) {
       this.formatPainterSubscription.unsubscribe();

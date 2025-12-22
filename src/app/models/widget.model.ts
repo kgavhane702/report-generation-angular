@@ -176,6 +176,15 @@ export interface TableCellStyle {
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
   /**
+   * Optional font family for the cell (applies to the entire cell content).
+   * Example: "Inter", "Arial", "Times New Roman".
+   */
+  fontFamily?: string;
+  /**
+   * Optional font size in pixels for the cell (applies to the entire cell content).
+   */
+  fontSizePx?: number;
+  /**
    * Cell fill / background color (applies to the cell container, not selected text).
    */
   backgroundColor?: string;

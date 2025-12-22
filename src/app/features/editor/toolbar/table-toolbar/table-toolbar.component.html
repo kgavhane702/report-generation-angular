@@ -79,6 +79,37 @@
   <div class="table-toolbar__separator"></div>
 
   <div class="table-toolbar__group">
+    <label class="table-toolbar__field" title="Font family">
+      <span class="table-toolbar__field-label">Font</span>
+      <select
+        class="table-toolbar__select"
+        [disabled]="!hasActiveCell"
+        [ngModel]="formattingState.fontFamily"
+        (ngModelChange)="onFontFamilyChange($event)"
+        (mousedown)="$event.stopPropagation()"
+      >
+        <option *ngFor="let f of fontFamilies" [value]="f.value">{{ f.label }}</option>
+      </select>
+    </label>
+
+    <label class="table-toolbar__field" title="Font size">
+      <span class="table-toolbar__field-label">Size</span>
+      <select
+        class="table-toolbar__select table-toolbar__select--small"
+        [disabled]="!hasActiveCell"
+        [ngModel]="formattingState.fontSizePx ?? ''"
+        (ngModelChange)="onFontSizeChange($event)"
+        (mousedown)="$event.stopPropagation()"
+      >
+        <option value="">Auto</option>
+        <option *ngFor="let s of fontSizes" [value]="s">{{ s }}</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="table-toolbar__separator"></div>
+
+  <div class="table-toolbar__group">
     <button
       type="button"
       class="table-toolbar__button"
