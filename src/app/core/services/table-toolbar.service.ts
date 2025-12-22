@@ -23,6 +23,11 @@ export interface CellBorderRequest {
   style: 'solid' | 'dashed' | 'dotted' | 'none' | null;
 }
 
+export interface TableInsertRequest {
+  axis: 'row' | 'col';
+  placement: 'before' | 'after';
+}
+
 /**
  * Service to manage the active table cell and formatting state for table widgets.
  * Similar to RichTextToolbarService but for table cells with contenteditable.
@@ -43,6 +48,7 @@ export class TableToolbarService {
   private readonly cellBorderRequestedSubject = new Subject<CellBorderRequest>();
   private readonly fontFamilyRequestedSubject = new Subject<string>();
   private readonly fontSizeRequestedSubject = new Subject<number | null>();
+  private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
@@ -56,6 +62,7 @@ export class TableToolbarService {
   public readonly cellBorderRequested$: Observable<CellBorderRequest> = this.cellBorderRequestedSubject.asObservable();
   public readonly fontFamilyRequested$: Observable<string> = this.fontFamilyRequestedSubject.asObservable();
   public readonly fontSizeRequested$: Observable<number | null> = this.fontSizeRequestedSubject.asObservable();
+  public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
@@ -104,6 +111,10 @@ export class TableToolbarService {
 
   requestUnmerge(): void {
     this.unmergeRequestedSubject.next();
+  }
+
+  requestInsert(request: TableInsertRequest): void {
+    this.insertRequestedSubject.next(request);
   }
 
   requestFormatPainterToggle(): void {

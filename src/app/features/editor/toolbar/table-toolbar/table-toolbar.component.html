@@ -51,6 +51,70 @@
     <button
       type="button"
       class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onInsertRowAbove($event)"
+      title="Insert row above"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 10h16"></path>
+        <path d="M4 14h16"></path>
+        <path d="M12 2v6"></path>
+        <path d="M9 5l3-3 3 3"></path>
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onInsertRowBelow($event)"
+      title="Insert row below"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 10h16"></path>
+        <path d="M4 14h16"></path>
+        <path d="M12 22v-6"></path>
+        <path d="M9 19l3 3 3-3"></path>
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onInsertColLeft($event)"
+      title="Insert column left"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 4v16"></path>
+        <path d="M14 4v16"></path>
+        <path d="M2 12h6"></path>
+        <path d="M5 9l-3 3 3 3"></path>
+      </svg>
+    </button>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onInsertColRight($event)"
+      title="Insert column right"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 4v16"></path>
+        <path d="M14 4v16"></path>
+        <path d="M22 12h-6"></path>
+        <path d="M19 9l3 3-3 3"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="table-toolbar__separator"></div>
+
+  <div class="table-toolbar__group">
+    <button
+      type="button"
+      class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.isBold"
       (mousedown)="onBoldClick($event)"
       title="Bold (Ctrl+B)"

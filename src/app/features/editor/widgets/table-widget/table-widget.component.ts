@@ -29,7 +29,12 @@ import {
   TableCellStyle,
   WidgetModel,
 } from '../../../../models/widget.model';
-import { CellBorderRequest, SplitCellRequest, TableToolbarService } from '../../../../core/services/table-toolbar.service';
+import {
+  CellBorderRequest,
+  SplitCellRequest,
+  TableInsertRequest,
+  TableToolbarService,
+} from '../../../../core/services/table-toolbar.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
 
@@ -147,6 +152,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
+  private insertSubscription?: Subscription;
   private textAlignSubscription?: Subscription;
   private verticalAlignSubscription?: Subscription;
   private cellBackgroundSubscription?: Subscription;
@@ -276,6 +282,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.applyMergeSelection();
     });
 
+    this.insertSubscription = this.toolbarService.insertRequested$.subscribe((request: TableInsertRequest) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyInsert(request);
+    });
+
     this.textAlignSubscription = this.toolbarService.textAlignRequested$.subscribe((align) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -385,6 +398,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     if (this.mergeSubscription) {
       this.mergeSubscription.unsubscribe();
+    }
+    if (this.insertSubscription) {
+      this.insertSubscription.unsubscribe();
     }
     if (this.textAlignSubscription) {
       this.textAlignSubscription.unsubscribe();
@@ -1306,6 +1322,562 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     (window as any).__tableWidgetSelectedCells = selected;
     // eslint-disable-next-line no-console
     console.log(`[TableWidget ${this.widget.id}] selectedCells (${reason}):`, selected);
+  }
+
+  // ============================================
+  // Insert row/column (table + split-aware)
+  // ============================================
+
+  private applyInsert(request: TableInsertRequest): void {
+    this.syncCellContent();
+
+    const baseLeafId =
+      this.activeCellId ??
+      (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
+    if (!baseLeafId) return;
+
+    const axis = request.axis;
+    const placement = request.placement;
+
+    const target = this.resolveInsertTarget(baseLeafId, axis);
+
+    if (target.kind === 'split') {
+      const bounds = this.computeSplitBoundsForSelection(target, axis, this.selectedCells(), baseLeafId);
+      if (!bounds) return;
+
+      const insertIndex =
+        axis === 'row'
+          ? (placement === 'before' ? bounds.minRow : bounds.maxRow + 1)
+          : (placement === 'before' ? bounds.minCol : bounds.maxCol + 1);
+
+      this.insertIntoSplit(target, axis, placement, insertIndex);
+      return;
+    }
+
+    const bounds = this.computeTableBoundsForSelection(this.selectedCells(), baseLeafId);
+    if (!bounds) return;
+
+    const insertIndex =
+      axis === 'row'
+        ? (placement === 'before' ? bounds.minRow : bounds.maxRow + 1)
+        : (placement === 'before' ? bounds.minCol : bounds.maxCol + 1);
+
+    this.insertIntoTable(axis, placement, insertIndex);
+  }
+
+  private resolveInsertTarget(leafId: string, axis: 'row' | 'col'): { kind: 'table' } | { kind: 'split'; ownerRow: number; ownerCol: number; ownerPath: number[] } {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return { kind: 'table' };
+
+    let { row, col, path } = parsed;
+    const rowsModel = this.localRows();
+    let baseCell = rowsModel?.[row]?.cells?.[col];
+    if (!baseCell) return { kind: 'table' };
+
+    // If caller somehow points at a covered top-level cell, redirect to its anchor.
+    if (baseCell.coveredBy) {
+      const a = baseCell.coveredBy;
+      row = a.row;
+      col = a.col;
+      path = [];
+      baseCell = rowsModel?.[row]?.cells?.[col];
+      if (!baseCell) return { kind: 'table' };
+    }
+
+    // Climb upward (nearest split to farthest) until we find a split with the right dimension.
+    for (let i = path.length - 1; i >= 0; i--) {
+      const ownerPath = path.slice(0, i);
+      const ownerCell = ownerPath.length === 0 ? baseCell : this.getCellAtPath(baseCell, ownerPath);
+      if (!ownerCell?.split) continue;
+      const dim = axis === 'row' ? ownerCell.split.rows : ownerCell.split.cols;
+      if (dim > 1) {
+        return { kind: 'split', ownerRow: row, ownerCol: col, ownerPath };
+      }
+    }
+
+    return { kind: 'table' };
+  }
+
+  private computeTableBoundsForSelection(selection: Set<string>, fallbackLeafId: string): { minRow: number; maxRow: number; minCol: number; maxCol: number } | null {
+    const ids = selection.size > 0 ? Array.from(selection) : [fallbackLeafId];
+    const rowsModel = this.localRows();
+
+    let minRow = Number.POSITIVE_INFINITY;
+    let maxRow = Number.NEGATIVE_INFINITY;
+    let minCol = Number.POSITIVE_INFINITY;
+    let maxCol = Number.NEGATIVE_INFINITY;
+
+    for (const id of ids) {
+      const parsed = this.parseLeafId(id);
+      if (!parsed) continue;
+      let r = parsed.row;
+      let c = parsed.col;
+      const cell = rowsModel?.[r]?.cells?.[c];
+      if (!cell) continue;
+      if (cell.coveredBy) {
+        r = cell.coveredBy.row;
+        c = cell.coveredBy.col;
+      }
+      minRow = Math.min(minRow, r);
+      maxRow = Math.max(maxRow, r);
+      minCol = Math.min(minCol, c);
+      maxCol = Math.max(maxCol, c);
+    }
+
+    if (!Number.isFinite(minRow) || !Number.isFinite(minCol)) return null;
+    return { minRow, maxRow, minCol, maxCol };
+  }
+
+  private computeSplitBoundsForSelection(
+    target: { kind: 'split'; ownerRow: number; ownerCol: number; ownerPath: number[] },
+    axis: 'row' | 'col',
+    selection: Set<string>,
+    fallbackLeafId: string
+  ): { minRow: number; maxRow: number; minCol: number; maxCol: number; ownerRows: number; ownerCols: number; ownerDepth: number } | null {
+    const rowsModel = this.localRows();
+    const base = rowsModel?.[target.ownerRow]?.cells?.[target.ownerCol];
+    if (!base) return null;
+    const ownerCell = target.ownerPath.length === 0 ? base : this.getCellAtPath(base, target.ownerPath);
+    if (!ownerCell?.split) return null;
+
+    const cols = Math.max(1, ownerCell.split.cols);
+    const rows = Math.max(1, ownerCell.split.rows);
+    const ownerDepth = target.ownerPath.length;
+
+    const ids = selection.size > 0 ? Array.from(selection) : [fallbackLeafId];
+
+    let minRow = Number.POSITIVE_INFINITY;
+    let maxRow = Number.NEGATIVE_INFINITY;
+    let minCol = Number.POSITIVE_INFINITY;
+    let maxCol = Number.NEGATIVE_INFINITY;
+
+    const matchesOwner = (p: { row: number; col: number; path: number[] }): boolean => {
+      if (p.row !== target.ownerRow || p.col !== target.ownerCol) return false;
+      if (p.path.length <= ownerDepth) return false;
+      // Ensure prefix matches the chosen split owner path.
+      for (let i = 0; i < ownerDepth; i++) {
+        if (p.path[i] !== target.ownerPath[i]) return false;
+      }
+      return true;
+    };
+
+    for (const id of ids) {
+      const parsed = this.parseLeafId(id);
+      if (!parsed) continue;
+      if (!matchesOwner(parsed)) continue;
+
+      let childIdx = parsed.path[ownerDepth];
+      const childCell = ownerCell.split.cells[childIdx];
+      if (childCell?.coveredBy) {
+        childIdx = childCell.coveredBy.row * cols + childCell.coveredBy.col;
+      }
+
+      const r = Math.floor(childIdx / cols);
+      const c = childIdx % cols;
+
+      minRow = Math.min(minRow, r);
+      maxRow = Math.max(maxRow, r);
+      minCol = Math.min(minCol, c);
+      maxCol = Math.max(maxCol, c);
+    }
+
+    // If selection doesn't include any leaves in this owner (e.g. mixed selection), fall back to the active leaf.
+    if (!Number.isFinite(minRow) || !Number.isFinite(minCol)) {
+      const parsed = this.parseLeafId(fallbackLeafId);
+      if (!parsed || !matchesOwner(parsed)) return null;
+      let childIdx = parsed.path[ownerDepth];
+      const childCell = ownerCell.split.cells[childIdx];
+      if (childCell?.coveredBy) {
+        childIdx = childCell.coveredBy.row * cols + childCell.coveredBy.col;
+      }
+      const r = Math.floor(childIdx / cols);
+      const c = childIdx % cols;
+      minRow = maxRow = r;
+      minCol = maxCol = c;
+    }
+
+    // Clamp bounds within the split grid.
+    minRow = Math.max(0, Math.min(rows - 1, minRow));
+    maxRow = Math.max(0, Math.min(rows - 1, maxRow));
+    minCol = Math.max(0, Math.min(cols - 1, minCol));
+    maxCol = Math.max(0, Math.min(cols - 1, maxCol));
+
+    // For completeness; callers compute insertIndex by axis.
+    if (axis === 'row') {
+      return { minRow, maxRow, minCol: 0, maxCol: cols - 1, ownerRows: rows, ownerCols: cols, ownerDepth };
+    }
+    return { minRow: 0, maxRow: rows - 1, minCol, maxCol, ownerRows: rows, ownerCols: cols, ownerDepth };
+  }
+
+  private formatLeafId(row: number, col: number, path: number[]): string {
+    return path.length > 0 ? `${row}-${col}-${path.join('-')}` : `${row}-${col}`;
+  }
+
+  private remapLeafIdForTableInsert(leafId: string, axis: 'row' | 'col', insertIndex: number): string | null {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return null;
+    const row = axis === 'row' && parsed.row >= insertIndex ? parsed.row + 1 : parsed.row;
+    const col = axis === 'col' && parsed.col >= insertIndex ? parsed.col + 1 : parsed.col;
+    return this.formatLeafId(row, col, parsed.path);
+  }
+
+  private remapLeafIdForSplitInsert(
+    leafId: string,
+    target: { ownerRow: number; ownerCol: number; ownerPath: number[] },
+    axis: 'row' | 'col',
+    insertIndex: number,
+    oldCols: number
+  ): string | null {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return null;
+    if (parsed.row !== target.ownerRow || parsed.col !== target.ownerCol) return leafId;
+
+    const depth = target.ownerPath.length;
+    if (parsed.path.length <= depth) return leafId;
+    for (let i = 0; i < depth; i++) {
+      if (parsed.path[i] !== target.ownerPath[i]) return leafId;
+    }
+
+    const childIdx = parsed.path[depth];
+    const oldRow = Math.floor(childIdx / oldCols);
+    const oldCol = childIdx % oldCols;
+
+    const newRow = axis === 'row' && oldRow >= insertIndex ? oldRow + 1 : oldRow;
+    const newCol = axis === 'col' && oldCol >= insertIndex ? oldCol + 1 : oldCol;
+    const newCols = axis === 'col' ? oldCols + 1 : oldCols;
+    const newIdx = newRow * newCols + newCol;
+
+    const nextPath = [...parsed.path];
+    nextPath[depth] = newIdx;
+    return this.formatLeafId(parsed.row, parsed.col, nextPath);
+  }
+
+  private insertFractions(
+    current: number[],
+    oldCount: number,
+    insertIndex: number,
+    placement: 'before' | 'after'
+  ): number[] {
+    const n = Math.max(1, Math.trunc(oldCount));
+    const base = this.normalizeFractions(current ?? [], n);
+
+    const clampedInsert = Math.max(0, Math.min(n, Math.trunc(insertIndex)));
+    const donorIndex = placement === 'before'
+      ? Math.min(clampedInsert, n - 1)
+      : Math.max(0, Math.min(n - 1, clampedInsert - 1));
+
+    const donor = base[donorIndex] ?? (1 / n);
+    const half = donor / 2;
+
+    const next = [...base];
+    next[donorIndex] = donor - half;
+    next.splice(clampedInsert, 0, half);
+    return this.normalizeFractions(next, next.length);
+  }
+
+  private rebuildTopLevelCoveredBy(rows: TableRow[]): void {
+    const rowCount = rows.length;
+    const colCount = this.getTopLevelColCount(rows);
+
+    // Clear coveredBy everywhere first.
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < colCount; c++) {
+        const cell = rows?.[r]?.cells?.[c];
+        if (!cell) continue;
+        cell.coveredBy = undefined;
+      }
+    }
+
+    // Re-cover from merge anchors.
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < colCount; c++) {
+        const cell = rows?.[r]?.cells?.[c];
+        if (!cell) continue;
+        if (cell.coveredBy) continue;
+        if (!cell.merge) continue;
+
+        const rowSpan = Math.max(1, cell.merge.rowSpan);
+        const colSpan = Math.max(1, cell.merge.colSpan);
+
+        for (let rr = r; rr < Math.min(rowCount, r + rowSpan); rr++) {
+          for (let cc = c; cc < Math.min(colCount, c + colSpan); cc++) {
+            if (rr === r && cc === c) continue;
+            const covered = rows?.[rr]?.cells?.[cc];
+            if (!covered) continue;
+            covered.coveredBy = { row: r, col: c };
+            covered.contentHtml = '';
+            covered.split = undefined;
+            covered.merge = undefined;
+          }
+        }
+      }
+    }
+  }
+
+  private rebuildSplitCoveredBy(splitOwner: TableCell): void {
+    const split = splitOwner.split;
+    if (!split) return;
+
+    const rows = Math.max(1, split.rows);
+    const cols = Math.max(1, split.cols);
+
+    // Clear coveredBy everywhere first.
+    for (const cell of split.cells) {
+      if (!cell) continue;
+      cell.coveredBy = undefined;
+    }
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const idx = r * cols + c;
+        const cell = split.cells[idx];
+        if (!cell) continue;
+        if (cell.coveredBy) continue;
+        if (!cell.merge) continue;
+
+        const rowSpan = Math.max(1, cell.merge.rowSpan);
+        const colSpan = Math.max(1, cell.merge.colSpan);
+
+        for (let rr = r; rr < Math.min(rows, r + rowSpan); rr++) {
+          for (let cc = c; cc < Math.min(cols, c + colSpan); cc++) {
+            if (rr === r && cc === c) continue;
+            const cIdx = rr * cols + cc;
+            const covered = split.cells[cIdx];
+            if (!covered) continue;
+            covered.coveredBy = { row: r, col: c };
+            covered.contentHtml = '';
+            covered.split = undefined;
+            covered.merge = undefined;
+          }
+        }
+      }
+    }
+  }
+
+  private insertIntoTable(axis: 'row' | 'col', placement: 'before' | 'after', insertIndex: number): void {
+    const snapshot = this.localRows();
+    const oldRowCount = this.getTopLevelRowCount(snapshot);
+    const oldColCount = this.getTopLevelColCount(snapshot);
+
+    const clampedInsert =
+      axis === 'row'
+        ? Math.max(0, Math.min(oldRowCount, Math.trunc(insertIndex)))
+        : Math.max(0, Math.min(oldColCount, Math.trunc(insertIndex)));
+
+    // Precompute which merge anchors should expand (based on snapshot coordinates).
+    const expandAnchors: Array<{ r: number; c: number }> = [];
+    for (let r = 0; r < oldRowCount; r++) {
+      for (let c = 0; c < oldColCount; c++) {
+        const cell = snapshot?.[r]?.cells?.[c];
+        if (!cell || cell.coveredBy || !cell.merge) continue;
+
+        if (axis === 'row') {
+          const span = Math.max(1, cell.merge.rowSpan);
+          if (r < clampedInsert && clampedInsert < r + span) {
+            expandAnchors.push({ r, c });
+          }
+        } else {
+          const span = Math.max(1, cell.merge.colSpan);
+          if (c < clampedInsert && clampedInsert < c + span) {
+            expandAnchors.push({ r, c });
+          }
+        }
+      }
+    }
+
+    // Remap selection + active id before we mutate.
+    const selectionBefore = this.selectedCells();
+    const remappedSelection = new Set<string>();
+    for (const id of selectionBefore) {
+      const mapped = this.remapLeafIdForTableInsert(id, axis, clampedInsert);
+      if (mapped) remappedSelection.add(mapped);
+    }
+    const remappedActive = this.activeCellId ? this.remapLeafIdForTableInsert(this.activeCellId, axis, clampedInsert) : null;
+
+    // Update persisted fractions (top-level).
+    if (axis === 'row') {
+      const next = this.insertFractions(this.rowFractions(), oldRowCount, clampedInsert, placement);
+      this.rowFractions.set(next);
+    } else {
+      const next = this.insertFractions(this.columnFractions(), oldColCount, clampedInsert, placement);
+      this.columnFractions.set(next);
+    }
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      const rowCount = this.getTopLevelRowCount(next);
+      const colCount = this.getTopLevelColCount(next);
+
+      if (axis === 'row') {
+        const newRow: TableRow = {
+          id: uuid(),
+          cells: Array.from({ length: colCount }, () => ({
+            id: uuid(),
+            contentHtml: '',
+          })),
+        };
+        next.splice(clampedInsert, 0, newRow);
+
+        for (const a of expandAnchors) {
+          const anchor = next?.[a.r]?.cells?.[a.c];
+          if (anchor?.merge) {
+            anchor.merge.rowSpan = Math.max(1, anchor.merge.rowSpan) + 1;
+          }
+        }
+      } else {
+        for (let r = 0; r < rowCount; r++) {
+          const row = next?.[r];
+          if (!row) continue;
+          row.cells.splice(clampedInsert, 0, { id: uuid(), contentHtml: '' });
+        }
+
+        for (const a of expandAnchors) {
+          const anchor = next?.[a.r]?.cells?.[a.c];
+          if (anchor?.merge) {
+            anchor.merge.colSpan = Math.max(1, anchor.merge.colSpan) + 1;
+          }
+        }
+      }
+
+      this.rebuildTopLevelCoveredBy(next);
+      return next;
+    });
+
+    const afterRows = this.localRows();
+    this.emitPropsChange(afterRows);
+    this.rowsAtEditStart = this.cloneRows(afterRows);
+
+    // Update selection + active id.
+    this.setSelection(remappedSelection);
+    this.activeCellId = remappedActive;
+    this.activeCellElement = null;
+
+    this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
+
+    if (remappedActive) {
+      window.setTimeout(() => {
+        const node = this.tableContainer?.nativeElement?.querySelector(
+          `.table-widget__cell-content[data-leaf="${remappedActive}"]`
+        ) as HTMLElement | null;
+        node?.focus();
+      }, 0);
+    }
+  }
+
+  private insertIntoSplit(
+    target: { kind: 'split'; ownerRow: number; ownerCol: number; ownerPath: number[] },
+    axis: 'row' | 'col',
+    placement: 'before' | 'after',
+    insertIndex: number
+  ): void {
+    const snapshot = this.localRows();
+    const base = snapshot?.[target.ownerRow]?.cells?.[target.ownerCol];
+    if (!base) return;
+    const ownerSnap = target.ownerPath.length === 0 ? base : this.getCellAtPath(base, target.ownerPath);
+    if (!ownerSnap?.split) return;
+
+    const oldRows = Math.max(1, ownerSnap.split.rows);
+    const oldCols = Math.max(1, ownerSnap.split.cols);
+    const axisCount = axis === 'row' ? oldRows : oldCols;
+    const clampedInsert = Math.max(0, Math.min(axisCount, Math.trunc(insertIndex)));
+
+    // Precompute merge anchors to expand (based on snapshot coords within this split).
+    const expandAnchors: Array<{ r: number; c: number }> = [];
+    for (let r = 0; r < oldRows; r++) {
+      for (let c = 0; c < oldCols; c++) {
+        const idx = r * oldCols + c;
+        const cell = ownerSnap.split.cells[idx];
+        if (!cell || cell.coveredBy || !cell.merge) continue;
+        if (axis === 'row') {
+          const span = Math.max(1, cell.merge.rowSpan);
+          if (r < clampedInsert && clampedInsert < r + span) expandAnchors.push({ r, c });
+        } else {
+          const span = Math.max(1, cell.merge.colSpan);
+          if (c < clampedInsert && clampedInsert < c + span) expandAnchors.push({ r, c });
+        }
+      }
+    }
+
+    // Remap selection + active id before we mutate (only affects leaves inside this split owner).
+    const selectionBefore = this.selectedCells();
+    const remappedSelection = new Set<string>();
+    for (const id of selectionBefore) {
+      const mapped = this.remapLeafIdForSplitInsert(id, target, axis, clampedInsert, oldCols);
+      if (mapped) remappedSelection.add(mapped);
+    }
+    const remappedActive = this.activeCellId
+      ? this.remapLeafIdForSplitInsert(this.activeCellId, target, axis, clampedInsert, oldCols)
+      : null;
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      const baseCell = next?.[target.ownerRow]?.cells?.[target.ownerCol];
+      if (!baseCell) return next;
+      const owner = target.ownerPath.length === 0 ? baseCell : this.getCellAtPath(baseCell, target.ownerPath);
+      if (!owner?.split) return next;
+
+      const split = owner.split;
+      const curRows = Math.max(1, split.rows);
+      const curCols = Math.max(1, split.cols);
+
+      // Rebuild as row arrays for easy insertion.
+      const grid: TableCell[][] = [];
+      for (let r = 0; r < curRows; r++) {
+        grid.push(split.cells.slice(r * curCols, (r + 1) * curCols));
+      }
+
+      if (axis === 'row') {
+        const newRowCells: TableCell[] = Array.from({ length: curCols }, () => ({ id: uuid(), contentHtml: '' }));
+        grid.splice(clampedInsert, 0, newRowCells);
+        split.rows = curRows + 1;
+        split.rowFractions = this.insertFractions(split.rowFractions ?? [], curRows, clampedInsert, placement);
+      } else {
+        for (let r = 0; r < grid.length; r++) {
+          grid[r].splice(clampedInsert, 0, { id: uuid(), contentHtml: '' });
+        }
+        split.cols = curCols + 1;
+        split.columnFractions = this.insertFractions(split.columnFractions ?? [], curCols, clampedInsert, placement);
+      }
+
+      // Flatten back.
+      split.cells = grid.flat();
+
+      // Expand merge anchors (coordinates refer to original grid before insertion).
+      for (const a of expandAnchors) {
+        const colsNow = Math.max(1, split.cols);
+        const idx = a.r * colsNow + a.c;
+        const anchor = split.cells[idx];
+        if (!anchor?.merge) continue;
+        if (axis === 'row') {
+          anchor.merge.rowSpan = Math.max(1, anchor.merge.rowSpan) + 1;
+        } else {
+          anchor.merge.colSpan = Math.max(1, anchor.merge.colSpan) + 1;
+        }
+      }
+
+      this.rebuildSplitCoveredBy(owner);
+      return next;
+    });
+
+    const afterRows = this.localRows();
+    this.emitPropsChange(afterRows);
+    this.rowsAtEditStart = this.cloneRows(afterRows);
+
+    this.setSelection(remappedSelection);
+    this.activeCellId = remappedActive;
+    this.activeCellElement = null;
+
+    this.cdr.markForCheck();
+
+    if (remappedActive) {
+      window.setTimeout(() => {
+        const node = this.tableContainer?.nativeElement?.querySelector(
+          `.table-widget__cell-content[data-leaf="${remappedActive}"]`
+        ) as HTMLElement | null;
+        node?.focus();
+      }, 0);
+    }
   }
 
   private applySplitToSelection(request: SplitCellRequest): void {

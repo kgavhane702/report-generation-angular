@@ -208,5 +208,29 @@ export class TableToolbarComponent {
     if (!Number.isFinite(px)) return;
     this.toolbarService.applyFontSizePx(px);
   }
+
+  onInsertRowAbove(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestInsert({ axis: 'row', placement: 'before' });
+  }
+
+  onInsertRowBelow(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestInsert({ axis: 'row', placement: 'after' });
+  }
+
+  onInsertColLeft(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestInsert({ axis: 'col', placement: 'before' });
+  }
+
+  onInsertColRight(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestInsert({ axis: 'col', placement: 'after' });
+  }
 }
 
