@@ -55,6 +55,26 @@
       (pointerdown)="onRowResizePointerDown($event, s.boundaryIndex)"
     ></div>
   </div>
+
+  <!-- Shared split resize overlay (continuous lines across multiple split grids) -->
+  <div class="table-widget__shared-split-resize-overlay" aria-hidden="true">
+    <div
+      *ngFor="let s of sharedSplitColResizeSegments"
+      class="table-widget__resize-handle table-widget__resize-handle--col"
+      [style.left.%]="s.leftPercent"
+      [style.top.%]="s.topPercent"
+      [style.height.%]="s.heightPercent"
+      (pointerdown)="onSharedSplitColResizePointerDown($event, s.boundaryAbs)"
+    ></div>
+    <div
+      *ngFor="let s of sharedSplitRowResizeSegments"
+      class="table-widget__resize-handle table-widget__resize-handle--row"
+      [style.top.%]="s.topPercent"
+      [style.left.%]="s.leftPercent"
+      [style.width.%]="s.widthPercent"
+      (pointerdown)="onSharedSplitRowResizePointerDown($event, s.boundaryAbs)"
+    ></div>
+  </div>
 </div>
 
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
@@ -85,6 +105,7 @@
   <ng-template #splitRenderer>
     <div
       class="table-widget__split-grid"
+      [attr.data-owner-leaf]="composeLeafId(rowIndex, cellIndex, path)"
       [style.gridTemplateColumns]="getSplitGridTemplateColumns(rowIndex, cellIndex, path, cell)"
       [style.gridTemplateRows]="getSplitGridTemplateRows(rowIndex, cellIndex, path, cell)"
     >

@@ -43,6 +43,9 @@ import { DraftStateService } from '../../../../../core/services/draft-state.serv
 type ColResizeSegment = { boundaryIndex: number; leftPercent: number; topPercent: number; heightPercent: number };
 type RowResizeSegment = { boundaryIndex: number; topPercent: number; leftPercent: number; widthPercent: number };
 
+type SharedSplitColSegment = { boundaryAbs: number; leftPercent: number; topPercent: number; heightPercent: number };
+type SharedSplitRowSegment = { boundaryAbs: number; topPercent: number; leftPercent: number; widthPercent: number };
+
 /**
  * TableWidgetComponent
  * 
@@ -97,6 +100,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly colResizeSegmentsSig = signal<ColResizeSegment[]>([]);
   private readonly rowResizeSegmentsSig = signal<RowResizeSegment[]>([]);
 
+  private readonly sharedSplitColSegmentsSig = signal<SharedSplitColSegment[]>([]);
+  private readonly sharedSplitRowSegmentsSig = signal<SharedSplitRowSegment[]>([]);
+
   private resizeSegmentsRaf: number | null = null;
   private resizeObserver?: ResizeObserver;
   private zoomEffectRef?: EffectRef;
@@ -125,6 +131,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         kind: 'col' | 'row';
         ownerLeafId: string; // leaf id of the split owner cell (row-col[-path])
         boundaryIndex: number; // boundary between (i-1) and i within split grid
+        /**
+         * Absolute boundary anchor (0..1) within the top-level table.
+         * Used to resize multiple split-grids together when their boundaries align.
+         */
+        sharedBoundaryAbs?: number;
+        /** Other split owners that share the same continuous boundary line. */
+        sharedOwnerLeafIds?: string[];
         pointerId: number;
         startClientX: number;
         startClientY: number;
@@ -137,6 +150,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private readonly previewSplitColFractions = signal<Map<string, number[]>>(new Map());
   private readonly previewSplitRowFractions = signal<Map<string, number[]>>(new Map());
+
+  /**
+   * During a split resize, we want aligned boundaries (same continuous line) across different split owners
+   * to resize together. We detect alignment via an absolute boundary fraction (0..1) within the top-level table.
+   */
+  private readonly sharedSplitBoundaryEpsilon = 0.004;
   
   /** Track if we're actively editing */
   private readonly isActivelyEditing = signal<boolean>(false);
@@ -241,6 +260,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get rowResizeSegments(): RowResizeSegment[] {
     return this.rowResizeSegmentsSig();
+  }
+
+  get sharedSplitColResizeSegments(): SharedSplitColSegment[] {
+    return this.sharedSplitColSegmentsSig();
+  }
+
+  get sharedSplitRowResizeSegments(): SharedSplitRowSegment[] {
+    return this.sharedSplitRowSegmentsSig();
   }
 
   get widgetId(): string {
@@ -3873,8 +3900,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (boundaryIndex <= 0 || boundaryIndex >= cols) return;
 
     const splitGridEl = (event.target as HTMLElement | null)?.closest('.table-widget__split-grid') as HTMLElement | null;
-    const rect = splitGridEl?.getBoundingClientRect();
+    if (!splitGridEl) return;
+    const rect = splitGridEl.getBoundingClientRect();
     if (!rect) return;
+
+    const sharedAbs = this.computeSplitBoundaryAbs('col', splitGridEl, ownerLeafId, owner, boundaryIndex);
+    const sharedOwners = sharedAbs !== null ? this.findSharedSplitOwners('col', sharedAbs) : [];
 
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, rect.width / zoomScale);
@@ -3885,6 +3916,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       kind: 'col',
       ownerLeafId,
       boundaryIndex,
+      sharedBoundaryAbs: sharedAbs ?? undefined,
+      sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -3925,8 +3958,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (boundaryIndex <= 0 || boundaryIndex >= rows) return;
 
     const splitGridEl = (event.target as HTMLElement | null)?.closest('.table-widget__split-grid') as HTMLElement | null;
-    const rect = splitGridEl?.getBoundingClientRect();
+    if (!splitGridEl) return;
+    const rect = splitGridEl.getBoundingClientRect();
     if (!rect) return;
+
+    const sharedAbs = this.computeSplitBoundaryAbs('row', splitGridEl, ownerLeafId, owner, boundaryIndex);
+    const sharedOwners = sharedAbs !== null ? this.findSharedSplitOwners('row', sharedAbs) : [];
 
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, rect.width / zoomScale);
@@ -3937,6 +3974,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       kind: 'row',
       ownerLeafId,
       boundaryIndex,
+      sharedBoundaryAbs: sharedAbs ?? undefined,
+      sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
@@ -3972,52 +4011,53 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const r = this.activeSplitResize;
 
-    const owner = this.getCellModelByLeafId(r.ownerLeafId);
-    if (owner?.split) {
-      const finalColFractions =
-        this.previewSplitColFractions().get(r.ownerLeafId) ?? (r.kind === 'col' ? r.startFractions : null);
-      const finalRowFractions =
-        this.previewSplitRowFractions().get(r.ownerLeafId) ?? (r.kind === 'row' ? r.startFractions : null);
+    const ownersToPersist = Array.from(new Set([r.ownerLeafId, ...(r.sharedOwnerLeafIds ?? [])]));
 
-      this.localRows.update((rows) => {
-        const next = this.cloneRows(rows);
-        const parsed = this.parseLeafId(r.ownerLeafId);
-        if (!parsed) return next;
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+      for (const ownerLeafId of ownersToPersist) {
+        const parsed = this.parseLeafId(ownerLeafId);
+        if (!parsed) continue;
 
         let baseCell = next?.[parsed.row]?.cells?.[parsed.col];
-        if (!baseCell) return next;
+        if (!baseCell) continue;
 
         // Safety: if leaf id points to a covered top-level cell, redirect to its anchor
         if (baseCell.coveredBy) {
           const a = baseCell.coveredBy;
           baseCell = next?.[a.row]?.cells?.[a.col];
-          if (!baseCell) return next;
+          if (!baseCell) continue;
         }
 
         const target = parsed.path.length === 0 ? baseCell : this.getCellAtPath(baseCell, parsed.path);
-        if (!target?.split) return next;
+        if (!target?.split) continue;
 
-        if (r.kind === 'col' && finalColFractions) {
-          target.split.columnFractions = this.normalizeFractions(finalColFractions, Math.max(1, target.split.cols));
+        if (r.kind === 'col') {
+          const final = this.previewSplitColFractions().get(ownerLeafId);
+          if (final) {
+            target.split.columnFractions = this.normalizeFractions(final, Math.max(1, target.split.cols));
+          }
+        } else {
+          const final = this.previewSplitRowFractions().get(ownerLeafId);
+          if (final) {
+            target.split.rowFractions = this.normalizeFractions(final, Math.max(1, target.split.rows));
+          }
         }
-        if (r.kind === 'row' && finalRowFractions) {
-          target.split.rowFractions = this.normalizeFractions(finalRowFractions, Math.max(1, target.split.rows));
-        }
+      }
+      return next;
+    });
 
-        return next;
-      });
+    // Persist immediately (discrete sizing action).
+    this.emitPropsChange(this.localRows());
 
-      // Persist immediately (discrete sizing action).
-      this.emitPropsChange(this.localRows());
-    }
-
-    // Clear previews for this owner (even if owner disappeared)
+    // Clear previews for all involved owners
     const colMap = new Map(this.previewSplitColFractions());
-    colMap.delete(r.ownerLeafId);
-    this.previewSplitColFractions.set(colMap);
-
     const rowMap = new Map(this.previewSplitRowFractions());
-    rowMap.delete(r.ownerLeafId);
+    for (const ownerLeafId of ownersToPersist) {
+      colMap.delete(ownerLeafId);
+      rowMap.delete(ownerLeafId);
+    }
+    this.previewSplitColFractions.set(colMap);
     this.previewSplitRowFractions.set(rowMap);
 
     this.isResizingSplitGrid = false;
@@ -4066,8 +4106,35 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       next[leftIdx] = clampedLeft;
       next[rightIdx] = total - clampedLeft;
 
+      const updated = this.normalizeFractions(next, cols);
       const map = new Map(this.previewSplitColFractions());
-      map.set(r.ownerLeafId, this.normalizeFractions(next, cols));
+      map.set(r.ownerLeafId, updated);
+
+      // Propagate to all split owners that share the same continuous boundary line.
+      const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
+      for (const otherLeafId of others) {
+        const other = this.getCellModelByLeafId(otherLeafId);
+        if (!other?.split) continue;
+        const otherCols = Math.max(1, other.split.cols);
+        if (otherCols <= 1 || r.boundaryIndex <= 0 || r.boundaryIndex >= otherCols) continue;
+
+        const otherStart = [...this.getSplitColFractions(otherLeafId, other)];
+        const li = r.boundaryIndex - 1;
+        const ri = r.boundaryIndex;
+        if (otherStart.length !== otherCols) continue;
+        const otherTotal = otherStart[li] + otherStart[ri];
+
+        // Keep the same left-side ratio as the active owner.
+        const ratio = total > 0 ? clampedLeft / total : 0.5;
+        const minOtherLeft = this.minSplitColPx / r.containerWidthPx;
+        const minOtherRight = this.minSplitColPx / r.containerWidthPx;
+        const desiredLeft = otherTotal * ratio;
+        const clampedOtherLeft = this.clamp(desiredLeft, minOtherLeft, otherTotal - minOtherRight);
+        otherStart[li] = clampedOtherLeft;
+        otherStart[ri] = otherTotal - clampedOtherLeft;
+        map.set(otherLeafId, this.normalizeFractions(otherStart, otherCols));
+      }
+
       this.previewSplitColFractions.set(map);
     } else {
       const rows = Math.max(1, owner.split.rows);
@@ -4090,8 +4157,35 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       next[topIdx] = clampedTop;
       next[bottomIdx] = total - clampedTop;
 
+      const updated = this.normalizeFractions(next, rows);
       const map = new Map(this.previewSplitRowFractions());
-      map.set(r.ownerLeafId, this.normalizeFractions(next, rows));
+      map.set(r.ownerLeafId, updated);
+
+      // Propagate to all split owners that share the same continuous boundary line.
+      const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
+      for (const otherLeafId of others) {
+        const other = this.getCellModelByLeafId(otherLeafId);
+        if (!other?.split) continue;
+        const otherRows = Math.max(1, other.split.rows);
+        if (otherRows <= 1 || r.boundaryIndex <= 0 || r.boundaryIndex >= otherRows) continue;
+
+        const otherStart = [...this.getSplitRowFractions(otherLeafId, other)];
+        const ti = r.boundaryIndex - 1;
+        const bi = r.boundaryIndex;
+        if (otherStart.length !== otherRows) continue;
+        const otherTotal = otherStart[ti] + otherStart[bi];
+
+        // Keep the same top-side ratio as the active owner.
+        const ratio = total > 0 ? clampedTop / total : 0.5;
+        const minOtherTop = this.minSplitRowPx / r.containerHeightPx;
+        const minOtherBottom = this.minSplitRowPx / r.containerHeightPx;
+        const desiredTop = otherTotal * ratio;
+        const clampedOtherTop = this.clamp(desiredTop, minOtherTop, otherTotal - minOtherBottom);
+        otherStart[ti] = clampedOtherTop;
+        otherStart[bi] = otherTotal - clampedOtherTop;
+        map.set(otherLeafId, this.normalizeFractions(otherStart, otherRows));
+      }
+
       this.previewSplitRowFractions.set(map);
     }
 
@@ -4107,6 +4201,117 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (event.pointerId !== r.pointerId) return;
     this.finishSplitResize();
   };
+
+  private computeSplitBoundaryAbs(
+    kind: 'col' | 'row',
+    splitGridEl: HTMLElement,
+    ownerLeafId: string,
+    ownerCell: TableCell,
+    boundaryIndex: number
+  ): number | null {
+    const tableRect = this.getTableRect();
+    const rect = splitGridEl.getBoundingClientRect();
+    if (!tableRect) return null;
+    if (!Number.isFinite(tableRect.width) || !Number.isFinite(tableRect.height) || tableRect.width <= 0 || tableRect.height <= 0) {
+      return null;
+    }
+    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    // Boundary position within the split grid (0..1). Compute from fractions.
+    let within = 0.5;
+    if (kind === 'col') {
+      const f = this.getSplitColFractions(ownerLeafId, ownerCell);
+      within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+    } else {
+      const f = this.getSplitRowFractions(ownerLeafId, ownerCell);
+      within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+    }
+
+    // Convert to an absolute fraction within the top-level table.
+    if (kind === 'col') {
+      const xPx = rect.left + within * rect.width;
+      const abs = (xPx - tableRect.left) / tableRect.width;
+      return Math.max(0, Math.min(1, abs));
+    }
+    const yPx = rect.top + within * rect.height;
+    const abs = (yPx - tableRect.top) / tableRect.height;
+    return Math.max(0, Math.min(1, abs));
+  }
+
+  private findSharedSplitOwners(kind: 'col' | 'row', sharedAbs: number): string[] {
+    const table = this.getTableElement();
+    const tableRect = this.getTableRect();
+    if (!table || !tableRect) return [];
+    const eps = this.sharedSplitBoundaryEpsilon;
+    if (!Number.isFinite(sharedAbs)) return [];
+
+    const grids = Array.from(table.querySelectorAll('.table-widget__split-grid')) as HTMLElement[];
+    const out: string[] = [];
+
+    for (const grid of grids) {
+      const ownerLeafId = grid.getAttribute('data-owner-leaf');
+      if (!ownerLeafId) continue;
+      const owner = this.getCellModelByLeafId(ownerLeafId);
+      if (!owner?.split) continue;
+
+      // Only consider grids that have enough rows/cols for the boundary index.
+      // The boundaryIndex itself is checked per owner when applying.
+
+      const rect = grid.getBoundingClientRect();
+      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) continue;
+
+      // Estimate the closest abs boundary for this grid at the same within-grid fraction of the sharedAbs.
+      // We do this by projecting sharedAbs into the grid and snapping to its nearest boundary.
+      const within = kind === 'col'
+        ? (sharedAbs * tableRect.width + tableRect.left - rect.left) / rect.width
+        : (sharedAbs * tableRect.height + tableRect.top - rect.top) / rect.height;
+      const boundedWithin = Math.max(0, Math.min(1, within));
+
+      const boundaries = kind === 'col'
+        ? this.getSplitColFractions(ownerLeafId, owner)
+        : this.getSplitRowFractions(ownerLeafId, owner);
+
+      // Convert fractions to boundary positions (excluding 0 and 1)
+      const positions: number[] = [];
+      let acc = 0;
+      for (let i = 0; i < boundaries.length - 1; i++) {
+        acc += boundaries[i];
+        positions.push(acc);
+      }
+
+      const nearest = positions.reduce(
+        (best, p) => {
+          const d = Math.abs(p - boundedWithin);
+          return d < best.d ? { p, d } : best;
+        },
+        { p: 0.5, d: Number.POSITIVE_INFINITY }
+      );
+
+      const absPx = kind === 'col'
+        ? rect.left + nearest.p * rect.width
+        : rect.top + nearest.p * rect.height;
+      const abs = kind === 'col'
+        ? (absPx - tableRect.left) / tableRect.width
+        : (absPx - tableRect.top) / tableRect.height;
+
+      if (Math.abs(abs - sharedAbs) <= eps) {
+        out.push(ownerLeafId);
+      }
+    }
+
+    return out;
+  }
+
+  private computeSharedAbsFromRect(kind: 'col' | 'row', gridRect: DOMRect, tableRect: DOMRect, within: number): number {
+    if (kind === 'col') {
+      const xPx = gridRect.left + within * gridRect.width;
+      return Math.max(0, Math.min(1, (xPx - tableRect.left) / tableRect.width));
+    }
+    const yPx = gridRect.top + within * gridRect.height;
+    return Math.max(0, Math.min(1, (yPx - tableRect.top) / tableRect.height));
+  }
 
   private handleGridResizePointerMove = (event: PointerEvent): void => {
     if (!this.isResizingGrid || !this.activeGridResize) return;
@@ -4382,7 +4587,289 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     this.colResizeSegmentsSig.set(colSegments);
     this.rowResizeSegmentsSig.set(rowSegments);
+
+    // Also compute continuous overlays for split-grid boundaries that align across multiple parents.
+    this.recomputeSharedSplitResizeSegments(table, tableRect);
+
     this.cdr.markForCheck();
+  }
+
+  private recomputeSharedSplitResizeSegments(table: HTMLElement, tableRect: DOMRect): void {
+    const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+    const toXPct = (xPx: number): number => clamp01((xPx - tableRect.left) / tableRect.width) * 100;
+    const toYPct = (yPx: number): number => clamp01((yPx - tableRect.top) / tableRect.height) * 100;
+
+    const grids = Array.from(table.querySelectorAll('.table-widget__split-grid')) as HTMLElement[];
+    if (grids.length === 0) {
+      this.sharedSplitColSegmentsSig.set([]);
+      this.sharedSplitRowSegmentsSig.set([]);
+      return;
+    }
+
+    type BoundarySample = {
+      kind: 'col' | 'row';
+      boundaryAbs: number;
+      rect: DOMRect;
+      ownerLeafId: string;
+    };
+
+    const samples: BoundarySample[] = [];
+    for (const grid of grids) {
+      const ownerLeafId = grid.getAttribute('data-owner-leaf');
+      if (!ownerLeafId) continue;
+      const owner = this.getCellModelByLeafId(ownerLeafId);
+      if (!owner?.split) continue;
+      const rect = grid.getBoundingClientRect();
+      if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) continue;
+
+      // collect vertical boundaries (columns)
+      const colF = this.getSplitColFractions(ownerLeafId, owner);
+      if (colF.length > 1) {
+        let acc = 0;
+        for (let i = 0; i < colF.length - 1; i++) {
+          acc += colF[i];
+          const abs = this.computeSharedAbsFromRect('col', rect, tableRect, acc);
+          samples.push({ kind: 'col', boundaryAbs: abs, rect, ownerLeafId });
+        }
+      }
+
+      const rowF = this.getSplitRowFractions(ownerLeafId, owner);
+      if (rowF.length > 1) {
+        let acc = 0;
+        for (let i = 0; i < rowF.length - 1; i++) {
+          acc += rowF[i];
+          const abs = this.computeSharedAbsFromRect('row', rect, tableRect, acc);
+          samples.push({ kind: 'row', boundaryAbs: abs, rect, ownerLeafId });
+        }
+      }
+    }
+
+    const eps = this.sharedSplitBoundaryEpsilon;
+    const groupKey = (abs: number): number => Math.round(abs / eps);
+
+    const colGroups = new Map<number, BoundarySample[]>();
+    const rowGroups = new Map<number, BoundarySample[]>();
+    for (const s of samples) {
+      const key = groupKey(s.boundaryAbs);
+      const m = s.kind === 'col' ? colGroups : rowGroups;
+      const arr = m.get(key) ?? [];
+      arr.push(s);
+      m.set(key, arr);
+    }
+
+    const buildColSegments = (): SharedSplitColSegment[] => {
+      const out: SharedSplitColSegment[] = [];
+      for (const [, group] of colGroups) {
+        if (group.length < 2) continue; // only if shared by multiple grids
+
+        const boundaryAbs = group.reduce((a, b) => a + b.boundaryAbs, 0) / group.length;
+        const xPx = tableRect.left + boundaryAbs * tableRect.width;
+
+        // Merge overlapping vertical spans from all contributing grids
+        const spans = group
+          .map((g) => ({ top: g.rect.top, bottom: g.rect.bottom }))
+          .sort((a, b) => a.top - b.top);
+
+        let cur = spans[0];
+        for (let i = 1; i < spans.length; i++) {
+          const s = spans[i];
+          if (s.top <= cur.bottom + 1) {
+            cur.bottom = Math.max(cur.bottom, s.bottom);
+          } else {
+            out.push({
+              boundaryAbs,
+              leftPercent: toXPct(xPx),
+              topPercent: toYPct(cur.top),
+              heightPercent: clamp01((cur.bottom - cur.top) / tableRect.height) * 100,
+            });
+            cur = s;
+          }
+        }
+        out.push({
+          boundaryAbs,
+          leftPercent: toXPct(xPx),
+          topPercent: toYPct(cur.top),
+          heightPercent: clamp01((cur.bottom - cur.top) / tableRect.height) * 100,
+        });
+      }
+      return out;
+    };
+
+    const buildRowSegments = (): SharedSplitRowSegment[] => {
+      const out: SharedSplitRowSegment[] = [];
+      for (const [, group] of rowGroups) {
+        if (group.length < 2) continue;
+
+        const boundaryAbs = group.reduce((a, b) => a + b.boundaryAbs, 0) / group.length;
+        const yPx = tableRect.top + boundaryAbs * tableRect.height;
+
+        const spans = group
+          .map((g) => ({ left: g.rect.left, right: g.rect.right }))
+          .sort((a, b) => a.left - b.left);
+
+        let cur = spans[0];
+        for (let i = 1; i < spans.length; i++) {
+          const s = spans[i];
+          if (s.left <= cur.right + 1) {
+            cur.right = Math.max(cur.right, s.right);
+          } else {
+            out.push({
+              boundaryAbs,
+              topPercent: toYPct(yPx),
+              leftPercent: toXPct(cur.left),
+              widthPercent: clamp01((cur.right - cur.left) / tableRect.width) * 100,
+            });
+            cur = s;
+          }
+        }
+        out.push({
+          boundaryAbs,
+          topPercent: toYPct(yPx),
+          leftPercent: toXPct(cur.left),
+          widthPercent: clamp01((cur.right - cur.left) / tableRect.width) * 100,
+        });
+      }
+      return out;
+    };
+
+    this.sharedSplitColSegmentsSig.set(buildColSegments());
+    this.sharedSplitRowSegmentsSig.set(buildRowSegments());
+  }
+
+  onSharedSplitColResizePointerDown(event: PointerEvent, boundaryAbs: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    const owners = this.findSharedSplitOwners('col', boundaryAbs);
+    if (owners.length === 0) return;
+
+    // Pick the first owner as the active anchor for boundary index + container sizing.
+    const ownerLeafId = owners[0];
+    const owner = this.getCellModelByLeafId(ownerLeafId);
+    if (!owner?.split) return;
+
+    // Determine the closest boundary index for this owner.
+    const f = this.getSplitColFractions(ownerLeafId, owner);
+    if (f.length <= 1) return;
+    let acc = 0;
+    let bestIdx = 1;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < f.length; i++) {
+      acc += f[i - 1];
+      const d = Math.abs(acc - 0.5); // placeholder
+      // We'll infer within by projecting boundaryAbs to within of this grid below.
+      if (d < bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+
+    const table = this.getTableElement();
+    if (!table) return;
+    const gridEl = table.querySelector(`.table-widget__split-grid[data-owner-leaf="${ownerLeafId}"]`) as HTMLElement | null;
+    if (!gridEl) return;
+    const gridRect = gridEl.getBoundingClientRect();
+    const tableRect = this.getTableRect();
+    if (!tableRect) return;
+
+    // Compute within and nearest boundary index properly.
+    const within = (boundaryAbs * tableRect.width + tableRect.left - gridRect.left) / gridRect.width;
+    const boundedWithin = Math.max(0, Math.min(1, within));
+    acc = 0;
+    bestIdx = 1;
+    bestD = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < f.length; i++) {
+      acc += f[i - 1];
+      const d = Math.abs(acc - boundedWithin);
+      if (d < bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const containerWidthPx = Math.max(1, gridRect.width / zoomScale);
+    const containerHeightPx = Math.max(1, gridRect.height / zoomScale);
+
+    this.isResizingSplitGrid = true;
+    this.activeSplitResize = {
+      kind: 'col',
+      ownerLeafId,
+      boundaryIndex: bestIdx,
+      sharedBoundaryAbs: boundaryAbs,
+      sharedOwnerLeafIds: owners,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...f],
+      containerWidthPx,
+      containerHeightPx,
+      zoomScale,
+    };
+
+    this.installSplitResizeListeners();
+  }
+
+  onSharedSplitRowResizePointerDown(event: PointerEvent, boundaryAbs: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    const owners = this.findSharedSplitOwners('row', boundaryAbs);
+    if (owners.length === 0) return;
+
+    const ownerLeafId = owners[0];
+    const owner = this.getCellModelByLeafId(ownerLeafId);
+    if (!owner?.split) return;
+
+    const f = this.getSplitRowFractions(ownerLeafId, owner);
+    if (f.length <= 1) return;
+
+    const table = this.getTableElement();
+    if (!table) return;
+    const gridEl = table.querySelector(`.table-widget__split-grid[data-owner-leaf="${ownerLeafId}"]`) as HTMLElement | null;
+    if (!gridEl) return;
+    const gridRect = gridEl.getBoundingClientRect();
+    const tableRect = this.getTableRect();
+    if (!tableRect) return;
+
+    const within = (boundaryAbs * tableRect.height + tableRect.top - gridRect.top) / gridRect.height;
+    const boundedWithin = Math.max(0, Math.min(1, within));
+
+    let acc = 0;
+    let bestIdx = 1;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < f.length; i++) {
+      acc += f[i - 1];
+      const d = Math.abs(acc - boundedWithin);
+      if (d < bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const containerWidthPx = Math.max(1, gridRect.width / zoomScale);
+    const containerHeightPx = Math.max(1, gridRect.height / zoomScale);
+
+    this.isResizingSplitGrid = true;
+    this.activeSplitResize = {
+      kind: 'row',
+      ownerLeafId,
+      boundaryIndex: bestIdx,
+      sharedBoundaryAbs: boundaryAbs,
+      sharedOwnerLeafIds: owners,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFractions: [...f],
+      containerWidthPx,
+      containerHeightPx,
+      zoomScale,
+    };
+
+    this.installSplitResizeListeners();
   }
 
   private initializeFractionsFromProps(): void {

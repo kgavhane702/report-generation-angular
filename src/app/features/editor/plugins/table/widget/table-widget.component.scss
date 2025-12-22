@@ -154,6 +154,14 @@
     z-index: 30; // above selection overlays
   }
 
+  // Overlay for split boundaries that align across multiple split grids.
+  &__shared-split-resize-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 34; // above top-level handles, below split overlays
+  }
+
   &__resize-handle {
     position: absolute;
     pointer-events: auto;
