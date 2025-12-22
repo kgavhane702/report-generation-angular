@@ -37,16 +37,20 @@
   <!-- Column/Row resize overlay -->
   <div class="table-widget__resize-overlay" aria-hidden="true">
     <div
-      *ngFor="let h of colResizeHandles"
+      *ngFor="let s of colResizeSegments"
       class="table-widget__resize-handle table-widget__resize-handle--col"
-      [style.left.%]="h.leftPercent"
-      (pointerdown)="onColResizePointerDown($event, h.boundaryIndex)"
+      [style.left.%]="s.leftPercent"
+      [style.top.%]="s.topPercent"
+      [style.height.%]="s.heightPercent"
+      (pointerdown)="onColResizePointerDown($event, s.boundaryIndex)"
     ></div>
     <div
-      *ngFor="let h of rowResizeHandles"
+      *ngFor="let s of rowResizeSegments"
       class="table-widget__resize-handle table-widget__resize-handle--row"
-      [style.top.%]="h.topPercent"
-      (pointerdown)="onRowResizePointerDown($event, h.boundaryIndex)"
+      [style.top.%]="s.topPercent"
+      [style.left.%]="s.leftPercent"
+      [style.width.%]="s.widthPercent"
+      (pointerdown)="onRowResizePointerDown($event, s.boundaryIndex)"
     ></div>
   </div>
 </div>

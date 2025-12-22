@@ -1,13 +1,16 @@
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  EffectRef,
   EventEmitter,
   Input,
   OnChanges,
   OnDestroy,
   Output,
   SimpleChanges,
+  effect,
   inject,
   OnInit,
   signal,
@@ -30,6 +33,9 @@ import { CellBorderRequest, SplitCellRequest, TableToolbarService } from '../../
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../core/services/pending-changes-registry.service';
 
+type ColResizeSegment = { boundaryIndex: number; leftPercent: number; topPercent: number; heightPercent: number };
+type RowResizeSegment = { boundaryIndex: number; topPercent: number; leftPercent: number; widthPercent: number };
+
 /**
  * TableWidgetComponent
  * 
@@ -45,7 +51,7 @@ import { PendingChangesRegistry, FlushableWidget } from '../../../../core/servic
   styleUrls: ['./table-widget.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, FlushableWidget {
+export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy, FlushableWidget {
   private readonly maxSplitDepth = 4;
   private readonly minColPx = 40;
   private readonly minRowPx = 24;
@@ -72,6 +78,17 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
   /** Live preview during resize drag */
   private readonly previewColumnFractions = signal<number[] | null>(null);
   private readonly previewRowFractions = signal<number[] | null>(null);
+
+  // ============================================
+  // Segmented resize handles (gap-aware)
+  // ============================================
+
+  private readonly colResizeSegmentsSig = signal<ColResizeSegment[]>([]);
+  private readonly rowResizeSegmentsSig = signal<RowResizeSegment[]>([]);
+
+  private resizeSegmentsRaf: number | null = null;
+  private resizeObserver?: ResizeObserver;
+  private zoomEffectRef?: EffectRef;
 
   private isResizingGrid = false;
   private activeGridResize:
@@ -172,6 +189,14 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return out;
   }
 
+  get colResizeSegments(): ColResizeSegment[] {
+    return this.colResizeSegmentsSig();
+  }
+
+  get rowResizeSegments(): RowResizeSegment[] {
+    return this.rowResizeSegmentsSig();
+  }
+
   get widgetId(): string {
     return this.widget.id;
   }
@@ -186,6 +211,15 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     return row.cells
       .map((cell, colIndex) => ({ cell, colIndex }))
       .filter(({ cell }) => !cell.coveredBy);
+  }
+
+  constructor() {
+    // Recompute on zoom changes (canvas is scaled via transform: scale(...)).
+    // IMPORTANT: effect() must be created in an injection context (constructor is OK).
+    this.zoomEffectRef = effect(() => {
+      this.uiState.zoomLevel();
+      this.scheduleRecomputeResizeSegments();
+    });
   }
 
   ngOnInit(): void {
@@ -277,6 +311,23 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       this.formatPainterBaselineSelection = new Set(this.selectedCells());
       this.formatPainterBaselineActiveCellId = this.activeCellId;
     });
+
+    // Compute initial resize segments once the table is painted (RAF).
+    this.scheduleRecomputeResizeSegments();
+  }
+
+  ngAfterViewInit(): void {
+    // Recompute after view is laid out (also handles cases where ngOnInit RAF ran before table existed).
+    this.scheduleRecomputeResizeSegments();
+
+    // Recompute on actual table size changes.
+    const table = this.getTableElement();
+    if (table && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.scheduleRecomputeResizeSegments();
+      });
+      this.resizeObserver.observe(table);
+    }
   }
 
   ngOnDestroy(): void {
@@ -311,6 +362,21 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     document.removeEventListener('mouseup', this.handleDocumentMouseUp);
     document.removeEventListener('mousemove', this.handleDocumentMouseMove);
     this.teardownGridResizeListeners();
+
+    if (this.resizeSegmentsRaf !== null) {
+      cancelAnimationFrame(this.resizeSegmentsRaf);
+      this.resizeSegmentsRaf = null;
+    }
+
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = undefined;
+    }
+
+    if (this.zoomEffectRef) {
+      this.zoomEffectRef.destroy();
+      this.zoomEffectRef = undefined;
+    }
     
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
@@ -328,6 +394,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       const migrated = this.migrateLegacyMergedRegions(nextRows, this.tableProps.mergedRegions ?? []);
       this.localRows.set(migrated);
       this.initializeFractionsFromProps();
+      this.scheduleRecomputeResizeSegments();
     }
   }
 
@@ -1500,6 +1567,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
       this.setSelection(new Set([this.composeLeafId(minRow, minCol, String(innerAnchorIdx))]));
     }
     this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
     return true;
   }
 
@@ -1697,6 +1765,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
     this.setSelection(new Set([`${anchorRow}-${anchorCol}`]));
     this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
   }
 
   private mergeWithinSplitGrid(parsed: Array<{ row: number; col: number; path: number[] }>): void {
@@ -2216,6 +2285,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     }
 
     this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
   };
 
   private handleGridResizePointerUp = (event: PointerEvent): void => {
@@ -2242,6 +2312,7 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     this.activeGridResize = null;
     this.teardownGridResizeListeners();
     this.cdr.markForCheck();
+    this.scheduleRecomputeResizeSegments();
   };
 
   private getTableRect(): DOMRect | null {
@@ -2249,6 +2320,197 @@ export class TableWidgetComponent implements OnInit, OnChanges, OnDestroy, Flush
     if (!container) return null;
     const table = container.querySelector('table.table-widget__table') as HTMLTableElement | null;
     return table?.getBoundingClientRect() ?? null;
+  }
+
+  private getTableElement(): HTMLTableElement | null {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return null;
+    return container.querySelector('table.table-widget__table') as HTMLTableElement | null;
+  }
+
+  private scheduleRecomputeResizeSegments(): void {
+    if (this.resizeSegmentsRaf !== null) return;
+    this.resizeSegmentsRaf = window.requestAnimationFrame(() => {
+      this.resizeSegmentsRaf = null;
+      this.recomputeResizeSegments();
+    });
+  }
+
+  private recomputeResizeSegments(): void {
+    const table = this.getTableElement();
+    if (!table) {
+      this.colResizeSegmentsSig.set([]);
+      this.rowResizeSegmentsSig.set([]);
+      return;
+    }
+
+    const tableRect = table.getBoundingClientRect();
+    if (!Number.isFinite(tableRect.width) || !Number.isFinite(tableRect.height) || tableRect.width <= 0 || tableRect.height <= 0) {
+      this.colResizeSegmentsSig.set([]);
+      this.rowResizeSegmentsSig.set([]);
+      return;
+    }
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const colCount = this.getTopLevelColCount(rowsModel);
+    if (rowCount <= 0 || colCount <= 0) {
+      this.colResizeSegmentsSig.set([]);
+      this.rowResizeSegmentsSig.set([]);
+      return;
+    }
+
+    // Gather rendered top-level td geometry so we can measure real boundaries (accounts for browser min-width/layout rounding).
+    const tdNodes = Array.from(
+      table.querySelectorAll('td.table-widget__cell[data-cell]')
+    ) as HTMLTableCellElement[];
+
+    type CellGeom = {
+      startRow: number;
+      endRow: number;
+      startCol: number;
+      endCol: number;
+      rect: DOMRect;
+    };
+
+    const geoms: CellGeom[] = [];
+    for (const td of tdNodes) {
+      const id = td.getAttribute('data-cell');
+      if (!id) continue;
+      const parts = id.split('-');
+      if (parts.length !== 2) continue;
+      const r = Number(parts[0]);
+      const c = Number(parts[1]);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+      const cell = rowsModel?.[r]?.cells?.[c];
+      if (!cell) continue;
+
+      const colSpan = Math.max(1, cell.merge?.colSpan ?? 1);
+      const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
+      const rect = td.getBoundingClientRect();
+      geoms.push({
+        startRow: r,
+        endRow: Math.min(rowCount, r + rowSpan),
+        startCol: c,
+        endCol: Math.min(colCount, c + colSpan),
+        rect,
+      });
+    }
+
+    const median = (nums: number[]): number | null => {
+      const cleaned = nums.filter((n) => Number.isFinite(n));
+      if (cleaned.length === 0) return null;
+      cleaned.sort((a, b) => a - b);
+      return cleaned[Math.floor(cleaned.length / 2)];
+    };
+
+    const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
+    const toXPct = (xPx: number): number => clamp01((xPx - tableRect.left) / tableRect.width) * 100;
+    const toYPct = (yPx: number): number => clamp01((yPx - tableRect.top) / tableRect.height) * 100;
+
+    // Boundary positions in px from DOM (preferred) with a sane fallback.
+    const xBoundaryPx: number[] = new Array(colCount + 1).fill(0);
+    xBoundaryPx[0] = tableRect.left;
+    xBoundaryPx[colCount] = tableRect.right;
+    for (let i = 1; i < colCount; i++) {
+      const candidates: number[] = [];
+      for (const g of geoms) {
+        if (g.endCol === i) candidates.push(g.rect.right);
+        if (g.startCol === i) candidates.push(g.rect.left);
+      }
+      xBoundaryPx[i] = median(candidates) ?? (tableRect.left + (i / colCount) * tableRect.width);
+    }
+
+    const yBoundaryPx: number[] = new Array(rowCount + 1).fill(0);
+    yBoundaryPx[0] = tableRect.top;
+    yBoundaryPx[rowCount] = tableRect.bottom;
+    for (let i = 1; i < rowCount; i++) {
+      const candidates: number[] = [];
+      for (const g of geoms) {
+        if (g.endRow === i) candidates.push(g.rect.bottom);
+        if (g.startRow === i) candidates.push(g.rect.top);
+      }
+      yBoundaryPx[i] = median(candidates) ?? (tableRect.top + (i / rowCount) * tableRect.height);
+    }
+
+    const anchorKey = (r: number, c: number): string => {
+      const cell = rowsModel?.[r]?.cells?.[c];
+      if (!cell) return `${r}-${c}`;
+      if (cell.coveredBy) return `${cell.coveredBy.row}-${cell.coveredBy.col}`;
+      return `${r}-${c}`;
+    };
+
+    // Column boundary segments (split by row stripes). Hidden everywhere => no handle (per requirement).
+    const colSegments: ColResizeSegment[] = [];
+    for (let boundaryIndex = 1; boundaryIndex < colCount; boundaryIndex++) {
+      let segStartRow: number | null = null;
+      for (let r = 0; r < rowCount; r++) {
+        const hasBorder = anchorKey(r, boundaryIndex - 1) !== anchorKey(r, boundaryIndex);
+        if (hasBorder) {
+          if (segStartRow === null) segStartRow = r;
+        } else if (segStartRow !== null) {
+          const segEndRow = r - 1;
+          const topPx = yBoundaryPx[segStartRow];
+          const bottomPx = yBoundaryPx[segEndRow + 1];
+          colSegments.push({
+            boundaryIndex,
+            leftPercent: toXPct(xBoundaryPx[boundaryIndex]),
+            topPercent: toYPct(topPx),
+            heightPercent: clamp01((bottomPx - topPx) / tableRect.height) * 100,
+          });
+          segStartRow = null;
+        }
+      }
+      if (segStartRow !== null) {
+        const segEndRow = rowCount - 1;
+        const topPx = yBoundaryPx[segStartRow];
+        const bottomPx = yBoundaryPx[segEndRow + 1];
+        colSegments.push({
+          boundaryIndex,
+          leftPercent: toXPct(xBoundaryPx[boundaryIndex]),
+          topPercent: toYPct(topPx),
+          heightPercent: clamp01((bottomPx - topPx) / tableRect.height) * 100,
+        });
+      }
+    }
+
+    // Row boundary segments (split by column stripes). Hidden everywhere => no handle (per requirement).
+    const rowSegments: RowResizeSegment[] = [];
+    for (let boundaryIndex = 1; boundaryIndex < rowCount; boundaryIndex++) {
+      let segStartCol: number | null = null;
+      for (let c = 0; c < colCount; c++) {
+        const hasBorder = anchorKey(boundaryIndex - 1, c) !== anchorKey(boundaryIndex, c);
+        if (hasBorder) {
+          if (segStartCol === null) segStartCol = c;
+        } else if (segStartCol !== null) {
+          const segEndCol = c - 1;
+          const leftPx = xBoundaryPx[segStartCol];
+          const rightPx = xBoundaryPx[segEndCol + 1];
+          rowSegments.push({
+            boundaryIndex,
+            topPercent: toYPct(yBoundaryPx[boundaryIndex]),
+            leftPercent: toXPct(leftPx),
+            widthPercent: clamp01((rightPx - leftPx) / tableRect.width) * 100,
+          });
+          segStartCol = null;
+        }
+      }
+      if (segStartCol !== null) {
+        const segEndCol = colCount - 1;
+        const leftPx = xBoundaryPx[segStartCol];
+        const rightPx = xBoundaryPx[segEndCol + 1];
+        rowSegments.push({
+          boundaryIndex,
+          topPercent: toYPct(yBoundaryPx[boundaryIndex]),
+          leftPercent: toXPct(leftPx),
+          widthPercent: clamp01((rightPx - leftPx) / tableRect.width) * 100,
+        });
+      }
+    }
+
+    this.colResizeSegmentsSig.set(colSegments);
+    this.rowResizeSegmentsSig.set(rowSegments);
+    this.cdr.markForCheck();
   }
 
   private initializeFractionsFromProps(): void {
