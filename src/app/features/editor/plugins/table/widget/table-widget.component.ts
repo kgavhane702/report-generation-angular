@@ -579,18 +579,40 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // so the <td>/<tr> height expands with typing instead of the inner DIV overflowing.
     const el = event.target as HTMLElement | null;
     if (el) {
-      this.maybeAutoGrowToFit(el, rowIndex, cellIndex);
+      this.maybeAutoGrowToFit(el, rowIndex, cellIndex, leafPath);
     }
     this.cdr.markForCheck();
   }
 
-  private maybeAutoGrowToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number): void {
+  private maybeAutoGrowToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number, leafPath?: string): void {
     // If the content isn't overflowing vertically, nothing to do.
-    const clientH = contentEl.clientHeight;
-    const scrollH = contentEl.scrollHeight;
-    if (!Number.isFinite(clientH) || !Number.isFinite(scrollH) || clientH <= 0) return;
+    //
+    // IMPORTANT for split-cells:
+    // The *clipping* element is often the split grid item (`.table-widget__sub-cell`, overflow: hidden),
+    // while the contenteditable itself can size to content (so scrollHeight == clientHeight and we would miss overflow).
+    // So we measure "visible height" from the clip container, and "needed height" from the content node.
+    const isLeaf = !!(leafPath && leafPath.trim() !== '');
+    const clipEl =
+      (isLeaf
+        ? (contentEl.closest('.table-widget__sub-cell') as HTMLElement | null)
+        : (contentEl.closest('.table-widget__cell') as HTMLElement | null)) ?? contentEl;
 
-    const overflow = scrollH - clientH;
+    let visibleH = clipEl.clientHeight;
+    if (!Number.isFinite(visibleH) || visibleH <= 0) {
+      // Fallback: clientHeight can be 0 in some table/grid edge-cases; use bounding box.
+      const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+      visibleH = Math.max(1, clipEl.getBoundingClientRect().height / zoomScale);
+    }
+
+    const neededH = Math.max(
+      contentEl.scrollHeight || 0,
+      contentEl.clientHeight || 0,
+      contentEl.offsetHeight || 0
+    );
+
+    if (!Number.isFinite(visibleH) || !Number.isFinite(neededH) || visibleH <= 0 || neededH <= 0) return;
+
+    const overflow = neededH - visibleH;
     // Allow 1px tolerance to avoid jitter due to sub-pixel rounding.
     if (overflow <= 1) return;
 
@@ -600,13 +622,114 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const deltaPx = Math.min(600, this.roundUpPx(overflow + bufferPx, stepPx));
     if (deltaPx <= 0) return;
 
+    const oldWidgetHeightPx = this.widget?.size?.height ?? 0;
+    if (!Number.isFinite(oldWidgetHeightPx) || oldWidgetHeightPx <= 0) return;
+
+    // Grow the widget FIRST (in draft-only mode) so other rows don't visually shrink.
+    // (If we update fractions assuming a larger container, but the container hasn't grown yet,
+    // non-target rows will temporarily shrink.)
+    const growResult = this.growWidgetSizeBy(0, deltaPx, { commit: false });
+    const appliedDeltaPx = growResult?.appliedHeightPx ?? 0;
+    if (!Number.isFinite(appliedDeltaPx) || appliedDeltaPx <= 0) return;
+
+    // If editing inside a split grid leaf, we must grow *each* ancestor split row chain so the extra height
+    // actually reaches the specific split leaf (otherwise the new height gets distributed across unrelated split rows).
+    if (leafPath && leafPath.trim() !== '') {
+      const parts = leafPath
+        .split('-')
+        .map(p => Number.parseInt(p, 10))
+        .filter(n => Number.isFinite(n) && n >= 0);
+
+      if (parts.length > 0) {
+        const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+
+        // Collect split grids from nearest to farthest (deepest split -> outermost split).
+        const splitGrids: HTMLElement[] = [];
+        let cur: HTMLElement | null = contentEl.closest('.table-widget__split-grid') as HTMLElement | null;
+        while (cur) {
+          splitGrids.push(cur);
+          const next = cur.parentElement?.closest('.table-widget__split-grid') as HTMLElement | null;
+          cur = next && next !== cur ? next : null;
+        }
+
+        const levelCount = Math.min(parts.length, splitGrids.length);
+        if (levelCount > 0) {
+          const targets = Array.from({ length: levelCount }, (_, i) => {
+            // Map nearest grid -> last index, outermost grid -> first index.
+            const levelIndex = parts.length - 1 - i;
+            const childIndex = parts[levelIndex];
+            const ownerPath = parts.slice(0, levelIndex).join('-');
+            const ownerLeafId = ownerPath ? `${rowIndex}-${cellIndex}-${ownerPath}` : `${rowIndex}-${cellIndex}`;
+
+            const rect = splitGrids[i].getBoundingClientRect();
+            const oldOwnerHeightPx = Math.max(1, rect.height / zoomScale);
+            return { ownerLeafId, childIndex, oldOwnerHeightPx };
+          }).reverse(); // apply outermost -> innermost for more intuitive propagation
+
+          this.localRows.update((rows) => {
+            const next = this.cloneRows(rows);
+
+            for (const t of targets) {
+              const parsed = this.parseLeafId(t.ownerLeafId);
+              if (!parsed) continue;
+
+              let baseCell = next?.[parsed.row]?.cells?.[parsed.col];
+              if (!baseCell) continue;
+
+              // Safety: if leaf id points to a covered top-level cell, redirect to its anchor.
+              if (baseCell.coveredBy) {
+                const a = baseCell.coveredBy;
+                baseCell = next?.[a.row]?.cells?.[a.col];
+                if (!baseCell) continue;
+              }
+
+              const owner = parsed.path.length === 0 ? baseCell : this.getCellAtPath(baseCell, parsed.path);
+              if (!owner?.split) continue;
+
+              const split = owner.split;
+              const rowsCount = Math.max(1, split.rows);
+              const colsCount = Math.max(1, split.cols);
+              const childIdx = Math.max(0, Math.min(split.cells.length - 1, Math.trunc(t.childIndex)));
+
+              const startRow = Math.max(0, Math.min(rowsCount - 1, Math.floor(childIdx / colsCount)));
+              const childCell = split.cells[childIdx];
+              const rowSpan = Math.max(1, childCell?.merge?.rowSpan ?? 1);
+              const endRow = Math.min(rowsCount - 1, startRow + rowSpan - 1);
+
+              const oldH = t.oldOwnerHeightPx;
+              const add = appliedDeltaPx;
+              if (add <= 0 || oldH <= 0) continue;
+
+              const base = this.normalizeFractions(split.rowFractions ?? [], rowsCount);
+              const oldPx = base.map((f) => f * oldH);
+              const newH = oldH + add;
+
+              const indices = Array.from({ length: endRow - startRow + 1 }, (_, k) => startRow + k);
+              const spanTotal = indices.reduce((sum, r) => sum + (oldPx[r] ?? 0), 0);
+              const per = spanTotal > 0 ? null : add / indices.length;
+
+              const newPx = [...oldPx];
+              for (const r of indices) {
+                const share = spanTotal > 0 ? ((oldPx[r] ?? 0) / spanTotal) : (per! / add);
+                newPx[r] = (oldPx[r] ?? 0) + add * share;
+              }
+
+              const nextFractions = newPx.map((px) => px / newH);
+              split.rowFractions = this.normalizeFractions(nextFractions, rowsCount);
+            }
+
+            return next;
+          });
+        }
+      }
+    }
+
     const topCell = this.localRows()?.[rowIndex]?.cells?.[cellIndex];
     const rowSpan = Math.max(1, topCell?.merge?.rowSpan ?? 1);
 
     // Keep existing row pixel sizes stable, and grow only the active row-span area.
     // Order matters: fractions are computed using the *current* widget height.
-    this.growTopLevelRowSpanFractions(rowIndex, rowSpan, deltaPx);
-    this.growWidgetSizeBy(0, deltaPx);
+    this.growTopLevelRowSpanFractions(rowIndex, rowSpan, appliedDeltaPx, oldWidgetHeightPx);
     this.scheduleRecomputeResizeSegments();
   }
 
@@ -1768,9 +1891,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return { nextFractions: this.normalizeFractions(scaled, scaled.length), donorFraction };
   }
 
-  private growWidgetSizeBy(deltaWidthPx: number, deltaHeightPx: number): void {
+  private growWidgetSizeBy(
+    deltaWidthPx: number,
+    deltaHeightPx: number,
+    options?: { commit?: boolean }
+  ): { nextWidth: number; nextHeight: number; appliedWidthPx: number; appliedHeightPx: number } | null {
     const cur = this.widget?.size;
-    if (!cur) return;
+    if (!cur) return null;
 
     const dw = Number.isFinite(deltaWidthPx) ? deltaWidthPx : 0;
     const dh = Number.isFinite(deltaHeightPx) ? deltaHeightPx : 0;
@@ -1779,18 +1906,33 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const nextHeight = Math.max(20, Math.round(cur.height + dh));
 
     if (nextWidth === cur.width && nextHeight === cur.height) {
-      return;
+      return { nextWidth, nextHeight, appliedWidthPx: 0, appliedHeightPx: 0 };
     }
 
-    // Same persistence path as manual widget resizing (resize handles).
+    // Draft first: this is reactive and keeps UI stable during interactions.
     this.draftState.updateDraftSize(this.widget.id, { width: nextWidth, height: nextHeight });
-    this.draftState.commitDraft(this.widget.id);
+    if (options?.commit ?? true) {
+      // Discrete sizing action (e.g., resize handle release, insert row/col).
+      this.draftState.commitDraft(this.widget.id);
+    }
+
+    return {
+      nextWidth,
+      nextHeight,
+      appliedWidthPx: nextWidth - cur.width,
+      appliedHeightPx: nextHeight - cur.height,
+    };
   }
 
-  private growTopLevelRowSpanFractions(anchorRow: number, rowSpan: number, deltaPx: number): void {
+  private growTopLevelRowSpanFractions(
+    anchorRow: number,
+    rowSpan: number,
+    deltaPx: number,
+    oldWidgetHeightPx?: number
+  ): void {
     const rowsModel = this.localRows();
     const rowCount = this.getTopLevelRowCount(rowsModel);
-    const oldH = this.widget.size.height;
+    const oldH = Number.isFinite(oldWidgetHeightPx as number) ? (oldWidgetHeightPx as number) : this.widget.size.height;
     const add = Number.isFinite(deltaPx) ? deltaPx : 0;
     if (add <= 0 || oldH <= 0) return;
 
