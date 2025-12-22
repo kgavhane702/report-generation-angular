@@ -3,36 +3,38 @@
   #tableContainer
   [class.table-widget--editing]="editing"
 >
-  <table class="table-widget__table">
-    <colgroup>
-      <col *ngFor="let f of colFractions" [style.width.%]="f * 100" />
-    </colgroup>
-    <tbody>
-      <tr 
-        *ngFor="let row of rows; let rowIndex = index; trackBy: trackByRowId"
-        class="table-widget__row"
-        [style.height.%]="rowFractionsView[rowIndex] * 100"
+  <!--
+    IMPORTANT:
+    The top-level table is rendered as a CSS grid (same as split grids) so the browser's native <table>
+    layout cannot reflow row heights (which used to shrink other rows when one cell grows).
+  -->
+  <div
+    class="table-widget__grid"
+    [style.gridTemplateColumns]="topLevelGridTemplateColumns"
+    [style.gridTemplateRows]="topLevelGridTemplateRows"
+  >
+    <ng-container *ngFor="let row of rows; let rowIndex = index; trackBy: trackByRowId">
+      <div
+        *ngFor="let rc of getRenderableRowCells(rowIndex); trackBy: trackByRenderableCell"
+        class="table-widget__cell"
+        [class.table-widget__cell--selected]="isCellSelected(rowIndex, rc.colIndex)"
+        [attr.data-cell]="rowIndex + '-' + rc.colIndex"
+        [style.gridRowStart]="rowIndex + 1"
+        [style.gridColumnStart]="rc.colIndex + 1"
+        [style.gridRowEnd]="'span ' + (rc.cell.merge?.rowSpan || 1)"
+        [style.gridColumnEnd]="'span ' + (rc.cell.merge?.colSpan || 1)"
+        [style.border-color]="rc.cell.style?.borderColor || null"
+        [style.border-width.px]="rc.cell.style?.borderWidth ?? null"
+        [style.border-style]="rc.cell.style?.borderStyle || null"
+        (mousedown)="onCellMouseDown($event, rowIndex, rc.colIndex)"
+        (mouseenter)="onCellMouseEnter($event, rowIndex, rc.colIndex)"
       >
-        <td 
-          *ngFor="let rc of getRenderableRowCells(rowIndex); trackBy: trackByRenderableCell"
-          class="table-widget__cell"
-          [class.table-widget__cell--selected]="isCellSelected(rowIndex, rc.colIndex)"
-          [attr.data-cell]="rowIndex + '-' + rc.colIndex"
-          [attr.rowspan]="rc.cell.merge?.rowSpan || null"
-          [attr.colspan]="rc.cell.merge?.colSpan || null"
-          [style.border-color]="rc.cell.style?.borderColor || null"
-          [style.border-width.px]="rc.cell.style?.borderWidth ?? null"
-          [style.border-style]="rc.cell.style?.borderStyle || null"
-          (mousedown)="onCellMouseDown($event, rowIndex, rc.colIndex)"
-          (mouseenter)="onCellMouseEnter($event, rowIndex, rc.colIndex)"
-        >
-          <ng-container
-            *ngTemplateOutlet="cellRenderer; context: { cell: rc.cell, rowIndex: rowIndex, cellIndex: rc.colIndex, path: '' }"
-          ></ng-container>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+        <ng-container
+          *ngTemplateOutlet="cellRenderer; context: { cell: rc.cell, rowIndex: rowIndex, cellIndex: rc.colIndex, path: '' }"
+        ></ng-container>
+      </div>
+    </ng-container>
+  </div>
 
   <!-- Column/Row resize overlay -->
   <div class="table-widget__resize-overlay" aria-hidden="true">

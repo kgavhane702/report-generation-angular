@@ -4,20 +4,15 @@
   overflow: auto;
   position: relative;
 
-  &__table {
+  /* Top-level grid (replaces native <table> to prevent browser row reflow). */
+  &__grid {
     width: 100%;
     height: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
     background: transparent;
-  }
-
-  &__table > tbody {
-    height: 100%;
-  }
-
-  &__row {
-    height: auto; // overridden by inline % height when row resizing is enabled
+    display: grid;
+    /* Track sizes are provided inline via gridTemplateColumns/Rows. */
+    align-content: stretch;
+    justify-content: stretch;
   }
 
   &__cell {
@@ -25,11 +20,11 @@
     padding: 0;
     margin: 0;
     background: transparent;
-    vertical-align: top;
     position: relative;
     min-width: 40px;
     min-height: 24px;
     user-select: none;
+    overflow: hidden; /* Match split behavior: content clips, auto-grow expands widget instead of reflowing other rows. */
 
     &:hover {
       background: rgba(0, 0, 0, 0.02);

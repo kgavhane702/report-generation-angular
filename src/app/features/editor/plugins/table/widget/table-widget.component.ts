@@ -203,6 +203,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.normalizeFractions(current, rows);
   }
 
+  get topLevelGridTemplateColumns(): string {
+    return this.colFractions.map((f) => `${f * 100}%`).join(' ');
+  }
+
+  get topLevelGridTemplateRows(): string {
+    return this.rowFractionsView.map((f) => `${f * 100}%`).join(' ');
+  }
+
   get colResizeHandles(): Array<{ boundaryIndex: number; leftPercent: number }> {
     const f = this.colFractions;
     if (f.length <= 1) return [];
@@ -4182,14 +4190,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private getTableRect(): DOMRect | null {
     const container = this.tableContainer?.nativeElement;
     if (!container) return null;
-    const table = container.querySelector('table.table-widget__table') as HTMLTableElement | null;
-    return table?.getBoundingClientRect() ?? null;
+    const grid = container.querySelector('.table-widget__grid') as HTMLElement | null;
+    return grid?.getBoundingClientRect() ?? null;
   }
 
-  private getTableElement(): HTMLTableElement | null {
+  private getTableElement(): HTMLElement | null {
     const container = this.tableContainer?.nativeElement;
     if (!container) return null;
-    return container.querySelector('table.table-widget__table') as HTMLTableElement | null;
+    return container.querySelector('.table-widget__grid') as HTMLElement | null;
   }
 
   private scheduleRecomputeResizeSegments(): void {
@@ -4224,10 +4232,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
 
-    // Gather rendered top-level td geometry so we can measure real boundaries (accounts for browser min-width/layout rounding).
+    // Gather rendered top-level cell geometry so we can measure real boundaries (accounts for layout rounding).
     const tdNodes = Array.from(
-      table.querySelectorAll('td.table-widget__cell[data-cell]')
-    ) as HTMLTableCellElement[];
+      table.querySelectorAll('.table-widget__cell[data-cell]')
+    ) as HTMLElement[];
 
     type CellGeom = {
       startRow: number;
