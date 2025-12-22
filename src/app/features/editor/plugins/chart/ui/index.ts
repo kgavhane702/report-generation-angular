@@ -1,4 +1,4 @@
-export { ChartConfigDialogComponent } from './chart-config-dialog/chart-config-dialog.component';
-export type { ChartConfigDialogData, ChartConfigDialogResult } from './chart-config-dialog/chart-config-dialog.component';
+export { ChartConfigFormComponent } from './chart-config-form/chart-config-form.component';
+export type { ChartConfigFormData, ChartConfigFormResult } from './chart-config-form/chart-config-form.component';
 
 

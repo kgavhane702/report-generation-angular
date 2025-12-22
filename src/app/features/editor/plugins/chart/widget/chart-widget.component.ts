@@ -22,7 +22,7 @@ import {
 import { ChartRegistryService } from '../engine/runtime';
 import { ChartInstance } from '../engine/contracts';
 import { ChartData } from '../../../../../models/chart-data.model';
-import { ChartConfigDialogData, ChartConfigDialogResult } from '../ui';
+import type { ChartConfigFormData, ChartConfigFormResult } from '../ui/chart-config-form/chart-config-form.component';
 import { ChartRenderRegistry } from '../../../../../core/services/chart-render-registry.service';
 
 @Component({
@@ -45,7 +45,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly cdr = inject(ChangeDetectorRef);
   
   showDialog = false;
-  dialogData?: ChartConfigDialogData;
+  dialogData?: ChartConfigFormData;
   
   // Flag to track if chart is rendered
   private isChartRendered = false;
@@ -217,6 +217,13 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.showDialog = true;
     this.cdr.markForCheck();
   }
+
+  onModalClosed(): void {
+    // Treat modal close (esc/backdrop/close button) as cancel.
+    this.showDialog = false;
+    this.dialogData = undefined;
+    this.cdr.markForCheck();
+  }
   
   private deepCloneChartData(data: ChartData): ChartData {
     return {
@@ -229,7 +236,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     };
   }
 
-  closeConfigDialog(result: ChartConfigDialogResult): void {
+  closeConfigDialog(result: ChartConfigFormResult): void {
     this.showDialog = false;
     this.dialogData = undefined;
 

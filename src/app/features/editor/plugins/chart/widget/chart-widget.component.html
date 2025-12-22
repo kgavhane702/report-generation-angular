@@ -7,9 +7,40 @@
 >
 </div>
 
-<app-chart-config-dialog
-  *ngIf="showDialog && dialogData"
-  [data]="dialogData"
-  (closed)="closeConfigDialog($event)"
-></app-chart-config-dialog>
+<app-modal
+  *ngIf="dialogData"
+  [(open)]="showDialog"
+  size="xl"
+  (closed)="onModalClosed()"
+>
+  <ng-container appModalHeader>
+    <h2 class="chart-config-dialog__title">Chart Configuration</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <app-chart-config-form
+      #cfgForm="chartConfigForm"
+      [data]="dialogData"
+      (closed)="closeConfigDialog($event)"
+    ></app-chart-config-form>
+  </ng-container>
+
+  <ng-container appModalFooter>
+    <button
+      type="button"
+      class="chart-config-dialog__button chart-config-dialog__button--secondary"
+      (click)="cfgForm.cancel()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="chart-config-dialog__button chart-config-dialog__button--primary"
+      (click)="cfgForm.save()"
+      [disabled]="cfgForm.form.invalid"
+    >
+      Save
+    </button>
+  </ng-container>
+</app-modal>
 

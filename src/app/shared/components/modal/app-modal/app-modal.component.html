@@ -1,0 +1,57 @@
+<div
+  #modalContainer
+  class="app-modal"
+  [class.app-modal--open]="open"
+  [class.app-modal--closed]="!open"
+>
+  <div
+    class="app-modal__backdrop"
+    [class]="backdropClass || ''"
+    (mousedown)="onBackdropMouseDown($event)"
+  ></div>
+
+  <div
+    class="app-modal__dialog"
+    [class.app-modal__dialog--sm]="size === 'sm'"
+    [class.app-modal__dialog--md]="size === 'md'"
+    [class.app-modal__dialog--lg]="size === 'lg'"
+    [class.app-modal__dialog--xl]="size === 'xl'"
+    [class.app-modal__dialog--auto]="size === 'auto'"
+    [class]="dialogClass || ''"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="ariaLabel || title || 'Modal dialog'"
+    (mousedown)="$event.stopPropagation()"
+  >
+    <div class="app-modal__header" *ngIf="showHeader">
+      <div class="app-modal__header-content">
+        <ng-content select="[appModalHeader]"></ng-content>
+        <h2 *ngIf="title" class="app-modal__title">{{ title }}</h2>
+      </div>
+
+      <button
+        *ngIf="showCloseButton"
+        type="button"
+        class="app-modal__close"
+        (click)="close('close')"
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+
+    <div
+      class="app-modal__body"
+      [class.app-modal__body--p0]="bodyPadding === 'none'"
+      [class.app-modal__body--no-scroll]="bodyScroll === 'content'"
+    >
+      <ng-content select="[appModalBody]"></ng-content>
+    </div>
+
+    <div class="app-modal__footer" *ngIf="showFooter">
+      <ng-content select="[appModalFooter]"></ng-content>
+    </div>
+  </div>
+</div>
+
+

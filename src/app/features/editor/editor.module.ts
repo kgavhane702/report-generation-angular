@@ -18,10 +18,13 @@ import { TableWidgetComponent } from './plugins/table/widget';
 import { ZoomControlsComponent } from './plugins/editor-tools/zoom-controls/zoom-controls.component';
 import { UndoRedoControlsComponent } from './plugins/editor-tools/undo-redo-controls/undo-redo-controls.component';
 import { ChartRegistryInitializer } from './plugins/chart/engine/runtime';
-import { ChartConfigDialogComponent } from './plugins/chart/ui';
-import { RichTextToolbarComponent, TextWidgetColorPickerComponent } from './plugins/text/ui';
-import { TableToolbarComponent, TableGridSelectorComponent } from './plugins/table/ui';
+import { ChartConfigFormComponent } from './plugins/chart/ui/chart-config-form/chart-config-form.component';
+import { RichTextToolbarComponent } from './plugins/text/ui/rich-text-toolbar/rich-text-toolbar.component';
+import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-color-picker/text-widget-color-picker.component';
+import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
+import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
+import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 
 @NgModule({
   declarations: [
@@ -45,7 +48,8 @@ import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
     ReactiveFormsModule,
     DragDropModule,
     CKEditorModule,
-    ChartConfigDialogComponent,
+    AppModalComponent,
+    ChartConfigFormComponent,
     RichTextToolbarComponent,
     TextWidgetColorPickerComponent,
     TableToolbarComponent,
