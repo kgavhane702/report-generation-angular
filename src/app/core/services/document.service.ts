@@ -38,7 +38,7 @@ import {
   RenameSubsectionCommand,
   RenamePageCommand,
 } from './document-commands';
-import { WidgetFactoryService } from '../../features/editor/widgets/widget-factory.service';
+import { WidgetFactoryService } from '../../features/editor/widget-host/widget-factory.service';
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 
 /**

@@ -8,7 +8,7 @@ import {
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { DocumentService } from '../../../core/services/document.service';
-import { ChartRegistryInitializer } from '../widgets/providers/charts/registry';
+import { ChartRegistryInitializer } from '../plugins/chart/engine/runtime';
 import { ExportUiStateService } from '../../../core/services/export-ui-state.service';
 
 @Component({
