@@ -1599,7 +1599,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!parsed) return;
 
     const { row: rowIndex, col: cellIndex, path } = parsed;
-    const content = this.activeCellElement.innerHTML;
+    const content = this.unwrapCellHtmlFromVerticalAlign(this.activeCellElement.innerHTML);
     
     untracked(() => {
       this.localRows.update(rows => {
@@ -1628,6 +1628,31 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         return newRows;
       });
     });
+  }
+
+  wrapCellHtmlForVerticalAlign(html: string): string {
+    // Avoid double-wrapping if content already contains our wrapper.
+    if (!html) return '<div class="table-widget__valign">&nbsp;</div>';
+    if (html.includes('table-widget__valign')) return html;
+    return `<div class="table-widget__valign">${html}</div>`;
+  }
+
+  private unwrapCellHtmlFromVerticalAlign(html: string): string {
+    if (!html || !html.includes('table-widget__valign')) return html;
+    try {
+      const container = document.createElement('div');
+      container.innerHTML = html;
+      const wrapper = container.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
+      if (!wrapper) return html;
+      const inner = wrapper.innerHTML;
+      // If wrapper only contains a placeholder NBSP, persist as truly empty.
+      if (inner === '&nbsp;' || inner === '\u00a0' || inner.trim() === '') {
+        return '';
+      }
+      return inner;
+    } catch {
+      return html;
+    }
   }
 
   private applyStyleToSelection(stylePatch: Partial<TableCellStyle>): void {

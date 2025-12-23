@@ -693,23 +693,7 @@ export class TableToolbarService {
    * which controls vertical alignment via flexbox justify-content in CSS.
    */
   applyVerticalAlign(align: 'top' | 'middle' | 'bottom'): void {
-    const cells = this.getSelectedCellElements?.() ?? [];
-    if (cells.length > 0) {
-      cells.forEach(cell => {
-        // Find the parent cell surface element and update its data-vertical-align attribute
-        const cellSurface = cell.closest('.table-widget__cell-surface');
-        if (cellSurface) {
-          cellSurface.setAttribute('data-vertical-align', align);
-        }
-      });
-    } else if (this.activeCell) {
-      const cellSurface = this.activeCell.closest('.table-widget__cell-surface');
-      if (cellSurface) {
-        cellSurface.setAttribute('data-vertical-align', align);
-      }
-    } else {
-      return;
-    }
+    if (!this.activeCell && (this.getSelectedCellElements?.() ?? []).length === 0) return;
     this.verticalAlignRequestedSubject.next(align);
     this.formattingState.update(state => ({ ...state, verticalAlign: align }));
   }

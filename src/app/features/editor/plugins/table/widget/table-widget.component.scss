@@ -83,6 +83,36 @@
     // Keep contenteditable in normal flow (avoid flex; it breaks caret behavior).
     display: block;
 
+    // Vertical-align architecture:
+    // Keep the editable hit-area full height, but align the *text layer* inside.
+    // The inner wrapper is a normal block (safe for caret), and we align it by
+    // temporarily treating the contenteditable as a column flex container.
+    &[data-v-align] {
+      display: flex;
+      flex-direction: column;
+      padding: 0; // padding moves to inner wrapper so the text block aligns cleanly
+    }
+
+    &[data-v-align='top'] {
+      justify-content: flex-start;
+    }
+
+    &[data-v-align='middle'] {
+      justify-content: center;
+    }
+
+    &[data-v-align='bottom'] {
+      justify-content: flex-end;
+    }
+
+    .table-widget__valign {
+      display: block;
+      width: 100%;
+      padding: 4px 8px;
+      box-sizing: border-box;
+      min-height: 1em;
+    }
+
     &:focus {
       outline: 2px solid #1976d2;
       outline-offset: -2px;
