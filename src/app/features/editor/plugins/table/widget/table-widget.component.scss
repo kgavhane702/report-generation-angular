@@ -24,7 +24,7 @@
     min-width: 40px;
     min-height: 24px;
     user-select: none;
-    overflow: hidden; /* Match split behavior: content clips, auto-grow expands widget instead of reflowing other rows. */
+    overflow: visible; /* Allow bullet points to display */
 
     &:hover {
       background: rgba(0, 0, 0, 0.02);
@@ -63,14 +63,9 @@
     word-wrap: break-word;
     overflow-wrap: anywhere;
     word-break: break-word;
-    white-space: pre-wrap;
-    // IMPORTANT:
-    // Do NOT make the contenteditable itself a flex container. Inline wrappers inserted by bold/italic/color
-    // (e.g. <b>, <span style="...">) become flex items and can force unwanted new lines.
-    //
-    // We use a table/table-cell wrapper for vertical alignment instead (see __cell-surface).
-    display: table-cell;
-    vertical-align: top;
+    // Note: white-space: pre-wrap removed to allow proper list rendering
+    // Use display: block for contenteditable to allow block elements like ul/ol
+    display: block;
 
     &:focus {
       outline: 2px solid #1976d2;
@@ -82,6 +77,29 @@
       content: '\00a0';
       color: transparent;
     }
+
+    // Style lists inside table cells
+    ul, ol {
+      display: block !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      padding-left: 1em !important;
+      list-style-position: inside !important;
+    }
+
+    ul {
+      list-style-type: disc !important;
+    }
+
+    ol {
+      list-style-type: decimal !important;
+    }
+
+    li {
+      display: list-item !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
   }
 
   // Wrapper surface (handles cell-level background + vertical alignment).
@@ -90,15 +108,20 @@
     height: 100%;
     min-height: 24px;
     box-sizing: border-box;
-    display: table;
+    display: flex;
+    flex-direction: column;
   }
 
-  &__cell-surface[data-vertical-align='middle'] .table-widget__cell-content {
-    vertical-align: middle;
+  &__cell-surface[data-vertical-align='top'] {
+    justify-content: flex-start;
   }
 
-  &__cell-surface[data-vertical-align='bottom'] .table-widget__cell-content {
-    vertical-align: bottom;
+  &__cell-surface[data-vertical-align='middle'] {
+    justify-content: center;
+  }
+
+  &__cell-surface[data-vertical-align='bottom'] {
+    justify-content: flex-end;
   }
 
   &__split-grid {

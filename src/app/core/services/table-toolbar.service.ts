@@ -248,6 +248,140 @@ export class TableToolbarService {
   }
 
   /**
+   * Toggle unordered (bullet) list
+   */
+  toggleBulletList(): void {
+    console.log('[DEBUG] toggleBulletList called');
+    console.log('[DEBUG] activeCell:', this.activeCell);
+    if (!this.activeCell) {
+      console.log('[DEBUG] No active cell, returning from toggleBulletList');
+      return;
+    }
+    this.restoreSelectionIfNeeded();
+    this.activeCell.focus();
+    
+    // Always use manual implementation - execCommand is deprecated and unreliable
+    this.manuallyInsertList('ul');
+    
+    // Trigger input event to notify Angular of changes
+    this.activeCell.dispatchEvent(new Event('input', { bubbles: true }));
+    this.updateFormattingState();
+    console.log('[DEBUG] toggleBulletList completed');
+  }
+
+  /**
+   * Toggle ordered (numbered) list
+   */
+  toggleNumberedList(): void {
+    console.log('[DEBUG] toggleNumberedList called');
+    console.log('[DEBUG] activeCell:', this.activeCell);
+    if (!this.activeCell) {
+      console.log('[DEBUG] No active cell, returning from toggleNumberedList');
+      return;
+    }
+    this.restoreSelectionIfNeeded();
+    this.activeCell.focus();
+    
+    // Always use manual implementation - execCommand is deprecated and unreliable
+    this.manuallyInsertList('ol');
+    
+    // Trigger input event to notify Angular of changes
+    this.activeCell.dispatchEvent(new Event('input', { bubbles: true }));
+    this.updateFormattingState();
+  }
+
+  /**
+   * Manually insert a list when execCommand fails
+   */
+  private manuallyInsertList(listType: 'ul' | 'ol'): void {
+    const cell = this.activeCell;
+    if (!cell) return;
+
+    const selection = window.getSelection();
+    
+    // Check if we're already in a list of this type - if so, remove it
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const existingList = this.findParentElement(range.startContainer, listType.toUpperCase());
+      if (existingList && cell.contains(existingList)) {
+        // Remove list - convert list items back to text
+        const fragment = document.createDocumentFragment();
+        const items = existingList.querySelectorAll('li');
+        items.forEach((li, index) => {
+          if (index > 0) {
+            fragment.appendChild(document.createElement('br'));
+          }
+          while (li.firstChild) {
+            fragment.appendChild(li.firstChild);
+          }
+        });
+        existingList.parentNode?.replaceChild(fragment, existingList);
+        return;
+      }
+    }
+
+    // Create a new list
+    const list = document.createElement(listType);
+    list.style.display = 'block';
+    list.style.margin = '0';
+    list.style.padding = '0';
+    list.style.paddingLeft = '1em';
+    list.style.listStylePosition = 'inside';
+    list.style.listStyleType = listType === 'ul' ? 'disc' : 'decimal';
+    
+    const li = document.createElement('li');
+    li.style.display = 'list-item';
+    li.style.margin = '0';
+    li.style.padding = '0';
+
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      
+      if (!range.collapsed) {
+        // Has selection - wrap selected content
+        const selectedContent = range.extractContents();
+        li.appendChild(selectedContent);
+      } else {
+        // Collapsed cursor - create empty list item
+        // Use zero-width space for cursor positioning without visible space
+        li.appendChild(document.createTextNode('\u200B'));
+      }
+      
+      list.appendChild(li);
+      range.insertNode(list);
+    } else {
+      // No selection at all - append to end of cell
+      li.appendChild(document.createTextNode('\u200B'));
+      list.appendChild(li);
+      cell.appendChild(list);
+    }
+
+    // Move cursor into the list item
+    try {
+      const newRange = document.createRange();
+      newRange.selectNodeContents(li);
+      newRange.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(newRange);
+    } catch (e) {
+      // Ignore cursor positioning errors
+    }
+  }
+
+  /**
+   * Find parent element by tag name
+   */
+  private findParentElement(node: Node | null, tagName: string): HTMLElement | null {
+    while (node && node !== this.activeCell) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === tagName) {
+        return node as HTMLElement;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  /**
    * Apply line-height by styling the nearest block element inside the selection.
    * If selection is non-collapsed, we wrap the selected contents in a <span style="line-height: ...">.
    */

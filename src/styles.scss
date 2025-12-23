@@ -60,3 +60,30 @@ app-root {
   overflow: auto;
   box-sizing: border-box;
 }
+
+// Global list styles for table cells - ensures bullets/numbers are visible
+.table-widget__cell-content {
+  ul, ol {
+    display: block !important;
+    margin: 4px 0 !important;
+    padding-left: 20px !important;
+    list-style-position: inside !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+
+  ul {
+    list-style-type: disc !important;
+  }
+
+  ol {
+    list-style-type: decimal !important;
+  }
+
+  li {
+    display: list-item !important;
+    margin: 2px 0 !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+  }
+}

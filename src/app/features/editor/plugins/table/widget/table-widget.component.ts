@@ -17,6 +17,7 @@ import {
   ElementRef,
   ViewChild,
   untracked,
+  ViewEncapsulation,
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
@@ -60,6 +61,7 @@ type SharedSplitRowSegment = { boundaryAbs: number; topPercent: number; leftPerc
   templateUrl: './table-widget.component.html',
   styleUrls: ['./table-widget.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
 })
 export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy, FlushableWidget {
   private readonly maxSplitDepth = 4;

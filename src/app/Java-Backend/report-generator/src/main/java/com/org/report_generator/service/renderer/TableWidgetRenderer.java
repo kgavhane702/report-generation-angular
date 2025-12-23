@@ -64,36 +64,46 @@ public class TableWidgetRenderer {
             height: 100%;
             min-height: 24px;
             box-sizing: border-box;
-            display: table;
+            display: flex;
+            flex-direction: column;
             background: transparent;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='top'] {
+            justify-content: flex-start;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='middle'] {
+            justify-content: center;
+        }
+
+        .widget-table .table-widget__cell-surface[data-vertical-align='bottom'] {
+            justify-content: flex-end;
         }
 
         .widget-table .table-widget__cell-content {
             width: 100%;
-            height: 100%;
             min-height: 24px;
             padding: 4px 8px;
             box-sizing: border-box;
             word-wrap: break-word;
             overflow-wrap: break-word;
             word-break: break-word;
-            white-space: pre-wrap;
             background: transparent;
             color: inherit;
             font-family: inherit;
             font-size: inherit;
             line-height: 1.5;
-            /* Do NOT use flex on content node; inline wrappers like <b>/<span> can become flex items and break lines. */
-            display: table-cell;
-            vertical-align: top;
+            display: block;
         }
 
+        /* Legacy vertical align support */
         .widget-table .table-widget__cell-surface[data-vertical-align='middle'] .table-widget__cell-content {
-            vertical-align: middle;
+            /* handled by flex */
         }
 
         .widget-table .table-widget__cell-surface[data-vertical-align='bottom'] .table-widget__cell-content {
-            vertical-align: bottom;
+            /* handled by flex */
         }
         
         /* Embedded bold/italic */
@@ -127,6 +137,30 @@ public class TableWidgetRenderer {
             margin: 0.25em 0 0.25em 1em;
             padding-left: 0.75em;
             border-left: 3px solid #e2e8f0;
+        }
+
+        /* Lists inside table cells - proper display with inherited font size */
+        .widget-table .table-widget__cell-content ul,
+        .widget-table .table-widget__cell-content ol {
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            padding-left: 1em !important;
+            list-style-position: inside !important;
+        }
+
+        .widget-table .table-widget__cell-content ul {
+            list-style-type: disc !important;
+        }
+
+        .widget-table .table-widget__cell-content ol {
+            list-style-type: decimal !important;
+        }
+
+        .widget-table .table-widget__cell-content li {
+            display: list-item !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
         
         /* Split grid inside a cell */

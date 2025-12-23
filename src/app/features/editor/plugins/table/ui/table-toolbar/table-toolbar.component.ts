@@ -215,6 +215,18 @@ export class TableToolbarComponent {
     this.toolbarService.decreaseIndent();
   }
 
+  onBulletListClick(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.toggleBulletList();
+  }
+
+  onNumberedListClick(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.toggleNumberedList();
+  }
+
   // Line height
   readonly lineHeights: Array<string> = ['1', '1.15', '1.3', '1.4', '1.5', '1.75', '2'];
 
