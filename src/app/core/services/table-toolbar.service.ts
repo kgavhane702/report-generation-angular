@@ -389,6 +389,12 @@ export class TableToolbarService {
     if (!this.activeCell) return;
     this.restoreSelectionIfNeeded();
     document.execCommand('superscript', false);
+    // Persist DOM changes even if the browser doesn't fire an input event.
+    try {
+      this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-superscript' } }));
+    } catch {
+      // ignore
+    }
     this.updateFormattingState();
   }
 
@@ -396,6 +402,12 @@ export class TableToolbarService {
     if (!this.activeCell) return;
     this.restoreSelectionIfNeeded();
     document.execCommand('subscript', false);
+    // Persist DOM changes even if the browser doesn't fire an input event.
+    try {
+      this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-subscript' } }));
+    } catch {
+      // ignore
+    }
     this.updateFormattingState();
   }
 

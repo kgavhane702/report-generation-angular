@@ -836,6 +836,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (el) {
       this.maybeAutoGrowToFit(el, rowIndex, cellIndex, leafPath);
     }
+
     this.cdr.markForCheck();
   }
 
