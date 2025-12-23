@@ -10,7 +10,7 @@ import { ExportUiStateService } from './export-ui-state.service';
   providedIn: 'root',
 })
 export class PdfService {
-  private readonly apiUrl = 'http://localhost:8080/api/generate-pdf';
+  private readonly apiUrl = '/api/generate-pdf';
   private readonly chartExportService = inject(ChartExportService);
   private readonly exportUi = inject(ExportUiStateService);
 

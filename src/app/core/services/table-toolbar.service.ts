@@ -38,6 +38,21 @@ export interface TableDeleteRequest {
   axis: 'row' | 'col';
 }
 
+export interface TableImportFromExcelRequest {
+  widgetId: string;
+  rows: Array<{
+    id: string;
+    cells: Array<{
+      id: string;
+      contentHtml: string;
+      merge: { rowSpan: number; colSpan: number } | null;
+      coveredBy: { row: number; col: number } | null;
+    }>;
+  }>;
+  columnFractions: number[];
+  rowFractions: number[];
+}
+
 /**
  * Service to manage the active table cell and formatting state for table widgets.
  * Similar to RichTextToolbarService but for table cells with contenteditable.
@@ -61,6 +76,7 @@ export class TableToolbarService {
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
+  private readonly importFromExcelRequestedSubject = new Subject<TableImportFromExcelRequest>();
 
   private readonly tableOptionsRequestedSubject = new Subject<{ options: TableSectionOptions; widgetId: string }>();
   
@@ -78,6 +94,8 @@ export class TableToolbarService {
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
+  public readonly importFromExcelRequested$: Observable<TableImportFromExcelRequest> =
+    this.importFromExcelRequestedSubject.asObservable();
   public readonly tableOptionsRequested$: Observable<{ options: TableSectionOptions; widgetId: string }> = this.tableOptionsRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
@@ -146,6 +164,10 @@ export class TableToolbarService {
 
   requestDelete(request: TableDeleteRequest): void {
     this.deleteRequestedSubject.next(request);
+  }
+
+  requestImportTableFromExcel(request: TableImportFromExcelRequest): void {
+    this.importFromExcelRequestedSubject.next(request);
   }
 
   requestFormatPainterToggle(): void {

@@ -73,7 +73,8 @@
               "browserTarget": "report-ui:build:production"
             },
             "development": {
-              "browserTarget": "report-ui:build:development"
+              "browserTarget": "report-ui:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

@@ -186,6 +186,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private fontSizeSubscription?: Subscription;
   private formatPainterSubscription?: Subscription;
   private tableOptionsSubscription?: Subscription;
+  private importSubscription?: Subscription;
 
   /** One-shot format painter state (cell-level only) */
   private formatPainterArmed = false;
@@ -421,6 +422,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       });
     });
 
+    this.importSubscription = this.toolbarService.importFromExcelRequested$.subscribe((req) => {
+      if (req.widgetId !== this.widget.id) {
+        return;
+      }
+      this.applyExcelImport(req);
+    });
+
     this.textAlignSubscription = this.toolbarService.textAlignRequested$.subscribe((align) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -509,6 +517,39 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.scheduleRecomputeResizeSegments();
   }
 
+  private applyExcelImport(req: {
+    widgetId: string;
+    rows: Array<{ id: string; cells: Array<{ id: string; contentHtml: string; merge: any; coveredBy: any }> }>;
+    columnFractions: number[];
+    rowFractions: number[];
+  }): void {
+    // Replace entire table content with imported data.
+    const rows: TableRow[] = req.rows.map((r, rowIndex) => ({
+      id: r.id || `r-${rowIndex}`,
+      cells: r.cells.map((c, colIndex) => ({
+        id: c.id || `${rowIndex}-${colIndex}`,
+        contentHtml: c.contentHtml ?? '',
+        merge: c.merge ?? undefined,
+        coveredBy: c.coveredBy ?? undefined,
+      })),
+    }));
+
+    this.localRows.set(this.cloneRows(rows));
+    this.rowsAtEditStart = this.cloneRows(rows);
+
+    this.propsChange.emit({
+      rows,
+      columnFractions: req.columnFractions,
+      rowFractions: req.rowFractions,
+      mergedRegions: [],
+    });
+
+    this.columnFractions.set(req.columnFractions);
+    this.rowFractions.set(req.rowFractions);
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
   /** Activate/select the table widget without focusing any cell (PPT-like). */
   private activateTableWidget(): void {
     this.toolbarService.setActiveTableWidget(this.widget.id);
@@ -572,6 +613,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     if (this.tableOptionsSubscription) {
       this.tableOptionsSubscription.unsubscribe();
+    }
+
+    if (this.importSubscription) {
+      this.importSubscription.unsubscribe();
     }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);

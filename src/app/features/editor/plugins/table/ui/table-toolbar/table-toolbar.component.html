@@ -25,6 +25,30 @@
     <button
       type="button"
       class="table-toolbar__button table-toolbar__button--wide"
+      [disabled]="!hasActiveTable"
+      (mousedown)="onImportExcelClick($event)"
+      title="Import from Excel (.xlsx)"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <path d="M14 2v6h6"></path>
+        <path d="M8 13h8"></path>
+        <path d="M8 17h8"></path>
+      </svg>
+      <span class="table-toolbar__button-label">Import</span>
+    </button>
+
+    <input
+      #excelFileInput
+      type="file"
+      accept=".xlsx"
+      style="display: none"
+      (change)="onExcelFileSelected($event)"
+    />
+
+    <button
+      type="button"
+      class="table-toolbar__button table-toolbar__button--wide"
       (mousedown)="openSplitDialog($event)"
       title="Split cell (Rows/Columns)"
     >
