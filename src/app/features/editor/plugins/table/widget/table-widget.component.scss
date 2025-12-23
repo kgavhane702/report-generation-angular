@@ -80,7 +80,7 @@
     overflow-wrap: anywhere;
     word-break: break-word;
     // Note: white-space: pre-wrap removed to allow proper list rendering
-    // Use display: block for contenteditable to allow block elements like ul/ol
+    // Keep contenteditable in normal flow (avoid flex; it breaks caret behavior).
     display: block;
 
     &:focus {
@@ -163,20 +163,20 @@
     height: 100%;
     min-height: 24px;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
+    display: table;
+    table-layout: fixed;
   }
 
   &__cell-surface[data-vertical-align='top'] {
-    justify-content: flex-start;
+    vertical-align: top;
   }
 
   &__cell-surface[data-vertical-align='middle'] {
-    justify-content: center;
+    vertical-align: middle;
   }
 
   &__cell-surface[data-vertical-align='bottom'] {
-    justify-content: flex-end;
+    vertical-align: bottom;
   }
 
   &__split-grid {

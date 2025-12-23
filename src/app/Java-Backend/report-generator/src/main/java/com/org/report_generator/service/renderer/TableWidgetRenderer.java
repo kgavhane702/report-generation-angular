@@ -244,6 +244,12 @@ public class TableWidgetRenderer {
             }
         }
 
+        // Read section options (headerRow, firstColumn, totalRow, lastColumn)
+        boolean headerRow = props.path("headerRow").asBoolean(false);
+        boolean firstColumn = props.path("firstColumn").asBoolean(false);
+        boolean totalRow = props.path("totalRow").asBoolean(false);
+        boolean lastColumn = props.path("lastColumn").asBoolean(false);
+
         double[] colFractions = parseFractions(props.path("columnFractions"), colCount);
         double[] rowFractions = parseFractions(props.path("rowFractions"), rowCount);
 
@@ -280,6 +286,7 @@ public class TableWidgetRenderer {
                 .append("%;\">");
 
             if (cellsNode.isArray()) {
+                int colIndex = 0;
                 for (JsonNode cellNode : cellsNode) {
                     if (cellNode == null || cellNode.isNull()) continue;
 
@@ -292,7 +299,14 @@ public class TableWidgetRenderer {
                     int rowSpan = mergeNode.path("rowSpan").asInt(1);
                     int colSpan = mergeNode.path("colSpan").asInt(1);
 
-                    String borderStyle = buildBorderStyle(cellNode);
+                    // Determine if this cell is in a special section
+                    boolean isHeaderRow = headerRow && rowIndex == 0;
+                    boolean isTotalRow = totalRow && rowIndex == rowCount - 1 && rowCount > 1;
+                    // For merged cells: first column if starts at 0, last column if ends at colCount-1
+                    boolean isFirstCol = firstColumn && colIndex == 0;
+                    boolean isLastCol = lastColumn && (colIndex + colSpan - 1) >= (colCount - 1) && colCount > 1;
+
+                    String borderStyle = buildBorderStyle(cellNode, isTotalRow);
 
                     html.append("<td class=\"table-widget__cell\"");
                     if (rowSpan > 1) html.append(" rowspan=\"").append(rowSpan).append("\"");
@@ -302,8 +316,11 @@ public class TableWidgetRenderer {
                     }
                     html.append(">");
 
-                    html.append(renderCellInner(cellNode));
+                    // Apply section styling based on position
+                    html.append(renderCellInner(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol));
                     html.append("</td>");
+                    
+                    colIndex += colSpan;
                 }
             }
 
@@ -316,7 +333,7 @@ public class TableWidgetRenderer {
         return html.toString();
     }
 
-    private String renderCellInner(JsonNode cellNode) {
+    private String renderCellInner(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
         JsonNode splitNode = cellNode.path("split");
         if (!splitNode.isMissingNode() && splitNode.isObject()) {
             int rows = Math.max(1, splitNode.path("rows").asInt(1));
@@ -366,14 +383,16 @@ public class TableWidgetRenderer {
                       .append("grid-row-end: span ").append(Math.max(1, rowSpan)).append(";")
                       .append("grid-column-end: span ").append(Math.max(1, colSpan)).append(";");
 
-                    String borderStyle = buildBorderStyle(child);
+                    // Split cells are nested, so they don't get section styling (only top-level cells do)
+                    String borderStyle = buildBorderStyle(child, false);
                     if (!borderStyle.isEmpty()) {
                         sb.append(escapeHtmlAttribute(borderStyle));
                     }
                     sb.append("\">");
 
                     // Recurse so nested split grids render correctly (split-inside-split).
-                    sb.append(renderCellInner(child));
+                    // For split cells, they're nested so they don't get section styling (pass false for all)
+                    sb.append(renderCellInner(child, false, false, false, false));
                     sb.append("</div>");
                 }
             }
@@ -382,13 +401,13 @@ public class TableWidgetRenderer {
             return sb.toString();
         }
 
-        return renderCellSurface(cellNode);
+        return renderCellSurface(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
     }
 
-    private String renderCellSurface(JsonNode cellNode) {
-        String verticalAlign = getVerticalAlign(cellNode);
-        String surfaceStyle = buildSurfaceStyle(cellNode);
-        String contentStyle = buildContentStyle(cellNode);
+    private String renderCellSurface(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
+        String verticalAlign = getVerticalAlign(cellNode, isHeaderRow);
+        String surfaceStyle = buildSurfaceStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
+        String contentStyle = buildContentStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
 
         String content = "";
         JsonNode contentNode = cellNode.path("contentHtml");
@@ -419,13 +438,17 @@ public class TableWidgetRenderer {
         return sb.toString();
     }
 
-    private String getVerticalAlign(JsonNode cellNode) {
+    private String getVerticalAlign(JsonNode cellNode, boolean isHeaderRow) {
         JsonNode styleNode = cellNode.path("style");
         if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
-            return "top";
+            // Header row defaults to middle
+            return isHeaderRow ? "middle" : "top";
         }
         String verticalAlign = styleNode.path("verticalAlign").asText("");
-        return verticalAlign.isBlank() ? "top" : verticalAlign;
+        if (verticalAlign.isBlank()) {
+            return isHeaderRow ? "middle" : "top";
+        }
+        return verticalAlign;
     }
 
     /**
@@ -475,70 +498,116 @@ public class TableWidgetRenderer {
         return style.toString();
     }
 
-    private String buildSurfaceStyle(JsonNode cellNode) {
+    private String buildSurfaceStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
         JsonNode styleNode = cellNode.path("style");
-        if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
-            return "";
-        }
+        boolean hasStyleNode = !styleNode.isMissingNode() && !styleNode.isNull() && styleNode.isObject();
 
         StringBuilder style = new StringBuilder();
 
-        String textAlign = styleNode.path("textAlign").asText("");
+        String textAlign = hasStyleNode ? styleNode.path("textAlign").asText("") : "";
         if (!textAlign.isBlank()) {
             style.append("text-align: ").append(textAlign).append(";");
         }
 
-        String backgroundColor = styleNode.path("backgroundColor").asText("");
-        if (!backgroundColor.isBlank() && !"transparent".equalsIgnoreCase(backgroundColor)) {
-            style.append("background-color: ").append(backgroundColor).append(";");
+        // Apply section background colors (header row wins over column, total row wins over column)
+        String backgroundColor = hasStyleNode ? styleNode.path("backgroundColor").asText("") : "";
+        if (isHeaderRow) {
+            // Header row: #e5e7eb (overrides user background unless explicitly set)
+            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+                style.append("background-color: #e5e7eb;");
+            } else {
+                style.append("background-color: ").append(backgroundColor).append(";");
+            }
+        } else if (isTotalRow) {
+            // Total row: #eef2f7 (only if no user background)
+            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+                style.append("background-color: #eef2f7;");
+            } else {
+                style.append("background-color: ").append(backgroundColor).append(";");
+            }
+        } else if (isFirstCol || isLastCol) {
+            // First/Last column: #f1f5f9 (only if no user background and not in header/total row)
+            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+                style.append("background-color: #f1f5f9;");
+            } else {
+                style.append("background-color: ").append(backgroundColor).append(";");
+            }
         } else {
-            style.append("background-color: transparent;");
+            // Regular cell
+            if (!backgroundColor.isBlank() && !"transparent".equalsIgnoreCase(backgroundColor)) {
+                style.append("background-color: ").append(backgroundColor).append(";");
+            } else {
+                style.append("background-color: transparent;");
+            }
         }
 
         return style.toString();
     }
 
-    private String buildContentStyle(JsonNode cellNode) {
+    private String buildContentStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
         // Content div should NOT carry background-color (surface handles it).
         JsonNode styleNode = cellNode.path("style");
-        if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
-            return "";
-        }
+        boolean hasStyleNode = !styleNode.isMissingNode() && !styleNode.isNull() && styleNode.isObject();
 
         StringBuilder style = new StringBuilder();
 
-        String fontFamily = styleNode.path("fontFamily").asText("");
+        String fontFamily = hasStyleNode ? styleNode.path("fontFamily").asText("") : "";
         if (!fontFamily.isBlank()) {
             style.append("font-family: ").append(fontFamily).append(";");
         }
 
-        int fontSizePx = styleNode.path("fontSizePx").asInt(0);
+        int fontSizePx = hasStyleNode ? styleNode.path("fontSizePx").asInt(0) : 0;
         if (fontSizePx > 0) {
             style.append("font-size: ").append(fontSizePx).append("px;");
         }
 
-        String fontWeight = styleNode.path("fontWeight").asText("");
-        if (!fontWeight.isBlank()) {
+        // Apply section font-weight (bold for header row, total row, first/last column)
+        String fontWeight = hasStyleNode ? styleNode.path("fontWeight").asText("") : "";
+        if (isHeaderRow || isTotalRow || isFirstCol || isLastCol) {
+            // Section styling: bold unless user explicitly set a different weight
+            if (fontWeight.isBlank()) {
+                style.append("font-weight: bold;");
+            } else {
+                style.append("font-weight: ").append(fontWeight).append(";");
+            }
+        } else if (!fontWeight.isBlank()) {
             style.append("font-weight: ").append(fontWeight).append(";");
         }
 
-        String fontStyle = styleNode.path("fontStyle").asText("");
+        String fontStyle = hasStyleNode ? styleNode.path("fontStyle").asText("") : "";
         if (!fontStyle.isBlank()) {
             style.append("font-style: ").append(fontStyle).append(";");
+        }
+
+        String textColor = hasStyleNode ? styleNode.path("color").asText("") : "";
+        if (!textColor.isBlank()) {
+            style.append("color: ").append(textColor).append(";");
         }
 
         return style.toString();
     }
 
-    private String buildBorderStyle(JsonNode cellNode) {
+    private String buildBorderStyle(JsonNode cellNode, boolean isTotalRow) {
         JsonNode styleNode = cellNode.path("style");
         if (styleNode.isMissingNode() || styleNode.isNull() || !styleNode.isObject()) {
+            // Total row gets a thicker top border by default
+            if (isTotalRow) {
+                return "border-top-width: 2px; border-top-style: solid;";
+            }
             return "";
         }
 
         String borderStyle = styleNode.path("borderStyle").asText("");
         String borderColor = styleNode.path("borderColor").asText("");
         int borderWidth = styleNode.path("borderWidth").asInt(0);
+        
+        // Total row: emphasize with thicker top border (minimum 2px)
+        if (isTotalRow && borderWidth < 2) {
+            borderWidth = 2;
+            if (borderStyle.isBlank()) {
+                borderStyle = "solid";
+            }
+        }
 
         StringBuilder style = new StringBuilder();
 

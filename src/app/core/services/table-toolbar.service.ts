@@ -535,16 +535,25 @@ export class TableToolbarService {
   }
 
   /**
-   * Apply vertical alignment to selected cells or active cell
+   * Apply vertical alignment to selected cells or active cell.
+   * Updates the data-vertical-align attribute on the parent cell surface element,
+   * which controls vertical alignment via flexbox justify-content in CSS.
    */
   applyVerticalAlign(align: 'top' | 'middle' | 'bottom'): void {
     const cells = this.getSelectedCellElements?.() ?? [];
     if (cells.length > 0) {
       cells.forEach(cell => {
-        cell.style.verticalAlign = align;
+        // Find the parent cell surface element and update its data-vertical-align attribute
+        const cellSurface = cell.closest('.table-widget__cell-surface');
+        if (cellSurface) {
+          cellSurface.setAttribute('data-vertical-align', align);
+        }
       });
     } else if (this.activeCell) {
-      this.activeCell.style.verticalAlign = align;
+      const cellSurface = this.activeCell.closest('.table-widget__cell-surface');
+      if (cellSurface) {
+        cellSurface.setAttribute('data-vertical-align', align);
+      }
     } else {
       return;
     }
@@ -654,7 +663,10 @@ export class TableToolbarService {
     
     const computedStyle = window.getComputedStyle(cell);
     const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
-    const verticalAlign = ((cell.style.verticalAlign || computedStyle.verticalAlign || 'top') as 'top' | 'middle' | 'bottom');
+
+    const surface = cell.closest('.table-widget__cell-surface');
+    const surfaceAlign = (surface?.getAttribute('data-vertical-align') || '').trim();
+    const verticalAlign = ((surfaceAlign || 'top') as 'top' | 'middle' | 'bottom');
     const fontFamily = (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
     const fontSizeRaw = (cell.style.fontSize || computedStyle.fontSize || '').trim();
     const fontSizePx = (() => {
