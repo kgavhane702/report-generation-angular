@@ -4,6 +4,7 @@
     (mousedown)="toggleDropdown($event)"
     [attr.title]="title || 'Border'"
     [class.border-picker__trigger--disabled]="disabled"
+    #trigger
   >
     <span class="border-picker__icon">Border</span>
     <span
@@ -13,11 +14,13 @@
     ></span>
   </div>
 
-  <div
-    class="border-picker__dropdown"
-    *ngIf="showDropdown() && !disabled"
-    (mousedown)="$event.stopPropagation()"
-    (click)="$event.stopPropagation()"
+  <app-anchored-dropdown
+    [open]="showDropdown() && !disabled"
+    (openChange)="showDropdown.set($event)"
+    [anchor]="trigger"
+    align="auto"
+    [minWidthPx]="280"
+    [maxWidthPx]="420"
   >
     <div class="border-picker__header">
       <div class="border-picker__header-title">Border</div>
@@ -117,7 +120,7 @@
         Pick <b>Transparent</b> to clear the custom border and use the table’s default borders.
       </div>
     </div>
-  </div>
+  </app-anchored-dropdown>
 </div>
 
 

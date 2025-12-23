@@ -1,0 +1,13 @@
+<div class="anchored-dropdown-host" *ngIf="open">
+  <div
+    #panel
+    class="anchored-dropdown"
+    [ngStyle]="panelStyle"
+    role="dialog"
+    aria-modal="false"
+    (mousedown)="$event.stopPropagation()"
+    (click)="$event.stopPropagation()"
+  >
+    <ng-content></ng-content>
+  </div>
+</div>

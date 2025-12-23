@@ -5,6 +5,7 @@
     [attr.title]="title || (currentColor || 'Transparent')"
     [class.color-picker__trigger--disabled]="disabled"
     [class.color-picker__trigger--icon]="!!icon"
+    #trigger
   >
     <span *ngIf="icon" class="color-picker__icon" [class.material-symbols-outlined]="isMaterialIcon(icon)">{{ icon }}</span>
     <span *ngIf="label && !icon" class="color-picker__label">{{ label }}</span>
@@ -16,7 +17,14 @@
     </div>
   </div>
 
-  <div class="color-picker__dropdown" *ngIf="showDropdown() && !disabled" (mousedown)="$event.stopPropagation()" (click)="$event.stopPropagation()">
+  <app-anchored-dropdown
+    [open]="showDropdown() && !disabled"
+    (openChange)="showDropdown.set($event)"
+    [anchor]="trigger"
+    align="auto"
+    [minWidthPx]="200"
+    [maxWidthPx]="360"
+  >
     <div class="color-picker__custom" *ngIf="showLabel">
       <input
         type="color"
@@ -41,6 +49,6 @@
         <span *ngIf="!color.value" class="color-picker__transparent-icon">×</span>
       </button>
     </div>
-  </div>
+  </app-anchored-dropdown>
 </div>
 

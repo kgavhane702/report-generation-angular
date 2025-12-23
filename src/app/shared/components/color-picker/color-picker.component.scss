@@ -78,18 +78,7 @@
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
 }
 
-.color-picker__dropdown {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  left: 0;
-  background: #fff;
-  border: 1px solid rgba(15, 23, 42, 0.15);
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  padding: 0.75rem;
-  z-index: 1000;
-  min-width: 200px;
-}
+/* Dropdown panel is rendered by app-anchored-dropdown */
 
 .color-picker__custom {
   display: flex;

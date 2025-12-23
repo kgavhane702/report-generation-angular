@@ -1,9 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   EventEmitter,
-  HostListener,
   Input,
   Output,
   signal,
@@ -11,6 +9,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ColorOption } from '../color-picker/color-picker.component';
+import { AnchoredDropdownComponent } from '../dropdown/anchored-dropdown/anchored-dropdown.component';
 
 export type BorderStyle = 'solid' | 'dashed' | 'dotted' | 'none';
 
@@ -23,7 +22,7 @@ export interface BorderValue {
 @Component({
   selector: 'app-border-picker',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AnchoredDropdownComponent],
   templateUrl: './border-picker.component.html',
   styleUrls: ['./border-picker.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,8 +37,7 @@ export class BorderPickerComponent {
   @Output() valueChange = new EventEmitter<BorderValue>();
 
   readonly showDropdown = signal(false);
-
-  constructor(private readonly elementRef: ElementRef) {}
+  constructor() {}
 
   toggleDropdown(event?: MouseEvent): void {
     if (event) {
@@ -95,13 +93,6 @@ export class BorderPickerComponent {
 
   private emit(next: BorderValue): void {
     this.valueChange.emit(next);
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.showDropdown.set(false);
-    }
   }
 }
 

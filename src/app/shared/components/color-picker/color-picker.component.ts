@@ -2,13 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   EventEmitter,
-  HostListener,
   Input,
   Output,
   signal,
-  ElementRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AnchoredDropdownComponent } from '../dropdown/anchored-dropdown/anchored-dropdown.component';
 
 export interface ColorOption {
   value: string;
@@ -18,7 +17,7 @@ export interface ColorOption {
 @Component({
   selector: 'app-color-picker',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AnchoredDropdownComponent],
   templateUrl: './color-picker.component.html',
   styleUrls: ['./color-picker.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -36,7 +35,7 @@ export class ColorPickerComponent {
 
   readonly showDropdown = signal(false);
 
-  constructor(private readonly elementRef: ElementRef) {}
+  constructor() {}
 
   isMaterialIcon(icon: string): boolean {
     // Material Symbols icons typically start with specific prefixes
@@ -73,13 +72,6 @@ export class ColorPickerComponent {
 
   getDisplayColor(): string {
     return this.currentColor || 'transparent';
-  }
-
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
-    if (!this.elementRef.nativeElement.contains(event.target)) {
-      this.showDropdown.set(false);
-    }
   }
 }
 
