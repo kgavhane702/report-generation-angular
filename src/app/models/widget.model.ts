@@ -181,6 +181,11 @@ export interface TableCellStyle {
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';
   /**
+   * Optional text decoration for the whole cell content.
+   * Used for PPT-like multi-cell underline/strikethrough.
+   */
+  textDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  /**
    * Optional font family for the cell (applies to the entire cell content).
    * Example: "Inter", "Arial", "Times New Roman".
    */
@@ -189,6 +194,12 @@ export interface TableCellStyle {
    * Optional font size in pixels for the cell (applies to the entire cell content).
    */
   fontSizePx?: number;
+  /** Optional text color for the whole cell content. */
+  color?: string;
+  /** Optional text highlight for the whole cell content (background on text layer). */
+  textHighlightColor?: string;
+  /** Optional line-height for the whole cell content (e.g. "1.4" or "20px"). */
+  lineHeight?: string;
   /**
    * Cell fill / background color (applies to the cell container, not selected text).
    */

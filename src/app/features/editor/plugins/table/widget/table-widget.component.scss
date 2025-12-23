@@ -383,6 +383,10 @@
   line-height: 1.5;
   color: inherit;
 
+  // Cell-level formatting support (applies to full cell when multi-selected)
+  text-decoration: inherit;
+  background-color: transparent;
+
   // Reset styles for pasted content
   * {
     font-family: inherit;

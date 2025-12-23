@@ -73,6 +73,12 @@ export class TableToolbarService {
   private readonly cellBorderRequestedSubject = new Subject<CellBorderRequest>();
   private readonly fontFamilyRequestedSubject = new Subject<string>();
   private readonly fontSizeRequestedSubject = new Subject<number | null>();
+  private readonly fontWeightRequestedSubject = new Subject<'normal' | 'bold'>();
+  private readonly fontStyleRequestedSubject = new Subject<'normal' | 'italic'>();
+  private readonly textDecorationRequestedSubject = new Subject<'none' | 'underline' | 'line-through' | 'underline line-through'>();
+  private readonly textColorRequestedSubject = new Subject<string>();
+  private readonly textHighlightRequestedSubject = new Subject<string>();
+  private readonly lineHeightRequestedSubject = new Subject<string>();
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
@@ -91,6 +97,13 @@ export class TableToolbarService {
   public readonly cellBorderRequested$: Observable<CellBorderRequest> = this.cellBorderRequestedSubject.asObservable();
   public readonly fontFamilyRequested$: Observable<string> = this.fontFamilyRequestedSubject.asObservable();
   public readonly fontSizeRequested$: Observable<number | null> = this.fontSizeRequestedSubject.asObservable();
+  public readonly fontWeightRequested$: Observable<'normal' | 'bold'> = this.fontWeightRequestedSubject.asObservable();
+  public readonly fontStyleRequested$: Observable<'normal' | 'italic'> = this.fontStyleRequestedSubject.asObservable();
+  public readonly textDecorationRequested$: Observable<'none' | 'underline' | 'line-through' | 'underline line-through'> =
+    this.textDecorationRequestedSubject.asObservable();
+  public readonly textColorRequested$: Observable<string> = this.textColorRequestedSubject.asObservable();
+  public readonly textHighlightRequested$: Observable<string> = this.textHighlightRequestedSubject.asObservable();
+  public readonly lineHeightRequested$: Observable<string> = this.lineHeightRequestedSubject.asObservable();
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
@@ -129,6 +142,36 @@ export class TableToolbarService {
 
   /** Cache the last selection range inside the active cell so toolbar interactions can restore it. */
   private lastSelectionRange: Range | null = null;
+
+  private hasTextSelectionInActiveCell(): boolean {
+    const cell = this.activeCell;
+    if (!cell) return false;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+    const range = selection.getRangeAt(0);
+    if (range.collapsed) return false;
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!anchor || !focus) return false;
+    return cell.contains(anchor) && cell.contains(focus);
+  }
+
+  private getSelectedCellsCount(): number {
+    return this.selectedCellsSubject.value?.size ?? 0;
+  }
+
+  private getSelectedCellsUniformState<T extends string>(
+    getState: (el: HTMLElement) => T
+  ): { all: T | null; values: T[] } {
+    const cells = this.getSelectedCellElements?.() ?? [];
+    const values = cells.map(getState);
+    if (values.length === 0) {
+      return { all: null, values: [] };
+    }
+    const first = values[0];
+    const same = values.every((v) => v === first);
+    return { all: same ? first : null, values };
+  }
 
   constructor() {
     document.addEventListener('selectionchange', this.handleSelectionChange, true);
@@ -260,6 +303,23 @@ export class TableToolbarService {
    */
   applyBold(): void {
     if (!this.activeCell) return;
+
+    // If multiple cells are selected, apply cell-level fontWeight to the whole selection.
+    // If selection is mixed, first action makes ALL bold (PPT-like).
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      const { all } = this.getSelectedCellsUniformState<'normal' | 'bold'>((el) => {
+        const w = (el.style.fontWeight || window.getComputedStyle(el).fontWeight || '').toString();
+        // computed can be "700" etc.
+        return w === 'bold' || Number(w) >= 600 ? 'bold' : 'normal';
+      });
+
+      const next: 'normal' | 'bold' = all === 'bold' ? 'normal' : 'bold';
+      this.fontWeightRequestedSubject.next(next);
+      this.formattingState.update((state) => ({ ...state, isBold: next === 'bold' }));
+      return;
+    }
+
+    // Otherwise keep existing inline behavior.
     this.restoreSelectionIfNeeded();
     document.execCommand('bold', false);
     this.updateFormattingState();
@@ -270,6 +330,18 @@ export class TableToolbarService {
    */
   applyItalic(): void {
     if (!this.activeCell) return;
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      const { all } = this.getSelectedCellsUniformState<'normal' | 'italic'>((el) => {
+        const v = (el.style.fontStyle || window.getComputedStyle(el).fontStyle || '').toString();
+        return v === 'italic' ? 'italic' : 'normal';
+      });
+      const next: 'normal' | 'italic' = all === 'italic' ? 'normal' : 'italic';
+      this.fontStyleRequestedSubject.next(next);
+      this.formattingState.update((state) => ({ ...state, isItalic: next === 'italic' }));
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
     document.execCommand('italic', false);
     this.updateFormattingState();
@@ -277,6 +349,18 @@ export class TableToolbarService {
 
   applyUnderline(): void {
     if (!this.activeCell) return;
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      const { all } = this.getSelectedCellsUniformState<'none' | 'underline'>((el) => {
+        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
+        return td.includes('underline') ? 'underline' : 'none';
+      });
+      const next: 'none' | 'underline' = all === 'underline' ? 'none' : 'underline';
+      this.textDecorationRequestedSubject.next(next);
+      this.formattingState.update((state) => ({ ...state, isUnderline: next === 'underline' }));
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
     document.execCommand('underline', false);
     this.updateFormattingState();
@@ -284,6 +368,18 @@ export class TableToolbarService {
 
   applyStrikethrough(): void {
     if (!this.activeCell) return;
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      const { all } = this.getSelectedCellsUniformState<'none' | 'line-through'>((el) => {
+        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
+        return td.includes('line-through') ? 'line-through' : 'none';
+      });
+      const next: 'none' | 'line-through' = all === 'line-through' ? 'none' : 'line-through';
+      this.textDecorationRequestedSubject.next(next);
+      this.formattingState.update((state) => ({ ...state, isStrikethrough: next === 'line-through' }));
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
     document.execCommand('strikeThrough', false);
     this.updateFormattingState();
@@ -461,6 +557,15 @@ export class TableToolbarService {
     const lh = (lineHeight ?? '').toString().trim();
     if (!lh) return;
 
+    const normalized = this.normalizeLineHeight(lh);
+    if (!normalized) return;
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      this.lineHeightRequestedSubject.next(normalized);
+      this.formattingState.update((state) => ({ ...state, fontSizePx: state.fontSizePx }));
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
 
     const selection = window.getSelection();
@@ -469,8 +574,6 @@ export class TableToolbarService {
     const range = selection.getRangeAt(0);
 
     // Accept common values like "1.2", "1.4", "2", "20px"
-    const normalized = this.normalizeLineHeight(lh);
-    if (!normalized) return;
 
     if (range.collapsed) {
       const node = range.startContainer;
@@ -516,10 +619,18 @@ export class TableToolbarService {
    */
   applyTextColor(color: string): void {
     if (!this.activeCell) return;
+    const value = (color ?? '').trim();
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      // Cell-level text color for multi-cell selection.
+      this.textColorRequestedSubject.next(value);
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
     // Prefer inline CSS rather than <font> tags when supported.
     document.execCommand('styleWithCSS', false, 'true');
-    document.execCommand('foreColor', false, color);
+    document.execCommand('foreColor', false, value);
     this.updateFormattingState();
   }
 
@@ -528,12 +639,20 @@ export class TableToolbarService {
    */
   applyTextHighlight(color: string): void {
     if (!this.activeCell) return;
+    const value = (color ?? '').trim();
+
+    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+      // Cell-level highlight for multi-cell selection.
+      this.textHighlightRequestedSubject.next(value);
+      return;
+    }
+
     this.restoreSelectionIfNeeded();
     document.execCommand('styleWithCSS', false, 'true');
     // `hiliteColor` works in most modern browsers; `backColor` is a fallback.
-    const ok = document.execCommand('hiliteColor', false, color);
+    const ok = document.execCommand('hiliteColor', false, value);
     if (!ok) {
-      document.execCommand('backColor', false, color);
+      document.execCommand('backColor', false, value);
     }
     this.updateFormattingState();
   }
@@ -678,12 +797,20 @@ export class TableToolbarService {
 
     const isBold = document.queryCommandState('bold');
     const isItalic = document.queryCommandState('italic');
-    const isUnderline = document.queryCommandState('underline');
-    const isStrikethrough = document.queryCommandState('strikeThrough');
+    const computedStyle = window.getComputedStyle(cell);
+
+    const underlineFromSelection = document.queryCommandState('underline');
+    const strikeFromSelection = document.queryCommandState('strikeThrough');
+
+    const tdLine = (cell.style.textDecorationLine || computedStyle.textDecorationLine || '').toString();
+    const underlineFromCell = tdLine.includes('underline');
+    const strikeFromCell = tdLine.includes('line-through');
+
+    const isUnderline = underlineFromSelection || underlineFromCell;
+    const isStrikethrough = strikeFromSelection || strikeFromCell;
     const isSuperscript = document.queryCommandState('superscript');
     const isSubscript = document.queryCommandState('subscript');
     
-    const computedStyle = window.getComputedStyle(cell);
     const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
 
     const surface = cell.closest('.table-widget__cell-surface');

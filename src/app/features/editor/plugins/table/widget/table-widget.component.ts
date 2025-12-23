@@ -184,6 +184,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private cellBorderSubscription?: Subscription;
   private fontFamilySubscription?: Subscription;
   private fontSizeSubscription?: Subscription;
+  private fontWeightSubscription?: Subscription;
+  private fontStyleSubscription?: Subscription;
+  private textDecorationSubscription?: Subscription;
+  private textColorSubscription?: Subscription;
+  private textHighlightSubscription?: Subscription;
+  private lineHeightSubscription?: Subscription;
   private formatPainterSubscription?: Subscription;
   private tableOptionsSubscription?: Subscription;
   private importSubscription?: Subscription;
@@ -475,6 +481,50 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.applyStyleToSelection({ fontSizePx: fontSizePx ?? undefined });
     });
 
+    this.fontWeightSubscription = this.toolbarService.fontWeightRequested$.subscribe((fontWeight: 'normal' | 'bold') => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ fontWeight });
+    });
+
+    this.fontStyleSubscription = this.toolbarService.fontStyleRequested$.subscribe((fontStyle: 'normal' | 'italic') => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ fontStyle });
+    });
+
+    this.textDecorationSubscription = this.toolbarService.textDecorationRequested$.subscribe(
+      (textDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through') => {
+        if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+          return;
+        }
+        this.applyStyleToSelection({ textDecoration });
+      }
+    );
+
+    this.textColorSubscription = this.toolbarService.textColorRequested$.subscribe((color: string) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ color: color || undefined });
+    });
+
+    this.textHighlightSubscription = this.toolbarService.textHighlightRequested$.subscribe((color: string) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ textHighlightColor: color || undefined });
+    });
+
+    this.lineHeightSubscription = this.toolbarService.lineHeightRequested$.subscribe((lineHeight: string) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      this.applyStyleToSelection({ lineHeight: lineHeight || undefined });
+    });
+
     this.formatPainterSubscription = this.toolbarService.formatPainterRequested$.subscribe((enabled) => {
       if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
         return;
@@ -606,6 +656,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     if (this.fontSizeSubscription) {
       this.fontSizeSubscription.unsubscribe();
+    }
+    if (this.fontWeightSubscription) {
+      this.fontWeightSubscription.unsubscribe();
+    }
+    if (this.fontStyleSubscription) {
+      this.fontStyleSubscription.unsubscribe();
+    }
+    if (this.textDecorationSubscription) {
+      this.textDecorationSubscription.unsubscribe();
+    }
+    if (this.textColorSubscription) {
+      this.textColorSubscription.unsubscribe();
+    }
+    if (this.textHighlightSubscription) {
+      this.textHighlightSubscription.unsubscribe();
+    }
+    if (this.lineHeightSubscription) {
+      this.lineHeightSubscription.unsubscribe();
     }
     if (this.formatPainterSubscription) {
       this.formatPainterSubscription.unsubscribe();

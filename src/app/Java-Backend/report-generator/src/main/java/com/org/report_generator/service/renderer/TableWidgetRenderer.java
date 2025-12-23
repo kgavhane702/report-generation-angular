@@ -561,6 +561,11 @@ public class TableWidgetRenderer {
             style.append("font-size: ").append(fontSizePx).append("px;");
         }
 
+        String lineHeight = hasStyleNode ? styleNode.path("lineHeight").asText("") : "";
+        if (!lineHeight.isBlank()) {
+            style.append("line-height: ").append(lineHeight).append(";");
+        }
+
         // Apply section font-weight (bold for header row, total row, first/last column)
         String fontWeight = hasStyleNode ? styleNode.path("fontWeight").asText("") : "";
         if (isHeaderRow || isTotalRow || isFirstCol || isLastCol) {
@@ -579,9 +584,19 @@ public class TableWidgetRenderer {
             style.append("font-style: ").append(fontStyle).append(";");
         }
 
+        String textDecoration = hasStyleNode ? styleNode.path("textDecoration").asText("") : "";
+        if (!textDecoration.isBlank()) {
+            style.append("text-decoration: ").append(textDecoration).append(";");
+        }
+
         String textColor = hasStyleNode ? styleNode.path("color").asText("") : "";
         if (!textColor.isBlank()) {
             style.append("color: ").append(textColor).append(";");
+        }
+
+        String textHighlight = hasStyleNode ? styleNode.path("textHighlightColor").asText("") : "";
+        if (!textHighlight.isBlank() && !"transparent".equalsIgnoreCase(textHighlight)) {
+            style.append("background-color: ").append(textHighlight).append(";");
         }
 
         return style.toString();
