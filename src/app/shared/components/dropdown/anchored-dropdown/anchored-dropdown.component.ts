@@ -5,16 +5,20 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  Inject,
   Input,
   NgZone,
   OnChanges,
   OnDestroy,
   OnInit,
   Output,
+  Renderer2,
   SimpleChanges,
+  TemplateRef,
   ViewChild,
+  ViewContainerRef,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { DropdownCoordinatorService } from '../dropdown-coordinator.service';
 import { createDropdownId } from '../dropdown-id.util';
@@ -42,6 +46,7 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
   @Output() openChange = new EventEmitter<boolean>();
   @Output() closed = new EventEmitter<void>();
 
+  @ViewChild('dropdownTemplate', { static: true }) dropdownTemplate!: TemplateRef<unknown>;
   @ViewChild('panel') panelRef?: ElementRef<HTMLElement>;
 
   panelStyle: Record<string, string> = {};
@@ -49,11 +54,16 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
   private removeDocListener?: () => void;
   private coordinatorSub?: Subscription;
   private needsPositionUpdate = false;
+  private portalHost?: HTMLElement;
+  private embeddedViewRef?: ReturnType<TemplateRef<unknown>['createEmbeddedView']>;
 
   constructor(
     private readonly zone: NgZone,
     private readonly cdr: ChangeDetectorRef,
-    private readonly coordinator: DropdownCoordinatorService
+    private readonly coordinator: DropdownCoordinatorService,
+    private readonly renderer: Renderer2,
+    private readonly viewContainerRef: ViewContainerRef,
+    @Inject(DOCUMENT) private readonly document: Document
   ) {}
 
   ngOnInit(): void {
@@ -73,10 +83,12 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
     if (changes['open']) {
       if (this.open) {
         this.coordinator.notifyOpened(this.instanceId);
+        this.createPortal();
         this.needsPositionUpdate = true;
         this.attachOutsideClickListener();
       } else {
         this.detachOutsideClickListener();
+        this.destroyPortal();
       }
     }
 
@@ -101,6 +113,7 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
 
   ngOnDestroy(): void {
     this.detachOutsideClickListener();
+    this.destroyPortal();
     this.coordinatorSub?.unsubscribe();
     window.removeEventListener('resize', this.onWindowChange);
     window.removeEventListener('scroll', this.onWindowChange, true);
@@ -110,6 +123,41 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
     if (!this.open) return;
     this.openChange.emit(false);
     this.closed.emit();
+  }
+
+  private createPortal(): void {
+    if (this.portalHost) return;
+
+    // Create host element and append to body
+    this.portalHost = this.renderer.createElement('div');
+    this.renderer.addClass(this.portalHost, 'anchored-dropdown-portal');
+    this.renderer.setStyle(this.portalHost, 'position', 'fixed');
+    this.renderer.setStyle(this.portalHost, 'top', '0');
+    this.renderer.setStyle(this.portalHost, 'left', '0');
+    this.renderer.setStyle(this.portalHost, 'width', '100%');
+    this.renderer.setStyle(this.portalHost, 'height', '100%');
+    this.renderer.setStyle(this.portalHost, 'z-index', '999999');
+    this.renderer.setStyle(this.portalHost, 'pointer-events', 'none');
+    this.renderer.appendChild(this.document.body, this.portalHost);
+
+    // Create embedded view from template and attach to portal host
+    this.embeddedViewRef = this.viewContainerRef.createEmbeddedView(this.dropdownTemplate);
+    this.embeddedViewRef.rootNodes.forEach((node) => {
+      this.renderer.appendChild(this.portalHost, node);
+    });
+    this.embeddedViewRef.detectChanges();
+  }
+
+  private destroyPortal(): void {
+    if (this.embeddedViewRef) {
+      this.embeddedViewRef.destroy();
+      this.embeddedViewRef = undefined;
+    }
+
+    if (this.portalHost) {
+      this.renderer.removeChild(this.document.body, this.portalHost);
+      this.portalHost = undefined;
+    }
   }
 
   private onWindowChange = (): void => {
@@ -204,12 +252,15 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
     }
 
     this.panelStyle = {
+      position: 'absolute',
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
       minWidth: `${this.minWidthPx}px`,
       maxWidth: `${this.maxWidthPx}px`,
+      pointerEvents: 'auto',
     };
 
     this.cdr.markForCheck();
+    this.embeddedViewRef?.detectChanges();
   }
 }

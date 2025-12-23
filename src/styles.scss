@@ -37,3 +37,26 @@ app-root {
     z-index: 999999 !important;
   }
 }
+
+// Anchored dropdown portal styles (rendered to body)
+.anchored-dropdown-portal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999999;
+  pointer-events: none;
+}
+
+.anchored-dropdown {
+  position: absolute;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  pointer-events: auto;
+  overflow: auto;
+  box-sizing: border-box;
+}
