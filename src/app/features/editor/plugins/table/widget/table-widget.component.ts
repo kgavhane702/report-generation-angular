@@ -204,6 +204,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.isActivelyEditing();
   }
 
+  get isFormatPainterActive(): boolean {
+    return this.formatPainterArmed && this.toolbarService.formatPainterActive();
+  }
+
   get tableProps(): TableWidgetProps {
     return this.widget.props as TableWidgetProps;
   }
@@ -400,9 +404,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
 
       const sourceCell = sourceLeafId ? this.getCellModelByLeafId(sourceLeafId) : null;
+      
+      // Capture ALL style properties for format painter
       const capturedStyle: Partial<TableCellStyle> = {
         textAlign: sourceCell?.style?.textAlign ?? 'left',
         verticalAlign: sourceCell?.style?.verticalAlign ?? 'top',
+        fontWeight: sourceCell?.style?.fontWeight ?? 'normal',
+        fontStyle: sourceCell?.style?.fontStyle ?? 'normal',
         fontFamily: sourceCell?.style?.fontFamily ?? '',
         fontSizePx: sourceCell?.style?.fontSizePx ?? undefined,
         backgroundColor: sourceCell?.style?.backgroundColor ?? '',

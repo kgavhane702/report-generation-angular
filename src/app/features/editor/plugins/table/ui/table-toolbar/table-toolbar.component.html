@@ -458,6 +458,21 @@
         <line x1="21" y1="18" x2="7" y2="18"></line>
       </svg>
     </button>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [class.table-toolbar__button--active]="formattingState.textAlign === 'justify'"
+      (mousedown)="onAlignClick($event, 'justify')"
+      title="Justify"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="21" y1="6" x2="3" y2="6"></line>
+        <line x1="21" y1="10" x2="3" y2="10"></line>
+        <line x1="21" y1="14" x2="3" y2="14"></line>
+        <line x1="21" y1="18" x2="3" y2="18"></line>
+      </svg>
+    </button>
   </div>
 
   <div class="table-toolbar__separator"></div>
@@ -556,8 +571,9 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="isFormatPainterActive"
+      [class.table-toolbar__button--format-painter-active]="isFormatPainterActive"
       (mousedown)="onFormatPainterClick($event)"
-      title="Format painter (cell formatting)"
+      title="Format painter (copy cell formatting)"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="4" y="3" width="10" height="6" rx="1"></rect>

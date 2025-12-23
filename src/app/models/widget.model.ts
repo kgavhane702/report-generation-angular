@@ -171,7 +171,7 @@ export interface TableCellMerge {
 }
 
 export interface TableCellStyle {
-  textAlign?: 'left' | 'center' | 'right';
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   verticalAlign?: 'top' | 'middle' | 'bottom';
   fontWeight?: 'normal' | 'bold';
   fontStyle?: 'normal' | 'italic';

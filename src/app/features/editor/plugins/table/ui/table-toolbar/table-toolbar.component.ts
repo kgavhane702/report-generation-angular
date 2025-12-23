@@ -273,7 +273,7 @@ export class TableToolbarComponent {
     this.lineHeightDropdownOpen.set(false);
   }
 
-  onAlignClick(event: MouseEvent, align: 'left' | 'center' | 'right'): void {
+  onAlignClick(event: MouseEvent, align: 'left' | 'center' | 'right' | 'justify'): void {
     event.preventDefault();
     this.toolbarService.applyTextAlign(align);
   }

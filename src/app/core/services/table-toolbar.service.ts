@@ -10,7 +10,7 @@ export interface TableFormattingState {
   isStrikethrough: boolean;
   isSuperscript: boolean;
   isSubscript: boolean;
-  textAlign: 'left' | 'center' | 'right';
+  textAlign: 'left' | 'center' | 'right' | 'justify';
   verticalAlign: 'top' | 'middle' | 'bottom';
   fontFamily: string;
   fontSizePx: number | null;
@@ -50,7 +50,7 @@ export class TableToolbarService {
   private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
   private readonly mergeCellsRequestedSubject = new Subject<void>();
   private readonly unmergeRequestedSubject = new Subject<void>();
-  private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right'>();
+  private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right' | 'justify'>();
   private readonly verticalAlignRequestedSubject = new Subject<'top' | 'middle' | 'bottom'>();
   private readonly cellBackgroundColorRequestedSubject = new Subject<string>();
   private readonly cellBorderRequestedSubject = new Subject<CellBorderRequest>();
@@ -65,7 +65,7 @@ export class TableToolbarService {
   public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
   public readonly mergeCellsRequested$: Observable<void> = this.mergeCellsRequestedSubject.asObservable();
   public readonly unmergeRequested$: Observable<void> = this.unmergeRequestedSubject.asObservable();
-  public readonly textAlignRequested$: Observable<'left' | 'center' | 'right'> = this.textAlignRequestedSubject.asObservable();
+  public readonly textAlignRequested$: Observable<'left' | 'center' | 'right' | 'justify'> = this.textAlignRequestedSubject.asObservable();
   public readonly verticalAlignRequested$: Observable<'top' | 'middle' | 'bottom'> = this.verticalAlignRequestedSubject.asObservable();
   public readonly cellBackgroundColorRequested$: Observable<string> = this.cellBackgroundColorRequestedSubject.asObservable();
   public readonly cellBorderRequested$: Observable<CellBorderRequest> = this.cellBorderRequestedSubject.asObservable();
@@ -471,7 +471,7 @@ export class TableToolbarService {
   /**
    * Apply text alignment to selected cells or active cell
    */
-  applyTextAlign(align: 'left' | 'center' | 'right'): void {
+  applyTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
     const cells = this.getSelectedCellElements?.() ?? [];
     if (cells.length > 0) {
       cells.forEach(cell => {
