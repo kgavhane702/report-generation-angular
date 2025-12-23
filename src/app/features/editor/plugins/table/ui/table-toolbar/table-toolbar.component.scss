@@ -417,6 +417,27 @@
 
 }
 
+.table-toolbar__group--table-options {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 6px 14px;
+  align-items: center;
+}
+
+.table-toolbar__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #111827;
+  user-select: none;
+}
+
+.table-toolbar__check input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+
 /* Lightweight modal for split dialog */
 .table-toolbar__modal-backdrop {
   position: fixed;

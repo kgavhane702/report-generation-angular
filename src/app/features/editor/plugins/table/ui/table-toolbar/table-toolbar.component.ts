@@ -5,10 +5,14 @@ import {
   inject,
   signal,
   ViewChild,
+  computed,
+  effect,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TableToolbarService } from '../../../../../../core/services/table-toolbar.service';
+import { TableToolbarService, TableSectionOptions } from '../../../../../../core/services/table-toolbar.service';
+import { EditorStateService } from '../../../../../../core/services/editor-state.service';
+import { TableWidgetProps } from '../../../../../../models/widget.model';
 import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
@@ -29,6 +33,30 @@ import { AnchoredDropdownComponent } from '../../../../../../shared/components/d
 })
 export class TableToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
+  private readonly editorState = inject(EditorStateService);
+
+  /** Computed: is the active widget a table? */
+  readonly isTableWidgetActive = computed(() => {
+    const w = this.editorState.activeWidget();
+    return w?.type === 'table';
+  });
+
+  /** Computed: active table widget props (if table is selected) */
+  readonly activeTableProps = computed<TableWidgetProps | null>(() => {
+    const w = this.editorState.activeWidget();
+    return w?.type === 'table' ? (w.props as TableWidgetProps) : null;
+  });
+
+  /** Computed: table options from the active widget props */
+  readonly tableOptionsFromWidget = computed(() => {
+    const props = this.activeTableProps();
+    return {
+      headerRow: !!props?.headerRow,
+      firstColumn: !!props?.firstColumn,
+      totalRow: !!props?.totalRow,
+      lastColumn: !!props?.lastColumn,
+    };
+  });
 
   @ViewChild('fontSizeTrigger', { static: false }) fontSizeTrigger?: ElementRef<HTMLElement>;
   @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
@@ -148,12 +176,65 @@ export class TableToolbarComponent {
     return this.toolbarService.formattingState();
   }
 
+  get tableOptions() {
+    return this.tableOptionsFromWidget();
+  }
+
   get isFormatPainterActive(): boolean {
     return this.toolbarService.formatPainterActive();
   }
 
   get hasActiveCell(): boolean {
     return this.toolbarService.activeCell !== null;
+  }
+
+  /** Table is active if the selected widget is a table (from EditorStateService) */
+  get hasActiveTable(): boolean {
+    return this.isTableWidgetActive();
+  }
+
+  /** Get the active table widget id from EditorStateService */
+  get activeTableWidgetId(): string | null {
+    const w = this.editorState.activeWidget();
+    return w?.type === 'table' ? w.id : null;
+  }
+
+  private emitTableOptionsPatch(patch: Partial<TableSectionOptions>): void {
+    const widgetId = this.activeTableWidgetId;
+    if (!widgetId) {
+      return;
+    }
+
+    // Start from the current widget props so toggles stay isolated per widget.
+    const base = this.tableOptions;
+    const nextOptions: TableSectionOptions = {
+      headerRow: patch.headerRow ?? base.headerRow,
+      firstColumn: patch.firstColumn ?? base.firstColumn,
+      totalRow: patch.totalRow ?? base.totalRow,
+      lastColumn: patch.lastColumn ?? base.lastColumn,
+    };
+
+    this.toolbarService.setTableOptions(nextOptions, widgetId);
+  }
+
+  onToggleHeaderRow(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.emitTableOptionsPatch({ headerRow: checked });
+  }
+
+  onToggleFirstColumn(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.emitTableOptionsPatch({ firstColumn: checked });
+  }
+
+  onToggleTotalRow(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.emitTableOptionsPatch({ totalRow: checked });
+  }
+
+  onToggleLastColumn(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    this.emitTableOptionsPatch({ lastColumn: checked });
   }
 
   openSplitDialog(event: MouseEvent): void {

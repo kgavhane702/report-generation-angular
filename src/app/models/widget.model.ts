@@ -85,6 +85,11 @@ export interface MediaWidgetProps {
 export interface TableWidgetProps {
   rows: TableRow[];
   showBorders?: boolean;
+  /** PPT-like table section flags (affect styling and some behaviors) */
+  headerRow?: boolean;
+  firstColumn?: boolean;
+  totalRow?: boolean;
+  lastColumn?: boolean;
   /**
    * Column sizing as fractions (sum to 1). Length should equal the top-level column count.
    * Used by the table widget for resizable columns and by PDF export for consistent layout.

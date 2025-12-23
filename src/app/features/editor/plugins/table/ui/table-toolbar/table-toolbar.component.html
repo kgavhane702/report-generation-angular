@@ -1,4 +1,26 @@
 <div class="table-toolbar">
+    <div class="table-toolbar__group table-toolbar__group--table-options"
+      *ngIf="hasActiveTable">
+    <label class="table-toolbar__check">
+      <input type="checkbox" [checked]="tableOptions.headerRow" (change)="onToggleHeaderRow($event)" />
+      <span>Header Row</span>
+    </label>
+    <label class="table-toolbar__check">
+      <input type="checkbox" [checked]="tableOptions.firstColumn" (change)="onToggleFirstColumn($event)" />
+      <span>First Column</span>
+    </label>
+    <label class="table-toolbar__check">
+      <input type="checkbox" [checked]="tableOptions.totalRow" (change)="onToggleTotalRow($event)" />
+      <span>Total Row</span>
+    </label>
+    <label class="table-toolbar__check">
+      <input type="checkbox" [checked]="tableOptions.lastColumn" (change)="onToggleLastColumn($event)" />
+      <span>Last Column</span>
+    </label>
+  </div>
+
+  <div class="table-toolbar__separator" *ngIf="hasActiveTable"></div>
+
   <div class="table-toolbar__group">
     <button
       type="button"

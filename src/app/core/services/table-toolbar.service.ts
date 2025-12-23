@@ -1,7 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Subject } from 'rxjs';
-import { TableCellStyle } from '../../models/widget.model';
+import { TableCellStyle, TableWidgetProps } from '../../models/widget.model';
+
+export type TableSectionOptions = Pick<TableWidgetProps, 'headerRow' | 'firstColumn' | 'totalRow' | 'lastColumn'>;
 
 export interface TableFormattingState {
   isBold: boolean;
@@ -59,6 +61,8 @@ export class TableToolbarService {
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
   private readonly formatPainterRequestedSubject = new Subject<boolean>();
+
+  private readonly tableOptionsRequestedSubject = new Subject<{ options: TableSectionOptions; widgetId: string }>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
@@ -74,6 +78,7 @@ export class TableToolbarService {
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
   public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
+  public readonly tableOptionsRequested$: Observable<{ options: TableSectionOptions; widgetId: string }> = this.tableOptionsRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
@@ -92,6 +97,14 @@ export class TableToolbarService {
   /** One-shot format painter state (cell-level only) */
   readonly formatPainterActive = signal(false);
   private formatPainterStyle: Partial<TableCellStyle> | null = null;
+
+  /** Current table section options as seen by the toolbar */
+  readonly tableOptions = signal<TableSectionOptions>({
+    headerRow: false,
+    firstColumn: false,
+    totalRow: false,
+    lastColumn: false,
+  });
 
   /** Callback to get selected cell elements */
   private getSelectedCellElements: (() => HTMLElement[]) | null = null;
@@ -182,6 +195,41 @@ export class TableToolbarService {
     
     if (cell) {
       this.updateFormattingState();
+    }
+  }
+
+  /** Mark a table widget as active/selected without focusing a cell. */
+  setActiveTableWidget(widgetId: string | null): void {
+    this.activeTableWidgetIdSubject.next(widgetId);
+  }
+
+  /** Update table section options (header row/first column/total row/last column) */
+  setTableOptions(patch: Partial<TableSectionOptions>, widgetId: string): void {
+    const next: TableSectionOptions = {
+      ...this.tableOptions(),
+      ...patch,
+    };
+    this.tableOptions.set(next);
+    this.tableOptionsRequestedSubject.next({ options: next, widgetId });
+  }
+
+  /** Used by the table widget to sync persisted props into toolbar state */
+  syncTableOptionsFromProps(props: TableWidgetProps | null | undefined): void {
+    const next: TableSectionOptions = {
+      headerRow: !!props?.headerRow,
+      firstColumn: !!props?.firstColumn,
+      totalRow: !!props?.totalRow,
+      lastColumn: !!props?.lastColumn,
+    };
+    // Set only if different to avoid loops.
+    const cur = this.tableOptions();
+    if (
+      cur.headerRow !== next.headerRow ||
+      cur.firstColumn !== next.firstColumn ||
+      cur.totalRow !== next.totalRow ||
+      cur.lastColumn !== next.lastColumn
+    ) {
+      this.tableOptions.set(next);
     }
   }
 
@@ -653,6 +701,10 @@ export class TableToolbarService {
    */
   clearActiveCell(): void {
     this.activeCellSubject.next(null);
+  }
+
+  /** Clear active table selection (used when clicking outside the table). */
+  clearActiveTableWidget(): void {
     this.activeTableWidgetIdSubject.next(null);
   }
 

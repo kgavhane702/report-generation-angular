@@ -78,7 +78,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   @ViewChild('tableContainer', { static: false }) tableContainer?: ElementRef<HTMLElement>;
 
-  private readonly toolbarService = inject(TableToolbarService);
+  readonly toolbarService = inject(TableToolbarService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly draftState = inject(DraftStateService);
@@ -185,6 +185,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private fontFamilySubscription?: Subscription;
   private fontSizeSubscription?: Subscription;
   private formatPainterSubscription?: Subscription;
+  private tableOptionsSubscription?: Subscription;
 
   /** One-shot format painter state (cell-level only) */
   private formatPainterArmed = false;
@@ -210,6 +211,68 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get tableProps(): TableWidgetProps {
     return this.widget.props as TableWidgetProps;
+  }
+
+  private get headerRowEnabled(): boolean {
+    return !!this.tableProps.headerRow;
+  }
+
+  private get firstColumnEnabled(): boolean {
+    return !!this.tableProps.firstColumn;
+  }
+
+  private get totalRowEnabled(): boolean {
+    return !!this.tableProps.totalRow;
+  }
+
+  private get lastColumnEnabled(): boolean {
+    return !!this.tableProps.lastColumn;
+  }
+
+  private get topLevelRowCount(): number {
+    return this.getTopLevelRowCount(this.localRows());
+  }
+
+  private get topLevelColCount(): number {
+    return this.getTopLevelColCount(this.localRows());
+  }
+
+  /**
+   * PPT-like section styling: header row, total row, first/last column.
+   * Returns only style overrides; user styles still apply.
+   */
+  getSectionStyle(rowIndex: number, colIndex: number): Partial<TableCellStyle> {
+    const rowCount = this.topLevelRowCount;
+    const colCount = this.topLevelColCount;
+    const isHeaderRow = this.headerRowEnabled && rowIndex === 0;
+    const isTotalRow = this.totalRowEnabled && rowIndex === rowCount - 1 && rowCount > 1;
+    const isFirstCol = this.firstColumnEnabled && colIndex === 0;
+    const isLastCol = this.lastColumnEnabled && colIndex === colCount - 1 && colCount > 1;
+
+    // If multiple sections overlap, apply strongest semantics.
+    // Header/Total rows typically win background; first/last cols win weight.
+    const patch: Partial<TableCellStyle> = {};
+
+    if (isHeaderRow) {
+      patch.fontWeight = 'bold';
+      patch.backgroundColor = '#e5e7eb';
+      patch.verticalAlign = 'middle';
+    }
+
+    if (isTotalRow) {
+      patch.fontWeight = 'bold';
+      patch.backgroundColor = patch.backgroundColor ?? '#eef2f7';
+      // Emphasize totals with a slightly stronger top border when borders are enabled.
+      patch.borderStyle = patch.borderStyle ?? 'solid';
+      patch.borderWidth = Math.max(patch.borderWidth ?? 1, 2);
+    }
+
+    if (isFirstCol || isLastCol) {
+      patch.fontWeight = patch.fontWeight ?? 'bold';
+      patch.backgroundColor = patch.backgroundColor ?? '#f1f5f9';
+    }
+
+    return patch;
   }
 
   get rows(): TableRow[] {
@@ -306,6 +369,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const migrated = this.migrateLegacyMergedRegions(initialRows, this.tableProps.mergedRegions ?? []);
     this.localRows.set(migrated);
     this.initializeFractionsFromProps();
+
+    // Sync persisted table options into toolbar state on init.
+    this.toolbarService.syncTableOptionsFromProps(this.tableProps);
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
     document.addEventListener('mouseup', this.handleDocumentMouseUp);
     document.addEventListener('mousemove', this.handleDocumentMouseMove);
@@ -339,6 +405,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         return;
       }
       this.applyDelete(request);
+    });
+
+    this.tableOptionsSubscription = this.toolbarService.tableOptionsRequested$.subscribe(({ options, widgetId }) => {
+      // Only respond if the event is for THIS table widget.
+      if (widgetId !== this.widget.id) {
+        return;
+      }
+      // Persist as discrete, undoable change.
+      this.propsChange.emit({
+        headerRow: !!options.headerRow,
+        firstColumn: !!options.firstColumn,
+        totalRow: !!options.totalRow,
+        lastColumn: !!options.lastColumn,
+      });
     });
 
     this.textAlignSubscription = this.toolbarService.textAlignRequested$.subscribe((align) => {
@@ -429,6 +509,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.scheduleRecomputeResizeSegments();
   }
 
+  /** Activate/select the table widget without focusing any cell (PPT-like). */
+  private activateTableWidget(): void {
+    this.toolbarService.setActiveTableWidget(this.widget.id);
+    this.toolbarService.syncTableOptionsFromProps(this.tableProps);
+    this.cdr.markForCheck();
+  }
+
   ngAfterViewInit(): void {
     // Recompute after view is laid out (also handles cases where ngOnInit RAF ran before table existed).
     this.scheduleRecomputeResizeSegments();
@@ -482,6 +569,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.formatPainterSubscription) {
       this.formatPainterSubscription.unsubscribe();
     }
+
+    if (this.tableOptionsSubscription) {
+      this.tableOptionsSubscription.unsubscribe();
+    }
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
     document.removeEventListener('mouseup', this.handleDocumentMouseUp);
@@ -521,6 +612,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.localRows.set(migrated);
       this.initializeFractionsFromProps();
       this.scheduleRecomputeResizeSegments();
+
+      // Keep toolbar checkboxes aligned with persisted props.
+      this.toolbarService.syncTableOptionsFromProps(this.tableProps);
     }
   }
 
@@ -569,7 +663,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const cell = event.target as HTMLElement;
     this.activeCellElement = cell;
     this.activeCellId = leafPath ? this.composeLeafId(rowIndex, cellIndex, leafPath) : `${rowIndex}-${cellIndex}`;
-    
+ 
+    // Cell focus should also mark the table as active.
+    this.activateTableWidget();
     this.toolbarService.setActiveCell(cell, this.widget.id);
     
     if (this.blurTimeoutId !== null) {
@@ -609,7 +705,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         this.editingChange.emit(false);
         this.activeCellElement = null;
         this.activeCellId = null;
-        
+
+        // Clear only cell focus; keep table selected until user clicks away.
         this.toolbarService.clearActiveCell();
         this.pendingChangesRegistry.unregister(this.widget.id);
       }
@@ -1014,8 +1111,19 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       (target as Element).closest('.color-picker__trigger')
     ));
 
+    // PPT-like: clicking anywhere on the table selects the table widget,
+    // even if user doesn't focus a specific cell.
+    if (isInsideTable) {
+      this.activateTableWidget();
+      return;
+    }
+
     if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar && !isInsideColorPicker) {
       this.clearSelection();
+      // Clear table selection if user clicked away.
+      if (this.toolbarService.activeTableWidgetId === this.widget.id) {
+        this.toolbarService.clearActiveTableWidget();
+      }
     }
   };
 
@@ -1610,6 +1718,33 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!bounds) return;
     const start = axis === 'row' ? bounds.minRow : bounds.minCol;
     const end = axis === 'row' ? bounds.maxRow : bounds.maxCol;
+
+    // PPT-like protection: when Header Row / Total Row / First/Last Column are enabled,
+    // prevent deleting those protected bands on the top-level table.
+    if (axis === 'row') {
+      const rowCount = this.getTopLevelRowCount(this.localRows());
+      const protectedStart = new Set<number>();
+      if (this.headerRowEnabled) protectedStart.add(0);
+      if (this.totalRowEnabled && rowCount > 1) protectedStart.add(rowCount - 1);
+      for (let r = start; r <= end; r++) {
+        if (protectedStart.has(r)) {
+          return;
+        }
+      }
+    }
+
+    if (axis === 'col') {
+      const colCount = this.getTopLevelColCount(this.localRows());
+      const protectedCols = new Set<number>();
+      if (this.firstColumnEnabled) protectedCols.add(0);
+      if (this.lastColumnEnabled && colCount > 1) protectedCols.add(colCount - 1);
+      for (let c = start; c <= end; c++) {
+        if (protectedCols.has(c)) {
+          return;
+        }
+      }
+    }
+
     this.deleteFromTable(axis, start, end);
   }
 
