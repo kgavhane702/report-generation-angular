@@ -2,8 +2,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostListener,
   inject,
+  signal,
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { TableToolbarService } from '../../../../../../core/services/table-toolbar.service';
 import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
+import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
 
 /**
  * TableToolbarComponent
@@ -21,7 +22,7 @@ import { BorderPickerComponent, BorderValue } from '../../../../../../shared/com
 @Component({
   selector: 'app-table-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, ColorPickerComponent, BorderPickerComponent],
+  imports: [CommonModule, FormsModule, ColorPickerComponent, BorderPickerComponent, AnchoredDropdownComponent],
   templateUrl: './table-toolbar.component.html',
   styleUrls: ['./table-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,7 +30,8 @@ import { BorderPickerComponent, BorderValue } from '../../../../../../shared/com
 export class TableToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
 
-  @ViewChild('fontSizeWrap', { static: false }) fontSizeWrap?: ElementRef<HTMLElement>;
+  @ViewChild('fontSizeTrigger', { static: false }) fontSizeTrigger?: ElementRef<HTMLElement>;
+  @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
 
   splitDialogOpen = false;
   splitRows = 2;
@@ -91,7 +93,8 @@ export class TableToolbarComponent {
   // Full list (shown in our custom dropdown; no internal scroll).
   readonly fontSizes: Array<number> = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
 
-  fontSizeDropdownOpen = false;
+  readonly fontSizeDropdownOpen = signal(false);
+  readonly lineHeightDropdownOpen = signal(false);
 
   get fontFamilyModel(): string {
     const current = this.formattingState.fontFamily ?? '';
@@ -110,31 +113,22 @@ export class TableToolbarComponent {
     return f;
   }
 
-  @HostListener('document:mousedown', ['$event'])
-  onDocumentMouseDown(event: MouseEvent): void {
-    if (!this.fontSizeDropdownOpen) return;
-    const target = event.target as Node | null;
-    if (!target) return;
-    if (this.fontSizeWrap?.nativeElement?.contains(target)) return;
-    this.fontSizeDropdownOpen = false;
-  }
-
   openFontSizeDropdown(event?: MouseEvent): void {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
     if (!this.hasActiveCell) return;
-    this.fontSizeDropdownOpen = true;
+    this.fontSizeDropdownOpen.set(true);
   }
 
   closeFontSizeDropdown(): void {
-    this.fontSizeDropdownOpen = false;
+    this.fontSizeDropdownOpen.set(false);
   }
 
   onFontSizePick(size: number): void {
     this.onFontSizeChange(size);
-    this.fontSizeDropdownOpen = false;
+    this.fontSizeDropdownOpen.set(false);
   }
 
   get formattingState() {
@@ -223,7 +217,6 @@ export class TableToolbarComponent {
 
   // Line height
   readonly lineHeights: Array<string> = ['1', '1.15', '1.3', '1.4', '1.5', '1.75', '2'];
-  lineHeightDropdownOpen = false;
 
   openLineHeightDropdown(event?: MouseEvent): void {
     if (event) {
@@ -231,17 +224,17 @@ export class TableToolbarComponent {
       event.stopPropagation();
     }
     if (!this.hasActiveCell) return;
-    this.lineHeightDropdownOpen = true;
+    this.lineHeightDropdownOpen.set(true);
   }
 
   closeLineHeightDropdown(): void {
-    this.lineHeightDropdownOpen = false;
+    this.lineHeightDropdownOpen.set(false);
   }
 
   onLineHeightPick(v: string): void {
     if (!this.hasActiveCell) return;
     this.toolbarService.applyLineHeight(v);
-    this.lineHeightDropdownOpen = false;
+    this.lineHeightDropdownOpen.set(false);
   }
 
   onAlignClick(event: MouseEvent, align: 'left' | 'center' | 'right'): void {

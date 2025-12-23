@@ -118,12 +118,9 @@
       title="Delete row"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M4 10h16"></path>
-        <path d="M4 14h16"></path>
-        <path d="M7 7h10"></path>
-        <path d="M9 7v14"></path>
-        <path d="M15 7v14"></path>
-        <path d="M6 7l1-3h10l1 3"></path>
+        <rect x="3" y="8" width="18" height="8" rx="1"></rect>
+        <line x1="8" y1="10" x2="12" y2="14"></line>
+        <line x1="12" y1="10" x2="8" y2="14"></line>
       </svg>
     </button>
 
@@ -135,12 +132,9 @@
       title="Delete column"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M10 4v16"></path>
-        <path d="M14 4v16"></path>
-        <path d="M7 7h10"></path>
-        <path d="M9 7v14"></path>
-        <path d="M15 7v14"></path>
-        <path d="M6 7l1-3h10l1 3"></path>
+        <rect x="8" y="3" width="8" height="18" rx="1"></rect>
+        <line x1="10" y1="10" x2="14" y2="14"></line>
+        <line x1="14" y1="10" x2="10" y2="14"></line>
       </svg>
     </button>
   </div>
@@ -209,9 +203,8 @@
       title="Superscript"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M6 18l6-8 6 8"></path>
-        <path d="M14.5 6h5"></path>
-        <path d="M14.5 4l2 2-2 2"></path>
+        <text x="4" y="18" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
+        <text x="14" y="10" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
       </svg>
     </button>
 
@@ -223,9 +216,8 @@
       title="Subscript"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M6 6l6 8 6-8"></path>
-        <path d="M14.5 20h5"></path>
-        <path d="M14.5 18l2 2-2 2"></path>
+        <text x="4" y="14" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
+        <text x="14" y="20" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
       </svg>
     </button>
 
@@ -263,26 +255,39 @@
 
     <div class="table-toolbar__mini-separator" aria-hidden="true"></div>
 
-    <div class="table-toolbar__combo-wrap" (mousedown)="$event.stopPropagation()" title="Line height">
-      <input
-        class="table-toolbar__combo table-toolbar__combo--small"
+    <div class="table-toolbar__combo-wrap" title="Line height">
+      <button
+        #lineHeightTrigger
+        type="button"
+        class="table-toolbar__combo table-toolbar__combo--icon"
         [disabled]="!hasActiveCell"
-        (mousedown)="openLineHeightDropdown($event)"
-        (focus)="openLineHeightDropdown()"
-        placeholder="LH"
-        value=""
-        readonly
-      />
-      <div *ngIf="lineHeightDropdownOpen" class="table-toolbar__combo-dropdown" aria-label="Line height options">
-        <button
-          *ngFor="let lh of lineHeights"
-          type="button"
-          class="table-toolbar__combo-item"
-          (mousedown)="$event.preventDefault(); onLineHeightPick(lh)"
-        >
-          {{ lh }}
-        </button>
-      </div>
+        (click)="openLineHeightDropdown($event)"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 6h12"></path>
+          <path d="M6 12h12"></path>
+          <path d="M6 18h12"></path>
+          <path d="M3 9l-1-2 1-2"></path>
+          <path d="M3 19l-1-2 1-2"></path>
+          <line x1="2" y1="7" x2="2" y2="17" stroke-dasharray="2 2"></line>
+        </svg>
+      </button>
+      <app-anchored-dropdown
+        [open]="lineHeightDropdownOpen()"
+        [anchor]="lineHeightTrigger"
+        (closed)="closeLineHeightDropdown()"
+      >
+        <div class="table-toolbar__combo-dropdown-content">
+          <button
+            *ngFor="let lh of lineHeights"
+            type="button"
+            class="table-toolbar__combo-item"
+            (click)="onLineHeightPick(lh)"
+          >
+            {{ lh }}
+          </button>
+        </div>
+      </app-anchored-dropdown>
     </div>
   </div>
 
@@ -304,14 +309,14 @@
 
     <label class="table-toolbar__field" title="Font size">
       <span class="table-toolbar__field-label">Size</span>
-      <div class="table-toolbar__combo-wrap" #fontSizeWrap (mousedown)="$event.stopPropagation()">
+      <div class="table-toolbar__combo-wrap">
         <input
+          #fontSizeTrigger
           class="table-toolbar__combo table-toolbar__combo--small"
           [disabled]="!hasActiveCell"
           [ngModel]="formattingState.fontSizePx ?? ''"
           (ngModelChange)="onFontSizeChange($event)"
-          (mousedown)="openFontSizeDropdown($event)"
-          (focus)="openFontSizeDropdown()"
+          (click)="openFontSizeDropdown($event)"
           (keydown.enter)="$event.preventDefault(); closeFontSizeDropdown()"
           type="number"
           min="6"
@@ -319,25 +324,30 @@
           step="1"
           placeholder="Auto"
         />
-
-        <div *ngIf="fontSizeDropdownOpen" class="table-toolbar__combo-dropdown" aria-label="Font size options">
-          <button
-            type="button"
-            class="table-toolbar__combo-item"
-            (mousedown)="$event.preventDefault(); onFontSizeChange(''); closeFontSizeDropdown()"
-            title="Auto"
-          >
-            Auto
-          </button>
-          <button
-            *ngFor="let s of fontSizes"
-            type="button"
-            class="table-toolbar__combo-item"
-            (mousedown)="$event.preventDefault(); onFontSizePick(s)"
-          >
-            {{ s }}
-          </button>
-        </div>
+        <app-anchored-dropdown
+          [open]="fontSizeDropdownOpen()"
+          [anchor]="fontSizeTrigger"
+          (closed)="closeFontSizeDropdown()"
+        >
+          <div class="table-toolbar__combo-dropdown-content">
+            <button
+              type="button"
+              class="table-toolbar__combo-item"
+              (click)="onFontSizeChange(''); closeFontSizeDropdown()"
+              title="Auto"
+            >
+              Auto
+            </button>
+            <button
+              *ngFor="let s of fontSizes"
+              type="button"
+              class="table-toolbar__combo-item"
+              (click)="onFontSizePick(s)"
+            >
+              {{ s }}
+            </button>
+          </div>
+        </app-anchored-dropdown>
       </div>
     </label>
   </div>
@@ -491,10 +501,9 @@
       title="Format painter (cell formatting)"
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 6h12l2 2v3H3z"></path>
-        <path d="M6 11v9"></path>
-        <path d="M6 20h8"></path>
-        <path d="M16 11v4"></path>
+        <rect x="4" y="3" width="10" height="6" rx="1"></rect>
+        <path d="M9 9v3"></path>
+        <path d="M6 12h6l-1 8h-4l-1-8z"></path>
       </svg>
     </button>
   </div>

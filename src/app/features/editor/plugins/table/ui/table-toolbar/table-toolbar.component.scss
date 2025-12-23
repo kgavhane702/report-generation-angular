@@ -1,31 +1,31 @@
 .table-toolbar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px 6px;
+  gap: 4px;
+  padding: 6px 10px;
   background: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
   flex-wrap: wrap;
 
   &__group {
     display: flex;
     align-items: center;
-    gap: 1px;
+    gap: 2px;
   }
 
   &__separator {
     width: 1px;
     height: 24px;
-    background: rgba(0, 0, 0, 0.12);
-    margin: 0 2px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 4px;
   }
 
   &__mini-separator {
     width: 1px;
     height: 18px;
-    background: rgba(0, 0, 0, 0.12);
-    margin: 0 2px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 4px;
   }
 
   &__button {
@@ -36,26 +36,33 @@
     height: 32px;
     padding: 0;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     background: transparent;
-    color: #333;
+    color: #475569;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: rgba(0, 0, 0, 0.06);
+      color: #1e293b;
     }
 
-    &:active {
+    &:active:not(:disabled) {
       background: rgba(0, 0, 0, 0.1);
+      transform: scale(0.96);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
 
     &--active {
-      background: rgba(25, 118, 210, 0.12);
-      color: #1976d2;
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
 
-      &:hover {
-        background: rgba(25, 118, 210, 0.18);
+      &:hover:not(:disabled) {
+        background: rgba(59, 130, 246, 0.18);
       }
     }
 
@@ -155,6 +162,16 @@
     padding: 0 8px;
   }
 
+  &__combo--icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
   &__combo-wrap {
     position: relative;
     display: inline-flex;
@@ -175,6 +192,18 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     min-width: 220px;
+  }
+
+  &__combo-dropdown-content {
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    min-width: 180px;
   }
 
   &__combo-item {
