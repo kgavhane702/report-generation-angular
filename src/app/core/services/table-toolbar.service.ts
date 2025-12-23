@@ -248,42 +248,31 @@ export class TableToolbarService {
   }
 
   /**
-   * Toggle unordered (bullet) list
+   * Toggle unordered (bullet) list with optional style
    */
-  toggleBulletList(): void {
-    console.log('[DEBUG] toggleBulletList called');
-    console.log('[DEBUG] activeCell:', this.activeCell);
-    if (!this.activeCell) {
-      console.log('[DEBUG] No active cell, returning from toggleBulletList');
-      return;
-    }
+  toggleBulletList(bulletStyle: string = 'disc'): void {
+    if (!this.activeCell) return;
     this.restoreSelectionIfNeeded();
     this.activeCell.focus();
     
     // Always use manual implementation - execCommand is deprecated and unreliable
-    this.manuallyInsertList('ul');
+    this.manuallyInsertList('ul', bulletStyle);
     
     // Trigger input event to notify Angular of changes
     this.activeCell.dispatchEvent(new Event('input', { bubbles: true }));
     this.updateFormattingState();
-    console.log('[DEBUG] toggleBulletList completed');
   }
 
   /**
    * Toggle ordered (numbered) list
    */
   toggleNumberedList(): void {
-    console.log('[DEBUG] toggleNumberedList called');
-    console.log('[DEBUG] activeCell:', this.activeCell);
-    if (!this.activeCell) {
-      console.log('[DEBUG] No active cell, returning from toggleNumberedList');
-      return;
-    }
+    if (!this.activeCell) return;
     this.restoreSelectionIfNeeded();
     this.activeCell.focus();
     
     // Always use manual implementation - execCommand is deprecated and unreliable
-    this.manuallyInsertList('ol');
+    this.manuallyInsertList('ol', 'decimal');
     
     // Trigger input event to notify Angular of changes
     this.activeCell.dispatchEvent(new Event('input', { bubbles: true }));
@@ -293,7 +282,7 @@ export class TableToolbarService {
   /**
    * Manually insert a list when execCommand fails
    */
-  private manuallyInsertList(listType: 'ul' | 'ol'): void {
+  private manuallyInsertList(listType: 'ul' | 'ol', markerStyle: string): void {
     const cell = this.activeCell;
     if (!cell) return;
 
@@ -320,19 +309,31 @@ export class TableToolbarService {
       }
     }
 
+    // Check if this is a custom marker
+    const customMarkers = ['arrow', 'chevron', 'dash', 'check'];
+    const isCustomMarker = customMarkers.includes(markerStyle);
+
     // Create a new list
     const list = document.createElement(listType);
     list.style.display = 'block';
     list.style.margin = '0';
     list.style.padding = '0';
-    list.style.paddingLeft = '1em';
     list.style.listStylePosition = 'inside';
-    list.style.listStyleType = listType === 'ul' ? 'disc' : 'decimal';
+    
+    if (isCustomMarker) {
+      // Use custom content marker via CSS ::before
+      list.style.listStyleType = 'none';
+      list.setAttribute('data-marker', markerStyle);
+      list.className = 'custom-marker-list custom-marker-' + markerStyle;
+    } else {
+      list.style.listStyleType = markerStyle;
+    }
     
     const li = document.createElement('li');
     li.style.display = 'list-item';
     li.style.margin = '0';
     li.style.padding = '0';
+    li.style.textIndent = '0';
 
     if (selection && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);

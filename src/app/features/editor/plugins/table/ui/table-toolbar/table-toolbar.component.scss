@@ -471,3 +471,47 @@
   font-weight: 600;
 }
 
+// Bullet style dropdown
+.table-toolbar__bullet-dropdown {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.table-toolbar__bullet-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: #1e293b;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  &:active {
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.table-toolbar__bullet-icon {
+  width: 20px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.table-toolbar__bullet-label {
+  flex: 1;
+}
+

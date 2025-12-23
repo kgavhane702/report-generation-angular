@@ -83,14 +83,22 @@
       display: block !important;
       margin: 0 !important;
       padding: 0 !important;
-      padding-left: 1em !important;
       list-style-position: inside !important;
     }
 
     ul {
       list-style-type: disc !important;
     }
-
+    
+    // Support different bullet styles
+    ul[style*="list-style-type: circle"] {
+      list-style-type: circle !important;
+    }
+    
+    ul[style*="list-style-type: square"] {
+      list-style-type: square !important;
+    }
+    
     ol {
       list-style-type: decimal !important;
     }
@@ -99,6 +107,37 @@
       display: list-item !important;
       margin: 0 !important;
       padding: 0 !important;
+      text-indent: 0 !important;
+    }
+    
+    // Custom marker lists - use ::before for automatic marker on new items
+    .custom-marker-list {
+      list-style-type: none !important;
+      
+      li {
+        display: block !important;
+        
+        &::before {
+          display: inline;
+          margin-right: 0.3em;
+        }
+      }
+    }
+    
+    .custom-marker-arrow li::before {
+      content: '➤';
+    }
+    
+    .custom-marker-chevron li::before {
+      content: '›';
+    }
+    
+    .custom-marker-dash li::before {
+      content: '–';
+    }
+    
+    .custom-marker-check li::before {
+      content: '✓';
     }
   }
 

@@ -145,7 +145,6 @@ public class TableWidgetRenderer {
             display: block !important;
             margin: 0 !important;
             padding: 0 !important;
-            padding-left: 1em !important;
             list-style-position: inside !important;
         }
 
@@ -161,6 +160,37 @@ public class TableWidgetRenderer {
             display: list-item !important;
             margin: 0 !important;
             padding: 0 !important;
+            text-indent: 0 !important;
+        }
+        
+        /* Custom marker lists - use ::before for automatic marker on new items */
+        .widget-table .table-widget__cell-content .custom-marker-list {
+            list-style-type: none !important;
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-list li {
+            display: block !important;
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-list li::before {
+            display: inline;
+            margin-right: 0.3em;
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-arrow li::before {
+            content: '➤';
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-chevron li::before {
+            content: '›';
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-dash li::before {
+            content: '–';
+        }
+        
+        .widget-table .table-widget__cell-content .custom-marker-check li::before {
+            content: '✓';
         }
         
         /* Split grid inside a cell */

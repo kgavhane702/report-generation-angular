@@ -253,22 +253,47 @@
 
     <div class="table-toolbar__mini-separator" aria-hidden="true"></div>
 
-    <button
-      type="button"
-      class="table-toolbar__button"
-      (mousedown)="onBulletListClick($event)"
-      [disabled]="!hasActiveCell"
-      title="Bullet list"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
-        <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
-        <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
-        <path d="M9 6h12"></path>
-        <path d="M9 12h12"></path>
-        <path d="M9 18h12"></path>
-      </svg>
-    </button>
+    <div class="table-toolbar__combo-wrap" title="Bullet list style">
+      <button
+        #bulletStyleTrigger
+        type="button"
+        class="table-toolbar__button"
+        (mousedown)="onBulletListClick($event)"
+        [disabled]="!hasActiveCell"
+        title="Bullet list"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
+          <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
+          <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
+          <path d="M9 6h12"></path>
+          <path d="M9 12h12"></path>
+          <path d="M9 18h12"></path>
+        </svg>
+        <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M4 6l4 4 4-4z"/>
+        </svg>
+      </button>
+      
+      <app-anchored-dropdown
+        [open]="bulletStyleDropdownOpen()"
+        [anchor]="bulletStyleTrigger"
+        (closed)="closeBulletStyleDropdown()"
+      >
+        <div class="table-toolbar__bullet-dropdown">
+          <button
+            *ngFor="let style of bulletStyles"
+            type="button"
+            class="table-toolbar__bullet-option"
+            (mousedown)="$event.preventDefault()"
+            (click)="onBulletStyleSelect(style.value)"
+          >
+            <span class="table-toolbar__bullet-icon">{{ style.icon }}</span>
+            <span class="table-toolbar__bullet-label">{{ style.label }}</span>
+          </button>
+        </div>
+      </app-anchored-dropdown>
+    </div>
 
     <button
       type="button"

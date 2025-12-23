@@ -32,11 +32,24 @@ export class TableToolbarComponent {
 
   @ViewChild('fontSizeTrigger', { static: false }) fontSizeTrigger?: ElementRef<HTMLElement>;
   @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
+  @ViewChild('bulletStyleTrigger', { static: false }) bulletStyleTrigger?: ElementRef<HTMLElement>;
 
   splitDialogOpen = false;
   splitRows = 2;
   splitCols = 2;
   splitMax = 20;
+
+  // Bullet style options
+  readonly bulletStyles: Array<{ value: string; label: string; icon: string }> = [
+    { value: 'disc', label: 'Filled Circle', icon: '●' },
+    { value: 'circle', label: 'Hollow Circle', icon: '○' },
+    { value: 'square', label: 'Square', icon: '■' },
+    { value: 'chevron', label: 'Chevron', icon: '›' },
+    { value: 'arrow', label: 'Arrow', icon: '➤' },
+    { value: 'dash', label: 'Dash', icon: '–' },
+    { value: 'check', label: 'Checkmark', icon: '✓' },
+  ];
+  bulletStyleDropdownOpen = signal(false);
 
   // Text color palette
   readonly textColorPalette: ColorOption[] = [
@@ -217,8 +230,19 @@ export class TableToolbarComponent {
 
   onBulletListClick(event: MouseEvent): void {
     event.preventDefault();
+    event.stopPropagation();
     if (!this.hasActiveCell) return;
-    this.toolbarService.toggleBulletList();
+    this.bulletStyleDropdownOpen.set(true);
+  }
+
+  onBulletStyleSelect(style: string): void {
+    this.bulletStyleDropdownOpen.set(false);
+    if (!this.hasActiveCell) return;
+    this.toolbarService.toggleBulletList(style);
+  }
+
+  closeBulletStyleDropdown(): void {
+    this.bulletStyleDropdownOpen.set(false);
   }
 
   onNumberedListClick(event: MouseEvent): void {
