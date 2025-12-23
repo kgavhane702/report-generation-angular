@@ -306,7 +306,7 @@ export class TableToolbarService {
 
     // If multiple cells are selected, apply cell-level fontWeight to the whole selection.
     // If selection is mixed, first action makes ALL bold (PPT-like).
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'normal' | 'bold'>((el) => {
         const w = (el.style.fontWeight || window.getComputedStyle(el).fontWeight || '').toString();
         // computed can be "700" etc.
@@ -331,7 +331,7 @@ export class TableToolbarService {
   applyItalic(): void {
     if (!this.activeCell) return;
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'normal' | 'italic'>((el) => {
         const v = (el.style.fontStyle || window.getComputedStyle(el).fontStyle || '').toString();
         return v === 'italic' ? 'italic' : 'normal';
@@ -350,7 +350,7 @@ export class TableToolbarService {
   applyUnderline(): void {
     if (!this.activeCell) return;
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'none' | 'underline'>((el) => {
         const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
         return td.includes('underline') ? 'underline' : 'none';
@@ -369,7 +369,7 @@ export class TableToolbarService {
   applyStrikethrough(): void {
     if (!this.activeCell) return;
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'none' | 'line-through'>((el) => {
         const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
         return td.includes('line-through') ? 'line-through' : 'none';
@@ -560,7 +560,7 @@ export class TableToolbarService {
     const normalized = this.normalizeLineHeight(lh);
     if (!normalized) return;
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       this.lineHeightRequestedSubject.next(normalized);
       this.formattingState.update((state) => ({ ...state, fontSizePx: state.fontSizePx }));
       return;
@@ -621,7 +621,7 @@ export class TableToolbarService {
     if (!this.activeCell) return;
     const value = (color ?? '').trim();
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       // Cell-level text color for multi-cell selection.
       this.textColorRequestedSubject.next(value);
       return;
@@ -641,7 +641,7 @@ export class TableToolbarService {
     if (!this.activeCell) return;
     const value = (color ?? '').trim();
 
-    if (this.getSelectedCellsCount() > 1 && !this.hasTextSelectionInActiveCell()) {
+    if (this.getSelectedCellsCount() > 1) {
       // Cell-level highlight for multi-cell selection.
       this.textHighlightRequestedSubject.next(value);
       return;

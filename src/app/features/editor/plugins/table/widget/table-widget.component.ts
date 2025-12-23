@@ -1674,6 +1674,30 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const target = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
         if (!target) continue;
 
+        // If we are applying cell-level styles, strip conflicting inline formatting
+        // so that previously formatted segments don't remain styled.
+        if (stylePatch.fontWeight === 'normal') {
+          target.contentHtml = this.stripInlineTag(target.contentHtml, ['b', 'strong']);
+        }
+        if (stylePatch.fontStyle === 'normal') {
+          target.contentHtml = this.stripInlineTag(target.contentHtml, ['i', 'em']);
+        }
+        if (stylePatch.textDecoration === 'none') {
+          target.contentHtml = this.stripInlineTag(target.contentHtml, ['u', 's', 'strike', 'del']);
+          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['text-decoration', 'text-decoration-line']);
+        }
+        if (Object.prototype.hasOwnProperty.call(stylePatch, 'color')) {
+          // When applying cell-level color, remove inline color overrides inside the cell.
+          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['color']);
+        }
+        if (Object.prototype.hasOwnProperty.call(stylePatch, 'textHighlightColor')) {
+          // When applying cell-level highlight, remove inline background-color used as text mark.
+          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['background-color']);
+        }
+        if (Object.prototype.hasOwnProperty.call(stylePatch, 'lineHeight')) {
+          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['line-height']);
+        }
+
         target.style = {
           ...(target.style ?? {}),
           ...stylePatch,
@@ -1692,6 +1716,91 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     this.cdr.markForCheck();
+  }
+
+  private stripInlineTag(html: string, tagNames: string[]): string {
+    const input = (html ?? '').toString();
+    if (!input.trim()) return input;
+
+    // Fast path: if none of the tags are present, skip parsing.
+    const hasAny = tagNames.some((t) => new RegExp(`<\\s*${t}\\b`, 'i').test(input));
+    if (!hasAny) return input;
+
+    try {
+      const doc = document.implementation.createHTMLDocument('');
+      const container = doc.createElement('div');
+      container.innerHTML = input;
+
+      for (const tag of tagNames) {
+        const nodes = Array.from(container.querySelectorAll(tag));
+        for (const n of nodes) {
+          // unwrap while preserving children
+          const parent = n.parentNode;
+          if (!parent) continue;
+          while (n.firstChild) {
+            parent.insertBefore(n.firstChild, n);
+          }
+          parent.removeChild(n);
+        }
+      }
+
+      return container.innerHTML;
+    } catch {
+      // On DOM parse failure, return original HTML.
+      return input;
+    }
+  }
+
+  private stripInlineStyleProps(html: string, cssProps: string[]): string {
+    const input = (html ?? '').toString();
+    if (!input.trim()) return input;
+    if (!cssProps || cssProps.length === 0) return input;
+
+    // Fast path: if no style attribute present, skip parsing.
+    if (!/\bstyle\s*=\s*['"]/i.test(input)) return input;
+
+    const propsLower = cssProps.map((p) => p.toLowerCase());
+
+    try {
+      const doc = document.implementation.createHTMLDocument('');
+      const container = doc.createElement('div');
+      container.innerHTML = input;
+
+      const styled = Array.from(container.querySelectorAll('[style]')) as HTMLElement[];
+      for (const el of styled) {
+        const styleAttr = el.getAttribute('style');
+        if (!styleAttr) continue;
+
+        const parts = styleAttr
+          .split(';')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        const kept: string[] = [];
+        for (const decl of parts) {
+          const idx = decl.indexOf(':');
+          if (idx <= 0) {
+            kept.push(decl);
+            continue;
+          }
+          const prop = decl.slice(0, idx).trim().toLowerCase();
+          if (propsLower.includes(prop)) {
+            continue;
+          }
+          kept.push(decl);
+        }
+
+        if (kept.length === 0) {
+          el.removeAttribute('style');
+        } else {
+          el.setAttribute('style', kept.join('; '));
+        }
+      }
+
+      return container.innerHTML;
+    } catch {
+      return input;
+    }
   }
 
   private getCellAtPath(root: TableCell, path: number[]): TableCell | null {
