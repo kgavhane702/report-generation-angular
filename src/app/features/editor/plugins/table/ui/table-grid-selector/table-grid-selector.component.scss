@@ -55,6 +55,34 @@
     min-height: 20px;
   }
 
+  &__tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  &__tab {
+    height: 32px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 6px;
+    background: #fff;
+    color: #333;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 0, 0, 0.24);
+    }
+  }
+
+  &__tab--active {
+    border-color: rgba(25, 118, 210, 0.55);
+    background: rgba(25, 118, 210, 0.10);
+  }
+
   &__grid {
     display: flex;
     flex-direction: column;
@@ -93,6 +121,28 @@
     right: 0;
     bottom: 0;
     z-index: 999;
+  }
+
+  &__import {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 240px;
+  }
+
+  &__import-button {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid rgba(25, 118, 210, 0.55);
+    border-radius: 6px;
+    background: rgba(25, 118, 210, 0.10);
+    color: #0b3d7a;
+    font-weight: 700;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(25, 118, 210, 0.16);
+    }
   }
 }
 

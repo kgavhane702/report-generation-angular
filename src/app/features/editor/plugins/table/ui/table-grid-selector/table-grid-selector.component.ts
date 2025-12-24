@@ -1,9 +1,11 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   EventEmitter,
   Output,
   signal,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
@@ -28,6 +30,7 @@ export interface TableDimensions {
 })
 export class TableGridSelectorComponent {
   @Output() tableInsert = new EventEmitter<TableDimensions>();
+  @Output() excelImport = new EventEmitter<File>();
   @Output() close = new EventEmitter<void>();
 
   readonly maxRows = 10;
@@ -44,7 +47,15 @@ export class TableGridSelectorComponent {
   /** Dropdown open state */
   readonly isOpen = signal<boolean>(false);
 
+  /** New vs Import mode */
+  readonly mode = signal<'new' | 'import'>('new');
+
+  @ViewChild('excelFileInput', { static: false }) excelFileInput?: ElementRef<HTMLInputElement>;
+
   get selectionLabel(): string {
+    if (this.mode() === 'import') {
+      return 'Import Table';
+    }
     const rows = this.hoverRows();
     const cols = this.hoverColumns();
     if (rows === 0 || cols === 0) {
@@ -56,6 +67,7 @@ export class TableGridSelectorComponent {
   toggleDropdown(): void {
     this.isOpen.update(v => !v);
     if (!this.isOpen()) {
+      this.mode.set('new');
       this.hoverRows.set(0);
       this.hoverColumns.set(0);
     }
@@ -63,9 +75,18 @@ export class TableGridSelectorComponent {
 
   closeDropdown(): void {
     this.isOpen.set(false);
+    this.mode.set('new');
     this.hoverRows.set(0);
     this.hoverColumns.set(0);
     this.close.emit();
+  }
+
+  setMode(mode: 'new' | 'import'): void {
+    this.mode.set(mode);
+    if (mode !== 'new') {
+      this.hoverRows.set(0);
+      this.hoverColumns.set(0);
+    }
   }
 
   onCellHover(rowIndex: number, colIndex: number): void {
@@ -88,6 +109,24 @@ export class TableGridSelectorComponent {
       columns: colIndex + 1,
     };
     this.tableInsert.emit(dimensions);
+    this.closeDropdown();
+  }
+
+  triggerExcelPicker(event?: MouseEvent): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    this.excelFileInput?.nativeElement?.click();
+  }
+
+  onExcelFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // reset immediately so selecting same file again triggers change
+    input.value = '';
+    if (!file) return;
+    this.excelImport.emit(file);
     this.closeDropdown();
   }
 

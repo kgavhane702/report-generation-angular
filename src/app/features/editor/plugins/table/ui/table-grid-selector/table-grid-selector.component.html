@@ -22,27 +22,66 @@
     class="table-grid-selector__dropdown"
     *ngIf="isOpen()"
   >
-    <div class="table-grid-selector__header">
-      {{ selectionLabel }}
+    <div class="table-grid-selector__header">{{ selectionLabel }}</div>
+
+    <div class="table-grid-selector__tabs" role="tablist" aria-label="Table actions">
+      <button
+        type="button"
+        class="table-grid-selector__tab"
+        [class.table-grid-selector__tab--active]="mode() === 'new'"
+        (click)="setMode('new')"
+      >
+        New
+      </button>
+      <button
+        type="button"
+        class="table-grid-selector__tab"
+        [class.table-grid-selector__tab--active]="mode() === 'import'"
+        (click)="setMode('import')"
+      >
+        Import
+      </button>
     </div>
     
-    <div 
-      class="table-grid-selector__grid"
-      (mouseleave)="onGridLeave()"
-    >
+    <ng-container *ngIf="mode() === 'new'; else importMode">
       <div 
-        *ngFor="let rowIndex of gridRows"
-        class="table-grid-selector__row"
+        class="table-grid-selector__grid"
+        (mouseleave)="onGridLeave()"
       >
-        <div
-          *ngFor="let colIndex of gridColumns"
-          class="table-grid-selector__cell"
-          [class.table-grid-selector__cell--selected]="isCellSelected(rowIndex, colIndex)"
-          (mouseenter)="onCellHover(rowIndex, colIndex)"
-          (click)="onCellClick(rowIndex, colIndex)"
-        ></div>
+        <div 
+          *ngFor="let rowIndex of gridRows"
+          class="table-grid-selector__row"
+        >
+          <div
+            *ngFor="let colIndex of gridColumns"
+            class="table-grid-selector__cell"
+            [class.table-grid-selector__cell--selected]="isCellSelected(rowIndex, colIndex)"
+            (mouseenter)="onCellHover(rowIndex, colIndex)"
+            (click)="onCellClick(rowIndex, colIndex)"
+          ></div>
+        </div>
       </div>
-    </div>
+    </ng-container>
+
+    <ng-template #importMode>
+      <div class="table-grid-selector__import">
+        <button
+          type="button"
+          class="table-grid-selector__import-button"
+          (click)="triggerExcelPicker($event)"
+          title="Import a new table from Excel (.xlsx)"
+        >
+          Import from Excel (.xlsx)
+        </button>
+        <input
+          #excelFileInput
+          type="file"
+          accept=".xlsx"
+          style="display: none"
+          (change)="onExcelFileSelected($event)"
+        />
+      </div>
+    </ng-template>
   </div>
 
   <div 

@@ -13,8 +13,6 @@ import { FormsModule } from '@angular/forms';
 import { TableToolbarService, TableSectionOptions } from '../../../../../../core/services/table-toolbar.service';
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
 import { TableWidgetProps } from '../../../../../../models/widget.model';
-import { TableImportService } from '../../../../../../core/services/table-import.service';
-import { Subscription } from 'rxjs';
 import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
@@ -36,9 +34,6 @@ import { AnchoredDropdownComponent } from '../../../../../../shared/components/d
 export class TableToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
   private readonly editorState = inject(EditorStateService);
-  private readonly tableImport = inject(TableImportService);
-
-  private importSub?: Subscription;
 
   /** Computed: is the active widget a table? */
   readonly isTableWidgetActive = computed(() => {
@@ -66,7 +61,6 @@ export class TableToolbarComponent {
   @ViewChild('fontSizeTrigger', { static: false }) fontSizeTrigger?: ElementRef<HTMLElement>;
   @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
   @ViewChild('bulletStyleTrigger', { static: false }) bulletStyleTrigger?: ElementRef<HTMLElement>;
-  @ViewChild('excelFileInput', { static: false }) excelFileInput?: ElementRef<HTMLInputElement>;
 
   splitDialogOpen = false;
   splitRows = 2;
@@ -203,38 +197,6 @@ export class TableToolbarComponent {
   get activeTableWidgetId(): string | null {
     const w = this.editorState.activeWidget();
     return w?.type === 'table' ? w.id : null;
-  }
-
-  onImportExcelClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveTable) return;
-    this.excelFileInput?.nativeElement?.click();
-  }
-
-  onExcelFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    // reset immediately so selecting same file again triggers change
-    input.value = '';
-    if (!file) return;
-    if (!this.activeTableWidgetId) return;
-
-    this.importSub?.unsubscribe();
-    this.importSub = this.tableImport.importExcel(file).subscribe({
-      next: (resp) => {
-        this.toolbarService.requestImportTableFromExcel({
-          widgetId: this.activeTableWidgetId!,
-          rows: resp.rows,
-          columnFractions: resp.columnFractions,
-          rowFractions: resp.rowFractions,
-        });
-      },
-      error: (err) => {
-        // eslint-disable-next-line no-console
-        console.error('Excel import failed', err);
-      },
-    });
   }
 
   private emitTableOptionsPatch(patch: Partial<TableSectionOptions>): void {
