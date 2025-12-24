@@ -155,6 +155,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         /** Top-level table size at drag start (for shared-abs ghost). */
         tableWidthPx?: number;
         tableHeightPx?: number;
+        /** Cached container sizes for all participating owners (for correct min constraints). */
+        ownerContainerWidthPx?: Map<string, number>;
+        ownerContainerHeightPx?: Map<string, number>;
         /** Other split owners that share the same continuous boundary line. */
         sharedOwnerLeafIds?: string[];
         pointerId: number;
@@ -4918,6 +4921,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, rect.width / zoomScale);
     const containerHeightPx = Math.max(1, rect.height / zoomScale);
+    const tableRect = this.getTableRect();
+    const tableWidthPx = tableRect ? Math.max(1, tableRect.width / zoomScale) : undefined;
+    const tableHeightPx = tableRect ? Math.max(1, tableRect.height / zoomScale) : undefined;
 
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
@@ -4925,7 +4931,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex,
       sharedBoundaryAbs: sharedAbs ?? undefined,
-      startSharedBoundaryAbs: undefined,
+      startSharedBoundaryAbs: sharedAbs ?? undefined,
+      tableWidthPx,
+      tableHeightPx,
       sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -4938,6 +4946,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Initialize ghost lines for all owners that will be affected.
     const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
+    const ownerW = new Map<string, number>();
+    const ownerH = new Map<string, number>();
     const ghostMap = new Map(this.ghostSplitColWithinPercent());
     for (const id of ownersToGhost) {
       const m = this.getCellModelByLeafId(id);
@@ -4946,8 +4956,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const f = this.getSplitColFractions(id, m);
       const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
+
+      // Cache each owner's container size for correct min constraints during propagation.
+      const gridEl2 = this.getTableElement()?.querySelector(`.table-widget__split-grid[data-owner-leaf="${id}"]`) as HTMLElement | null;
+      if (gridEl2) {
+        const rr = gridEl2.getBoundingClientRect();
+        ownerW.set(id, Math.max(1, rr.width / zoomScale));
+        ownerH.set(id, Math.max(1, rr.height / zoomScale));
+      }
     }
     this.ghostSplitColWithinPercent.set(ghostMap);
+    if (this.activeSplitResize) {
+      this.activeSplitResize.ownerContainerWidthPx = ownerW;
+      this.activeSplitResize.ownerContainerHeightPx = ownerH;
+    }
+
+    if (sharedAbs !== null && sharedOwners.length > 1) {
+      this.ghostSharedSplitColPercent.set(Math.max(0, Math.min(100, sharedAbs * 100)));
+    }
 
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
@@ -4993,6 +5019,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, rect.width / zoomScale);
     const containerHeightPx = Math.max(1, rect.height / zoomScale);
+    const tableRect = this.getTableRect();
+    const tableWidthPx = tableRect ? Math.max(1, tableRect.width / zoomScale) : undefined;
+    const tableHeightPx = tableRect ? Math.max(1, tableRect.height / zoomScale) : undefined;
 
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
@@ -5000,7 +5029,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex,
       sharedBoundaryAbs: sharedAbs ?? undefined,
-      startSharedBoundaryAbs: undefined,
+      startSharedBoundaryAbs: sharedAbs ?? undefined,
+      tableWidthPx,
+      tableHeightPx,
       sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -5012,6 +5043,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     };
 
     const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
+    const ownerW = new Map<string, number>();
+    const ownerH = new Map<string, number>();
     const ghostMap = new Map(this.ghostSplitRowWithinPercent());
     for (const id of ownersToGhost) {
       const m = this.getCellModelByLeafId(id);
@@ -5020,8 +5053,23 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const f = this.getSplitRowFractions(id, m);
       const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
+
+      const gridEl2 = this.getTableElement()?.querySelector(`.table-widget__split-grid[data-owner-leaf="${id}"]`) as HTMLElement | null;
+      if (gridEl2) {
+        const rr = gridEl2.getBoundingClientRect();
+        ownerW.set(id, Math.max(1, rr.width / zoomScale));
+        ownerH.set(id, Math.max(1, rr.height / zoomScale));
+      }
     }
     this.ghostSplitRowWithinPercent.set(ghostMap);
+    if (this.activeSplitResize) {
+      this.activeSplitResize.ownerContainerWidthPx = ownerW;
+      this.activeSplitResize.ownerContainerHeightPx = ownerH;
+    }
+
+    if (sharedAbs !== null && sharedOwners.length > 1) {
+      this.ghostSharedSplitRowPercent.set(Math.max(0, Math.min(100, sharedAbs * 100)));
+    }
 
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
@@ -5087,6 +5135,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Persist immediately (discrete sizing action).
     this.emitPropsChange(this.localRows());
+
+    // After split column resize, wrapping can change and require top-level rows/table to grow.
+    // Run the same AutoFit flow as top-level column resize.
+    if (r.kind === 'col') {
+      this.schedulePostCommitTopColResizeWork();
+    }
 
     // Clear pending fractions for all involved owners
     const colMap = new Map(this.pendingSplitColFractions());
@@ -5171,8 +5225,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
         // Keep the same left-side ratio as the active owner.
         const ratio = total > 0 ? clampedLeft / total : 0.5;
-        const minOtherLeft = this.minSplitColPx / r.containerWidthPx;
-        const minOtherRight = this.minSplitColPx / r.containerWidthPx;
+        const otherW = r.ownerContainerWidthPx?.get(otherLeafId) ?? r.containerWidthPx;
+        const minOtherLeft = this.minSplitColPx / otherW;
+        const minOtherRight = this.minSplitColPx / otherW;
         const desiredLeft = otherTotal * ratio;
         const clampedOtherLeft = this.clamp(desiredLeft, minOtherLeft, otherTotal - minOtherRight);
         otherStart[li] = clampedOtherLeft;
@@ -5238,8 +5293,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
         // Keep the same top-side ratio as the active owner.
         const ratio = total > 0 ? clampedTop / total : 0.5;
-        const minOtherTop = this.minSplitRowPx / r.containerHeightPx;
-        const minOtherBottom = this.minSplitRowPx / r.containerHeightPx;
+        const otherH = r.ownerContainerHeightPx?.get(otherLeafId) ?? r.containerHeightPx;
+        const minOtherTop = this.minSplitRowPx / otherH;
+        const minOtherBottom = this.minSplitRowPx / otherH;
         const desiredTop = otherTotal * ratio;
         const clampedOtherTop = this.clamp(desiredTop, minOtherTop, otherTotal - minOtherBottom);
         otherStart[ti] = clampedOtherTop;
@@ -5918,6 +5974,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
     const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
 
+    const ownerW = new Map<string, number>();
+    const ownerH = new Map<string, number>();
+    for (const id of owners) {
+      const gridEl2 = table.querySelector(`.table-widget__split-grid[data-owner-leaf="${id}"]`) as HTMLElement | null;
+      if (!gridEl2) continue;
+      const rr = gridEl2.getBoundingClientRect();
+      ownerW.set(id, Math.max(1, rr.width / zoomScale));
+      ownerH.set(id, Math.max(1, rr.height / zoomScale));
+    }
+
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
       kind: 'col',
@@ -5927,6 +5993,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       startSharedBoundaryAbs: boundaryAbs,
       tableWidthPx,
       tableHeightPx,
+      ownerContainerWidthPx: ownerW,
+      ownerContainerHeightPx: ownerH,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -6002,6 +6070,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
     const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
 
+    const ownerW = new Map<string, number>();
+    const ownerH = new Map<string, number>();
+    for (const id of owners) {
+      const gridEl2 = table.querySelector(`.table-widget__split-grid[data-owner-leaf="${id}"]`) as HTMLElement | null;
+      if (!gridEl2) continue;
+      const rr = gridEl2.getBoundingClientRect();
+      ownerW.set(id, Math.max(1, rr.width / zoomScale));
+      ownerH.set(id, Math.max(1, rr.height / zoomScale));
+    }
+
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
       kind: 'row',
@@ -6011,6 +6089,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       startSharedBoundaryAbs: boundaryAbs,
       tableWidthPx,
       tableHeightPx,
+      ownerContainerWidthPx: ownerW,
+      ownerContainerHeightPx: ownerH,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,

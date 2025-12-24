@@ -40,7 +40,7 @@
     min-width: 40px;
     min-height: 24px;
     user-select: none;
-    overflow: visible; /* Allow bullet points to display */
+    overflow: hidden; /* Prevent text/markers from spilling into other cells */
 
     &:hover {
       background: rgba(0, 0, 0, 0.04);
@@ -191,20 +191,7 @@
     height: 100%;
     min-height: 24px;
     box-sizing: border-box;
-    display: table;
-    table-layout: fixed;
-  }
-
-  &__cell-surface[data-vertical-align='top'] {
-    vertical-align: top;
-  }
-
-  &__cell-surface[data-vertical-align='middle'] {
-    vertical-align: middle;
-  }
-
-  &__cell-surface[data-vertical-align='bottom'] {
-    vertical-align: bottom;
+    display: block;
   }
 
   &__split-grid {

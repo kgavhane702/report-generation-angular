@@ -65,7 +65,6 @@
   <ng-container *ngIf="!cell.split; else splitRenderer">
     <div
       class="table-widget__cell-surface"
-      [attr.data-vertical-align]="cell.style?.verticalAlign || 'top'"
       [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
       [style.background-color]="cell.style?.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
       [style.font-family]="cell.style?.fontFamily || null"
