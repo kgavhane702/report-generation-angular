@@ -1,0 +1,19 @@
+.table-widget__ghost-line {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  touch-action: none;
+  z-index: 50;
+}
+
+.table-widget__ghost-line--col {
+  transform: translateX(-50%);
+  border-left: 2px dashed rgba(25, 118, 210, 0.9);
+}
+
+.table-widget__ghost-line--row {
+  transform: translateY(-50%);
+  border-top: 2px dashed rgba(25, 118, 210, 0.9);
+}
+
+

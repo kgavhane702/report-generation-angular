@@ -23,6 +23,7 @@ import { RichTextToolbarComponent } from './plugins/text/ui/rich-text-toolbar/ri
 import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
 import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
+import { TableResizeOverlayComponent } from './plugins/table/widget/resize/table-resize-overlay.component';
 import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 
@@ -54,6 +55,7 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
     TextWidgetColorPickerComponent,
     TableToolbarComponent,
     TableGridSelectorComponent,
+    TableResizeOverlayComponent,
     SafeHtmlPipe,
   ],
   exports: [EditorShellComponent],

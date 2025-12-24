@@ -10,18 +10,21 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
     // Minimal plumbing / no-op deps
     c.minSplitColPx = 24;
     c.minSplitRowPx = 18;
-    c.previewSplitColFractions = () => new Map();
-    c.previewSplitRowFractions = () => new Map();
-    c.previewSplitColFractions = { 
-      value: new Map<string, number[]>(),
-      set: (m: Map<string, number[]>) => { c.previewSplitColFractions.value = m; },
-      get: () => c.previewSplitColFractions.value,
+    const makeSignal = <T,>(initial: T) => {
+      const fn: any = () => fn.value as T;
+      fn.value = initial;
+      fn.set = (v: T) => {
+        fn.value = v;
+      };
+      return fn;
     };
-    c.previewSplitRowFractions = { 
-      value: new Map<string, number[]>(),
-      set: (m: Map<string, number[]>) => { c.previewSplitRowFractions.value = m; },
-      get: () => c.previewSplitRowFractions.value,
-    };
+
+    c.pendingSplitColFractions = makeSignal<Map<string, number[]>>(new Map());
+    c.pendingSplitRowFractions = makeSignal<Map<string, number[]>>(new Map());
+    c.ghostSplitColWithinPercent = makeSignal<Map<string, number>>(new Map());
+    c.ghostSplitRowWithinPercent = makeSignal<Map<string, number>>(new Map());
+    c.ghostSharedSplitColPercent = makeSignal<number | null>(null);
+    c.ghostSharedSplitRowPercent = makeSignal<number | null>(null);
 
     c.normalizeFractions = (arr: number[], count: number) => {
       if (arr.length !== count) return Array.from({ length: count }, () => 1 / count);
@@ -66,7 +69,7 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
       clientY: 0,
     } as any);
 
-    const map = c.previewSplitColFractions.get();
+    const map = c.pendingSplitColFractions();
     expect(map.get('A')).toEqual([0.7, 0.3]);
 
     // Owner B total is 1.0, ratio=0.7 => [0.7,0.3]

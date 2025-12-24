@@ -21,11 +21,13 @@ import {
 } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
+import type { GhostColLine, GhostRowLine } from './resize/table-resize-overlay.component';
 
 import {
   TableWidgetProps,
   TableRow,
   TableCell,
+  TableCellSplit,
   TableMergedRegion,
   TableCellStyle,
   WidgetModel,
@@ -95,6 +97,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly previewColumnFractions = signal<number[] | null>(null);
   private readonly previewRowFractions = signal<number[] | null>(null);
 
+  /** Ghost preview lines during resize drag (PPT-like). Values are in percent (0..100). */
+  private readonly ghostTopColPercent = signal<number | null>(null);
+  private readonly ghostTopRowPercent = signal<number | null>(null);
+  private readonly ghostSharedSplitColPercent = signal<number | null>(null);
+  private readonly ghostSharedSplitRowPercent = signal<number | null>(null);
+  private readonly ghostSplitColWithinPercent = signal<Map<string, number>>(new Map());
+  private readonly ghostSplitRowWithinPercent = signal<Map<string, number>>(new Map());
+
   // ============================================
   // Segmented resize handles (gap-aware)
   // ============================================
@@ -120,6 +130,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         tableWidthPx: number; // unscaled layout px
         tableHeightPx: number; // unscaled layout px
         zoomScale: number; // 1.0 = 100%
+        /** For top-level row resize: minimum allowed height for the resized row (px). */
+        minTopRowHeightPx?: number;
       }
     | null = null;
 
@@ -138,6 +150,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
          * Used to resize multiple split-grids together when their boundaries align.
          */
         sharedBoundaryAbs?: number;
+        /** Starting abs boundary (0..1) when resizing a shared boundary. */
+        startSharedBoundaryAbs?: number;
+        /** Top-level table size at drag start (for shared-abs ghost). */
+        tableWidthPx?: number;
+        tableHeightPx?: number;
         /** Other split owners that share the same continuous boundary line. */
         sharedOwnerLeafIds?: string[];
         pointerId: number;
@@ -150,8 +167,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       }
     | null = null;
 
-  private readonly previewSplitColFractions = signal<Map<string, number[]>>(new Map());
-  private readonly previewSplitRowFractions = signal<Map<string, number[]>>(new Map());
+  /**
+   * Pending split fractions computed during drag (commit on pointerup).
+   * IMPORTANT: these are NOT used for rendering; rendering stays stable until commit.
+   */
+  private readonly pendingSplitColFractions = signal<Map<string, number[]>>(new Map());
+  private readonly pendingSplitRowFractions = signal<Map<string, number[]>>(new Map());
 
   /**
    * During a split resize, we want aligned boundaries (same continuous line) across different split owners
@@ -288,13 +309,15 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get colFractions(): number[] {
     const cols = this.getTopLevelColCount(this.localRows());
-    const current = this.previewColumnFractions() ?? this.columnFractions();
+    // Ghost-only resize: do not apply any live preview fractions to layout.
+    const current = this.columnFractions();
     return this.normalizeFractions(current, cols);
   }
 
   get rowFractionsView(): number[] {
     const rows = this.getTopLevelRowCount(this.localRows());
-    const current = this.previewRowFractions() ?? this.rowFractions();
+    // Ghost-only resize: do not apply any live preview fractions to layout.
+    const current = this.rowFractions();
     return this.normalizeFractions(current, rows);
   }
 
@@ -344,6 +367,47 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get sharedSplitRowResizeSegments(): SharedSplitRowSegment[] {
     return this.sharedSplitRowSegmentsSig();
+  }
+
+  get ghostTopCols(): GhostColLine[] {
+    const p = this.ghostTopColPercent();
+    return p === null ? [] : [{ leftPercent: p }];
+  }
+
+  get ghostTopRows(): GhostRowLine[] {
+    const p = this.ghostTopRowPercent();
+    return p === null ? [] : [{ topPercent: p }];
+  }
+
+  get ghostSharedCols(): GhostColLine[] {
+    const p = this.ghostSharedSplitColPercent();
+    return p === null ? [] : [{ leftPercent: p }];
+  }
+
+  get ghostSharedRows(): GhostRowLine[] {
+    const p = this.ghostSharedSplitRowPercent();
+    return p === null ? [] : [{ topPercent: p }];
+  }
+
+  getSplitGhostCols(rowIndex: number, cellIndex: number, path: string): GhostColLine[] {
+    const ownerLeafId = this.composeLeafId(rowIndex, cellIndex, path);
+    const p = this.ghostSplitColWithinPercent().get(ownerLeafId);
+    return p === undefined ? [] : [{ leftPercent: p }];
+  }
+
+  getSplitGhostRows(rowIndex: number, cellIndex: number, path: string): GhostRowLine[] {
+    const ownerLeafId = this.composeLeafId(rowIndex, cellIndex, path);
+    const p = this.ghostSplitRowWithinPercent().get(ownerLeafId);
+    return p === undefined ? [] : [{ topPercent: p }];
+  }
+
+  private clearGhosts(): void {
+    this.ghostTopColPercent.set(null);
+    this.ghostTopRowPercent.set(null);
+    this.ghostSharedSplitColPercent.set(null);
+    this.ghostSharedSplitRowPercent.set(null);
+    this.ghostSplitColWithinPercent.set(new Map());
+    this.ghostSplitRowWithinPercent.set(new Map());
   }
 
   get widgetId(): string {
@@ -693,6 +757,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.teardownGridResizeListeners();
     this.teardownSplitResizeListeners();
 
+    if (this.postCommitTopColResizeRaf !== null) {
+      cancelAnimationFrame(this.postCommitTopColResizeRaf);
+      this.postCommitTopColResizeRaf = null;
+    }
+    this.cancelAutoFitAfterColResize();
+
     if (this.resizeSegmentsRaf !== null) {
       cancelAnimationFrame(this.resizeSegmentsRaf);
       this.resizeSegmentsRaf = null;
@@ -945,13 +1015,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
               const owner = parsed.path.length === 0 ? baseCell : this.getCellAtPath(baseCell, parsed.path);
               if (!owner?.split) continue;
 
-              const split = owner.split;
+              const split: TableCellSplit = owner.split;
               const rowsCount = Math.max(1, split.rows);
               const colsCount = Math.max(1, split.cols);
               const childIdx = Math.max(0, Math.min(split.cells.length - 1, Math.trunc(t.childIndex)));
 
               const startRow = Math.max(0, Math.min(rowsCount - 1, Math.floor(childIdx / colsCount)));
-              const childCell = split.cells[childIdx];
+              const childCell: TableCell = split.cells[childIdx];
               const rowSpan = Math.max(1, childCell?.merge?.rowSpan ?? 1);
               const endRow = Math.min(rowsCount - 1, startRow + rowSpan - 1);
 
@@ -1086,19 +1156,19 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return f.map(x => `${x * 100}%`).join(' ');
   }
 
-  private getSplitColFractions(ownerLeafId: string, cell: TableCell): number[] {
+  private getSplitColFractions(_ownerLeafId: string, cell: TableCell): number[] {
     if (!cell.split) return [];
     const cols = Math.max(1, cell.split.cols);
-    const preview = this.previewSplitColFractions().get(ownerLeafId);
-    const current = preview ?? cell.split.columnFractions ?? [];
+    // Ghost-only resize: do not apply any live preview fractions to layout.
+    const current = cell.split.columnFractions ?? [];
     return this.normalizeFractions(current, cols);
   }
 
-  private getSplitRowFractions(ownerLeafId: string, cell: TableCell): number[] {
+  private getSplitRowFractions(_ownerLeafId: string, cell: TableCell): number[] {
     if (!cell.split) return [];
     const rows = Math.max(1, cell.split.rows);
-    const preview = this.previewSplitRowFractions().get(ownerLeafId);
-    const current = preview ?? cell.split.rowFractions ?? [];
+    // Ghost-only resize: do not apply any live preview fractions to layout.
+    const current = cell.split.rowFractions ?? [];
     return this.normalizeFractions(current, rows);
   }
 
@@ -2790,7 +2860,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const owner = target.ownerPath.length === 0 ? baseCell : this.getCellAtPath(baseCell, target.ownerPath);
       if (!owner?.split) return next;
 
-      const split = owner.split;
+      const split: TableCellSplit = owner.split;
       const curRows = Math.max(1, split.rows);
       const curCols = Math.max(1, split.cols);
 
@@ -4215,6 +4285,278 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       }
     | null = null;
 
+  private postCommitTopColResizeRaf: number | null = null;
+  private autoFitAfterColResizeRaf: number | null = null;
+  private autoFitAfterColResizeIteration = 0;
+  private autoFitAfterColResizeDraftHeightPx: number | null = null;
+  private autoFitAfterColResizeDidResizeWidget = false;
+
+  private cancelAutoFitAfterColResize(): void {
+    if (this.autoFitAfterColResizeRaf !== null) {
+      cancelAnimationFrame(this.autoFitAfterColResizeRaf);
+      this.autoFitAfterColResizeRaf = null;
+    }
+    this.autoFitAfterColResizeIteration = 0;
+    this.autoFitAfterColResizeDraftHeightPx = null;
+    this.autoFitAfterColResizeDidResizeWidget = false;
+  }
+
+  private schedulePostCommitTopColResizeWork(): void {
+    if (this.postCommitTopColResizeRaf !== null) {
+      cancelAnimationFrame(this.postCommitTopColResizeRaf);
+      this.postCommitTopColResizeRaf = null;
+    }
+
+    this.postCommitTopColResizeRaf = window.requestAnimationFrame(() => {
+      this.postCommitTopColResizeRaf = null;
+      // After column resize commit, run a deterministic AutoFit pass so wrapped text becomes visible
+      // immediately (no "type one key" needed).
+      this.startAutoFitAfterTopColResize();
+    });
+  }
+
+  private startAutoFitAfterTopColResize(): void {
+    this.cancelAutoFitAfterColResize();
+    this.autoFitAfterColResizeIteration = 0;
+    this.autoFitAfterColResizeDraftHeightPx = this.widget?.size?.height ?? null;
+    this.autoFitAfterColResizeDidResizeWidget = false;
+    this.runAutoFitAfterTopColResizeStep();
+  }
+
+  private runAutoFitAfterTopColResizeStep(): void {
+    const maxIterations = 12;
+    const worst = this.findWorstLeafOverflow();
+    if (!worst || worst.overflowPx <= 1 || this.autoFitAfterColResizeIteration >= maxIterations) {
+      if (this.autoFitAfterColResizeDidResizeWidget) {
+        this.draftState.commitDraft(this.widget.id);
+      }
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.autoFitAfterColResizeIteration++;
+
+    const bufferPx = 4;
+    const stepPx = 8;
+    const growPx = Math.min(600, this.roundUpPx(worst.overflowPx + bufferPx, stepPx));
+    if (!Number.isFinite(growPx) || growPx <= 0) {
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const oldWidgetHeightPx = this.autoFitAfterColResizeDraftHeightPx ?? this.widget?.size?.height ?? 0;
+    if (!Number.isFinite(oldWidgetHeightPx) || oldWidgetHeightPx <= 0) {
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    this.applyAutoFitGrowForLeaf(worst.leafId, growPx, oldWidgetHeightPx);
+
+    this.autoFitAfterColResizeRaf = window.requestAnimationFrame(() => {
+      this.autoFitAfterColResizeRaf = null;
+      this.runAutoFitAfterTopColResizeStep();
+    });
+  }
+
+  private findWorstLeafOverflow(): { leafId: string; overflowPx: number } | null {
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return null;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const leaves = Array.from(container.querySelectorAll('.table-widget__cell-content[data-leaf]')) as HTMLElement[];
+    if (leaves.length === 0) return null;
+
+    let worst: { leafId: string; overflowPx: number } | null = null;
+    for (const leafEl of leaves) {
+      const leafId = leafEl.getAttribute('data-leaf');
+      if (!leafId) continue;
+
+      const clipEl =
+        (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+        (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
+        leafEl;
+
+      let visibleH = clipEl.clientHeight;
+      if (!Number.isFinite(visibleH) || visibleH <= 0) {
+        visibleH = clipEl.getBoundingClientRect().height / zoomScale;
+      }
+
+      const wrapper = leafEl.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
+      const measureEl = wrapper ?? leafEl;
+      const neededH = Math.max(
+        measureEl.scrollHeight || 0,
+        measureEl.offsetHeight || 0,
+        measureEl.getBoundingClientRect().height / zoomScale || 0
+      );
+
+      if (!Number.isFinite(visibleH) || !Number.isFinite(neededH) || visibleH <= 0 || neededH <= 0) continue;
+
+      const overflow = neededH - visibleH;
+      if (overflow <= 1) continue;
+
+      if (!worst || overflow > worst.overflowPx) {
+        worst = { leafId, overflowPx: overflow };
+      }
+    }
+
+    return worst;
+  }
+
+  private applyAutoFitGrowForLeaf(leafId: string, growPx: number, oldWidgetHeightPx: number): void {
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed) return;
+
+    // Resolve top-level anchor (safety for any covered ids).
+    const rowsModel = this.localRows();
+    let r = parsed.row;
+    let c = parsed.col;
+    let baseCell = rowsModel?.[r]?.cells?.[c];
+    if (!baseCell) return;
+    if (baseCell.coveredBy) {
+      const a = baseCell.coveredBy;
+      r = a.row;
+      c = a.col;
+      baseCell = rowsModel?.[r]?.cells?.[c];
+      if (!baseCell) return;
+    }
+
+    const rowSpan = Math.max(1, baseCell.merge?.rowSpan ?? 1);
+
+    // Grow widget height in draft-only mode so the table doesn't redistribute/shrink other rows.
+    const curH = this.autoFitAfterColResizeDraftHeightPx ?? this.widget.size.height;
+    const nextH = Math.max(20, Math.round(curH + growPx));
+    const appliedDeltaPx = nextH - curH;
+    if (appliedDeltaPx <= 0) return;
+
+    this.autoFitAfterColResizeDraftHeightPx = nextH;
+    this.autoFitAfterColResizeDidResizeWidget = true;
+    this.draftState.updateDraftSize(this.widget.id, { width: this.widget.size.width, height: nextH });
+
+    // If leaf is inside split grids, grow split row chains so the extra height reaches the leaf.
+    this.growSplitRowFractionsForLeafId(leafId, appliedDeltaPx, oldWidgetHeightPx);
+
+    // Grow only the affected top-level row-span area; keep other rows' pixel sizes stable.
+    this.growTopLevelRowSpanFractions(r, rowSpan, appliedDeltaPx, oldWidgetHeightPx);
+  }
+
+  private growSplitRowFractionsForLeafId(leafId: string, deltaPx: number, oldWidgetHeightPx: number): void {
+    const add = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (add <= 0) return;
+
+    const parsed = this.parseLeafId(leafId);
+    if (!parsed || parsed.path.length === 0) return;
+
+    const rowCount = this.getTopLevelRowCount(this.localRows());
+    const baseTopRowFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const topRowHeightsPx = baseTopRowFractions.map((f) => f * oldWidgetHeightPx);
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+
+      // Resolve top-level cell anchor.
+      let r = parsed.row;
+      let c = parsed.col;
+      let baseCell = next?.[r]?.cells?.[c];
+      if (!baseCell) return next;
+      if (baseCell.coveredBy) {
+        const a = baseCell.coveredBy;
+        r = a.row;
+        c = a.col;
+        baseCell = next?.[r]?.cells?.[c];
+        if (!baseCell) return next;
+      }
+
+      const topRowSpan = Math.max(1, baseCell.merge?.rowSpan ?? 1);
+      const topStart = Math.max(0, Math.min(rowCount - 1, r));
+      const topEnd = Math.min(rowCount - 1, topStart + topRowSpan - 1);
+      const topCellHeightPx = topRowHeightsPx
+        .slice(topStart, topEnd + 1)
+        .reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+
+      if (!Number.isFinite(topCellHeightPx) || topCellHeightPx <= 0) return next;
+
+      type LevelInfo = {
+        owner: TableCell;
+        oldOwnerHeightPx: number;
+        rowsCount: number;
+        colsCount: number;
+        startRow: number;
+        endRow: number;
+        baseRowFractions: number[];
+      };
+
+      const levels: LevelInfo[] = [];
+
+      let owner: TableCell | null = baseCell;
+      let ownerHeightPx = topCellHeightPx;
+
+      for (let depth = 0; depth < parsed.path.length; depth++) {
+        if (!owner?.split) break;
+
+        const split: TableCellSplit = owner.split;
+        const rowsCount = Math.max(1, split.rows);
+        const colsCount = Math.max(1, split.cols);
+        if (colsCount <= 0 || rowsCount <= 0) break;
+
+        const childIdxRaw = parsed.path[depth];
+        const childIdx = Math.max(0, Math.min(split.cells.length - 1, Math.trunc(childIdxRaw)));
+        const startRow = Math.max(0, Math.min(rowsCount - 1, Math.floor(childIdx / colsCount)));
+        const childCell: TableCell = split.cells[childIdx];
+        const rowSpan = Math.max(1, childCell?.merge?.rowSpan ?? 1);
+        const endRow = Math.min(rowsCount - 1, startRow + rowSpan - 1);
+
+        const baseRowFractions = this.normalizeFractions(split.rowFractions ?? [], rowsCount);
+
+        levels.push({
+          owner,
+          oldOwnerHeightPx: ownerHeightPx,
+          rowsCount,
+          colsCount,
+          startRow,
+          endRow,
+          baseRowFractions,
+        });
+
+        // Compute the child owner's height BEFORE growth, using the current (base) split row fractions.
+        const spanFrac = baseRowFractions.slice(startRow, endRow + 1).reduce((a, b) => a + b, 0);
+        ownerHeightPx = ownerHeightPx * spanFrac;
+        owner = childCell ?? null;
+      }
+
+      // Apply outermost -> innermost so added height propagates down the chain.
+      for (const lvl of levels) {
+        const split: TableCellSplit | undefined = lvl.owner.split;
+        if (!split) continue;
+
+        const oldH = lvl.oldOwnerHeightPx;
+        const newH = oldH + add;
+        if (oldH <= 0 || newH <= 0) continue;
+
+        const oldPx = lvl.baseRowFractions.map((f) => f * oldH);
+        const indices = Array.from({ length: lvl.endRow - lvl.startRow + 1 }, (_, k) => lvl.startRow + k);
+        const spanTotal = indices.reduce((sum, rr) => sum + (oldPx[rr] ?? 0), 0);
+        const per = spanTotal > 0 ? null : add / indices.length;
+
+        const newPx = [...oldPx];
+        for (const rr of indices) {
+          const share = spanTotal > 0 ? ((oldPx[rr] ?? 0) / spanTotal) : (per! / add);
+          newPx[rr] = (oldPx[rr] ?? 0) + add * share;
+        }
+
+        const nextFractions = newPx.map((px) => px / newH);
+        split.rowFractions = this.normalizeFractions(nextFractions, lvl.rowsCount);
+      }
+
+      return next;
+    });
+  }
+
   private captureCaretForResize(): void {
     const activeEl = document.activeElement as HTMLElement | null;
     if (!activeEl) {
@@ -4335,6 +4677,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
     this.captureCaretForResize();
     this.syncCellContent();
 
@@ -4361,6 +4705,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       zoomScale,
     };
 
+    // Initialize ghost at the current boundary position.
+    const startWithin = this.activeGridResize.startFractions
+      .slice(0, Math.max(0, boundaryIndex))
+      .reduce((a, b) => a + b, 0);
+    this.ghostTopColPercent.set(Math.max(0, Math.min(100, startWithin * 100)));
+
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
     } catch {
@@ -4375,6 +4725,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
     this.captureCaretForResize();
     this.syncCellContent();
 
@@ -4401,6 +4753,17 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       zoomScale,
     };
 
+    // Initialize ghost at the current boundary position.
+    const startWithin = this.activeGridResize.startFractions
+      .slice(0, Math.max(0, boundaryIndex))
+      .reduce((a, b) => a + b, 0);
+    this.ghostTopRowPercent.set(Math.max(0, Math.min(100, startWithin * 100)));
+
+    // Pre-compute content-based clamp so the ghost stops at the min allowed size.
+    const topRowIndex = boundaryIndex - 1;
+    const oldRowHeightsPx = this.activeGridResize.startFractions.map((f) => f * this.activeGridResize!.tableHeightPx);
+    this.activeGridResize.minTopRowHeightPx = this.computeMinTopLevelRowHeightPx(topRowIndex, oldRowHeightsPx, zoomScale);
+
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
     } catch {
@@ -4422,6 +4785,100 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     window.removeEventListener('pointercancel', this.handleGridResizePointerUp as any);
   }
 
+  /**
+   * Compute the minimum allowed height (px) for a top-level row so that shrinking does not hide content.
+   * This is used to clamp row-resize interactions to "no less than content".\n   */
+  private computeMinTopLevelRowHeightPx(topRowIndex: number, oldRowHeightsPx: number[], zoomScale: number): number {
+    const minBase = this.minRowPx;
+    const rowHeights = Array.isArray(oldRowHeightsPx) ? oldRowHeightsPx : [];
+    if (!Number.isFinite(topRowIndex) || topRowIndex < 0) return minBase;
+    if (topRowIndex >= rowHeights.length) return minBase;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const colCount = this.getTopLevelColCount(rowsModel);
+
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return minBase;
+
+    const safeScale = Math.max(0.1, Number.isFinite(zoomScale) ? zoomScale : 1);
+
+    const sumRange = (arr: number[], start: number, endInclusive: number): number => {
+      let sum = 0;
+      for (let i = start; i <= endInclusive; i++) sum += arr[i] ?? 0;
+      return sum;
+    };
+
+    const oldTopPx = Math.max(0, rowHeights[topRowIndex] ?? 0);
+    let minTopPx = minBase;
+
+    // Scan all anchor cells whose top-level row-span includes topRowIndex.
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < colCount; c++) {
+        const cell = rowsModel?.[r]?.cells?.[c];
+        if (!cell || cell.coveredBy) continue;
+
+        const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
+        const startRow = r;
+        const endRow = Math.min(rowCount - 1, r + rowSpan - 1);
+        if (topRowIndex < startRow || topRowIndex > endRow) continue;
+
+        const oldSpanPx = Math.max(0, sumRange(rowHeights, startRow, endRow));
+        if (oldSpanPx <= 0) continue;
+        const oldOtherPx = Math.max(0, oldSpanPx - oldTopPx);
+
+        // Find the rendered anchor cell element and measure all leaf content within it (including split leaves).
+        const anchorEl = container.querySelector(`.table-widget__cell[data-cell="${r}-${c}"]`) as HTMLElement | null;
+        if (!anchorEl) continue;
+
+        const leafEls = Array.from(anchorEl.querySelectorAll('.table-widget__cell-content[data-leaf]')) as HTMLElement[];
+        if (leafEls.length === 0) continue;
+
+        let requiredOwnerSpanPx = 0;
+        for (const leafEl of leafEls) {
+          // Measure needed height from the inner text wrapper when present.
+          const wrapper = leafEl.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
+          const measureEl = wrapper ?? leafEl;
+
+          const neededH = Math.max(
+            measureEl.scrollHeight || 0,
+            measureEl.offsetHeight || 0,
+            measureEl.getBoundingClientRect().height / safeScale || 0
+          );
+          if (!Number.isFinite(neededH) || neededH <= 0) continue;
+
+          const clipEl =
+            (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+            (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
+            anchorEl;
+
+          let visibleH = clipEl.clientHeight;
+          if (!Number.isFinite(visibleH) || visibleH <= 0) {
+            visibleH = clipEl.getBoundingClientRect().height / safeScale;
+          }
+          if (!Number.isFinite(visibleH) || visibleH <= 0) continue;
+
+          // Proportion of owner span currently allocated to this clip container.
+          const p = oldSpanPx > 0 ? visibleH / oldSpanPx : 1;
+          const eps = 0.02;
+          const requiredSpanForLeaf = neededH / Math.max(eps, p);
+          requiredOwnerSpanPx = Math.max(requiredOwnerSpanPx, requiredSpanForLeaf);
+        }
+
+        if (!Number.isFinite(requiredOwnerSpanPx) || requiredOwnerSpanPx <= 0) continue;
+
+        // We only change the topRowIndex height; other spanned rows remain as-is.
+        const requiredTop = requiredOwnerSpanPx - oldOtherPx;
+        if (Number.isFinite(requiredTop)) {
+          minTopPx = Math.max(minTopPx, requiredTop);
+        }
+      }
+    }
+
+    // Round up slightly to avoid 1px oscillation due to sub-pixel layout.
+    return Math.max(minBase, Math.ceil(minTopPx));
+  }
+
   // ============================================
   // Split-grid resize (persisted + zoom-safe)
   // ============================================
@@ -4437,6 +4894,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
     this.captureCaretForResize();
     this.syncCellContent();
 
@@ -4466,6 +4925,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex,
       sharedBoundaryAbs: sharedAbs ?? undefined,
+      startSharedBoundaryAbs: undefined,
       sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -4475,6 +4935,19 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       containerHeightPx,
       zoomScale,
     };
+
+    // Initialize ghost lines for all owners that will be affected.
+    const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
+    const ghostMap = new Map(this.ghostSplitColWithinPercent());
+    for (const id of ownersToGhost) {
+      const m = this.getCellModelByLeafId(id);
+      const count = Math.max(1, m?.split?.cols ?? 0);
+      if (!m?.split || boundaryIndex <= 0 || boundaryIndex >= count) continue;
+      const f = this.getSplitColFractions(id, m);
+      const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+      ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
+    }
+    this.ghostSplitColWithinPercent.set(ghostMap);
 
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
@@ -4496,6 +4969,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
     this.captureCaretForResize();
     this.syncCellContent();
 
@@ -4525,6 +5000,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex,
       sharedBoundaryAbs: sharedAbs ?? undefined,
+      startSharedBoundaryAbs: undefined,
       sharedOwnerLeafIds: sharedOwners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -4534,6 +5010,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       containerHeightPx,
       zoomScale,
     };
+
+    const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
+    const ghostMap = new Map(this.ghostSplitRowWithinPercent());
+    for (const id of ownersToGhost) {
+      const m = this.getCellModelByLeafId(id);
+      const count = Math.max(1, m?.split?.rows ?? 0);
+      if (!m?.split || boundaryIndex <= 0 || boundaryIndex >= count) continue;
+      const f = this.getSplitRowFractions(id, m);
+      const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+      ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
+    }
+    this.ghostSplitRowWithinPercent.set(ghostMap);
 
     try {
       (event.target as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
@@ -4583,12 +5071,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         if (!target?.split) continue;
 
         if (r.kind === 'col') {
-          const final = this.previewSplitColFractions().get(ownerLeafId);
+          const final = this.pendingSplitColFractions().get(ownerLeafId);
           if (final) {
             target.split.columnFractions = this.normalizeFractions(final, Math.max(1, target.split.cols));
           }
         } else {
-          const final = this.previewSplitRowFractions().get(ownerLeafId);
+          const final = this.pendingSplitRowFractions().get(ownerLeafId);
           if (final) {
             target.split.rowFractions = this.normalizeFractions(final, Math.max(1, target.split.rows));
           }
@@ -4600,21 +5088,22 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Persist immediately (discrete sizing action).
     this.emitPropsChange(this.localRows());
 
-    // Clear previews for all involved owners
-    const colMap = new Map(this.previewSplitColFractions());
-    const rowMap = new Map(this.previewSplitRowFractions());
+    // Clear pending fractions for all involved owners
+    const colMap = new Map(this.pendingSplitColFractions());
+    const rowMap = new Map(this.pendingSplitRowFractions());
     for (const ownerLeafId of ownersToPersist) {
       colMap.delete(ownerLeafId);
       rowMap.delete(ownerLeafId);
     }
-    this.previewSplitColFractions.set(colMap);
-    this.previewSplitRowFractions.set(rowMap);
+    this.pendingSplitColFractions.set(colMap);
+    this.pendingSplitRowFractions.set(rowMap);
 
     this.isResizingSplitGrid = false;
     this.activeSplitResize = null;
     this.teardownSplitResizeListeners();
     this.cdr.markForCheck();
     this.restoreCaretAfterResize();
+    this.clearGhosts();
   }
 
   private handleSplitResizePointerMove = (event: PointerEvent): void => {
@@ -4658,8 +5147,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       next[rightIdx] = total - clampedLeft;
 
       const updated = this.normalizeFractions(next, cols);
-      const map = new Map(this.previewSplitColFractions());
+      const map = new Map(this.pendingSplitColFractions());
       map.set(r.ownerLeafId, updated);
+
+      // Update ghost(s) for active + shared owners (within each split grid).
+      const ghostMap = new Map(this.ghostSplitColWithinPercent());
+      const within = updated.slice(0, Math.max(0, i)).reduce((a, b) => a + b, 0);
+      ghostMap.set(r.ownerLeafId, Math.max(0, Math.min(100, within * 100)));
 
       // Propagate to all split owners that share the same continuous boundary line.
       const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
@@ -4683,10 +5177,22 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const clampedOtherLeft = this.clamp(desiredLeft, minOtherLeft, otherTotal - minOtherRight);
         otherStart[li] = clampedOtherLeft;
         otherStart[ri] = otherTotal - clampedOtherLeft;
-        map.set(otherLeafId, this.normalizeFractions(otherStart, otherCols));
+        const otherUpdated = this.normalizeFractions(otherStart, otherCols);
+        map.set(otherLeafId, otherUpdated);
+
+        const otherWithin = otherUpdated.slice(0, Math.max(0, r.boundaryIndex)).reduce((a, b) => a + b, 0);
+        ghostMap.set(otherLeafId, Math.max(0, Math.min(100, otherWithin * 100)));
       }
 
-      this.previewSplitColFractions.set(map);
+      this.pendingSplitColFractions.set(map);
+      this.ghostSplitColWithinPercent.set(ghostMap);
+
+      // Shared boundary ghost (absolute within the top-level table) when applicable.
+      if (r.startSharedBoundaryAbs !== undefined && r.tableWidthPx) {
+        const deltaAbs = deltaLayout / r.tableWidthPx;
+        const abs = this.clamp(r.startSharedBoundaryAbs + deltaAbs, 0, 1);
+        this.ghostSharedSplitColPercent.set(abs * 100);
+      }
     } else {
       const rows = Math.max(1, owner.split.rows);
       const start = r.startFractions;
@@ -4709,8 +5215,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       next[bottomIdx] = total - clampedTop;
 
       const updated = this.normalizeFractions(next, rows);
-      const map = new Map(this.previewSplitRowFractions());
+      const map = new Map(this.pendingSplitRowFractions());
       map.set(r.ownerLeafId, updated);
+
+      const ghostMap = new Map(this.ghostSplitRowWithinPercent());
+      const within = updated.slice(0, Math.max(0, i)).reduce((a, b) => a + b, 0);
+      ghostMap.set(r.ownerLeafId, Math.max(0, Math.min(100, within * 100)));
 
       // Propagate to all split owners that share the same continuous boundary line.
       const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
@@ -4734,10 +5244,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const clampedOtherTop = this.clamp(desiredTop, minOtherTop, otherTotal - minOtherBottom);
         otherStart[ti] = clampedOtherTop;
         otherStart[bi] = otherTotal - clampedOtherTop;
-        map.set(otherLeafId, this.normalizeFractions(otherStart, otherRows));
+        const otherUpdated = this.normalizeFractions(otherStart, otherRows);
+        map.set(otherLeafId, otherUpdated);
+
+        const otherWithin = otherUpdated.slice(0, Math.max(0, r.boundaryIndex)).reduce((a, b) => a + b, 0);
+        ghostMap.set(otherLeafId, Math.max(0, Math.min(100, otherWithin * 100)));
       }
 
-      this.previewSplitRowFractions.set(map);
+      this.pendingSplitRowFractions.set(map);
+      this.ghostSplitRowWithinPercent.set(ghostMap);
+
+      if (r.startSharedBoundaryAbs !== undefined && r.tableHeightPx) {
+        const deltaAbs = deltaLayout / r.tableHeightPx;
+        const abs = this.clamp(r.startSharedBoundaryAbs + deltaAbs, 0, 1);
+        this.ghostSharedSplitRowPercent.set(abs * 100);
+      }
     }
 
     this.cdr.markForCheck();
@@ -4886,34 +5407,33 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const minFLeft = this.minColPx / r.tableWidthPx;
       const minFRight = this.minColPx / r.tableWidthPx;
 
-      const next = [...start];
       const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
-      next[leftIdx] = clampedLeft;
-      next[rightIdx] = total - clampedLeft;
-      this.previewColumnFractions.set(this.normalizeFractions(next, next.length));
+      const prefix = start.slice(0, Math.max(0, leftIdx)).reduce((a, b) => a + b, 0);
+      const within = prefix + clampedLeft;
+      this.ghostTopColPercent.set(Math.max(0, Math.min(100, within * 100)));
     } else {
       const start = r.startFractions;
       const i = r.boundaryIndex;
       const topIdx = i - 1;
-      const bottomIdx = i;
-      const total = start[topIdx] + start[bottomIdx];
 
       const deltaScreen = event.clientY - r.startClientY;
       const deltaLayout = deltaScreen / scale;
-      const deltaF = deltaLayout / r.tableHeightPx;
 
-      const minFTop = this.minRowPx / r.tableHeightPx;
-      const minFBottom = this.minRowPx / r.tableHeightPx;
+      // PPT-like row resize: only the row ABOVE the boundary changes; table height is committed on release.
+      const oldTopPx = (start[topIdx] ?? 0) * r.tableHeightPx;
+      const desiredTopPx = oldTopPx + deltaLayout;
+      const minAllowedPx = Math.max(this.minRowPx, r.minTopRowHeightPx ?? this.minRowPx);
+      const clampedTopPx = Math.max(minAllowedPx, desiredTopPx);
 
-      const next = [...start];
-      const clampedTop = this.clamp(start[topIdx] + deltaF, minFTop, total - minFBottom);
-      next[topIdx] = clampedTop;
-      next[bottomIdx] = total - clampedTop;
-      this.previewRowFractions.set(this.normalizeFractions(next, next.length));
+      const startWithin = start.slice(0, Math.max(0, i)).reduce((a, b) => a + b, 0);
+      const startBoundaryPx = startWithin * r.tableHeightPx;
+      const newBoundaryPx = startBoundaryPx + (clampedTopPx - oldTopPx);
+
+      const pct = (newBoundaryPx / r.tableHeightPx) * 100;
+      this.ghostTopRowPercent.set(Math.max(0, Math.min(100, pct)));
     }
 
     this.cdr.markForCheck();
-    this.scheduleRecomputeResizeSegments();
   };
 
   private handleGridResizePointerUp = (event: PointerEvent): void => {
@@ -4921,20 +5441,66 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.preventDefault();
     event.stopPropagation();
 
-    const rows = this.localRows();
+    const r = this.activeGridResize;
+    const scale = r.zoomScale;
 
-    if (this.activeGridResize.kind === 'col') {
-      const nextCols = this.previewColumnFractions() ?? this.colFractions;
-      this.columnFractions.set(this.normalizeFractions(nextCols, nextCols.length));
+    if (r.kind === 'col') {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const leftIdx = i - 1;
+      const rightIdx = i;
+      const total = start[leftIdx] + start[rightIdx];
+
+      const deltaScreen = event.clientX - r.startClientX;
+      const deltaLayout = deltaScreen / scale;
+      const deltaF = deltaLayout / r.tableWidthPx;
+
+      const minFLeft = this.minColPx / r.tableWidthPx;
+      const minFRight = this.minColPx / r.tableWidthPx;
+
+      const next = [...start];
+      const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
+      next[leftIdx] = clampedLeft;
+      next[rightIdx] = total - clampedLeft;
+
+      this.columnFractions.set(this.normalizeFractions(next, next.length));
       this.previewColumnFractions.set(null);
-    } else {
-      const nextRows = this.previewRowFractions() ?? this.rowFractionsView;
-      this.rowFractions.set(this.normalizeFractions(nextRows, nextRows.length));
-      this.previewRowFractions.set(null);
-    }
 
-    // Persist immediately (discrete sizing action).
-    this.emitPropsChange(rows);
+      // Persist (and later AutoFit) in a post-commit pass so we can keep this as one discrete action.
+      this.schedulePostCommitTopColResizeWork();
+    } else {
+      const start = r.startFractions;
+      const i = r.boundaryIndex;
+      const topIdx = i - 1;
+
+      const deltaScreen = event.clientY - r.startClientY;
+      const deltaLayout = deltaScreen / scale;
+
+      // PPT-like row resize: change the height of the row above the boundary and grow/shrink the widget height.
+      const oldTopPx = (start[topIdx] ?? 0) * r.tableHeightPx;
+      const desiredTopPx = oldTopPx + deltaLayout;
+      const minAllowedPx = Math.max(this.minRowPx, r.minTopRowHeightPx ?? this.minRowPx);
+      const clampedTopPx = Math.max(minAllowedPx, desiredTopPx);
+
+      const appliedDeltaPx = clampedTopPx - oldTopPx;
+      this.previewRowFractions.set(null);
+
+      if (Number.isFinite(appliedDeltaPx) && Math.abs(appliedDeltaPx) > 0.1) {
+        const oldRowHeightsPx = start.map((f) => f * r.tableHeightPx);
+        const newTableHeightPx = Math.max(20, r.tableHeightPx + appliedDeltaPx);
+        const newRowHeightsPx = [...oldRowHeightsPx];
+        newRowHeightsPx[topIdx] = Math.max(0, oldTopPx + appliedDeltaPx);
+
+        const next = newRowHeightsPx.map((px) => px / newTableHeightPx);
+        this.rowFractions.set(this.normalizeFractions(next, next.length));
+
+        // Update the widget size (draft + commit).
+        this.growWidgetSizeBy(0, appliedDeltaPx);
+
+        // Persist immediately (discrete sizing action).
+        this.emitPropsChange(this.localRows());
+      }
+    }
 
     this.isResizingGrid = false;
     this.activeGridResize = null;
@@ -4942,6 +5508,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.cdr.markForCheck();
     this.scheduleRecomputeResizeSegments();
     this.restoreCaretAfterResize();
+    this.clearGhosts();
   };
 
   private getTableRect(): DOMRect | null {
@@ -5293,6 +5860,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
+    this.captureCaretForResize();
+    this.syncCellContent();
+
     const owners = this.findSharedSplitOwners('col', boundaryAbs);
     if (owners.length === 0) return;
 
@@ -5343,6 +5915,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, gridRect.width / zoomScale);
     const containerHeightPx = Math.max(1, gridRect.height / zoomScale);
+    const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
+    const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
 
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
@@ -5350,6 +5924,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex: bestIdx,
       sharedBoundaryAbs: boundaryAbs,
+      startSharedBoundaryAbs: boundaryAbs,
+      tableWidthPx,
+      tableHeightPx,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -5360,6 +5937,19 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       zoomScale,
     };
 
+    // Initialize ghosts: shared continuous line + per-owner within-grid ghost.
+    this.ghostSharedSplitColPercent.set(this.clamp(boundaryAbs, 0, 1) * 100);
+    const ghostMap = new Map(this.ghostSplitColWithinPercent());
+    for (const id of owners) {
+      const m = this.getCellModelByLeafId(id);
+      const count = Math.max(1, m?.split?.cols ?? 0);
+      if (!m?.split || bestIdx <= 0 || bestIdx >= count) continue;
+      const ff = this.getSplitColFractions(id, m);
+      const within2 = ff.slice(0, Math.max(0, bestIdx)).reduce((a, b) => a + b, 0);
+      ghostMap.set(id, Math.max(0, Math.min(100, within2 * 100)));
+    }
+    this.ghostSplitColWithinPercent.set(ghostMap);
+
     this.installSplitResizeListeners();
   }
 
@@ -5367,6 +5957,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.preventDefault();
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    this.cancelAutoFitAfterColResize();
+    this.clearGhosts();
+    this.captureCaretForResize();
+    this.syncCellContent();
 
     const owners = this.findSharedSplitOwners('row', boundaryAbs);
     if (owners.length === 0) return;
@@ -5404,6 +5999,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const containerWidthPx = Math.max(1, gridRect.width / zoomScale);
     const containerHeightPx = Math.max(1, gridRect.height / zoomScale);
+    const tableWidthPx = Math.max(1, tableRect.width / zoomScale);
+    const tableHeightPx = Math.max(1, tableRect.height / zoomScale);
 
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
@@ -5411,6 +6008,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerLeafId,
       boundaryIndex: bestIdx,
       sharedBoundaryAbs: boundaryAbs,
+      startSharedBoundaryAbs: boundaryAbs,
+      tableWidthPx,
+      tableHeightPx,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -5420,6 +6020,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       containerHeightPx,
       zoomScale,
     };
+
+    this.ghostSharedSplitRowPercent.set(this.clamp(boundaryAbs, 0, 1) * 100);
+    const ghostMap = new Map(this.ghostSplitRowWithinPercent());
+    for (const id of owners) {
+      const m = this.getCellModelByLeafId(id);
+      const count = Math.max(1, m?.split?.rows ?? 0);
+      if (!m?.split || bestIdx <= 0 || bestIdx >= count) continue;
+      const ff = this.getSplitRowFractions(id, m);
+      const within2 = ff.slice(0, Math.max(0, bestIdx)).reduce((a, b) => a + b, 0);
+      ghostMap.set(id, Math.max(0, Math.min(100, within2 * 100)));
+    }
+    this.ghostSplitRowWithinPercent.set(ghostMap);
 
     this.installSplitResizeListeners();
   }

@@ -1,0 +1,55 @@
+<div [class]="overlayClass" aria-hidden="true">
+  <!-- Handles for boundaryIndex segments -->
+  <div
+    *ngFor="let s of colSegmentsIndex"
+    class="table-widget__resize-handle table-widget__resize-handle--col"
+    [style.left.%]="s.leftPercent"
+    [style.top.%]="s.topPercent"
+    [style.height.%]="s.heightPercent"
+    (pointerdown)="onColIndexDown($event, s.boundaryIndex)"
+  ></div>
+  <div
+    *ngFor="let s of rowSegmentsIndex"
+    class="table-widget__resize-handle table-widget__resize-handle--row"
+    [style.top.%]="s.topPercent"
+    [style.left.%]="s.leftPercent"
+    [style.width.%]="s.widthPercent"
+    (pointerdown)="onRowIndexDown($event, s.boundaryIndex)"
+  ></div>
+
+  <!-- Handles for boundaryAbs segments -->
+  <div
+    *ngFor="let s of colSegmentsAbs"
+    class="table-widget__resize-handle table-widget__resize-handle--col"
+    [style.left.%]="s.leftPercent"
+    [style.top.%]="s.topPercent"
+    [style.height.%]="s.heightPercent"
+    (pointerdown)="onColAbsDown($event, s.boundaryAbs)"
+  ></div>
+  <div
+    *ngFor="let s of rowSegmentsAbs"
+    class="table-widget__resize-handle table-widget__resize-handle--row"
+    [style.top.%]="s.topPercent"
+    [style.left.%]="s.leftPercent"
+    [style.width.%]="s.widthPercent"
+    (pointerdown)="onRowAbsDown($event, s.boundaryAbs)"
+  ></div>
+
+  <!-- Ghost preview (PPT-like) -->
+  <div
+    *ngFor="let g of ghostCols"
+    class="table-widget__ghost-line table-widget__ghost-line--col"
+    [style.left.%]="g.leftPercent"
+    [style.top.%]="g.topPercent ?? 0"
+    [style.height.%]="g.heightPercent ?? 100"
+  ></div>
+  <div
+    *ngFor="let g of ghostRows"
+    class="table-widget__ghost-line table-widget__ghost-line--row"
+    [style.top.%]="g.topPercent"
+    [style.left.%]="g.leftPercent ?? 0"
+    [style.width.%]="g.widthPercent ?? 100"
+  ></div>
+</div>
+
+

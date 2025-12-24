@@ -39,44 +39,26 @@
   </div>
 
   <!-- Column/Row resize overlay -->
-  <div class="table-widget__resize-overlay" aria-hidden="true">
-    <div
-      *ngFor="let s of colResizeSegments"
-      class="table-widget__resize-handle table-widget__resize-handle--col"
-      [style.left.%]="s.leftPercent"
-      [style.top.%]="s.topPercent"
-      [style.height.%]="s.heightPercent"
-      (pointerdown)="onColResizePointerDown($event, s.boundaryIndex)"
-    ></div>
-    <div
-      *ngFor="let s of rowResizeSegments"
-      class="table-widget__resize-handle table-widget__resize-handle--row"
-      [style.top.%]="s.topPercent"
-      [style.left.%]="s.leftPercent"
-      [style.width.%]="s.widthPercent"
-      (pointerdown)="onRowResizePointerDown($event, s.boundaryIndex)"
-    ></div>
-  </div>
+  <app-table-resize-overlay
+    overlayKind="top"
+    [colSegmentsIndex]="colResizeSegments"
+    [rowSegmentsIndex]="rowResizeSegments"
+    [ghostCols]="ghostTopCols"
+    [ghostRows]="ghostTopRows"
+    (colPointerDownIndex)="onColResizePointerDown($event.event, $event.boundaryIndex)"
+    (rowPointerDownIndex)="onRowResizePointerDown($event.event, $event.boundaryIndex)"
+  ></app-table-resize-overlay>
 
   <!-- Shared split resize overlay (continuous lines across multiple split grids) -->
-  <div class="table-widget__shared-split-resize-overlay" aria-hidden="true">
-    <div
-      *ngFor="let s of sharedSplitColResizeSegments"
-      class="table-widget__resize-handle table-widget__resize-handle--col"
-      [style.left.%]="s.leftPercent"
-      [style.top.%]="s.topPercent"
-      [style.height.%]="s.heightPercent"
-      (pointerdown)="onSharedSplitColResizePointerDown($event, s.boundaryAbs)"
-    ></div>
-    <div
-      *ngFor="let s of sharedSplitRowResizeSegments"
-      class="table-widget__resize-handle table-widget__resize-handle--row"
-      [style.top.%]="s.topPercent"
-      [style.left.%]="s.leftPercent"
-      [style.width.%]="s.widthPercent"
-      (pointerdown)="onSharedSplitRowResizePointerDown($event, s.boundaryAbs)"
-    ></div>
-  </div>
+  <app-table-resize-overlay
+    overlayKind="shared"
+    [colSegmentsAbs]="sharedSplitColResizeSegments"
+    [rowSegmentsAbs]="sharedSplitRowResizeSegments"
+    [ghostCols]="ghostSharedCols"
+    [ghostRows]="ghostSharedRows"
+    (colPointerDownAbs)="onSharedSplitColResizePointerDown($event.event, $event.boundaryAbs)"
+    (rowPointerDownAbs)="onSharedSplitRowResizePointerDown($event.event, $event.boundaryAbs)"
+  ></app-table-resize-overlay>
 </div>
 
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
@@ -119,24 +101,15 @@
       [style.gridTemplateRows]="getSplitGridTemplateRows(rowIndex, cellIndex, path, cell)"
     >
       <!-- Split-grid resize overlay -->
-      <div class="table-widget__split-resize-overlay" aria-hidden="true">
-        <div
-          *ngFor="let s of getSplitColResizeSegments(rowIndex, cellIndex, path, cell)"
-          class="table-widget__resize-handle table-widget__resize-handle--col"
-          [style.left.%]="s.leftPercent"
-          [style.top.%]="s.topPercent"
-          [style.height.%]="s.heightPercent"
-          (pointerdown)="onSplitColResizePointerDown($event, rowIndex, cellIndex, path, s.boundaryIndex)"
-        ></div>
-        <div
-          *ngFor="let s of getSplitRowResizeSegments(rowIndex, cellIndex, path, cell)"
-          class="table-widget__resize-handle table-widget__resize-handle--row"
-          [style.top.%]="s.topPercent"
-          [style.left.%]="s.leftPercent"
-          [style.width.%]="s.widthPercent"
-          (pointerdown)="onSplitRowResizePointerDown($event, rowIndex, cellIndex, path, s.boundaryIndex)"
-        ></div>
-      </div>
+      <app-table-resize-overlay
+        overlayKind="split"
+        [colSegmentsIndex]="getSplitColResizeSegments(rowIndex, cellIndex, path, cell)"
+        [rowSegmentsIndex]="getSplitRowResizeSegments(rowIndex, cellIndex, path, cell)"
+        [ghostCols]="getSplitGhostCols(rowIndex, cellIndex, path)"
+        [ghostRows]="getSplitGhostRows(rowIndex, cellIndex, path)"
+        (colPointerDownIndex)="onSplitColResizePointerDown($event.event, rowIndex, cellIndex, path, $event.boundaryIndex)"
+        (rowPointerDownIndex)="onSplitRowResizePointerDown($event.event, rowIndex, cellIndex, path, $event.boundaryIndex)"
+      ></app-table-resize-overlay>
 
       <div
         *ngFor="let item of getRenderableSplitCells(cell); trackBy: trackByRenderableSplitCell"
