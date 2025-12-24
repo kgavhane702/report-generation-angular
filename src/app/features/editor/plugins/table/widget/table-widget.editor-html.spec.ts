@@ -27,3 +27,4 @@ describe('TableWidgetComponent - editor HTML normalization', () => {
 });
 
 
+
