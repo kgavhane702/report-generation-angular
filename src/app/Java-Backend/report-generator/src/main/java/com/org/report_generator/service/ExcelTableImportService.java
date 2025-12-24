@@ -5,6 +5,8 @@ import com.org.report_generator.dto.table.ExcelTableImportResponse;
 import com.org.report_generator.dto.table.TableCellDto;
 import com.org.report_generator.dto.table.TableCellMergeDto;
 import com.org.report_generator.dto.table.TableRowDto;
+import com.org.report_generator.config.ImportLimitsConfig;
+import com.org.report_generator.exception.InvalidExcelFileException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -13,6 +15,8 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
@@ -27,117 +31,201 @@ import java.util.Set;
 @Service
 public class ExcelTableImportService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ExcelTableImportService.class);
     private final DataFormatter dataFormatter = new DataFormatter();
+    private final ImportLimitsConfig limitsConfig;
+
+    public ExcelTableImportService(ImportLimitsConfig limitsConfig) {
+        this.limitsConfig = limitsConfig;
+    }
 
     public ExcelTableImportResponse parseXlsx(InputStream inputStream, Integer sheetIndex) throws Exception {
+        long startTime = System.currentTimeMillis();
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
-            int idx = sheetIndex == null ? 0 : sheetIndex;
-            if (idx < 0 || idx >= workbook.getNumberOfSheets()) {
-                idx = 0;
-            }
-            Sheet sheet = workbook.getSheetAt(idx);
-
+            Sheet sheet = getSheet(workbook, sheetIndex);
             int firstRow = sheet.getFirstRowNum();
             int lastRow = sheet.getLastRowNum();
+            int maxColExclusive = findMaxColumn(sheet, firstRow, lastRow);
+            
+            int estimatedRows = lastRow - firstRow + 1;
+            logger.debug("Parsing Excel sheet: rows={}, maxCol={}", estimatedRows, maxColExclusive);
+            
+            // Validate dimensions against limits
+            validateDimensions(estimatedRows, maxColExclusive);
 
-            int maxColExclusive = 0;
-            for (int r = firstRow; r <= lastRow; r++) {
-                Row row = sheet.getRow(r);
-                if (row == null) continue;
-                short lastCell = row.getLastCellNum();
-                if (lastCell > maxColExclusive) {
-                    maxColExclusive = lastCell;
-                }
-            }
+            MergeMaps mergeMaps = buildMergeMaps(sheet, firstRow);
+            logger.debug("Found {} merged regions", mergeMaps.anchorMerges().size());
+            
+            GridBuildResult gridResult = buildGrid(sheet, firstRow, lastRow, maxColExclusive, mergeMaps);
+            logger.debug("Built grid: {}x{} (trimmed from {}x{})", 
+                gridResult.rowsCount(), gridResult.colsCount(), 
+                (lastRow - firstRow + 1), maxColExclusive);
+            
+            List<TableRowDto> rows = buildRowDtos(gridResult.grid, gridResult.rowsCount, gridResult.colsCount);
+            rows = sanitizeCoveredBy(rows, gridResult.rowsCount, gridResult.colsCount);
+            
+            List<Double> columnFractions = createFractions(gridResult.colsCount);
+            List<Double> rowFractions = createFractions(gridResult.rowsCount);
 
-            // Build merge maps: anchor->(rowSpan,colSpan), coveredCells->anchorCoord
-            Map<String, TableCellMergeDto> anchorMerges = new HashMap<>();
-            Map<String, CoveredByDto> coveredBy = new HashMap<>();
-            for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
-                var region = sheet.getMergedRegion(i);
-                int r1 = region.getFirstRow();
-                int r2 = region.getLastRow();
-                int c1 = region.getFirstColumn();
-                int c2 = region.getLastColumn();
-                int rowSpan = (r2 - r1) + 1;
-                int colSpan = (c2 - c1) + 1;
-
-                String anchorKey = key(r1, c1);
-                anchorMerges.put(anchorKey, new TableCellMergeDto(rowSpan, colSpan));
-
-                for (int rr = r1; rr <= r2; rr++) {
-                    for (int cc = c1; cc <= c2; cc++) {
-                        if (rr == r1 && cc == c1) continue;
-                        coveredBy.put(key(rr, cc), new CoveredByDto(r1 - firstRow, c1));
-                    }
-                }
-            }
-
-            // Normalize to a contiguous grid, trimming trailing completely empty rows.
-            int rowsCount = (lastRow - firstRow) + 1;
-            int colsCount = Math.max(maxColExclusive, 1);
-
-            List<List<TableCellDto>> grid = new ArrayList<>();
-            for (int r = 0; r < rowsCount; r++) {
-                List<TableCellDto> rowCells = new ArrayList<>(colsCount);
-                for (int c = 0; c < colsCount; c++) {
-                    int sheetRow = firstRow + r;
-                    int sheetCol = c;
-                    String k = key(sheetRow, sheetCol);
-
-                    CoveredByDto covered = coveredBy.get(k);
-                    TableCellMergeDto merge = anchorMerges.get(k);
-
-                    String valueHtml = toHtmlCellText(sheet, sheetRow, sheetCol);
-                    // For covered cells, keep content empty (Excel usually stores it only in anchor)
-                    if (covered != null) {
-                        valueHtml = "";
-                        merge = null;
-                    }
-
-                    String id = r + "-" + c;
-                    rowCells.add(new TableCellDto(id, valueHtml, merge, covered));
-                }
-                grid.add(rowCells);
-            }
-
-            int trimmedRows = trimTrailingEmptyRows(grid);
-            if (trimmedRows != grid.size()) {
-                grid = grid.subList(0, trimmedRows);
-                rowsCount = trimmedRows;
-            }
-
-            int trimmedCols = trimTrailingEmptyCols(grid);
-            if (trimmedCols != colsCount) {
-                for (int r = 0; r < grid.size(); r++) {
-                    grid.set(r, grid.get(r).subList(0, trimmedCols));
-                }
-                colsCount = Math.max(trimmedCols, 1);
-            }
-
-            // Column/row fractions evenly distributed for now.
-            List<Double> columnFractions = new ArrayList<>(colsCount);
-            for (int c = 0; c < colsCount; c++) columnFractions.add(1.0 / colsCount);
-
-            List<Double> rowFractions = new ArrayList<>(rowsCount);
-            for (int r = 0; r < rowsCount; r++) rowFractions.add(1.0 / rowsCount);
-
-            // Build rows DTO
-            List<TableRowDto> rows = new ArrayList<>(rowsCount);
-            for (int r = 0; r < rowsCount; r++) {
-                rows.add(new TableRowDto("r-" + r, grid.get(r)));
-            }
-
-            // Fix coveredBy coordinates to be 0-based table coords (row already is), col already 0-based.
-            // Also ensure coveredBy points to anchor inside trimmed grid.
-            rows = sanitizeCoveredBy(rows, rowsCount, colsCount);
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("Excel import completed in {}ms: {} rows x {} columns", 
+                duration, gridResult.rowsCount(), gridResult.colsCount());
 
             return new ExcelTableImportResponse(rows, columnFractions, rowFractions);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error("Excel import failed after {}ms", duration, e);
+            if (e instanceof InvalidExcelFileException) {
+                throw e;
+            }
+            throw new InvalidExcelFileException("Failed to parse Excel file: " + e.getMessage(), e);
         }
     }
 
-    private static String key(int r, int c) {
-        return r + ":" + c;
+    private Sheet getSheet(Workbook workbook, Integer sheetIndex) {
+        int idx = sheetIndex == null ? 0 : sheetIndex;
+        if (idx < 0 || idx >= workbook.getNumberOfSheets()) {
+            idx = 0;
+        }
+        return workbook.getSheetAt(idx);
+    }
+
+    private int findMaxColumn(Sheet sheet, int firstRow, int lastRow) {
+        int maxColExclusive = 0;
+        for (int r = firstRow; r <= lastRow; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            short lastCell = row.getLastCellNum();
+            if (lastCell > maxColExclusive) {
+                maxColExclusive = lastCell;
+            }
+        }
+        return maxColExclusive;
+    }
+
+    private record MergeMaps(Map<Long, TableCellMergeDto> anchorMerges, Map<Long, CoveredByDto> coveredBy) {}
+
+    private MergeMaps buildMergeMaps(Sheet sheet, int firstRow) {
+        Map<Long, TableCellMergeDto> anchorMerges = new HashMap<>();
+        Map<Long, CoveredByDto> coveredBy = new HashMap<>();
+        
+        for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
+            var region = sheet.getMergedRegion(i);
+            int r1 = region.getFirstRow();
+            int r2 = region.getLastRow();
+            int c1 = region.getFirstColumn();
+            int c2 = region.getLastColumn();
+            int rowSpan = (r2 - r1) + 1;
+            int colSpan = (c2 - c1) + 1;
+
+            long anchorKey = encodeCoordinate(r1, c1);
+            anchorMerges.put(anchorKey, new TableCellMergeDto(rowSpan, colSpan));
+
+            for (int rr = r1; rr <= r2; rr++) {
+                for (int cc = c1; cc <= c2; cc++) {
+                    if (rr == r1 && cc == c1) continue;
+                    coveredBy.put(encodeCoordinate(rr, cc), new CoveredByDto(r1 - firstRow, c1));
+                }
+            }
+        }
+        
+        return new MergeMaps(anchorMerges, coveredBy);
+    }
+
+    private record GridBuildResult(List<List<TableCellDto>> grid, int rowsCount, int colsCount) {}
+
+    private GridBuildResult buildGrid(Sheet sheet, int firstRow, int lastRow, int maxColExclusive, MergeMaps mergeMaps) {
+        int rowsCount = (lastRow - firstRow) + 1;
+        int colsCount = Math.max(maxColExclusive, 1);
+
+        int lastNonEmptyRow = -1;
+        boolean[] colHasContent = new boolean[colsCount];
+
+        List<List<TableCellDto>> grid = new ArrayList<>(rowsCount);
+        for (int r = 0; r < rowsCount; r++) {
+            List<TableCellDto> rowCells = buildRowCells(sheet, firstRow, r, colsCount, mergeMaps, colHasContent);
+            grid.add(rowCells);
+            
+            // Update last non-empty row if this row has content
+            if (rowCells.stream().anyMatch(cell -> 
+                (cell.contentHtml() != null && !cell.contentHtml().trim().isEmpty()) || 
+                cell.coveredBy() != null || 
+                cell.merge() != null)) {
+                lastNonEmptyRow = r;
+            }
+        }
+
+        // Determine trimmed bounds
+        int trimmedRows = Math.max(lastNonEmptyRow + 1, 1);
+        
+        // Find last non-empty column
+        int trimmedCols = 1;
+        for (int c = colsCount - 1; c >= 0; c--) {
+            if (colHasContent[c]) {
+                trimmedCols = c + 1;
+                break;
+            }
+        }
+
+        return new GridBuildResult(grid, trimmedRows, trimmedCols);
+    }
+
+    private List<TableCellDto> buildRowCells(Sheet sheet, int firstRow, int rowIndex, int colsCount, 
+                                             MergeMaps mergeMaps, boolean[] colHasContent) {
+        List<TableCellDto> rowCells = new ArrayList<>(colsCount);
+        
+        for (int c = 0; c < colsCount; c++) {
+            int sheetRow = firstRow + rowIndex;
+            int sheetCol = c;
+            long coord = encodeCoordinate(sheetRow, sheetCol);
+
+            CoveredByDto covered = mergeMaps.coveredBy().get(coord);
+            TableCellMergeDto merge = mergeMaps.anchorMerges().get(coord);
+
+            String valueHtml = toHtmlCellText(sheet, sheetRow, sheetCol);
+            if (covered != null) {
+                valueHtml = "";
+                merge = null;
+            }
+
+            // Track content for column trimming
+            boolean hasContent = (valueHtml != null && !valueHtml.trim().isEmpty()) || covered != null || merge != null;
+            if (hasContent) {
+                colHasContent[c] = true;
+            }
+
+            String id = rowIndex + "-" + c;
+            rowCells.add(new TableCellDto(id, valueHtml, merge, covered));
+        }
+        
+        return rowCells;
+    }
+
+    private List<TableRowDto> buildRowDtos(List<List<TableCellDto>> grid, int rowsCount, int colsCount) {
+        List<TableRowDto> rows = new ArrayList<>(rowsCount);
+        for (int r = 0; r < rowsCount; r++) {
+            List<TableCellDto> rowCells = grid.get(r).subList(0, colsCount);
+            rows.add(new TableRowDto("r-" + r, rowCells));
+        }
+        return rows;
+    }
+
+    private List<Double> createFractions(int count) {
+        List<Double> fractions = new ArrayList<>(count);
+        double fraction = 1.0 / count;
+        for (int i = 0; i < count; i++) {
+            fractions.add(fraction);
+        }
+        return fractions;
+    }
+
+    /**
+     * Encodes row and column coordinates into a single long value.
+     * Uses bit shifting: (row << 32) | col
+     * This avoids String allocations and improves performance for large sheets.
+     */
+    private static long encodeCoordinate(int row, int col) {
+        return ((long) row << 32) | (col & 0xFFFFFFFFL);
     }
 
     private String toHtmlCellText(Sheet sheet, int r, int c) {
@@ -172,55 +260,29 @@ public class ExcelTableImportService {
                 .replace("'", "&#39;");
     }
 
-    private static boolean isEffectivelyEmptyCell(TableCellDto cell) {
-        boolean hasContent = cell.contentHtml() != null && !cell.contentHtml().trim().isEmpty();
-        boolean isCovered = cell.coveredBy() != null;
-        // Covered cells are allowed to be empty; treat them as not-empty so we don't trim columns/rows incorrectly
-        return !hasContent && !isCovered;
-    }
-
-    private static int trimTrailingEmptyRows(List<List<TableCellDto>> grid) {
-        int lastNonEmpty = grid.size() - 1;
-        while (lastNonEmpty >= 0) {
-            boolean anyNonEmpty = false;
-            for (TableCellDto cell : grid.get(lastNonEmpty)) {
-                if (!isEffectivelyEmptyCell(cell)) {
-                    anyNonEmpty = true;
-                    break;
-                }
-            }
-            if (anyNonEmpty) break;
-            lastNonEmpty--;
+    private void validateDimensions(int rows, int columns) {
+        if (rows > limitsConfig.getMaxRows()) {
+            throw new InvalidExcelFileException(
+                String.format("Sheet exceeds maximum rows limit: %d > %d", rows, limitsConfig.getMaxRows()));
         }
-        return Math.max(lastNonEmpty + 1, 1);
-    }
-
-    private static int trimTrailingEmptyCols(List<List<TableCellDto>> grid) {
-        if (grid.isEmpty()) return 1;
-        int cols = grid.get(0).size();
-        int lastNonEmpty = cols - 1;
-        while (lastNonEmpty >= 0) {
-            boolean anyNonEmpty = false;
-            for (List<TableCellDto> row : grid) {
-                if (lastNonEmpty >= row.size()) continue;
-                if (!isEffectivelyEmptyCell(row.get(lastNonEmpty))) {
-                    anyNonEmpty = true;
-                    break;
-                }
-            }
-            if (anyNonEmpty) break;
-            lastNonEmpty--;
+        if (columns > limitsConfig.getMaxColumns()) {
+            throw new InvalidExcelFileException(
+                String.format("Sheet exceeds maximum columns limit: %d > %d", columns, limitsConfig.getMaxColumns()));
         }
-        return Math.max(lastNonEmpty + 1, 1);
+        long totalCells = (long) rows * columns;
+        if (totalCells > limitsConfig.getMaxCells()) {
+            throw new InvalidExcelFileException(
+                String.format("Sheet exceeds maximum cells limit: %d > %d", totalCells, limitsConfig.getMaxCells()));
+        }
     }
 
     private static List<TableRowDto> sanitizeCoveredBy(List<TableRowDto> rows, int rowCount, int colCount) {
-        Set<String> validAnchors = new HashSet<>();
+        Set<Long> validAnchors = new HashSet<>();
         for (int r = 0; r < rows.size(); r++) {
             for (int c = 0; c < rows.get(r).cells().size(); c++) {
                 TableCellDto cell = rows.get(r).cells().get(c);
                 if (cell.merge() != null) {
-                    validAnchors.add(r + ":" + c);
+                    validAnchors.add(encodeCoordinate(r, c));
                 }
             }
         }
@@ -234,7 +296,7 @@ public class ExcelTableImportService {
                 if (cb != null) {
                     if (cb.row() < 0 || cb.row() >= rowCount || cb.col() < 0 || cb.col() >= colCount) {
                         cb = null;
-                    } else if (!validAnchors.contains(cb.row() + ":" + cb.col())) {
+                    } else if (!validAnchors.contains(encodeCoordinate(cb.row(), cb.col()))) {
                         cb = null;
                     }
                 }

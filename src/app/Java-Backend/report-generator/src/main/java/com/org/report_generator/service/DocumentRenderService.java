@@ -17,6 +17,8 @@ import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import com.org.report_generator.service.renderer.TableWidgetRenderer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -25,10 +27,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class DocumentRenderService {
 
+    private static final Logger logger = LoggerFactory.getLogger(DocumentRenderService.class);
     private static final double DEFAULT_WIDTH_MM = 254d;
     private static final double DEFAULT_HEIGHT_MM = 190.5d;
     private static final int DEFAULT_DPI = 96;
@@ -36,10 +41,20 @@ public class DocumentRenderService {
     private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
     private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
     private final TableWidgetRenderer tableWidgetRenderer = new TableWidgetRenderer();
+    
+    // Cache for mmToPx calculations to avoid repeated computations
+    // Key format: "mm_dpi" (e.g., "254.0_96")
+    private static final ConcurrentMap<String, Double> mmToPxCache = new ConcurrentHashMap<>(256);
 
     public String render(DocumentModel document) {
+        long startTime = System.currentTimeMillis();
         List<Page> pages = collectPages(document);
-        StringBuilder html = new StringBuilder();
+        logger.debug("Rendering document with {} pages", pages.size());
+        
+        // Estimate capacity: base HTML (~200) + CSS (~50KB) + pages (estimate 5KB per page + widgets)
+        // For typical documents: 10-50 pages, 5-20 widgets per page
+        int estimatedCapacity = 200 + 50_000 + (pages.size() * 5_000);
+        StringBuilder html = new StringBuilder(estimatedCapacity);
 
         html.append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
         html.append("<title>").append(Optional.ofNullable(document.getTitle()).orElse("Document")).append("</title>");
@@ -56,6 +71,9 @@ public class DocumentRenderService {
         }
 
         html.append("</div></body></html>");
+        long duration = System.currentTimeMillis() - startTime;
+        logger.info("Document rendered in {}ms: {} pages, HTML size: {} bytes", 
+            duration, pages.size(), html.length());
         return html.toString();
     }
 
@@ -98,7 +116,10 @@ public class DocumentRenderService {
 
         String pageName = "page-" + Optional.ofNullable(page.getId()).orElse(UUID.randomUUID().toString());
 
-        StringBuilder builder = new StringBuilder();
+        // Estimate capacity: page HTML (~300) + widgets (estimate 500 per widget) + footer (~200)
+        int widgetCount = page.getWidgets() != null ? page.getWidgets().size() : 0;
+        int estimatedCapacity = 300 + (widgetCount * 500) + 200;
+        StringBuilder builder = new StringBuilder(estimatedCapacity);
         builder.append("<div class=\"page\" style=\"width: ")
                 .append(widthPx)
                 .append("px; height: ")
@@ -236,8 +257,14 @@ public class DocumentRenderService {
                 + "</div>";
     }
 
+    /**
+     * Converts millimeters to pixels using the given DPI.
+     * Results are memoized to avoid repeated calculations for common values.
+     */
     private double mmToPx(double mm, int dpi) {
-        return (mm / 25.4d) * dpi;
+        // Round mm to 2 decimal places for cache key to avoid floating point precision issues
+        String key = String.format(Locale.ROOT, "%.2f_%d", mm, dpi);
+        return mmToPxCache.computeIfAbsent(key, k -> (mm / 25.4d) * dpi);
     }
 
     private String camelToKebab(String input) {
