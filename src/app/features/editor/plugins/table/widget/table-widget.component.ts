@@ -158,6 +158,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         /** Cached container sizes for all participating owners (for correct min constraints). */
         ownerContainerWidthPx?: Map<string, number>;
         ownerContainerHeightPx?: Map<string, number>;
+        /** For aligned propagation: the boundaryIndex to apply for each owner. */
+        ownerBoundaryIndexMap?: Map<string, number>;
+        /** Content-based minimums for the two rows adjacent to the resized boundary (px). */
+        ownerMinSplitRowTopPx?: Map<string, number>;
+        ownerMinSplitRowBottomPx?: Map<string, number>;
         /** Other split owners that share the same continuous boundary line. */
         sharedOwnerLeafIds?: string[];
         pointerId: number;
@@ -866,8 +871,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.pendingChangesRegistry.register(this);
     }
 
-    // If the cell is visually empty, ensure there's a caret-friendly text node.
-    this.ensureCaretPlaceholderForEmptyCell(cell);
+    // If the editor is visually empty, ensure there's a caret-friendly placeholder.
+    this.ensureCaretPlaceholderForEmptyEditor(cell);
   }
 
   onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
@@ -1101,7 +1106,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       
       if (nextRowIndex >= 0 && nextRowIndex < rows.length) {
         const nextCellContent = this.tableContainer?.nativeElement
-          .querySelector(`[data-cell="${nextRowIndex}-${nextCellIndex}"] .table-widget__cell-content`) as HTMLElement;
+          .querySelector(`[data-cell="${nextRowIndex}-${nextCellIndex}"] .table-widget__cell-editor`) as HTMLElement;
         if (nextCellContent) {
           nextCellContent.focus();
         }
@@ -1554,7 +1559,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const elements: HTMLElement[] = [];
     this.selectedCells().forEach(leafId => {
       const node = this.tableContainer?.nativeElement.querySelector(
-        `.table-widget__cell-content[data-leaf="${leafId}"]`
+        `.table-widget__cell-editor[data-leaf="${leafId}"]`
       ) as HTMLElement | null;
       if (node) {
         elements.push(node);
@@ -1607,7 +1612,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private getLeafIdFromPoint(x: number, y: number): string | null {
     const element = document.elementFromPoint(x, y);
     if (!element) return null;
-    const leafEl = (element as HTMLElement).closest('.table-widget__cell-content[data-leaf]') as HTMLElement | null;
+    const leafEl = (element as HTMLElement).closest('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
     return leafEl?.getAttribute('data-leaf') ?? null;
   }
 
@@ -1624,7 +1629,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const y2 = Math.max(start.y, end.y);
 
     const selection = new Set<string>();
-    const leaves = container.querySelectorAll('.table-widget__cell-content[data-leaf]') as NodeListOf<HTMLElement>;
+    const leaves = container.querySelectorAll('.table-widget__cell-editor[data-leaf]') as NodeListOf<HTMLElement>;
     leaves.forEach((el) => {
       const rect = el.getBoundingClientRect();
       const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
@@ -1651,7 +1656,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const selection = new Set<string>();
     const subLeaves = container.querySelectorAll(
-      '.table-widget__cell-content--subcell[data-leaf]'
+      '.table-widget__cell-editor--subcell[data-leaf]'
     ) as NodeListOf<HTMLElement>;
 
     subLeaves.forEach((el) => {
@@ -1675,7 +1680,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!parsed) return;
 
     const { row: rowIndex, col: cellIndex, path } = parsed;
-    const content = this.unwrapCellHtmlFromVerticalAlign(this.activeCellElement.innerHTML);
+    const content = this.normalizeEditorHtmlForModel(this.activeCellElement.innerHTML);
     
     untracked(() => {
       this.localRows.update(rows => {
@@ -1706,53 +1711,61 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     });
   }
 
-  wrapCellHtmlForVerticalAlign(html: string): string {
-    // Avoid double-wrapping if content already contains our wrapper.
-    if (!html) return '<div class="table-widget__valign"></div>';
-    if (html.includes('table-widget__valign')) return html;
-    return `<div class="table-widget__valign">${html}</div>`;
-  }
-
-  private unwrapCellHtmlFromVerticalAlign(html: string): string {
-    if (!html || !html.includes('table-widget__valign')) return html;
+  /**
+   * Normalize editor HTML for persistence.\n   * - Removes legacy `.table-widget__valign` wrappers/classes.\n   * - Collapses purely-empty content to '' so empty cells don't keep phantom height.\n   */
+  private normalizeEditorHtmlForModel(html: string): string {
+    const raw = html ?? '';
+    if (!raw) return '';
     try {
       const container = document.createElement('div');
-      container.innerHTML = html;
-      const wrapper = container.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
-      if (!wrapper) return html;
-      const inner = wrapper.innerHTML;
-      // If wrapper only contains placeholder whitespace (including ZWSP), persist as truly empty.
-      const cleaned = (inner ?? '')
+      container.innerHTML = raw;
+
+      // Back-compat: strip legacy valign wrappers by removing the class.
+      const valignNodes = Array.from(container.querySelectorAll('.table-widget__valign')) as HTMLElement[];
+      for (const n of valignNodes) {
+        n.classList.remove('table-widget__valign');
+        if ((n.getAttribute('class') ?? '').trim() === '') {
+          n.removeAttribute('class');
+        }
+      }
+
+      // If there is no meaningful content (text or media), persist as empty.
+      const text = (container.textContent ?? '')
         .replace(/\u200B/g, '')
-        .replace(/&ZeroWidthSpace;|&#8203;|&#x200B;/gi, '')
-        .replace(/<br\s*\/?\s*>/gi, '')
+        .replace(/\u00a0/g, ' ')
         .trim();
-      if (cleaned === '' || cleaned === '&nbsp;' || cleaned === '\u00a0') {
+      const hasMedia = !!container.querySelector('img,svg,video,canvas,table');
+      if (!hasMedia && text === '') {
         return '';
       }
-      return inner;
+
+      return container.innerHTML;
     } catch {
-      return html;
+      // Fallback: keep raw content.
+      const cleaned = (raw ?? '')
+        .replace(/\u200B/g, '')
+        .replace(/&ZeroWidthSpace;|&#8203;|&#x200B;/gi, '')
+        .trim();
+      return cleaned === '' ? '' : raw;
     }
   }
 
-  private ensureCaretPlaceholderForEmptyCell(el: HTMLElement): void {
-    const wrapper = el.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
-    if (!wrapper) return;
-
-    // If wrapper has no real content, insert a <br> placeholder so caret stays inside.
-    // This is a standard contenteditable empty state and is stripped during sync/unwrapping.
-    const html = (wrapper.innerHTML ?? '').trim();
-    const cleaned = html
-      .replace(/\u200B/g, '')
-      .replace(/&ZeroWidthSpace;|&#8203;|&#x200B;/gi, '')
-      .replace(/&nbsp;|\u00a0/gi, '')
-      .replace(/<br\s*\/?\s*>/gi, '')
-      .trim();
-
-    if (cleaned === '') {
-      wrapper.innerHTML = '<br>';
+  private ensureCaretPlaceholderForEmptyEditor(el: HTMLElement): void {
+    // Back-compat: if legacy valign wrappers exist in the live DOM, strip their class
+    // so Enter behaves like normal new lines (div blocks) instead of duplicating wrapper semantics.
+    const legacy = Array.from(el.querySelectorAll('.table-widget__valign')) as HTMLElement[];
+    for (const n of legacy) {
+      n.classList.remove('table-widget__valign');
+      if ((n.getAttribute('class') ?? '').trim() === '') {
+        n.removeAttribute('class');
+      }
     }
+
+    const normalized = this.normalizeEditorHtmlForModel(el.innerHTML);
+    if (normalized !== '') return;
+
+    // Use a single block with <br> so Enter creates normal sibling blocks.
+    el.innerHTML = '<div><br></div>';
   }
 
   private applyStyleToSelection(stylePatch: Partial<TableCellStyle>): void {
@@ -2769,7 +2782,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (remappedActive) {
       window.setTimeout(() => {
         const node = this.tableContainer?.nativeElement?.querySelector(
-          `.table-widget__cell-content[data-leaf="${remappedActive}"]`
+          `.table-widget__cell-editor[data-leaf="${remappedActive}"]`
         ) as HTMLElement | null;
         node?.focus();
       }, 0);
@@ -2920,7 +2933,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (remappedActive) {
       window.setTimeout(() => {
         const node = this.tableContainer?.nativeElement?.querySelector(
-          `.table-widget__cell-content[data-leaf="${remappedActive}"]`
+          `.table-widget__cell-editor[data-leaf="${remappedActive}"]`
         ) as HTMLElement | null;
         node?.focus();
       }, 0);
@@ -4372,13 +4385,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!container) return null;
 
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
-    const leaves = Array.from(container.querySelectorAll('.table-widget__cell-content[data-leaf]')) as HTMLElement[];
+    const leaves = Array.from(container.querySelectorAll('.table-widget__cell-editor[data-leaf]')) as HTMLElement[];
     if (leaves.length === 0) return null;
 
     let worst: { leafId: string; overflowPx: number } | null = null;
     for (const leafEl of leaves) {
       const leafId = leafEl.getAttribute('data-leaf');
       if (!leafId) continue;
+
+      // Ignore empty placeholders so we don't grow/shrink based on caret scaffolding.
+      if (this.normalizeEditorHtmlForModel(leafEl.innerHTML) === '') continue;
 
       const clipEl =
         (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
@@ -4390,12 +4406,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         visibleH = clipEl.getBoundingClientRect().height / zoomScale;
       }
 
-      const wrapper = leafEl.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
-      const measureEl = wrapper ?? leafEl;
       const neededH = Math.max(
-        measureEl.scrollHeight || 0,
-        measureEl.offsetHeight || 0,
-        measureEl.getBoundingClientRect().height / zoomScale || 0
+        leafEl.scrollHeight || 0,
+        leafEl.offsetHeight || 0,
+        leafEl.getBoundingClientRect().height / zoomScale || 0
       );
 
       if (!Number.isFinite(visibleH) || !Number.isFinite(neededH) || visibleH <= 0 || neededH <= 0) continue;
@@ -4567,7 +4581,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
 
-    const contentEl = activeEl.closest?.('.table-widget__cell-content') as HTMLElement | null;
+    const contentEl = activeEl.closest?.('.table-widget__cell-editor') as HTMLElement | null;
     if (!contentEl) {
       this.savedCaretDuringResize = null;
       return;
@@ -4621,7 +4635,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     window.setTimeout(() => {
       const container = this.tableContainer?.nativeElement;
-      const el = container?.querySelector(`.table-widget__cell-content[data-leaf="${saved.leafId}"]`) as HTMLElement | null;
+      const el = container?.querySelector(`.table-widget__cell-editor[data-leaf="${saved.leafId}"]`) as HTMLElement | null;
       if (!el) return;
 
       const anchorNode = this.resolveNodePath(el, saved.anchorPath);
@@ -4834,19 +4848,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const anchorEl = container.querySelector(`.table-widget__cell[data-cell="${r}-${c}"]`) as HTMLElement | null;
         if (!anchorEl) continue;
 
-        const leafEls = Array.from(anchorEl.querySelectorAll('.table-widget__cell-content[data-leaf]')) as HTMLElement[];
+        const leafEls = Array.from(anchorEl.querySelectorAll('.table-widget__cell-editor[data-leaf]')) as HTMLElement[];
         if (leafEls.length === 0) continue;
 
         let requiredOwnerSpanPx = 0;
         for (const leafEl of leafEls) {
-          // Measure needed height from the inner text wrapper when present.
-          const wrapper = leafEl.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
-          const measureEl = wrapper ?? leafEl;
+          // Ignore empty placeholders so empty cells don't block manual shrinking.
+          if (this.normalizeEditorHtmlForModel(leafEl.innerHTML) === '') continue;
 
           const neededH = Math.max(
-            measureEl.scrollHeight || 0,
-            measureEl.offsetHeight || 0,
-            measureEl.getBoundingClientRect().height / safeScale || 0
+            leafEl.scrollHeight || 0,
+            leafEl.offsetHeight || 0,
+            leafEl.getBoundingClientRect().height / safeScale || 0
           );
           if (!Number.isFinite(neededH) || neededH <= 0) continue;
 
@@ -4880,6 +4893,140 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Round up slightly to avoid 1px oscillation due to sub-pixel layout.
     return Math.max(minBase, Math.ceil(minTopPx));
+  }
+
+  private computeMinSplitAdjacentRowHeightsPx(
+    ownerLeafId: string,
+    ownerCell: TableCell,
+    boundaryIndex: number,
+    ownerHeightPx: number,
+    zoomScale: number
+  ): { minTopPx: number; minBottomPx: number } {
+    const minBase = this.minSplitRowPx;
+    if (!ownerCell?.split) return { minTopPx: minBase, minBottomPx: minBase };
+
+    const split = ownerCell.split;
+    const rowsCount = Math.max(1, split.rows);
+    const colsCount = Math.max(1, split.cols);
+
+    const i = Math.max(1, Math.min(rowsCount - 1, Math.trunc(boundaryIndex)));
+    const topIdx = i - 1;
+    const bottomIdx = i;
+
+    const safeH = Math.max(1, Number.isFinite(ownerHeightPx) ? ownerHeightPx : 1);
+    const rowFractions = this.normalizeFractions(split.rowFractions ?? [], rowsCount);
+    const rowHeightsPx = rowFractions.map((f) => f * safeH);
+
+    const ownerParsed = this.parseLeafId(ownerLeafId);
+    const ownerDepth = ownerParsed?.path?.length ?? 0;
+
+    const table = this.getTableElement();
+    const gridEl = table?.querySelector(`.table-widget__split-grid[data-owner-leaf="${ownerLeafId}"]`) as HTMLElement | null;
+    if (!gridEl) return { minTopPx: minBase, minBottomPx: minBase };
+
+    const safeScale = Math.max(0.1, Number.isFinite(zoomScale) ? zoomScale : 1);
+    const sumRange = (arr: number[], start: number, endInclusive: number): number => {
+      let sum = 0;
+      for (let rr = start; rr <= endInclusive; rr++) sum += arr[rr] ?? 0;
+      return sum;
+    };
+
+    let minTopPx = minBase;
+    let minBottomPx = minBase;
+
+    const leafEls = Array.from(gridEl.querySelectorAll('.table-widget__cell-editor[data-leaf]')) as HTMLElement[];
+    for (const leafEl of leafEls) {
+      const leafId = leafEl.getAttribute('data-leaf');
+      if (!leafId) continue;
+      const leafParsed = this.parseLeafId(leafId);
+      if (!leafParsed) continue;
+
+      // Ensure the leaf is under this split owner (path prefix match).
+      if (ownerParsed) {
+        if (leafParsed.row !== ownerParsed.row || leafParsed.col !== ownerParsed.col) continue;
+        let prefixMatches = true;
+        for (let k = 0; k < ownerDepth; k++) {
+          if ((leafParsed.path[k] ?? -1) !== (ownerParsed.path[k] ?? -2)) {
+            prefixMatches = false;
+            break;
+          }
+        }
+        if (!prefixMatches) continue;
+      }
+
+      const anchorIdxRaw = leafParsed.path[ownerDepth];
+      if (!Number.isFinite(anchorIdxRaw)) continue;
+
+      const anchorIdx0 = Math.max(0, Math.min(split.cells.length - 1, Math.trunc(anchorIdxRaw)));
+      let anchorIdx = anchorIdx0;
+      let startRow0 = Math.floor(anchorIdx0 / colsCount);
+      let startCol0 = anchorIdx0 % colsCount;
+
+      let anchorCell = split.cells[anchorIdx];
+      if (anchorCell?.coveredBy) {
+        const a = anchorCell.coveredBy;
+        const idx2 = a.row * colsCount + a.col;
+        anchorIdx = Math.max(0, Math.min(split.cells.length - 1, idx2));
+        startRow0 = a.row;
+        startCol0 = a.col;
+        anchorCell = split.cells[anchorIdx];
+      }
+      if (!anchorCell) continue;
+
+      const rowSpan = Math.max(1, anchorCell.merge?.rowSpan ?? 1);
+      const startRow = Math.max(0, Math.min(rowsCount - 1, startRow0));
+      const endRow = Math.min(rowsCount - 1, startRow + rowSpan - 1);
+
+      const crossesBoundary = startRow <= topIdx && endRow >= bottomIdx;
+      if (crossesBoundary) continue;
+
+      const affectsTop = topIdx >= startRow && topIdx <= endRow && !(bottomIdx >= startRow && bottomIdx <= endRow);
+      const affectsBottom = bottomIdx >= startRow && bottomIdx <= endRow && !(topIdx >= startRow && topIdx <= endRow);
+      if (!affectsTop && !affectsBottom) continue;
+
+      const anchorOldHeightPx = sumRange(rowHeightsPx, startRow, endRow);
+      if (!Number.isFinite(anchorOldHeightPx) || anchorOldHeightPx <= 0) continue;
+
+      const clipEl =
+        (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+        (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
+        leafEl;
+      const visibleLeafH = Math.max(1, clipEl.getBoundingClientRect().height / safeScale);
+
+      // Ignore empty placeholders so empty split leaves don't block manual shrinking.
+      if (this.normalizeEditorHtmlForModel(leafEl.innerHTML) === '') continue;
+
+      const neededLeafH = Math.max(
+        leafEl.scrollHeight || 0,
+        leafEl.offsetHeight || 0,
+        leafEl.getBoundingClientRect().height / safeScale || 0
+      );
+
+      if (!Number.isFinite(visibleLeafH) || !Number.isFinite(neededLeafH) || visibleLeafH <= 0 || neededLeafH <= 0) continue;
+
+      const p = visibleLeafH / anchorOldHeightPx;
+      const eps = 0.02;
+      const requiredAnchorHeightPx = neededLeafH / Math.max(eps, p);
+
+      if (affectsTop) {
+        const constPart = anchorOldHeightPx - (rowHeightsPx[topIdx] ?? 0);
+        const requiredTop = requiredAnchorHeightPx - constPart;
+        if (Number.isFinite(requiredTop)) {
+          minTopPx = Math.max(minTopPx, requiredTop);
+        }
+      } else if (affectsBottom) {
+        const constPart = anchorOldHeightPx - (rowHeightsPx[bottomIdx] ?? 0);
+        const requiredBottom = requiredAnchorHeightPx - constPart;
+        if (Number.isFinite(requiredBottom)) {
+          minBottomPx = Math.max(minBottomPx, requiredBottom);
+        }
+      }
+    }
+
+    return {
+      minTopPx: Math.max(minBase, Math.ceil(minTopPx)),
+      minBottomPx: Math.max(minBase, Math.ceil(minBottomPx)),
+    };
   }
 
   // ============================================
@@ -4948,13 +5095,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
     const ownerW = new Map<string, number>();
     const ownerH = new Map<string, number>();
+    const boundaryIndexMap = new Map<string, number>();
     const ghostMap = new Map(this.ghostSplitColWithinPercent());
     for (const id of ownersToGhost) {
       const m = this.getCellModelByLeafId(id);
       const count = Math.max(1, m?.split?.cols ?? 0);
-      if (!m?.split || boundaryIndex <= 0 || boundaryIndex >= count) continue;
+      if (!m?.split) continue;
+
+      const idx = sharedAbs !== null
+        ? (this.computeOwnerBoundaryIndexForSharedAbs('col', id, m, sharedAbs) ?? boundaryIndex)
+        : boundaryIndex;
+      if (idx <= 0 || idx >= count) continue;
+      boundaryIndexMap.set(id, idx);
+
       const f = this.getSplitColFractions(id, m);
-      const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+      const within = f.slice(0, Math.max(0, idx)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
 
       // Cache each owner's container size for correct min constraints during propagation.
@@ -4969,6 +5124,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.activeSplitResize) {
       this.activeSplitResize.ownerContainerWidthPx = ownerW;
       this.activeSplitResize.ownerContainerHeightPx = ownerH;
+      this.activeSplitResize.ownerBoundaryIndexMap = boundaryIndexMap;
     }
 
     if (sharedAbs !== null && sharedOwners.length > 1) {
@@ -5045,13 +5201,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const ownersToGhost = Array.from(new Set([ownerLeafId, ...sharedOwners]));
     const ownerW = new Map<string, number>();
     const ownerH = new Map<string, number>();
+    const boundaryIndexMap = new Map<string, number>();
     const ghostMap = new Map(this.ghostSplitRowWithinPercent());
     for (const id of ownersToGhost) {
       const m = this.getCellModelByLeafId(id);
       const count = Math.max(1, m?.split?.rows ?? 0);
-      if (!m?.split || boundaryIndex <= 0 || boundaryIndex >= count) continue;
+      if (!m?.split) continue;
+
+      const idx = sharedAbs !== null
+        ? (this.computeOwnerBoundaryIndexForSharedAbs('row', id, m, sharedAbs) ?? boundaryIndex)
+        : boundaryIndex;
+      if (idx <= 0 || idx >= count) continue;
+      boundaryIndexMap.set(id, idx);
+
       const f = this.getSplitRowFractions(id, m);
-      const within = f.slice(0, Math.max(0, boundaryIndex)).reduce((a, b) => a + b, 0);
+      const within = f.slice(0, Math.max(0, idx)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within * 100)));
 
       const gridEl2 = this.getTableElement()?.querySelector(`.table-widget__split-grid[data-owner-leaf="${id}"]`) as HTMLElement | null;
@@ -5065,6 +5229,26 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.activeSplitResize) {
       this.activeSplitResize.ownerContainerWidthPx = ownerW;
       this.activeSplitResize.ownerContainerHeightPx = ownerH;
+      this.activeSplitResize.ownerBoundaryIndexMap = boundaryIndexMap;
+    }
+
+    // Content-based min constraints for this split-row boundary (per owner).
+    const minTopPxByOwner = new Map<string, number>();
+    const minBottomPxByOwner = new Map<string, number>();
+    for (const id of ownersToGhost) {
+      const m = this.getCellModelByLeafId(id);
+      if (!m?.split) continue;
+      const idx = boundaryIndexMap.get(id) ?? boundaryIndex;
+      const count = Math.max(1, m.split.rows);
+      if (idx <= 0 || idx >= count) continue;
+      const h = ownerH.get(id) ?? containerHeightPx;
+      const res = this.computeMinSplitAdjacentRowHeightsPx(id, m, idx, h, zoomScale);
+      minTopPxByOwner.set(id, res.minTopPx);
+      minBottomPxByOwner.set(id, res.minBottomPx);
+    }
+    if (this.activeSplitResize) {
+      this.activeSplitResize.ownerMinSplitRowTopPx = minTopPxByOwner;
+      this.activeSplitResize.ownerMinSplitRowBottomPx = minBottomPxByOwner;
     }
 
     if (sharedAbs !== null && sharedOwners.length > 1) {
@@ -5180,63 +5364,88 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const scale = r.zoomScale;
 
     if (r.kind === 'col') {
-      const cols = Math.max(1, owner.split.cols);
-      const start = r.startFractions;
-      const i = r.boundaryIndex;
-      const leftIdx = i - 1;
-      const rightIdx = i;
-      if (start.length !== cols) return;
-      const total = start[leftIdx] + start[rightIdx];
-
       const deltaScreen = event.clientX - r.startClientX;
-      const deltaLayout = deltaScreen / scale;
-      const deltaF = deltaLayout / r.containerWidthPx;
+      const desiredDeltaPx = deltaScreen / scale;
 
-      const minFLeft = this.minSplitColPx / r.containerWidthPx;
-      const minFRight = this.minSplitColPx / r.containerWidthPx;
+      const ownersToResize = Array.from(new Set([r.ownerLeafId, ...(r.sharedOwnerLeafIds ?? [])]));
+      const boundaryIndexMap = r.ownerBoundaryIndexMap;
 
-      const next = [...start];
-      const clampedLeft = this.clamp(start[leftIdx] + deltaF, minFLeft, total - minFRight);
-      next[leftIdx] = clampedLeft;
-      next[rightIdx] = total - clampedLeft;
+      type OwnerColInfo = {
+        leafId: string;
+        boundaryIndex: number;
+        startFractions: number[];
+        cols: number;
+        widthPx: number;
+        leftIdx: number;
+        rightIdx: number;
+        startLeft: number;
+        total: number;
+        minLeft: number;
+        minRight: number;
+      };
 
-      const updated = this.normalizeFractions(next, cols);
+      const infos: OwnerColInfo[] = [];
+      let deltaMinPx = Number.NEGATIVE_INFINITY;
+      let deltaMaxPx = Number.POSITIVE_INFINITY;
+
+      for (const id of ownersToResize) {
+        const m = this.getCellModelByLeafId(id);
+        if (!m?.split) continue;
+        const cols = Math.max(1, m.split.cols);
+        if (cols <= 1) continue;
+
+        const idx = boundaryIndexMap?.get(id) ?? (id === r.ownerLeafId ? r.boundaryIndex : null);
+        if (idx === null) continue;
+        if (idx <= 0 || idx >= cols) continue;
+
+        const startFractions = id === r.ownerLeafId ? r.startFractions : this.getSplitColFractions(id, m);
+        if (startFractions.length !== cols) continue;
+
+        const widthPx = r.ownerContainerWidthPx?.get(id) ?? r.containerWidthPx;
+        const li = idx - 1;
+        const ri = idx;
+        const startLeft = startFractions[li] ?? 0;
+        const startRight = startFractions[ri] ?? 0;
+        const total = startLeft + startRight;
+
+        const minLeft = this.minSplitColPx / widthPx;
+        const minRight = this.minSplitColPx / widthPx;
+        deltaMinPx = Math.max(deltaMinPx, (minLeft - startLeft) * widthPx);
+        deltaMaxPx = Math.min(deltaMaxPx, (total - minRight - startLeft) * widthPx);
+
+        infos.push({
+          leafId: id,
+          boundaryIndex: idx,
+          startFractions,
+          cols,
+          widthPx,
+          leftIdx: li,
+          rightIdx: ri,
+          startLeft,
+          total,
+          minLeft,
+          minRight,
+        });
+      }
+
+      if (infos.length === 0) return;
+
+      const appliedDeltaPx = this.clamp(desiredDeltaPx, deltaMinPx, deltaMaxPx);
+
       const map = new Map(this.pendingSplitColFractions());
-      map.set(r.ownerLeafId, updated);
-
-      // Update ghost(s) for active + shared owners (within each split grid).
       const ghostMap = new Map(this.ghostSplitColWithinPercent());
-      const within = updated.slice(0, Math.max(0, i)).reduce((a, b) => a + b, 0);
-      ghostMap.set(r.ownerLeafId, Math.max(0, Math.min(100, within * 100)));
+      for (const info of infos) {
+        const next = [...info.startFractions];
+        const nextLeft = info.startLeft + appliedDeltaPx / info.widthPx;
+        const clampedLeft = this.clamp(nextLeft, info.minLeft, info.total - info.minRight);
+        next[info.leftIdx] = clampedLeft;
+        next[info.rightIdx] = info.total - clampedLeft;
 
-      // Propagate to all split owners that share the same continuous boundary line.
-      const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
-      for (const otherLeafId of others) {
-        const other = this.getCellModelByLeafId(otherLeafId);
-        if (!other?.split) continue;
-        const otherCols = Math.max(1, other.split.cols);
-        if (otherCols <= 1 || r.boundaryIndex <= 0 || r.boundaryIndex >= otherCols) continue;
+        const updated = this.normalizeFractions(next, info.cols);
+        map.set(info.leafId, updated);
 
-        const otherStart = [...this.getSplitColFractions(otherLeafId, other)];
-        const li = r.boundaryIndex - 1;
-        const ri = r.boundaryIndex;
-        if (otherStart.length !== otherCols) continue;
-        const otherTotal = otherStart[li] + otherStart[ri];
-
-        // Keep the same left-side ratio as the active owner.
-        const ratio = total > 0 ? clampedLeft / total : 0.5;
-        const otherW = r.ownerContainerWidthPx?.get(otherLeafId) ?? r.containerWidthPx;
-        const minOtherLeft = this.minSplitColPx / otherW;
-        const minOtherRight = this.minSplitColPx / otherW;
-        const desiredLeft = otherTotal * ratio;
-        const clampedOtherLeft = this.clamp(desiredLeft, minOtherLeft, otherTotal - minOtherRight);
-        otherStart[li] = clampedOtherLeft;
-        otherStart[ri] = otherTotal - clampedOtherLeft;
-        const otherUpdated = this.normalizeFractions(otherStart, otherCols);
-        map.set(otherLeafId, otherUpdated);
-
-        const otherWithin = otherUpdated.slice(0, Math.max(0, r.boundaryIndex)).reduce((a, b) => a + b, 0);
-        ghostMap.set(otherLeafId, Math.max(0, Math.min(100, otherWithin * 100)));
+        const within = updated.slice(0, Math.max(0, info.boundaryIndex)).reduce((a, b) => a + b, 0);
+        ghostMap.set(info.leafId, Math.max(0, Math.min(100, within * 100)));
       }
 
       this.pendingSplitColFractions.set(map);
@@ -5244,74 +5453,103 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
       // Shared boundary ghost (absolute within the top-level table) when applicable.
       if (r.startSharedBoundaryAbs !== undefined && r.tableWidthPx) {
-        const deltaAbs = deltaLayout / r.tableWidthPx;
+        const deltaAbs = appliedDeltaPx / r.tableWidthPx;
         const abs = this.clamp(r.startSharedBoundaryAbs + deltaAbs, 0, 1);
         this.ghostSharedSplitColPercent.set(abs * 100);
       }
     } else {
-      const rows = Math.max(1, owner.split.rows);
-      const start = r.startFractions;
-      const i = r.boundaryIndex;
-      const topIdx = i - 1;
-      const bottomIdx = i;
-      if (start.length !== rows) return;
-      const total = start[topIdx] + start[bottomIdx];
-
       const deltaScreen = event.clientY - r.startClientY;
-      const deltaLayout = deltaScreen / scale;
-      const deltaF = deltaLayout / r.containerHeightPx;
+      const desiredDeltaPx = deltaScreen / scale;
 
-      const minFTop = this.minSplitRowPx / r.containerHeightPx;
-      const minFBottom = this.minSplitRowPx / r.containerHeightPx;
+      const ownersToResize = Array.from(new Set([r.ownerLeafId, ...(r.sharedOwnerLeafIds ?? [])]));
+      const boundaryIndexMap = r.ownerBoundaryIndexMap;
 
-      const next = [...start];
-      const clampedTop = this.clamp(start[topIdx] + deltaF, minFTop, total - minFBottom);
-      next[topIdx] = clampedTop;
-      next[bottomIdx] = total - clampedTop;
+      type OwnerRowInfo = {
+        leafId: string;
+        boundaryIndex: number;
+        startFractions: number[];
+        rows: number;
+        heightPx: number;
+        topIdx: number;
+        bottomIdx: number;
+        startTop: number;
+        total: number;
+        minTopF: number;
+        minBottomF: number;
+      };
 
-      const updated = this.normalizeFractions(next, rows);
+      const infos: OwnerRowInfo[] = [];
+      let deltaMinPx = Number.NEGATIVE_INFINITY;
+      let deltaMaxPx = Number.POSITIVE_INFINITY;
+
+      for (const id of ownersToResize) {
+        const m = this.getCellModelByLeafId(id);
+        if (!m?.split) continue;
+        const rows = Math.max(1, m.split.rows);
+        if (rows <= 1) continue;
+
+        const idx = boundaryIndexMap?.get(id) ?? (id === r.ownerLeafId ? r.boundaryIndex : null);
+        if (idx === null) continue;
+        if (idx <= 0 || idx >= rows) continue;
+
+        const startFractions = id === r.ownerLeafId ? r.startFractions : this.getSplitRowFractions(id, m);
+        if (startFractions.length !== rows) continue;
+
+        const heightPx = r.ownerContainerHeightPx?.get(id) ?? r.containerHeightPx;
+        const ti = idx - 1;
+        const bi = idx;
+        const startTop = startFractions[ti] ?? 0;
+        const startBottom = startFractions[bi] ?? 0;
+        const total = startTop + startBottom;
+
+        const minTopPx = r.ownerMinSplitRowTopPx?.get(id) ?? this.minSplitRowPx;
+        const minBottomPx = r.ownerMinSplitRowBottomPx?.get(id) ?? this.minSplitRowPx;
+        const minTopF = Math.max(this.minSplitRowPx, minTopPx) / heightPx;
+        const minBottomF = Math.max(this.minSplitRowPx, minBottomPx) / heightPx;
+
+        deltaMinPx = Math.max(deltaMinPx, (minTopF - startTop) * heightPx);
+        deltaMaxPx = Math.min(deltaMaxPx, (total - minBottomF - startTop) * heightPx);
+
+        infos.push({
+          leafId: id,
+          boundaryIndex: idx,
+          startFractions,
+          rows,
+          heightPx,
+          topIdx: ti,
+          bottomIdx: bi,
+          startTop,
+          total,
+          minTopF,
+          minBottomF,
+        });
+      }
+
+      if (infos.length === 0) return;
+
+      const appliedDeltaPx = this.clamp(desiredDeltaPx, deltaMinPx, deltaMaxPx);
+
       const map = new Map(this.pendingSplitRowFractions());
-      map.set(r.ownerLeafId, updated);
-
       const ghostMap = new Map(this.ghostSplitRowWithinPercent());
-      const within = updated.slice(0, Math.max(0, i)).reduce((a, b) => a + b, 0);
-      ghostMap.set(r.ownerLeafId, Math.max(0, Math.min(100, within * 100)));
+      for (const info of infos) {
+        const next = [...info.startFractions];
+        const nextTop = info.startTop + appliedDeltaPx / info.heightPx;
+        const clampedTop = this.clamp(nextTop, info.minTopF, info.total - info.minBottomF);
+        next[info.topIdx] = clampedTop;
+        next[info.bottomIdx] = info.total - clampedTop;
 
-      // Propagate to all split owners that share the same continuous boundary line.
-      const others = (r.sharedOwnerLeafIds ?? []).filter((id) => id !== r.ownerLeafId);
-      for (const otherLeafId of others) {
-        const other = this.getCellModelByLeafId(otherLeafId);
-        if (!other?.split) continue;
-        const otherRows = Math.max(1, other.split.rows);
-        if (otherRows <= 1 || r.boundaryIndex <= 0 || r.boundaryIndex >= otherRows) continue;
+        const updated = this.normalizeFractions(next, info.rows);
+        map.set(info.leafId, updated);
 
-        const otherStart = [...this.getSplitRowFractions(otherLeafId, other)];
-        const ti = r.boundaryIndex - 1;
-        const bi = r.boundaryIndex;
-        if (otherStart.length !== otherRows) continue;
-        const otherTotal = otherStart[ti] + otherStart[bi];
-
-        // Keep the same top-side ratio as the active owner.
-        const ratio = total > 0 ? clampedTop / total : 0.5;
-        const otherH = r.ownerContainerHeightPx?.get(otherLeafId) ?? r.containerHeightPx;
-        const minOtherTop = this.minSplitRowPx / otherH;
-        const minOtherBottom = this.minSplitRowPx / otherH;
-        const desiredTop = otherTotal * ratio;
-        const clampedOtherTop = this.clamp(desiredTop, minOtherTop, otherTotal - minOtherBottom);
-        otherStart[ti] = clampedOtherTop;
-        otherStart[bi] = otherTotal - clampedOtherTop;
-        const otherUpdated = this.normalizeFractions(otherStart, otherRows);
-        map.set(otherLeafId, otherUpdated);
-
-        const otherWithin = otherUpdated.slice(0, Math.max(0, r.boundaryIndex)).reduce((a, b) => a + b, 0);
-        ghostMap.set(otherLeafId, Math.max(0, Math.min(100, otherWithin * 100)));
+        const within = updated.slice(0, Math.max(0, info.boundaryIndex)).reduce((a, b) => a + b, 0);
+        ghostMap.set(info.leafId, Math.max(0, Math.min(100, within * 100)));
       }
 
       this.pendingSplitRowFractions.set(map);
       this.ghostSplitRowWithinPercent.set(ghostMap);
 
       if (r.startSharedBoundaryAbs !== undefined && r.tableHeightPx) {
-        const deltaAbs = deltaLayout / r.tableHeightPx;
+        const deltaAbs = appliedDeltaPx / r.tableHeightPx;
         const abs = this.clamp(r.startSharedBoundaryAbs + deltaAbs, 0, 1);
         this.ghostSharedSplitRowPercent.set(abs * 100);
       }
@@ -5366,6 +5604,46 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const yPx = rect.top + within * rect.height;
     const abs = (yPx - tableRect.top) / tableRect.height;
     return Math.max(0, Math.min(1, abs));
+  }
+
+  private computeOwnerBoundaryIndexForSharedAbs(
+    kind: 'col' | 'row',
+    ownerLeafId: string,
+    ownerCell: TableCell,
+    sharedAbs: number
+  ): number | null {
+    const table = this.getTableElement();
+    const tableRect = this.getTableRect();
+    if (!table || !tableRect) return null;
+    if (!Number.isFinite(sharedAbs)) return null;
+
+    const gridEl = table.querySelector(`.table-widget__split-grid[data-owner-leaf="${ownerLeafId}"]`) as HTMLElement | null;
+    if (!gridEl) return null;
+    const rect = gridEl.getBoundingClientRect();
+    if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return null;
+
+    const within = kind === 'col'
+      ? (sharedAbs * tableRect.width + tableRect.left - rect.left) / rect.width
+      : (sharedAbs * tableRect.height + tableRect.top - rect.top) / rect.height;
+    const boundedWithin = Math.max(0, Math.min(1, within));
+
+    const fractions = kind === 'col'
+      ? this.getSplitColFractions(ownerLeafId, ownerCell)
+      : this.getSplitRowFractions(ownerLeafId, ownerCell);
+    if (!fractions || fractions.length <= 1) return null;
+
+    let acc = 0;
+    let bestIdx = 1;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < fractions.length; i++) {
+      acc += fractions[i - 1];
+      const d = Math.abs(acc - boundedWithin);
+      if (d < bestD) {
+        bestD = d;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
   }
 
   private findSharedSplitOwners(kind: 'col' | 'row', sharedAbs: number): string[] {
@@ -5984,17 +6262,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerH.set(id, Math.max(1, rr.height / zoomScale));
     }
 
+    const boundaryIndexMap = new Map<string, number>();
+    for (const id of owners) {
+      const m = this.getCellModelByLeafId(id);
+      if (!m?.split) continue;
+      const idx = this.computeOwnerBoundaryIndexForSharedAbs('col', id, m, boundaryAbs);
+      const count = Math.max(1, m.split.cols);
+      if (idx === null || idx <= 0 || idx >= count) continue;
+      boundaryIndexMap.set(id, idx);
+    }
+
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
       kind: 'col',
       ownerLeafId,
-      boundaryIndex: bestIdx,
+      boundaryIndex: boundaryIndexMap.get(ownerLeafId) ?? bestIdx,
       sharedBoundaryAbs: boundaryAbs,
       startSharedBoundaryAbs: boundaryAbs,
       tableWidthPx,
       tableHeightPx,
       ownerContainerWidthPx: ownerW,
       ownerContainerHeightPx: ownerH,
+      ownerBoundaryIndexMap: boundaryIndexMap,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -6011,9 +6300,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     for (const id of owners) {
       const m = this.getCellModelByLeafId(id);
       const count = Math.max(1, m?.split?.cols ?? 0);
-      if (!m?.split || bestIdx <= 0 || bestIdx >= count) continue;
+      const idx = boundaryIndexMap.get(id) ?? bestIdx;
+      if (!m?.split || idx <= 0 || idx >= count) continue;
       const ff = this.getSplitColFractions(id, m);
-      const within2 = ff.slice(0, Math.max(0, bestIdx)).reduce((a, b) => a + b, 0);
+      const within2 = ff.slice(0, Math.max(0, idx)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within2 * 100)));
     }
     this.ghostSplitColWithinPercent.set(ghostMap);
@@ -6080,17 +6370,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ownerH.set(id, Math.max(1, rr.height / zoomScale));
     }
 
+    const boundaryIndexMap = new Map<string, number>();
+    for (const id of owners) {
+      const m = this.getCellModelByLeafId(id);
+      if (!m?.split) continue;
+      const idx = this.computeOwnerBoundaryIndexForSharedAbs('row', id, m, boundaryAbs);
+      const count = Math.max(1, m.split.rows);
+      if (idx === null || idx <= 0 || idx >= count) continue;
+      boundaryIndexMap.set(id, idx);
+    }
+
     this.isResizingSplitGrid = true;
     this.activeSplitResize = {
       kind: 'row',
       ownerLeafId,
-      boundaryIndex: bestIdx,
+      boundaryIndex: boundaryIndexMap.get(ownerLeafId) ?? bestIdx,
       sharedBoundaryAbs: boundaryAbs,
       startSharedBoundaryAbs: boundaryAbs,
       tableWidthPx,
       tableHeightPx,
       ownerContainerWidthPx: ownerW,
       ownerContainerHeightPx: ownerH,
+      ownerBoundaryIndexMap: boundaryIndexMap,
       sharedOwnerLeafIds: owners,
       pointerId: event.pointerId,
       startClientX: event.clientX,
@@ -6101,14 +6402,34 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       zoomScale,
     };
 
+    // Content-based min constraints for this split-row boundary (per owner).
+    const minTopPxByOwner = new Map<string, number>();
+    const minBottomPxByOwner = new Map<string, number>();
+    for (const id of owners) {
+      const m = this.getCellModelByLeafId(id);
+      if (!m?.split) continue;
+      const idx = boundaryIndexMap.get(id) ?? bestIdx;
+      const count = Math.max(1, m.split.rows);
+      if (idx <= 0 || idx >= count) continue;
+      const h = ownerH.get(id) ?? containerHeightPx;
+      const res = this.computeMinSplitAdjacentRowHeightsPx(id, m, idx, h, zoomScale);
+      minTopPxByOwner.set(id, res.minTopPx);
+      minBottomPxByOwner.set(id, res.minBottomPx);
+    }
+    if (this.activeSplitResize) {
+      this.activeSplitResize.ownerMinSplitRowTopPx = minTopPxByOwner;
+      this.activeSplitResize.ownerMinSplitRowBottomPx = minBottomPxByOwner;
+    }
+
     this.ghostSharedSplitRowPercent.set(this.clamp(boundaryAbs, 0, 1) * 100);
     const ghostMap = new Map(this.ghostSplitRowWithinPercent());
     for (const id of owners) {
       const m = this.getCellModelByLeafId(id);
       const count = Math.max(1, m?.split?.rows ?? 0);
-      if (!m?.split || bestIdx <= 0 || bestIdx >= count) continue;
+      const idx = boundaryIndexMap.get(id) ?? bestIdx;
+      if (!m?.split || idx <= 0 || idx >= count) continue;
       const ff = this.getSplitRowFractions(id, m);
-      const within2 = ff.slice(0, Math.max(0, bestIdx)).reduce((a, b) => a + b, 0);
+      const within2 = ff.slice(0, Math.max(0, idx)).reduce((a, b) => a + b, 0);
       ghostMap.set(id, Math.max(0, Math.min(100, within2 * 100)));
     }
     this.ghostSplitRowWithinPercent.set(ghostMap);

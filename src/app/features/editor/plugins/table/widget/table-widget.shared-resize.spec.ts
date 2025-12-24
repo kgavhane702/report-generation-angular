@@ -1,9 +1,9 @@
 import { TableWidgetComponent } from './table-widget.component';
 
 describe('TableWidgetComponent - shared split boundary resize', () => {
-  it('propagates split column resize to other owners on same line (ratio-based)', () => {
+  it('propagates split column resize to other owners on same line (delta-based, per-owner boundary index)', () => {
     // We unit-test the propagation math via private handler, without DOM.
-    // Setup: two split owners with 2 cols each; resizing boundary 1 should update both.
+    // Setup: two split owners with different split shapes; resizing should update the correct boundary per owner.
 
     const c = Object.create(TableWidgetComponent.prototype) as TableWidgetComponent as any;
 
@@ -34,7 +34,7 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
     c.clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
     const ownerA = { split: { cols: 2, rows: 1, columnFractions: [0.6, 0.4], rowFractions: [1], cells: [] } };
-    const ownerB = { split: { cols: 2, rows: 1, columnFractions: [0.2, 0.8], rowFractions: [1], cells: [] } };
+    const ownerB = { split: { cols: 3, rows: 1, columnFractions: [0.2, 0.3, 0.5], rowFractions: [1], cells: [] } };
 
     c.getCellModelByLeafId = (leafId: string) => (leafId === 'A' ? ownerA : leafId === 'B' ? ownerB : null);
 
@@ -49,6 +49,15 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
       ownerLeafId: 'A',
       sharedOwnerLeafIds: ['A', 'B'],
       boundaryIndex: 1,
+      ownerBoundaryIndexMap: new Map<string, number>([
+        ['A', 1],
+        // In B, the aligned boundary corresponds to its second internal boundary (between cols 2 and 3).
+        ['B', 2],
+      ]),
+      ownerContainerWidthPx: new Map<string, number>([
+        ['A', 100],
+        ['B', 200],
+      ]),
       pointerId: 1,
       startClientX: 0,
       startClientY: 0,
@@ -58,7 +67,9 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
       zoomScale: 1,
     };
 
-    // Move pointer +10px => deltaF=0.1, clampedLeft=0.7, ratio=0.7
+    // Move pointer +10px:
+    // - owner A width=100 => +0.10 on the left side of boundary 1
+    // - owner B width=200 => +0.05 on the left side of boundary 2
     c.handleSplitResizePointerMove({
       preventDefault: () => void 0,
       stopPropagation: () => void 0,
@@ -70,9 +81,12 @@ describe('TableWidgetComponent - shared split boundary resize', () => {
     } as any);
 
     const map = c.pendingSplitColFractions();
-    expect(map.get('A')).toEqual([0.7, 0.3]);
+    expect(map.get('A')?.[0]).toBeCloseTo(0.7, 6);
+    expect(map.get('A')?.[1]).toBeCloseTo(0.3, 6);
 
-    // Owner B total is 1.0, ratio=0.7 => [0.7,0.3]
-    expect(map.get('B')).toEqual([0.7, 0.3]);
+    // Owner B boundary 2 is between [0.3,0.5] (total=0.8). +10px at width=200 => +0.05 => [0.35,0.45].
+    expect(map.get('B')?.[0]).toBeCloseTo(0.2, 6);
+    expect(map.get('B')?.[1]).toBeCloseTo(0.35, 6);
+    expect(map.get('B')?.[2]).toBeCloseTo(0.45, 6);
   });
 });

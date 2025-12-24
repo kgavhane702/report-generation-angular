@@ -72,55 +72,44 @@
     width: 100%;
     height: 100%;
     min-height: 24px;
-    padding: 4px 8px;
-    outline: none;
     background: transparent;
     box-sizing: border-box;
-    word-wrap: break-word;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    // Note: white-space: pre-wrap removed to allow proper list rendering
-    // Keep contenteditable in normal flow (avoid flex; it breaks caret behavior).
-    display: block;
 
-    // Vertical-align architecture:
-    // Keep the editable hit-area full height, but align the *text layer* inside.
-    // The inner wrapper is a normal block (safe for caret), and we align it by
-    // temporarily treating the contenteditable as a column flex container.
-    &[data-v-align] {
-      display: flex;
-      flex-direction: column;
-      padding: 0; // padding moves to inner wrapper so the text block aligns cleanly
-    }
+    // Vertical alignment without wrapper DIVs:
+    // the contenteditable is the inner editor; the container aligns it via grid.
+    display: grid;
+    align-content: start;
 
     &[data-v-align='top'] {
-      justify-content: flex-start;
+      align-content: start;
     }
 
     &[data-v-align='middle'] {
-      justify-content: center;
+      align-content: center;
     }
 
     &[data-v-align='bottom'] {
-      justify-content: flex-end;
+      align-content: end;
     }
+  }
 
-    .table-widget__valign {
-      display: block;
-      width: 100%;
-      padding: 4px 8px;
-      box-sizing: border-box;
-      min-height: 1em;
-    }
+  &__cell-editor {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    outline: none;
+    background: transparent;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    display: block;
+    min-height: 1em;
 
     &:focus {
       outline: 2px solid #1976d2;
       outline-offset: -2px;
       background: rgba(25, 118, 210, 0.04);
     }
-
-    // Note: do not use NBSP placeholders here; caret stabilization is handled
-    // via inner wrapper min-height and focus-time ZWSP injection (stripped on sync).
 
     // Style lists inside table cells
     ul, ol {
@@ -309,7 +298,7 @@
     }
   }
 
-  &__cell-content--subcell {
+  &__cell-editor--subcell {
     // Default stays the same. When sub-cells get tiny, we scale down relative to the inherited font size,
     // but never below a minimum (prevents the tiny scrollbars without changing default look).
     --subcell-font-scale: 1;
@@ -328,7 +317,7 @@
 
   // When a sub-cell is short, shrink font + padding down to a minimum to prevent scrollbars.
   @container table-subcell (max-height: 28px) {
-    .table-widget__cell-content--subcell {
+    .table-widget__cell-editor--subcell {
       --subcell-font-scale: 0.9;
       line-height: 1.2;
       padding: 2px 4px;
@@ -336,7 +325,7 @@
   }
 
   @container table-subcell (max-height: 22px) {
-    .table-widget__cell-content--subcell {
+    .table-widget__cell-editor--subcell {
       --subcell-font-scale: 0.82;
       padding: 1px 3px;
     }
@@ -344,7 +333,7 @@
 
   // Minimum font size cap (don’t go smaller than this).
   @container table-subcell (max-height: 18px) {
-    .table-widget__cell-content--subcell {
+    .table-widget__cell-editor--subcell {
       --subcell-font-scale: 0.74;
       padding: 1px 2px;
     }
@@ -392,7 +381,7 @@
 }
 
 // Ensure contenteditable inherits font styles
-.table-widget__cell-content {
+.table-widget__cell-editor {
   font-family: inherit;
   font-size: inherit;
   line-height: 1.5;
