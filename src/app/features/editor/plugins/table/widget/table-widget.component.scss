@@ -68,6 +68,18 @@
     }
   }
 
+  // When typing, make the *whole* cell look focused (not just the inner contenteditable).
+  // This also keeps the "flex/grid hack" wrappers visually invisible.
+  &__cell:not(.table-widget__cell--selected):focus-within::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(25, 118, 210, 0.85);
+    pointer-events: none;
+    z-index: 9; // below selected overlay (::after)
+    box-sizing: border-box;
+  }
+
   &__cell-content {
     width: 100%;
     height: 100%;
@@ -106,9 +118,8 @@
     min-height: 1em;
 
     &:focus {
-      outline: 2px solid #1976d2;
-      outline-offset: -2px;
-      background: rgba(25, 118, 210, 0.04);
+      outline: none;
+      background: transparent;
     }
 
     // Style lists inside table cells
@@ -203,9 +214,20 @@
     box-sizing: border-box;
     overflow: hidden;
     background: transparent;
+    position: relative;
     // Enable container queries so sub-cell text can shrink when the sub-cell gets very small.
     container-type: size;
     container-name: table-subcell;
+  }
+
+  &__sub-cell:not(.table-widget__sub-cell--selected):focus-within::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(25, 118, 210, 0.85);
+    pointer-events: none;
+    z-index: 9; // below selected overlay (::after)
+    box-sizing: border-box;
   }
 
   &__sub-cell--selected {

@@ -29,6 +29,7 @@
         [style.border-width.px]="rc.cell.style?.borderWidth ?? null"
         [style.border-style]="rc.cell.style?.borderStyle || null"
         (mousedown)="onCellMouseDown($event, rowIndex, rc.colIndex)"
+        (click)="onCellClick($event, rowIndex, rc.colIndex)"
         (mouseenter)="onCellMouseEnter($event, rowIndex, rc.colIndex)"
       >
         <ng-container

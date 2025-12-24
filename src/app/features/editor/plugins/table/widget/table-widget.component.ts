@@ -236,6 +236,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private selectionEnd: { row: number; col: number } | null = null;
   private leafRectStart: { x: number; y: number } | null = null;
   private tableRectStart: { x: number; y: number } | null = null;
+  /** Used to distinguish a simple click (should focus the editor) vs drag-selecting cells. */
+  private didDragSelectSinceMouseDown = false;
+  private readonly dragSelectThresholdPx = 4;
 
   get editing(): boolean {
     return this.isActivelyEditing();
@@ -1357,6 +1360,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.toolbarService.activeTableWidgetId === this.widget.id) {
       this.logSelectedCells('mouseUp');
     }
+
+    // Reset drag marker after the click event has had a chance to run.
+    if (this.didDragSelectSinceMouseDown) {
+      window.setTimeout(() => {
+        this.didDragSelectSinceMouseDown = false;
+      }, 0);
+    }
   };
 
   private setEquals(a: Set<string>, b: Set<string>): boolean {
@@ -1396,6 +1406,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
 
+    // Mark as drag-select only after a small threshold (avoid blocking click-to-edit due to tiny mouse jitter).
+    if (!this.didDragSelectSinceMouseDown) {
+      const start = this.selectionMode === 'leafRect' ? this.leafRectStart : this.tableRectStart;
+      if (start) {
+        const dx = event.clientX - start.x;
+        const dy = event.clientY - start.y;
+        if (dx * dx + dy * dy >= this.dragSelectThresholdPx * this.dragSelectThresholdPx) {
+          this.didDragSelectSinceMouseDown = true;
+        }
+      }
+    }
+
     if (this.selectionMode === 'leafRect' && this.leafRectStart) {
       const selection = this.computeLeafRectSelection(this.leafRectStart, { x: event.clientX, y: event.clientY });
       this.setSelection(selection);
@@ -1415,6 +1437,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
     // Only start selection on left click without focus intent
     if (event.button !== 0) return;
+    this.didDragSelectSinceMouseDown = false;
 
     // NOTE:
     // We intentionally DO NOT early-return when a contenteditable inside this cell is focused.
@@ -1460,6 +1483,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.selectionStart = { row: rowIndex, col: cellIndex };
     this.selectionEnd = { row: rowIndex, col: cellIndex };
     this.updateTableSelection({ x: event.clientX, y: event.clientY });
+  }
+
+  onCellClick(event: MouseEvent, rowIndex: number, cellIndex: number): void {
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+    if (event.button !== 0) return;
+    if (event.shiftKey || event.ctrlKey || event.metaKey) return;
+
+    // If this interaction was a drag-select, don't steal focus at the end.
+    if (this.didDragSelectSinceMouseDown) return;
+
+    const target = event.target as HTMLElement | null;
+    // If the click was already inside the editor, let the browser handle caret placement.
+    if (target?.closest('.table-widget__cell-editor')) return;
+
+    const cellEl = event.currentTarget as HTMLElement | null;
+    if (!cellEl) return;
+
+    // If click is inside a split sub-cell, focus that leaf; otherwise focus the first editor in this cell.
+    const subCellEl = target?.closest('.table-widget__sub-cell') as HTMLElement | null;
+    const searchRoot = subCellEl ?? cellEl;
+    const editor = searchRoot.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
+    editor?.focus();
   }
 
   onCellMouseEnter(event: MouseEvent, rowIndex: number, cellIndex: number): void {
@@ -1612,8 +1657,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private getLeafIdFromPoint(x: number, y: number): string | null {
     const element = document.elementFromPoint(x, y);
     if (!element) return null;
-    const leafEl = (element as HTMLElement).closest('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
-    return leafEl?.getAttribute('data-leaf') ?? null;
+
+    const el = element as HTMLElement;
+
+    // 1) Direct hit inside an editor
+    const leafEl = el.closest('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
+    if (leafEl) return leafEl.getAttribute('data-leaf') ?? null;
+
+    // 2) Click on empty space inside a split sub-cell (e.g. above/below vertically-aligned content)
+    const subCell = el.closest('.table-widget__sub-cell') as HTMLElement | null;
+    if (subCell) {
+      const leaf = subCell.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
+      return leaf?.getAttribute('data-leaf') ?? null;
+    }
+
+    // 3) Click on empty space inside a normal cell
+    const cell = el.closest('.table-widget__cell') as HTMLElement | null;
+    if (cell) {
+      const leaf = cell.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
+      return leaf?.getAttribute('data-leaf') ?? null;
+    }
+
+    return null;
   }
 
   private computeLeafRectSelection(
