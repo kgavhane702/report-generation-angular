@@ -85,12 +85,21 @@ export class WidgetFactoryService {
     const colCount = Math.max(1, rows[0]?.cells?.length ?? 1);
     const defaultRowFractions = Array.from({ length: rowCount }, () => 1 / rowCount);
     const defaultColFractions = Array.from({ length: colCount }, () => 1 / colCount);
+
+    // PPT-like default sizing:
+    // - Keep a reasonable default width
+    // - Start with the *minimum* row height so a freshly inserted table doesn't look "huge"
+    //   and then collapse when the user types the first character (live auto-fit shrink).
+    // Keep this in sync with TableWidgetComponent.minRowPx.
+    const defaultWidthPx = 700;
+    const minRowPx = 40;
+    const defaultHeightPx = Math.max(20, rowCount * minRowPx);
     
     return {
       id: uuid(),
       type: 'table',
       position: { x: 80, y: 80 },
-      size: { width: 400, height: 200 },
+      size: { width: defaultWidthPx, height: defaultHeightPx },
       zIndex: 1,
       props: {
         rows,
