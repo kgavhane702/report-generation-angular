@@ -7,6 +7,13 @@ describe('TableWidgetComponent - editor HTML normalization', () => {
     expect(res).toBe('');
   });
 
+  it('preserves user-entered blank lines (<br>) as meaningful content', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+    const res = c.normalizeEditorHtmlForModel('<div><br></div><div><br></div>');
+    expect(res).not.toBe('');
+    expect(res).toContain('<br');
+  });
+
   it('strips legacy `.table-widget__valign` classes but preserves multi-line content', () => {
     const c = Object.create(TableWidgetComponent.prototype) as any;
     const res = c.normalizeEditorHtmlForModel(
@@ -22,7 +29,7 @@ describe('TableWidgetComponent - editor HTML normalization', () => {
     const el = document.createElement('div');
     el.innerHTML = '<div class="table-widget__valign"><br></div>';
     c.ensureCaretPlaceholderForEmptyEditor(el);
-    expect(el.innerHTML).toBe('<div><br></div>');
+    expect(el.innerHTML).toBe('<div data-tw-caret-placeholder="1"><br></div>');
   });
 });
 

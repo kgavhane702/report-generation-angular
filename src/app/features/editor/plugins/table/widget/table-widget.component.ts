@@ -1787,6 +1787,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
       // Back-compat: strip legacy valign wrappers by removing the class.
       const valignNodes = Array.from(container.querySelectorAll('.table-widget__valign')) as HTMLElement[];
+      const hadLegacyValign = valignNodes.length > 0;
       for (const n of valignNodes) {
         n.classList.remove('table-widget__valign');
         if ((n.getAttribute('class') ?? '').trim() === '') {
@@ -1794,16 +1795,62 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         }
       }
 
-      // If there is no meaningful content (text or media), persist as empty.
+      // Detect & strip our caret placeholder marker so it never persists.
+      const caretPlaceholderSelector = '[data-tw-caret-placeholder="1"]';
+      const hadCaretPlaceholder = !!container.querySelector(caretPlaceholderSelector);
+      const caretNodes = Array.from(container.querySelectorAll(caretPlaceholderSelector)) as HTMLElement[];
+      for (const n of caretNodes) {
+        n.removeAttribute('data-tw-caret-placeholder');
+      }
+
+      // If there is meaningful content (text or media), persist as-is.
       const text = (container.textContent ?? '')
         .replace(/\u200B/g, '')
         .replace(/\u00a0/g, ' ')
         .trim();
       const hasMedia = !!container.querySelector('img,svg,video,canvas,table');
-      if (!hasMedia && text === '') {
+      if (hasMedia || text !== '') {
+        return container.innerHTML;
+      }
+
+      // No text/media. Treat placeholder-only markup as empty, but preserve user-entered line breaks.
+      const brCount = container.querySelectorAll('br').length;
+      if (brCount === 0) return '';
+
+      const isSingleEmptyBlockWithSingleBr = (): boolean => {
+        if (brCount !== 1) return false;
+
+        // Case: "<br>"
+        if (container.childNodes.length === 1 && container.firstChild?.nodeType === Node.ELEMENT_NODE) {
+          const el = container.firstChild as HTMLElement;
+          if (el.tagName === 'BR') return true;
+        }
+
+        // Case: "<div><br></div>" / "<p><br></p>" (optionally with empty inline wrappers)
+        const children = Array.from(container.children) as HTMLElement[];
+        if (children.length !== 1) return false;
+        const root = children[0];
+        const tag = root.tagName;
+        if (tag !== 'DIV' && tag !== 'P') return false;
+        if (root.querySelectorAll('br').length !== 1) return false;
+
+        // Ensure no other meaningful content besides the single <br>.
+        const clone = root.cloneNode(true) as HTMLElement;
+        Array.from(clone.querySelectorAll('br')).forEach((b) => b.remove());
+        const t = (clone.textContent ?? '')
+          .replace(/\u200B/g, '')
+          .replace(/\u00a0/g, ' ')
+          .trim();
+        const m = !!clone.querySelector('img,svg,video,canvas,table');
+        return !m && t === '';
+      };
+
+      // Placeholder-only should collapse to empty (caret placeholder or legacy wrapper-only blocks).
+      if (isSingleEmptyBlockWithSingleBr() && (hadCaretPlaceholder || hadLegacyValign)) {
         return '';
       }
 
+      // Otherwise, preserve the HTML (including <br>) so manual blank lines remain.
       return container.innerHTML;
     } catch {
       // Fallback: keep raw content.
@@ -1830,7 +1877,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (normalized !== '') return;
 
     // Use a single block with <br> so Enter creates normal sibling blocks.
-    el.innerHTML = '<div><br></div>';
+    el.innerHTML = '<div data-tw-caret-placeholder="1"><br></div>';
   }
 
   private applyStyleToSelection(stylePatch: Partial<TableCellStyle>): void {
