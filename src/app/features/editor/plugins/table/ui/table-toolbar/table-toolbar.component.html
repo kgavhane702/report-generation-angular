@@ -191,7 +191,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isBold"
+      [class.table-toolbar__button--active]="formattingState.isBold === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isBold === 'mixed'"
       (mousedown)="onBoldClick($event)"
       title="Bold (Ctrl+B)"
     >
@@ -204,7 +205,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isItalic"
+      [class.table-toolbar__button--active]="formattingState.isItalic === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isItalic === 'mixed'"
       (mousedown)="onItalicClick($event)"
       title="Italic (Ctrl+I)"
     >
@@ -218,7 +220,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isUnderline"
+      [class.table-toolbar__button--active]="formattingState.isUnderline === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isUnderline === 'mixed'"
       (mousedown)="onUnderlineClick($event)"
       title="Underline (Ctrl+U)"
     >
@@ -231,7 +234,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isStrikethrough"
+      [class.table-toolbar__button--active]="formattingState.isStrikethrough === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isStrikethrough === 'mixed'"
       (mousedown)="onStrikethroughClick($event)"
       title="Strikethrough"
     >
@@ -244,7 +248,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isSuperscript"
+      [class.table-toolbar__button--active]="formattingState.isSuperscript === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isSuperscript === 'mixed'"
       (mousedown)="onSuperscriptClick($event)"
       title="Superscript"
     >
@@ -257,7 +262,8 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isSubscript"
+      [class.table-toolbar__button--active]="formattingState.isSubscript === 'on'"
+      [class.table-toolbar__button--mixed]="formattingState.isSubscript === 'mixed'"
       (mousedown)="onSubscriptClick($event)"
       title="Subscript"
     >
@@ -464,6 +470,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.textAlign === 'left'"
+      [class.table-toolbar__button--mixed]="formattingState.textAlign === 'mixed'"
       (mousedown)="onAlignClick($event, 'left')"
       title="Align Left"
     >
@@ -479,6 +486,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.textAlign === 'center'"
+      [class.table-toolbar__button--mixed]="formattingState.textAlign === 'mixed'"
       (mousedown)="onAlignClick($event, 'center')"
       title="Align Center"
     >
@@ -494,6 +502,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.textAlign === 'right'"
+      [class.table-toolbar__button--mixed]="formattingState.textAlign === 'mixed'"
       (mousedown)="onAlignClick($event, 'right')"
       title="Align Right"
     >
@@ -509,6 +518,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.textAlign === 'justify'"
+      [class.table-toolbar__button--mixed]="formattingState.textAlign === 'mixed'"
       (mousedown)="onAlignClick($event, 'justify')"
       title="Justify"
     >
@@ -528,6 +538,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.verticalAlign === 'top'"
+      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
       (mousedown)="onVerticalAlignClick($event, 'top')"
       title="Align Top"
     >
@@ -542,6 +553,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.verticalAlign === 'middle'"
+      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
       (mousedown)="onVerticalAlignClick($event, 'middle')"
       title="Align Middle"
     >
@@ -556,6 +568,7 @@
       type="button"
       class="table-toolbar__button"
       [class.table-toolbar__button--active]="formattingState.verticalAlign === 'bottom'"
+      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
       (mousedown)="onVerticalAlignClick($event, 'bottom')"
       title="Align Bottom"
     >

@@ -12,6 +12,7 @@ import {
   WidgetProps,
 } from '../../../models/widget.model';
 import { createDefaultChartData } from '../../../models/chart-data.model';
+import { TABLE_DEFAULT_WIDTH_PX, TABLE_INITIAL_ROW_PX } from '../plugins/table/table-constants';
 
 @Injectable({
   providedIn: 'root',
@@ -88,12 +89,12 @@ export class WidgetFactoryService {
 
     // PPT-like default sizing:
     // - Keep a reasonable default width
-    // - Start with the *minimum* row height so a freshly inserted table doesn't look "huge"
-    //   and then collapse when the user types the first character (live auto-fit shrink).
-    // Keep this in sync with TableWidgetComponent.minRowPx.
-    const defaultWidthPx = 700;
-    const minRowPx = 40;
-    const defaultHeightPx = Math.max(20, rowCount * minRowPx);
+    // - Start with a small, consistent initial row height so a freshly inserted table doesn't look "huge"
+    //   and then collapse when the user types the first character.
+    // Keep this in sync with `TABLE_INITIAL_ROW_PX`.
+    const defaultWidthPx = TABLE_DEFAULT_WIDTH_PX;
+    const initialRowPx = TABLE_INITIAL_ROW_PX;
+    const defaultHeightPx = Math.max(20, rowCount * initialRowPx);
     
     return {
       id: uuid(),

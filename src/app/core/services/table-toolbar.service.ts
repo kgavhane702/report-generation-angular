@@ -5,15 +5,17 @@ import { TableCellStyle, TableWidgetProps } from '../../models/widget.model';
 
 export type TableSectionOptions = Pick<TableWidgetProps, 'headerRow' | 'firstColumn' | 'totalRow' | 'lastColumn'>;
 
+export type TriState = 'on' | 'off' | 'mixed';
+
 export interface TableFormattingState {
-  isBold: boolean;
-  isItalic: boolean;
-  isUnderline: boolean;
-  isStrikethrough: boolean;
-  isSuperscript: boolean;
-  isSubscript: boolean;
-  textAlign: 'left' | 'center' | 'right' | 'justify';
-  verticalAlign: 'top' | 'middle' | 'bottom';
+  isBold: TriState;
+  isItalic: TriState;
+  isUnderline: TriState;
+  isStrikethrough: TriState;
+  isSuperscript: TriState;
+  isSubscript: TriState;
+  textAlign: 'left' | 'center' | 'right' | 'justify' | 'mixed';
+  verticalAlign: 'top' | 'middle' | 'bottom' | 'mixed';
   fontFamily: string;
   fontSizePx: number | null;
 }
@@ -113,12 +115,12 @@ export class TableToolbarService {
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
-    isBold: false,
-    isItalic: false,
-    isUnderline: false,
-    isStrikethrough: false,
-    isSuperscript: false,
-    isSubscript: false,
+    isBold: 'off',
+    isItalic: 'off',
+    isUnderline: 'off',
+    isStrikethrough: 'off',
+    isSuperscript: 'off',
+    isSubscript: 'off',
     textAlign: 'left',
     verticalAlign: 'top',
     fontFamily: '',
@@ -315,7 +317,7 @@ export class TableToolbarService {
 
       const next: 'normal' | 'bold' = all === 'bold' ? 'normal' : 'bold';
       this.fontWeightRequestedSubject.next(next);
-      this.formattingState.update((state) => ({ ...state, isBold: next === 'bold' }));
+      this.formattingState.update((state) => ({ ...state, isBold: next === 'bold' ? 'on' : 'off' }));
       return;
     }
 
@@ -338,7 +340,7 @@ export class TableToolbarService {
       });
       const next: 'normal' | 'italic' = all === 'italic' ? 'normal' : 'italic';
       this.fontStyleRequestedSubject.next(next);
-      this.formattingState.update((state) => ({ ...state, isItalic: next === 'italic' }));
+      this.formattingState.update((state) => ({ ...state, isItalic: next === 'italic' ? 'on' : 'off' }));
       return;
     }
 
@@ -357,7 +359,7 @@ export class TableToolbarService {
       });
       const next: 'none' | 'underline' = all === 'underline' ? 'none' : 'underline';
       this.textDecorationRequestedSubject.next(next);
-      this.formattingState.update((state) => ({ ...state, isUnderline: next === 'underline' }));
+      this.formattingState.update((state) => ({ ...state, isUnderline: next === 'underline' ? 'on' : 'off' }));
       return;
     }
 
@@ -376,7 +378,7 @@ export class TableToolbarService {
       });
       const next: 'none' | 'line-through' = all === 'line-through' ? 'none' : 'line-through';
       this.textDecorationRequestedSubject.next(next);
-      this.formattingState.update((state) => ({ ...state, isStrikethrough: next === 'line-through' }));
+      this.formattingState.update((state) => ({ ...state, isStrikethrough: next === 'line-through' ? 'on' : 'off' }));
       return;
     }
 
@@ -788,6 +790,70 @@ export class TableToolbarService {
     const cell = this.activeCell;
     if (!cell) return;
 
+    // Multi-cell selection: compute tri-state from cell-level styles.
+    if (this.getSelectedCellsCount() > 1) {
+      const boldState = this.getSelectedCellsUniformState<'normal' | 'bold'>((el) => {
+        const w = (el.style.fontWeight || window.getComputedStyle(el).fontWeight || '').toString();
+        return w === 'bold' || Number(w) >= 600 ? 'bold' : 'normal';
+      });
+
+      const italicState = this.getSelectedCellsUniformState<'normal' | 'italic'>((el) => {
+        const v = (el.style.fontStyle || window.getComputedStyle(el).fontStyle || '').toString();
+        return v === 'italic' ? 'italic' : 'normal';
+      });
+
+      const underlineState = this.getSelectedCellsUniformState<'none' | 'underline'>((el) => {
+        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
+        return td.includes('underline') ? 'underline' : 'none';
+      });
+
+      const strikeState = this.getSelectedCellsUniformState<'none' | 'line-through'>((el) => {
+        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
+        return td.includes('line-through') ? 'line-through' : 'none';
+      });
+
+      const alignState = this.getSelectedCellsUniformState<'left' | 'center' | 'right' | 'justify'>((el) => {
+        const a = (el.style.textAlign || window.getComputedStyle(el).textAlign || 'left').toString();
+        return (a === 'center' || a === 'right' || a === 'justify') ? (a as any) : 'left';
+      });
+
+      const vAlignState = this.getSelectedCellsUniformState<'top' | 'middle' | 'bottom'>((el) => {
+        const surface = el.closest('.table-widget__cell-surface');
+        const v = (surface?.getAttribute('data-vertical-align') || '').trim();
+        return (v === 'middle' || v === 'bottom') ? (v as any) : 'top';
+      });
+
+      const ffState = this.getSelectedCellsUniformState<string>((el) =>
+        (el.style.fontFamily || window.getComputedStyle(el).fontFamily || '').trim()
+      );
+      const fsState = this.getSelectedCellsUniformState<string>((el) =>
+        (el.style.fontSize || window.getComputedStyle(el).fontSize || '').trim()
+      );
+
+      const fontSizePx = (() => {
+        if (fsState.all === null) return null;
+        const m = (fsState.all ?? '').match(/^(\d+(?:\.\d+)?)px$/);
+        if (!m) return null;
+        const v = Math.round(Number(m[1]));
+        return Number.isFinite(v) ? v : null;
+      })();
+
+      this.formattingState.set({
+        isBold: boldState.all === null ? 'mixed' : boldState.all === 'bold' ? 'on' : 'off',
+        isItalic: italicState.all === null ? 'mixed' : italicState.all === 'italic' ? 'on' : 'off',
+        isUnderline: underlineState.all === null ? 'mixed' : underlineState.all === 'underline' ? 'on' : 'off',
+        isStrikethrough: strikeState.all === null ? 'mixed' : strikeState.all === 'line-through' ? 'on' : 'off',
+        // Inline-only behaviors: treat as off when multi-cell.
+        isSuperscript: 'off',
+        isSubscript: 'off',
+        textAlign: alignState.all === null ? 'mixed' : alignState.all,
+        verticalAlign: vAlignState.all === null ? 'mixed' : vAlignState.all,
+        fontFamily: ffState.all === null ? '' : ffState.all,
+        fontSizePx,
+      });
+      return;
+    }
+
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
@@ -806,12 +872,16 @@ export class TableToolbarService {
     const isStrikethrough = strikeFromSelection || strikeFromCell;
     const isSuperscript = document.queryCommandState('superscript');
     const isSubscript = document.queryCommandState('subscript');
-    
-    const textAlign = ((cell.style.textAlign || computedStyle.textAlign || 'left') as 'left' | 'center' | 'right');
+
+    const rawAlign = (cell.style.textAlign || computedStyle.textAlign || 'left').toString();
+    const textAlign: 'left' | 'center' | 'right' | 'justify' =
+      rawAlign === 'center' || rawAlign === 'right' || rawAlign === 'justify' ? (rawAlign as any) : 'left';
 
     const surface = cell.closest('.table-widget__cell-surface');
     const surfaceAlign = (surface?.getAttribute('data-vertical-align') || '').trim();
-    const verticalAlign = ((surfaceAlign || 'top') as 'top' | 'middle' | 'bottom');
+    const verticalAlign: 'top' | 'middle' | 'bottom' =
+      surfaceAlign === 'middle' || surfaceAlign === 'bottom' ? (surfaceAlign as any) : 'top';
+
     const fontFamily = (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
     const fontSizeRaw = (cell.style.fontSize || computedStyle.fontSize || '').trim();
     const fontSizePx = (() => {
@@ -822,12 +892,12 @@ export class TableToolbarService {
     })();
 
     this.formattingState.set({
-      isBold,
-      isItalic,
-      isUnderline,
-      isStrikethrough,
-      isSuperscript,
-      isSubscript,
+      isBold: isBold ? 'on' : 'off',
+      isItalic: isItalic ? 'on' : 'off',
+      isUnderline: isUnderline ? 'on' : 'off',
+      isStrikethrough: isStrikethrough ? 'on' : 'off',
+      isSuperscript: isSuperscript ? 'on' : 'off',
+      isSubscript: isSubscript ? 'on' : 'off',
       textAlign,
       verticalAlign,
       fontFamily,

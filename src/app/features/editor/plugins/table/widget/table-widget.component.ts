@@ -22,6 +22,7 @@ import {
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 import type { GhostColLine, GhostRowLine } from './resize/table-resize-overlay.component';
+import { TABLE_MIN_COL_PX, TABLE_MIN_ROW_PX, TABLE_MIN_SPLIT_COL_PX, TABLE_MIN_SPLIT_ROW_PX } from '../table-constants';
 
 import {
   TableWidgetProps,
@@ -67,11 +68,11 @@ type SharedSplitRowSegment = { boundaryAbs: number; topPercent: number; leftPerc
 })
 export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, OnDestroy, FlushableWidget {
   private readonly maxSplitDepth = 4;
-  private readonly minColPx = 40;
-  private readonly minRowPx = 24;
+  private readonly minColPx = TABLE_MIN_COL_PX;
+  private readonly minRowPx = TABLE_MIN_ROW_PX;
   // Split sub-cells can be smaller than top-level table cells.
-  private readonly minSplitColPx = 24;
-  private readonly minSplitRowPx = 18;
+  private readonly minSplitColPx = TABLE_MIN_SPLIT_COL_PX;
+  private readonly minSplitRowPx = TABLE_MIN_SPLIT_ROW_PX;
 
   /**
    * Manual top-level row minimum heights (in widget layout px).
