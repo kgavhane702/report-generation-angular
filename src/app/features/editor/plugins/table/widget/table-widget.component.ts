@@ -4639,6 +4639,138 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     });
   }
 
+  /**
+   * Adjust split row fractions when the top-level row is resized.
+   * 
+   * When the main row border is dragged (e.g., B's bottom in a split cell with A on top and B on bottom),
+   * we want ONLY the last split subcell (B) to change height. All other subcells (A) should maintain
+   * their pixel size. This is achieved by recalculating the split.rowFractions.
+   * 
+   * @param topRowIndex The top-level row index being resized
+   * @param oldRowHeightPx The old height of the row in pixels
+   * @param newRowHeightPx The new height of the row in pixels
+   */
+  private adjustSplitRowFractionsForTopLevelRowResize(topRowIndex: number, oldRowHeightsPx: number[], deltaPx: number): void {
+    const add = Number.isFinite(deltaPx) ? deltaPx : 0;
+    if (Math.abs(add) < 0.1) return;
+
+    const rowHeights = Array.isArray(oldRowHeightsPx) ? oldRowHeightsPx : [];
+    if (!Number.isFinite(topRowIndex) || topRowIndex < 0 || topRowIndex >= rowHeights.length) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const colCount = this.getTopLevelColCount(rowsModel);
+    if (topRowIndex >= rowCount) return;
+
+    const sumRange = (arr: number[], start: number, endInclusive: number): number => {
+      let sum = 0;
+      for (let i = start; i <= endInclusive; i++) sum += arr[i] ?? 0;
+      return sum;
+    };
+
+    this.localRows.update((rows) => {
+      const next = this.cloneRows(rows);
+
+      // Process all cells that could be affected by this row resize.
+      // This includes cells in the row itself, plus anchor cells from previous rows that span into this row.
+      for (let r = 0; r <= topRowIndex; r++) {
+        for (let c = 0; c < colCount; c++) {
+          const cell = next?.[r]?.cells?.[c];
+          if (!cell || cell.coveredBy || !cell.split) continue;
+
+          // Only apply the "bottom subcell absorbs" behavior when this top-level row is the bottom edge
+          // of the anchor cell (i.e. the dragged boundary is the cell's bottom border).
+          const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
+          const cellEndRow = r + rowSpan - 1;
+          if (cellEndRow !== topRowIndex) continue;
+
+          const oldSpanPx = Math.max(0, sumRange(rowHeights, r, Math.min(rowCount - 1, cellEndRow)));
+          if (!Number.isFinite(oldSpanPx) || oldSpanPx <= 0) continue;
+
+          const newSpanPx = oldSpanPx + add;
+          if (!Number.isFinite(newSpanPx) || newSpanPx <= 0) continue;
+
+          this.adjustSplitFractionsRecursive(cell, oldSpanPx, newSpanPx);
+        }
+      }
+
+      return next;
+    });
+  }
+
+  /**
+   * Recursively adjust split row fractions for a cell and its nested splits.
+   * Keeps all subcells except the last one at their pixel size; the last subcell absorbs the delta.
+   */
+  private adjustSplitFractionsRecursive(cell: TableCell, oldContainerHeightPx: number, newContainerHeightPx: number): void {
+    if (!cell.split) return;
+
+    const split = cell.split;
+    const splitRows = Math.max(1, split.rows);
+    const splitCols = Math.max(1, split.cols);
+
+    if (splitRows <= 1) {
+      // Only one row in split - check nested splits in all cells
+      for (const childCell of split.cells) {
+        if (childCell?.split) {
+          this.adjustSplitFractionsRecursive(childCell, oldContainerHeightPx, newContainerHeightPx);
+        }
+      }
+      return;
+    }
+
+    const oldH = Number.isFinite(oldContainerHeightPx) ? oldContainerHeightPx : 0;
+    const newH = Number.isFinite(newContainerHeightPx) ? newContainerHeightPx : 0;
+    if (oldH <= 0 || newH <= 0) return;
+
+    // Deterministic: keep all split rows except the last at their current pixel heights.
+    // The last split row absorbs the full delta (so A stays fixed and only B changes).
+    const currentFractions = this.normalizeFractions(split.rowFractions ?? [], splitRows);
+    const oldRowPx = currentFractions.map((f) => f * oldH);
+
+    const lastRowIdx = splitRows - 1;
+    const fixedPx = oldRowPx
+      .slice(0, lastRowIdx)
+      .reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
+
+    const minLastPx = this.minSplitRowPx;
+    const newLastPx = newH - fixedPx;
+
+    // Safety: if we'd force the bottom row below minimum, do nothing.
+    // The top-level row clamp should prevent this, so hitting this means the caller allowed over-shrinking.
+    if (!Number.isFinite(newLastPx) || newLastPx < minLastPx) return;
+
+    const newRowPx = [...oldRowPx];
+    newRowPx[lastRowIdx] = newLastPx;
+
+    const nextFractions = newRowPx.map((px) => px / newH);
+    split.rowFractions = this.normalizeFractions(nextFractions, splitRows);
+
+    // Recursively process nested splits
+    // For the last row's cells, pass the updated height; for others, height is unchanged
+    for (let i = 0; i < split.cells.length; i++) {
+      const childCell = split.cells[i];
+      if (!childCell?.split) continue;
+
+      const childRow = Math.floor(i / splitCols);
+      const childRowSpan = Math.max(1, childCell.merge?.rowSpan ?? 1);
+      const childEndRow = childRow + childRowSpan - 1;
+
+      // Calculate this child's old and new heights based on its row span
+      let childOldHeight = 0;
+      let childNewHeight = 0;
+      for (let rr = childRow; rr <= childEndRow && rr < splitRows; rr++) {
+        childOldHeight += oldRowPx[rr];
+        childNewHeight += newRowPx[rr];
+      }
+
+      // Only recurse if this child's bottom touches the split's bottom (last row)
+      if (childEndRow === lastRowIdx && childOldHeight > 0 && childNewHeight > 0) {
+        this.adjustSplitFractionsRecursive(childCell, childOldHeight, childNewHeight);
+      }
+    }
+  }
+
   private captureCaretForResize(): void {
     const activeEl = document.activeElement as HTMLElement | null;
     if (!activeEl) {
@@ -4885,6 +5017,52 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const safeScale = Math.max(0.1, Number.isFinite(zoomScale) ? zoomScale : 1);
 
+    const parseGridRowStart0 = (el: HTMLElement): number | null => {
+      const raw = el.style.gridRowStart || window.getComputedStyle(el).gridRowStart;
+      const n = Number.parseInt((raw ?? '').toString(), 10);
+      if (!Number.isFinite(n)) return null;
+      return Math.max(0, n - 1);
+    };
+
+    const parseGridRowSpan = (el: HTMLElement): number => {
+      const raw = (el.style.gridRowEnd || window.getComputedStyle(el).gridRowEnd || '').toString().trim();
+      const m = raw.match(/^span\s+(\d+)$/);
+      const span = m ? Number.parseInt(m[1], 10) : 1;
+      return Number.isFinite(span) && span > 0 ? span : 1;
+    };
+
+    /**
+     * Returns true if the leaf sits in the "bottom-resize chain" of split grids, i.e.
+     * at every split level, the containing sub-cell touches the bottom row of that split grid.
+     *
+     * Under our main-row resize policy, only this chain changes height; everything else stays fixed.
+     */
+    const isLeafInBottomResizeChain = (leafEl: HTMLElement): boolean => {
+      let node: HTMLElement | null = leafEl;
+      for (let guard = 0; guard < 12; guard++) {
+        const subCellEl = node?.closest?.('.table-widget__sub-cell') as HTMLElement | null;
+        if (!subCellEl) return true; // no more split levels
+
+        const gridEl = subCellEl.closest?.('.table-widget__split-grid') as HTMLElement | null;
+        if (!gridEl) return false;
+
+        const ownerLeafId = gridEl.getAttribute('data-owner-leaf') ?? '';
+        const ownerCell = ownerLeafId ? this.getCellModelByLeafId(ownerLeafId) : null;
+        const rowsCount = Math.max(1, ownerCell?.split?.rows ?? 0);
+        if (!Number.isFinite(rowsCount) || rowsCount <= 0) return false;
+
+        const start0 = parseGridRowStart0(subCellEl);
+        if (start0 === null) return false;
+        const span = parseGridRowSpan(subCellEl);
+        const end0 = start0 + span - 1;
+        if (end0 !== rowsCount - 1) return false;
+
+        // Move outward: if this split grid is nested, its container is a parent sub-cell in the next loop.
+        node = gridEl;
+      }
+      return true;
+    };
+
     const sumRange = (arr: number[], start: number, endInclusive: number): number => {
       let sum = 0;
       for (let i = start; i <= endInclusive; i++) sum += arr[i] ?? 0;
@@ -4917,6 +5095,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         if (leafEls.length === 0) continue;
 
         let requiredOwnerSpanPx = 0;
+
+        // If this anchor cell's bottom aligns with the resized row boundary and it is split,
+        // then our resize policy is: fixed split rows stay fixed, and only the bottom-most split row changes.
+        // This must be reflected in the min-height clamp; otherwise shrinking will feel "sticky" or oscillate.
+        const isBottomAlignedAnchor = endRow === topRowIndex;
+        if (isBottomAlignedAnchor && cell.split) {
+          const splitRows = Math.max(1, cell.split.rows);
+          if (splitRows > 1) {
+            const rowF = this.normalizeFractions(cell.split.rowFractions ?? [], splitRows);
+            const fixedFrac = rowF.slice(0, splitRows - 1).reduce((a, b) => a + b, 0);
+            const fixedPx = fixedFrac * oldSpanPx;
+            const baseline = fixedPx + this.minSplitRowPx;
+            if (Number.isFinite(baseline)) {
+              requiredOwnerSpanPx = Math.max(requiredOwnerSpanPx, baseline);
+            }
+          }
+        }
+
         for (const leafEl of leafEls) {
           // Ignore empty placeholders so empty cells don't block manual shrinking.
           if (this.normalizeEditorHtmlForModel(leafEl.innerHTML) === '') continue;
@@ -4939,7 +5135,25 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
           }
           if (!Number.isFinite(visibleH) || visibleH <= 0) continue;
 
-          // Proportion of owner span currently allocated to this clip container.
+          // Special handling for split-cells when resizing the anchor's bottom border:
+          // non-bottom split rows remain fixed, so only leaves in the bottom chain actually shrink/grow.
+          if (isBottomAlignedAnchor && cell.split && !!leafEl.closest('.table-widget__sub-cell')) {
+            if (!isLeafInBottomResizeChain(leafEl)) {
+              // This leaf sits in a fixed (non-bottom) split row; it won't shrink during main-row resize.
+              // Do not let it restrict shrinking.
+              continue;
+            }
+
+            // Bottom-chain leaves change height 1:1 with the anchor span height (fixed offset + delta).
+            // Minimum anchor span that keeps this leaf visible: oldSpan + (needed - visible).
+            const requiredSpanForLeaf = oldSpanPx + (neededH - visibleH);
+            if (Number.isFinite(requiredSpanForLeaf)) {
+              requiredOwnerSpanPx = Math.max(requiredOwnerSpanPx, requiredSpanForLeaf);
+            }
+            continue;
+          }
+
+          // Default proportional clamp (legacy behavior): leaf height shrinks in proportion to the owner span.
           const p = oldSpanPx > 0 ? visibleH / oldSpanPx : 1;
           const eps = 0.02;
           const requiredSpanForLeaf = neededH / Math.max(eps, p);
@@ -5892,6 +6106,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
         const next = newRowHeightsPx.map((px) => px / newTableHeightPx);
         this.rowFractions.set(this.normalizeFractions(next, next.length));
+
+        // Adjust split row fractions so only the last subcell (B) changes, not A.
+        // This ensures that when resizing the main row border, inner split subcells
+        // maintain their pixel heights except for the bottom-most one.
+        this.adjustSplitRowFractionsForTopLevelRowResize(topIdx, oldRowHeightsPx, appliedDeltaPx);
 
         // Update the widget size (draft + commit).
         this.growWidgetSizeBy(0, appliedDeltaPx);
