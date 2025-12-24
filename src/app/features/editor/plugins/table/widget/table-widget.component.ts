@@ -792,6 +792,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.editingChange.emit(true);
       this.pendingChangesRegistry.register(this);
     }
+
+    // If the cell is visually empty, ensure there's a caret-friendly text node.
+    this.ensureCaretPlaceholderForEmptyCell(cell);
   }
 
   onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
@@ -1632,7 +1635,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   wrapCellHtmlForVerticalAlign(html: string): string {
     // Avoid double-wrapping if content already contains our wrapper.
-    if (!html) return '<div class="table-widget__valign">&nbsp;</div>';
+    if (!html) return '<div class="table-widget__valign"></div>';
     if (html.includes('table-widget__valign')) return html;
     return `<div class="table-widget__valign">${html}</div>`;
   }
@@ -1645,13 +1648,37 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const wrapper = container.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
       if (!wrapper) return html;
       const inner = wrapper.innerHTML;
-      // If wrapper only contains a placeholder NBSP, persist as truly empty.
-      if (inner === '&nbsp;' || inner === '\u00a0' || inner.trim() === '') {
+      // If wrapper only contains placeholder whitespace (including ZWSP), persist as truly empty.
+      const cleaned = (inner ?? '')
+        .replace(/\u200B/g, '')
+        .replace(/&ZeroWidthSpace;|&#8203;|&#x200B;/gi, '')
+        .replace(/<br\s*\/?\s*>/gi, '')
+        .trim();
+      if (cleaned === '' || cleaned === '&nbsp;' || cleaned === '\u00a0') {
         return '';
       }
       return inner;
     } catch {
       return html;
+    }
+  }
+
+  private ensureCaretPlaceholderForEmptyCell(el: HTMLElement): void {
+    const wrapper = el.querySelector(':scope > .table-widget__valign') as HTMLElement | null;
+    if (!wrapper) return;
+
+    // If wrapper has no real content, insert a <br> placeholder so caret stays inside.
+    // This is a standard contenteditable empty state and is stripped during sync/unwrapping.
+    const html = (wrapper.innerHTML ?? '').trim();
+    const cleaned = html
+      .replace(/\u200B/g, '')
+      .replace(/&ZeroWidthSpace;|&#8203;|&#x200B;/gi, '')
+      .replace(/&nbsp;|\u00a0/gi, '')
+      .replace(/<br\s*\/?\s*>/gi, '')
+      .trim();
+
+    if (cleaned === '') {
+      wrapper.innerHTML = '<br>';
     }
   }
 
@@ -4177,11 +4204,138 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   // Column/Row resize (persisted + zoom-safe)
   // ============================================
 
+  private savedCaretDuringResize:
+    | {
+        leafId: string;
+        anchorPath: number[];
+        anchorOffset: number;
+        focusPath: number[];
+        focusOffset: number;
+        isCollapsed: boolean;
+      }
+    | null = null;
+
+  private captureCaretForResize(): void {
+    const activeEl = document.activeElement as HTMLElement | null;
+    if (!activeEl) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    const contentEl = activeEl.closest?.('.table-widget__cell-content') as HTMLElement | null;
+    if (!contentEl) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    const leafId = contentEl.getAttribute('data-leaf');
+    if (!leafId) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    const sel = window.getSelection?.();
+    if (!sel || sel.rangeCount === 0) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    const anchorNode = sel.anchorNode;
+    const focusNode = sel.focusNode;
+    if (!anchorNode || !focusNode) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    if (!contentEl.contains(anchorNode) || !contentEl.contains(focusNode)) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    const anchorPath = this.getNodePath(contentEl, anchorNode);
+    const focusPath = this.getNodePath(contentEl, focusNode);
+    if (!anchorPath || !focusPath) {
+      this.savedCaretDuringResize = null;
+      return;
+    }
+
+    this.savedCaretDuringResize = {
+      leafId,
+      anchorPath,
+      anchorOffset: sel.anchorOffset,
+      focusPath,
+      focusOffset: sel.focusOffset,
+      isCollapsed: sel.isCollapsed,
+    };
+  }
+
+  private restoreCaretAfterResize(): void {
+    const saved = this.savedCaretDuringResize;
+    this.savedCaretDuringResize = null;
+    if (!saved) return;
+
+    window.setTimeout(() => {
+      const container = this.tableContainer?.nativeElement;
+      const el = container?.querySelector(`.table-widget__cell-content[data-leaf="${saved.leafId}"]`) as HTMLElement | null;
+      if (!el) return;
+
+      const anchorNode = this.resolveNodePath(el, saved.anchorPath);
+      const focusNode = saved.isCollapsed ? anchorNode : this.resolveNodePath(el, saved.focusPath);
+      if (!anchorNode || !focusNode) {
+        el.focus();
+        return;
+      }
+
+      const range = document.createRange();
+      range.setStart(anchorNode, this.clampOffset(anchorNode, saved.anchorOffset));
+      range.setEnd(focusNode, this.clampOffset(focusNode, saved.isCollapsed ? saved.anchorOffset : saved.focusOffset));
+
+      const sel = window.getSelection?.();
+      if (!sel) return;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      el.focus();
+    }, 0);
+  }
+
+  private getNodePath(root: Node, node: Node): number[] | null {
+    const path: number[] = [];
+    let cur: Node | null = node;
+    while (cur && cur !== root) {
+      const parentNode: Node | null = cur.parentNode;
+      if (!parentNode) return null;
+      const idx = Array.prototype.indexOf.call(parentNode.childNodes, cur);
+      if (idx < 0) return null;
+      path.push(idx);
+      cur = parentNode;
+    }
+    if (cur !== root) return null;
+    return path.reverse();
+  }
+
+  private resolveNodePath(root: Node, path: number[]): Node | null {
+    let cur: Node | null = root;
+    for (const idx of path) {
+      if (!cur || !cur.childNodes || idx < 0 || idx >= cur.childNodes.length) return null;
+      cur = cur.childNodes[idx];
+    }
+    return cur;
+  }
+
+  private clampOffset(node: Node, offset: number): number {
+    const o = Math.max(0, Math.trunc(offset));
+    if (node.nodeType === Node.TEXT_NODE) {
+      return Math.min(o, (node.textContent ?? '').length);
+    }
+    return Math.min(o, node.childNodes?.length ?? 0);
+  }
+
   onColResizePointerDown(event: PointerEvent, boundaryIndex: number): void {
     event.preventDefault();
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.captureCaretForResize();
     this.syncCellContent();
 
     const cols = this.getTopLevelColCount(this.localRows());
@@ -4221,6 +4375,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.captureCaretForResize();
     this.syncCellContent();
 
     const rows = this.getTopLevelRowCount(this.localRows());
@@ -4282,6 +4437,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.captureCaretForResize();
     this.syncCellContent();
 
     const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
@@ -4340,6 +4496,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     event.stopPropagation();
     if (this.isResizingGrid || this.isResizingSplitGrid) return;
 
+    this.captureCaretForResize();
     this.syncCellContent();
 
     const ownerLeafId = this.composeOwnerLeafId(rowIndex, cellIndex, path);
@@ -4457,6 +4614,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.activeSplitResize = null;
     this.teardownSplitResizeListeners();
     this.cdr.markForCheck();
+    this.restoreCaretAfterResize();
   }
 
   private handleSplitResizePointerMove = (event: PointerEvent): void => {
@@ -4783,6 +4941,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.teardownGridResizeListeners();
     this.cdr.markForCheck();
     this.scheduleRecomputeResizeSegments();
+    this.restoreCaretAfterResize();
   };
 
   private getTableRect(): DOMRect | null {

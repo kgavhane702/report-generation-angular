@@ -119,10 +119,8 @@
       background: rgba(25, 118, 210, 0.04);
     }
 
-    &:empty::before {
-      content: '\00a0';
-      color: transparent;
-    }
+    // Note: do not use NBSP placeholders here; caret stabilization is handled
+    // via inner wrapper min-height and focus-time ZWSP injection (stripped on sync).
 
     // Style lists inside table cells
     ul, ol {
