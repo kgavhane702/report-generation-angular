@@ -33,5 +33,45 @@ describe('TableWidgetComponent - editor HTML normalization', () => {
   });
 });
 
+describe('TableWidgetComponent - import sizing helpers', () => {
+  it('allocates more width to a column with longer content when extra space is available', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+    const rows = [
+      {
+        id: 'r-0',
+        cells: [
+          { id: '0-0', contentHtml: 'Short' },
+          { id: '0-1', contentHtml: 'This is a much longer value than the first column' },
+        ],
+      },
+    ];
+
+    const fractions: number[] = c.computeImportColumnFractionsFromRows(rows, 40, 400);
+    expect(Array.isArray(fractions)).toBe(true);
+    expect(fractions.length).toBe(2);
+    expect(fractions[1]).toBeGreaterThan(fractions[0]);
+    expect(fractions.reduce((a: number, b: number) => a + b, 0)).toBeCloseTo(1, 6);
+  });
+
+  it('falls back to equal fractions when there is no extra width beyond the min column widths', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+    const rows = [
+      {
+        id: 'r-0',
+        cells: [
+          { id: '0-0', contentHtml: 'Short' },
+          { id: '0-1', contentHtml: 'This is a much longer value than the first column' },
+        ],
+      },
+    ];
+
+    // 2 cols * 40px min => 80px total, no extra width to distribute.
+    const fractions: number[] = c.computeImportColumnFractionsFromRows(rows, 40, 80);
+    expect(fractions.length).toBe(2);
+    expect(fractions[0]).toBeCloseTo(0.5, 6);
+    expect(fractions[1]).toBeCloseTo(0.5, 6);
+  });
+});
+
 
 

@@ -22,7 +22,13 @@ import {
 import { Subscription } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 import type { GhostColLine, GhostRowLine } from './resize/table-resize-overlay.component';
-import { TABLE_MIN_COL_PX, TABLE_MIN_ROW_PX, TABLE_MIN_SPLIT_COL_PX, TABLE_MIN_SPLIT_ROW_PX } from '../table-constants';
+import {
+  TABLE_INITIAL_ROW_PX,
+  TABLE_MIN_COL_PX,
+  TABLE_MIN_ROW_PX,
+  TABLE_MIN_SPLIT_COL_PX,
+  TABLE_MIN_SPLIT_ROW_PX,
+} from '../table-constants';
 
 import {
   TableWidgetProps,
@@ -670,20 +676,148 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       })),
     }));
 
+    // Reset transient UI state that may now point at non-existent leaves.
+    this.clearSelection();
+    this.activeCellElement = null;
+    this.activeCellId = null;
+    this.toolbarService.setActiveCell(null, this.widget.id);
+    this.manualTopLevelRowMinHeightsPx = [];
+
     this.localRows.set(this.cloneRows(rows));
     this.rowsAtEditStart = this.cloneRows(rows);
 
+    const rowCount = this.getTopLevelRowCount(rows);
+    const colCount = this.getTopLevelColCount(rows);
+
+    // Ensure the widget is large enough so imported tables don't start out with "microscopic" rows/cols.
+    // This also avoids the AutoFit loop having to fix dozens of rows one-by-one.
+    const curW = this.widget?.size?.width ?? 0;
+    const curH = this.widget?.size?.height ?? 0;
+    const minW = Math.max(20, colCount * this.minColPx);
+    // Use the same baseline row height as a freshly inserted table so single-line imports fit immediately.
+    const baselineRowPx = Math.max(this.minRowPx, TABLE_INITIAL_ROW_PX);
+    const minH = Math.max(20, rowCount * baselineRowPx);
+    const targetW = Math.max(curW, minW);
+    const targetH = Math.max(curH, minH);
+    const dw = targetW - curW;
+    const dh = targetH - curH;
+    if ((dw !== 0 || dh !== 0) && Number.isFinite(dw) && Number.isFinite(dh)) {
+      // Draft-only for now: committing size updates the store and would trigger ngOnChanges.
+      // We must persist the imported rows/fractions first, otherwise the widget would re-render with the old (empty) props.
+      this.growWidgetSizeBy(dw, dh, { commit: false });
+    }
+
+    // Apply a content-weighted column distribution so long-text columns get more room
+    // (reduces wrapping and the need for manual column dragging after import).
+    const nextColFractions = this.computeImportColumnFractionsFromRows(rows, this.minColPx, targetW);
+    const nextRowFractions = Array.from({ length: rowCount }, () => 1 / rowCount);
+    const normalizedCols = this.normalizeFractions(nextColFractions, colCount);
+    const normalizedRows = this.normalizeFractions(nextRowFractions, rowCount);
+    this.columnFractions.set(normalizedCols);
+    this.rowFractions.set(normalizedRows);
+
+    // Persist imported rows + sizing to the document model immediately.
+    // (This ensures a subsequent store-driven widget update doesn't overwrite the imported content.)
     this.propsChange.emit({
       rows,
-      columnFractions: req.columnFractions,
-      rowFractions: req.rowFractions,
       mergedRegions: [],
+      columnFractions: normalizedCols,
+      rowFractions: normalizedRows,
     });
 
-    this.columnFractions.set(req.columnFractions);
-    this.rowFractions.set(req.rowFractions);
+    // Now commit any draft size we applied above (if any).
+    queueMicrotask(() => {
+      if (this.draftState.hasDraft(this.widget.id)) {
+        this.draftState.commitDraft(this.widget.id);
+      }
+    });
+
     this.scheduleRecomputeResizeSegments();
     this.cdr.markForCheck();
+
+    // Run a deterministic AutoFit pass AFTER the DOM updates so no imported content is clipped.
+    // (Uses the same proven flow as post-column-resize, but triggered on import.)
+    window.requestAnimationFrame(() => {
+      this.startAutoFitAfterTopColResize();
+    });
+  }
+
+  private computeImportColumnFractionsFromRows(rows: TableRow[], minColPx: number, tableWidthPx: number): number[] {
+    const colCount = this.getTopLevelColCount(rows);
+    const safeMinColPx = Math.max(1, Math.round(Number.isFinite(minColPx) ? minColPx : 40));
+    const safeW = Math.max(colCount * safeMinColPx, Math.round(Number.isFinite(tableWidthPx) ? tableWidthPx : 0));
+    if (!Number.isFinite(safeW) || safeW <= 0) {
+      return Array.from({ length: colCount }, () => 1 / colCount);
+    }
+
+    // Base weight = 1 so empty columns still get a share of the width.
+    const weights = Array.from({ length: colCount }, () => 1);
+
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      const cells = row?.cells ?? [];
+      for (let c = 0; c < Math.min(colCount, cells.length); c++) {
+        const cell = cells[c];
+        if (!cell || cell.coveredBy) continue;
+
+        const span = Math.max(1, Math.trunc(cell.merge?.colSpan ?? 1));
+        const raw = this.htmlToPlainTextForSizing(cell.contentHtml ?? '');
+        const text = (raw ?? '').trim();
+        if (!text) continue;
+
+        const score = this.computeTextSizingScore(text);
+        // Compress extremes so one giant paragraph doesn't steal all width.
+        const weight = Math.max(1, Math.sqrt(score + 1));
+        const per = weight / span;
+        const end = Math.min(colCount - 1, c + span - 1);
+        for (let cc = c; cc <= end; cc++) {
+          weights[cc] = Math.max(weights[cc] ?? 1, per);
+        }
+      }
+    }
+
+    const sumW = weights.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+    if (!Number.isFinite(sumW) || sumW <= 0) {
+      return Array.from({ length: colCount }, () => 1 / colCount);
+    }
+
+    const baseTotal = colCount * safeMinColPx;
+    const extra = Math.max(0, safeW - baseTotal);
+    const widthsPx = weights.map((w) => safeMinColPx + extra * (w / sumW));
+    const fractions = widthsPx.map((px) => px / safeW);
+    return this.normalizeFractions(fractions, colCount);
+  }
+
+  private htmlToPlainTextForSizing(html: string): string {
+    const raw = (html ?? '').toString();
+    if (!raw) return '';
+    try {
+      // Preserve <br> as a measurable newline.
+      const withBreaks = raw.replace(/<br\s*\/?>/gi, '\n');
+      const el = document.createElement('div');
+      el.innerHTML = withBreaks;
+      return (el.textContent ?? '').replace(/\r\n/g, '\n');
+    } catch {
+      return raw.replace(/<[^>]+>/g, ' ');
+    }
+  }
+
+  private computeTextSizingScore(text: string): number {
+    const s = (text ?? '').toString();
+    if (!s) return 0;
+    const lines = s.split('\n');
+    let maxLine = 0;
+    for (const line of lines) {
+      maxLine = Math.max(maxLine, (line ?? '').length);
+    }
+
+    const words = s.split(/\s+/).filter(Boolean);
+    let maxWord = 0;
+    for (const w of words) {
+      maxWord = Math.max(maxWord, (w ?? '').length);
+    }
+
+    return Math.max(maxLine, maxWord, s.length > 0 ? 1 : 0);
   }
 
   /** Activate/select the table widget without focusing any cell (PPT-like). */
