@@ -73,6 +73,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly minSplitColPx = 24;
   private readonly minSplitRowPx = 18;
 
+  /**
+   * Manual top-level row minimum heights (in widget layout px).
+   * When set (>0), live auto-fit will NOT shrink the row below this value (PPT-like behavior).
+   *
+   * NOTE: This is in-memory (non-persisted). It is updated only by manual row-resize interactions.
+   */
+  private manualTopLevelRowMinHeightsPx: number[] = [];
+
+  private autoFitRowHeightRaf: number | null = null;
+
   @Input({ required: true }) widget!: WidgetModel;
 
   @Output() editingChange = new EventEmitter<boolean>();
@@ -768,6 +778,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.teardownGridResizeListeners();
     this.teardownSplitResizeListeners();
 
+    if (this.autoFitRowHeightRaf !== null) {
+      cancelAnimationFrame(this.autoFitRowHeightRaf);
+      this.autoFitRowHeightRaf = null;
+    }
+
     if (this.postCommitTopColResizeRaf !== null) {
       cancelAnimationFrame(this.postCommitTopColResizeRaf);
       this.postCommitTopColResizeRaf = null;
@@ -919,6 +934,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const el = event.target as HTMLElement | null;
     if (el) {
       this.maybeAutoGrowToFit(el, rowIndex, cellIndex, leafPath);
+      this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);
     }
 
     this.cdr.markForCheck();
@@ -1071,6 +1087,119 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Order matters: fractions are computed using the *current* widget height.
     this.growTopLevelRowSpanFractions(rowIndex, rowSpan, appliedDeltaPx, oldWidgetHeightPx);
     this.scheduleRecomputeResizeSegments();
+  }
+
+  private ensureManualTopLevelRowMinHeightsPx(rowCount: number): number[] {
+    const n = Math.max(1, Math.trunc(rowCount));
+    const cur = Array.isArray(this.manualTopLevelRowMinHeightsPx) ? this.manualTopLevelRowMinHeightsPx : [];
+    if (cur.length === n) return cur;
+    const next = cur.slice(0, n);
+    while (next.length < n) next.push(0);
+    this.manualTopLevelRowMinHeightsPx = next;
+    return next;
+  }
+
+  private setManualTopLevelRowMinHeightPx(rowIndex: number, heightPx: number): void {
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const mins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+
+    const i = Math.max(0, Math.min(rowCount - 1, Math.trunc(rowIndex)));
+    const h = Number.isFinite(heightPx) ? Math.max(this.minRowPx, Math.round(heightPx)) : this.minRowPx;
+    mins[i] = h;
+    // Assign back for clarity (array is already mutated).
+    this.manualTopLevelRowMinHeightsPx = mins;
+  }
+
+  private scheduleAutoShrinkToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number, leafPath?: string): void {
+    if (this.autoFitRowHeightRaf !== null) {
+      cancelAnimationFrame(this.autoFitRowHeightRaf);
+      this.autoFitRowHeightRaf = null;
+    }
+
+    this.autoFitRowHeightRaf = window.requestAnimationFrame(() => {
+      this.autoFitRowHeightRaf = null;
+      this.maybeAutoShrinkToFit(contentEl, rowIndex, cellIndex, leafPath);
+    });
+  }
+
+  private maybeAutoShrinkToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number, leafPath?: string): void {
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    const oldWidgetHeightPx = this.widget?.size?.height ?? 0;
+    if (!Number.isFinite(oldWidgetHeightPx) || oldWidgetHeightPx <= 0) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+
+    // Fast-path: if the active editor isn't showing extra vertical space, skip the expensive scan.
+    const isLeaf = !!(leafPath && leafPath.trim() !== '');
+    const clipEl =
+      (isLeaf
+        ? (contentEl.closest('.table-widget__sub-cell') as HTMLElement | null)
+        : (contentEl.closest('.table-widget__cell') as HTMLElement | null)) ?? contentEl;
+
+    let visibleH = clipEl.clientHeight;
+    if (!Number.isFinite(visibleH) || visibleH <= 0) {
+      visibleH = Math.max(1, clipEl.getBoundingClientRect().height / zoomScale);
+    }
+
+    const neededH = Math.max(contentEl.scrollHeight || 0, contentEl.clientHeight || 0, contentEl.offsetHeight || 0);
+    if (!Number.isFinite(visibleH) || !Number.isFinite(neededH) || visibleH <= 0 || neededH <= 0) return;
+
+    const slack = visibleH - neededH;
+    // Small tolerance to avoid 1px oscillation due to rounding and font metrics.
+    if (slack <= 6) return;
+
+    const topRowIndex = Math.max(0, Math.min(rowCount - 1, Math.trunc(rowIndex)));
+
+    // Content-based clamp (expensive but correct): compute the minimum allowed row height so shrinking doesn't hide content.
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const oldRowHeightsPx = baseFractions.map((f) => f * oldWidgetHeightPx);
+    const minContentPx = this.computeMinTopLevelRowHeightPx(topRowIndex, oldRowHeightsPx, zoomScale);
+
+    // Manual clamp: if the user resized this row, do not auto-shrink below their chosen height.
+    const mins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+    const manualMinPx = mins[topRowIndex] ?? 0;
+
+    const minAllowedPx = Math.max(this.minRowPx, minContentPx, manualMinPx);
+    const curRowPx = oldRowHeightsPx[topRowIndex] ?? 0;
+    const availableShrinkPx = curRowPx - minAllowedPx;
+    if (!Number.isFinite(availableShrinkPx) || availableShrinkPx <= 0.5) return;
+
+    const stepPx = 8;
+    const maxPerTickPx = 600;
+    const desiredShrinkPx = Math.min(maxPerTickPx, Math.floor(availableShrinkPx / stepPx) * stepPx);
+    if (!Number.isFinite(desiredShrinkPx) || desiredShrinkPx <= 0) return;
+
+    // Don't shrink the widget below its hard minimum.
+    const maxShrinkByWidget = Math.max(0, oldWidgetHeightPx - 20);
+    const shrinkPx = Math.min(desiredShrinkPx, maxShrinkByWidget);
+    if (shrinkPx <= 0) return;
+
+    // Shrink the widget FIRST (draft-only) so non-target rows don't visually grow.
+    const shrinkResult = this.growWidgetSizeBy(0, -shrinkPx, { commit: false });
+    const appliedDeltaPx = shrinkResult?.appliedHeightPx ?? 0; // negative
+    const appliedShrinkPx = -appliedDeltaPx;
+    if (!Number.isFinite(appliedShrinkPx) || appliedShrinkPx <= 0.1) return;
+
+    const newWidgetHeightPx = Math.max(20, oldWidgetHeightPx - appliedShrinkPx);
+
+    // Keep other row pixel sizes stable, and shrink only the active top-level row.
+    const newRowHeightsPx = [...oldRowHeightsPx];
+    newRowHeightsPx[topRowIndex] = Math.max(0, curRowPx - appliedShrinkPx);
+    const nextFractions = newRowHeightsPx.map((px) => px / newWidgetHeightPx);
+    this.rowFractions.set(this.normalizeFractions(nextFractions, nextFractions.length));
+    this.previewRowFractions.set(null);
+
+    // Keep split behavior consistent with main-row resize (only bottom-most subcell changes).
+    this.adjustSplitRowFractionsForTopLevelRowResize(topRowIndex, oldRowHeightsPx, -appliedShrinkPx);
+
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
   }
 
   private roundUpPx(v: number, step: number): number {
@@ -6150,6 +6279,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const newTableHeightPx = Math.max(20, r.tableHeightPx + appliedDeltaPx);
         const newRowHeightsPx = [...oldRowHeightsPx];
         newRowHeightsPx[topIdx] = Math.max(0, oldTopPx + appliedDeltaPx);
+
+        // Manual row resize should prevent live auto-fit from shrinking below the user's chosen height.
+        this.setManualTopLevelRowMinHeightPx(topIdx, newRowHeightsPx[topIdx]);
 
         const next = newRowHeightsPx.map((px) => px / newTableHeightPx);
         this.rowFractions.set(this.normalizeFractions(next, next.length));
