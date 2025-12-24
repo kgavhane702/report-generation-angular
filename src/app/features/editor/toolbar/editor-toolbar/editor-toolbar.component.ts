@@ -7,12 +7,11 @@ import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { ExportService } from '../../../../core/services/export.service';
 import { ImportService } from '../../../../core/services/import.service';
-import { TableImportService } from '../../../../core/services/table-import.service';
 import { PdfService } from '../../../../core/services/pdf.service';
 import { PendingChangesRegistry } from '../../../../core/services/pending-changes-registry.service';
 import { WidgetType, TableRow, TableCell } from '../../../../models/widget.model';
 import { TableDimensions } from '../../plugins/table/ui/table-grid-selector/table-grid-selector.component';
-import { TableToolbarService } from '../../../../core/services/table-toolbar.service';
+import { TableFileImportFacade } from '../../../../core/tabular-import/facades/table-file-import.facade';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 
@@ -28,10 +27,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly editorState = inject(EditorStateService);
   private readonly exportService = inject(ExportService);
   private readonly importService = inject(ImportService);
-  private readonly tableImport = inject(TableImportService);
   private readonly pdfService = inject(PdfService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
-  private readonly tableToolbar = inject(TableToolbarService);
+  private readonly tableFileImport = inject(TableFileImportFacade);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
   private readonly store = inject(Store<AppState>);
@@ -81,45 +79,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   onTableImportExcel(file: File): void {
-    const pageId = this.editorState.activePageId();
-    if (!pageId) {
-      return;
-    }
-
-    this.tableImport.importExcel(file).subscribe({
-      next: (resp) => {
-        // Create the widget immediately so user sees the table, then run the same AutoFit import pipeline
-        // inside `TableWidgetComponent` for perfect fitting.
-        const widget = this.widgetFactory.createWidget('table', {
-          rows: resp.rows,
-          columnFractions: resp.columnFractions,
-          rowFractions: resp.rowFractions,
-        } as any);
-
-        this.documentService.addWidget(pageId, widget);
-        this.editorState.setActiveWidget(widget.id);
-
-        const req = {
-          widgetId: widget.id,
-          rows: resp.rows,
-          columnFractions: resp.columnFractions,
-          rowFractions: resp.rowFractions,
-        };
-
-        // Ensure the table widget component is mounted before emitting (Subject is not replayed).
-        // Two RAFs is a cheap, robust way to wait for the next paint.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            this.tableToolbar.requestImportTableFromExcel(req);
-          });
-        });
-      },
-      error: (err) => {
-        // eslint-disable-next-line no-console
-        console.error('Excel import failed', err);
-        alert('Excel import failed. Please verify the backend is running and the file is a valid .xlsx.');
-      },
-    });
+    this.tableFileImport.importExcel(file);
   }
 
   private createTableRows(rowCount: number, colCount: number): TableRow[] {
