@@ -57,4 +57,10 @@ export class TableImportService {
     form.append('file', file);
     return this.http.post<ApiResponseDto<TableImportResponseDto>>('/api/table/import/json', form);
   }
+
+  importXml(file: File): Observable<ApiResponseDto<TableImportResponseDto>> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<ApiResponseDto<TableImportResponseDto>>('/api/table/import/xml', form);
+  }
 }

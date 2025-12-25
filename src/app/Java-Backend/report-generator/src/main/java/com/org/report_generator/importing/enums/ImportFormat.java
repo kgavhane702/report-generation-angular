@@ -9,7 +9,8 @@ package com.org.report_generator.importing.enums;
 public enum ImportFormat {
     XLSX,
     CSV,
-    JSON
+    JSON,
+    XML
 }
 
 

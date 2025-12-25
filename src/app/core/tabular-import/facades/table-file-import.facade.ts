@@ -27,6 +27,10 @@ export class TableFileImportFacade {
       this.importJson(file);
       return;
     }
+    if (name.endsWith('.xml')) {
+      this.importXml(file);
+      return;
+    }
     if (name.endsWith('.csv')) {
       this.importCsv(file);
       return;
@@ -187,6 +191,56 @@ export class TableFileImportFacade {
             err?.error?.error?.message ||
             err?.error?.message ||
             'JSON import failed. Please verify the file is valid JSON.';
+          alert(msg);
+        },
+      });
+  }
+
+  importXml(file: File): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+
+    this.tableImport
+      .importXml(file)
+      .pipe(take(1))
+      .subscribe({
+        next: (resp) => {
+          if (!resp?.success || !resp.data) {
+            alert(resp?.error?.message || 'XML import failed');
+            return;
+          }
+          const data = resp.data;
+
+          const widget = this.widgetFactory.createWidget('table', {
+            rows: data.rows,
+            columnFractions: data.columnFractions,
+            rowFractions: data.rowFractions,
+          } as any);
+
+          this.documentService.addWidget(pageId, widget);
+          this.editorState.setActiveWidget(widget.id);
+          this.tableToolbar.setActiveTableWidget(widget.id);
+
+          const req = {
+            widgetId: widget.id,
+            rows: data.rows,
+            columnFractions: data.columnFractions,
+            rowFractions: data.rowFractions,
+          };
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              this.tableToolbar.requestImportTableFromExcel(req);
+            });
+          });
+        },
+        error: (err) => {
+          // eslint-disable-next-line no-console
+          console.error('XML import failed', err);
+          const msg =
+            err?.error?.error?.message ||
+            err?.error?.message ||
+            'XML import failed. Please verify the file is valid XML.';
           alert(msg);
         },
       });

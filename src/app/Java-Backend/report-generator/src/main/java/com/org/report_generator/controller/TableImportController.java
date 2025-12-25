@@ -173,4 +173,49 @@ public class TableImportController {
             throw e;
         }
     }
+
+    @PostMapping(
+            value = "/api/table/import/xml",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<TableImportResponse>> importXml(
+            @RequestParam("file") MultipartFile file
+    ) throws Exception {
+        long startTime = System.currentTimeMillis();
+        logger.info("XML table import request: file={}, size={} bytes",
+                file != null ? file.getOriginalFilename() : "null",
+                file != null ? file.getSize() : 0);
+
+        if (file == null || file.isEmpty()) {
+            logger.warn("XML import rejected: empty file");
+            throw new IllegalArgumentException("XML file is required");
+        }
+
+        if (file.getSize() > limitsConfig.getMaxFileSizeBytes()) {
+            logger.warn("XML import rejected: file size {} bytes exceeds limit {} bytes",
+                    file.getSize(), limitsConfig.getMaxFileSizeBytes());
+            throw new IllegalArgumentException(
+                    String.format("File size exceeds maximum limit: %d bytes > %d bytes",
+                            file.getSize(), limitsConfig.getMaxFileSizeBytes()));
+        }
+
+        try {
+            TableImportResponse response = tabularImportService.importForTarget(
+                    file,
+                    ImportFormat.XML,
+                    ImportTarget.TABLE,
+                    new ImportOptions(null, null),
+                    TableImportResponse.class
+            );
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("XML table import successful in {}ms: {} rows",
+                    duration, response.rows().size());
+            return ApiResponseEntity.ok(response);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error("XML table import failed after {}ms", duration, e);
+            throw e;
+        }
+    }
 }

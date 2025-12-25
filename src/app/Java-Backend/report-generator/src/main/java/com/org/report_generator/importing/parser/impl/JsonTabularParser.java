@@ -70,6 +70,16 @@ public class JsonTabularParser implements TabularParser {
             throw new IllegalArgumentException("Invalid JSON: " + e.getOriginalMessage());
         }
 
+        return parseNode(root);
+    }
+
+    /**
+     * Parse a JSON tree into a tabular dataset.
+     *
+     * Package-private so other parsers (e.g. XML) can reuse the same behavior
+     * (merge coverage, header merge inference, trimming, etc.) without duplicating logic.
+     */
+    TabularDataset parseNode(JsonNode root) {
         if (root == null || root.isNull()) {
             throw new IllegalArgumentException("Invalid JSON: empty payload");
         }
