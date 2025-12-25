@@ -27,7 +27,11 @@ import java.util.List;
  * CSV implementation of {@link TabularParser}.
  *
  * Notes:
- * - No merges are supported in CSV (merge/coveredBy will be null)
+ * - CSV cannot truly represent Excel merged cells. We apply a small heuristic for common "merged header"
+ *   exports from Excel where merged headers become blank cells:
+ *   - Horizontal: row 0 blank cells immediately after a header label (and with non-blank subheaders in row 1)
+ *     are treated as a colspan merge.
+ *   - Vertical: if row 1 cell is blank but row 0 has a label (and column has data below), treat as rowspan=2.
  * - Values are escaped to HTML because the Table widget model expects HTML content
  */
 @Component
@@ -126,14 +130,26 @@ public class CsvTabularParser implements TabularParser {
                 }
             }
 
-            List<TabularRow> rows = new ArrayList<>(trimmedRows);
+            // Build an editable matrix first so we can infer header merges (CSV has no real merge metadata).
+            String[][] rawMatrix = new String[trimmedRows][trimmedCols];
+            TabularCell[][] cellMatrix = new TabularCell[trimmedRows][trimmedCols];
             for (int r = 0; r < trimmedRows; r++) {
                 List<String> row = r < rawRows.size() ? rawRows.get(r) : List.of();
-                List<TabularCell> cells = new ArrayList<>(trimmedCols);
                 for (int c = 0; c < trimmedCols; c++) {
                     String v = c < row.size() ? row.get(c) : "";
-                    String html = escapeToHtml(v).replace("\n", "<br>");
-                    cells.add(new TabularCell(r + "-" + c, html, (TabularMerge) null, (CoveredBy) null));
+                    rawMatrix[r][c] = v == null ? "" : v;
+                    String html = escapeToHtml(rawMatrix[r][c]).replace("\n", "<br>");
+                    cellMatrix[r][c] = new TabularCell(r + "-" + c, html, null, null);
+                }
+            }
+
+            inferHeaderMerges(rawMatrix, cellMatrix);
+
+            List<TabularRow> rows = new ArrayList<>(trimmedRows);
+            for (int r = 0; r < trimmedRows; r++) {
+                List<TabularCell> cells = new ArrayList<>(trimmedCols);
+                for (int c = 0; c < trimmedCols; c++) {
+                    cells.add(cellMatrix[r][c]);
                 }
                 rows.add(new TabularRow("r-" + r, cells));
             }
@@ -143,6 +159,94 @@ public class CsvTabularParser implements TabularParser {
 
             return new TabularDataset(rows, colFractions, rowFractions);
         }
+    }
+
+    /**
+     * Infer simple header merges from blanks in the first two rows.
+     *
+     * Example (Excel-exported CSV):
+     *  Row0: "Employee ID,Personal Info,,Performance,,,Attendance,"
+     *  Row1: ",Name,Department,Q1,Q2,Q3,Present Days,Absent Days"
+     */
+    private static void inferHeaderMerges(String[][] rawMatrix, TabularCell[][] cells) {
+        if (rawMatrix == null || cells == null) return;
+        int rows = cells.length;
+        if (rows < 2) return;
+        int cols = cells[0].length;
+        if (cols <= 0) return;
+
+        // Horizontal merges in row 0 only: consecutive blank cells to the right of a label,
+        // but only when the next row has non-blank subheaders in those columns (reduces false positives).
+        int r = 0;
+        for (int c = 0; c < cols; c++) {
+            TabularCell anchor = cells[r][c];
+            if (anchor == null || anchor.coveredBy() != null) continue;
+            String v = safe(rawMatrix[r][c]);
+            if (v.trim().isEmpty()) continue;
+
+            int span = 1;
+            int cc = c + 1;
+            while (cc < cols) {
+                TabularCell next = cells[r][cc];
+                if (next == null || next.coveredBy() != null) break;
+
+                String vv = safe(rawMatrix[r][cc]);
+                if (!vv.trim().isEmpty()) break;
+
+                String below = safe(rawMatrix[1][cc]);
+                if (below.trim().isEmpty()) break;
+
+                span++;
+                cc++;
+            }
+
+            if (span > 1) {
+                TabularMerge merge = new TabularMerge(1, span);
+                cells[r][c] = new TabularCell(anchor.id(), anchor.contentHtml(), merge, null);
+                for (int k = 1; k < span; k++) {
+                    int col = c + k;
+                    TabularCell covered = cells[r][col];
+                    if (covered == null) continue;
+                    cells[r][col] = new TabularCell(covered.id(), "", null, new CoveredBy(r, c));
+                }
+            }
+        }
+
+        // Vertical merges between row 0 and row 1: if row 1 is blank but row 0 has a label,
+        // and the column has data below, treat as rowspan=2 (common for "Employee ID" style headers).
+        for (int c = 0; c < cols; c++) {
+            TabularCell top = cells[0][c];
+            if (top == null || top.coveredBy() != null) continue;
+            String topVal = safe(rawMatrix[0][c]);
+            if (topVal.trim().isEmpty()) continue;
+
+            int colSpan = top.merge() == null ? 1 : Math.max(1, top.merge().colSpan());
+            if (colSpan != 1) continue; // avoid covering subheaders under a horizontal group header
+
+            String belowVal = safe(rawMatrix[1][c]);
+            if (!belowVal.trim().isEmpty()) continue;
+
+            boolean hasDataBelow = false;
+            for (int rr = 2; rr < rows; rr++) {
+                if (!safe(rawMatrix[rr][c]).trim().isEmpty()) {
+                    hasDataBelow = true;
+                    break;
+                }
+            }
+            if (!hasDataBelow) continue;
+
+            TabularMerge merge = new TabularMerge(2, 1);
+            cells[0][c] = new TabularCell(top.id(), top.contentHtml(), merge, null);
+
+            TabularCell covered = cells[1][c];
+            if (covered != null) {
+                cells[1][c] = new TabularCell(covered.id(), "", null, new CoveredBy(0, c));
+            }
+        }
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
     }
 
     private static List<Double> createFractions(int count) {
