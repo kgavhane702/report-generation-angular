@@ -16,6 +16,8 @@ import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Subject, Subscription, takeUntil } from 'rxjs';
 import * as XLSX from 'xlsx';
+import { AppTabsComponent } from '../../../../../../shared/components/tabs/app-tabs/app-tabs.component';
+import { AppTabComponent } from '../../../../../../shared/components/tabs/app-tab/app-tab.component';
 
 import {
   ChartData,
@@ -38,7 +40,7 @@ export interface ChartConfigFormResult {
 @Component({
   selector: 'app-chart-config-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AppTabsComponent, AppTabComponent],
   exportAs: 'chartConfigForm',
   templateUrl: './chart-config-form.component.html',
   styleUrls: ['./chart-config-form.component.scss'],
@@ -141,7 +143,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private initializeFormFromData(): void {
-    const chartData = this.data?.chartData || createDefaultChartData();
+    const chartData = this.normalizeChartDataForForm(this.data?.chartData || createDefaultChartData());
     this.initializeForm(chartData);
 
     if (this.chartTypeSubscription) {
@@ -167,19 +169,22 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private initializeForm(chartData: ChartData): void {
+    const normalized = this.normalizeChartDataForForm(chartData);
+    const visibility = (normalized.labelVisibility ?? (normalized.labels || []).map(() => true)).map((v) => v !== false);
     this.form = this.fb.group({
-      chartType: [chartData.chartType, Validators.required],
-      title: [chartData.title || ''],
-      xAxisLabel: [chartData.xAxisLabel || ''],
-      yAxisLabel: [chartData.yAxisLabel || ''],
-      showLegend: [chartData.showLegend !== false],
-      legendPosition: [chartData.legendPosition || 'bottom'],
-      showAxisLines: [chartData.showAxisLines === true],
-      showValueLabels: [chartData.showValueLabels !== false],
-      valueLabelPosition: [chartData.valueLabelPosition || 'inside'],
-      labels: this.fb.array((chartData.labels || []).map((label: string) => this.fb.control(label))),
+      chartType: [normalized.chartType, Validators.required],
+      title: [normalized.title || ''],
+      xAxisLabel: [normalized.xAxisLabel || ''],
+      yAxisLabel: [normalized.yAxisLabel || ''],
+      showLegend: [normalized.showLegend !== false],
+      legendPosition: [normalized.legendPosition || 'bottom'],
+      showAxisLines: [normalized.showAxisLines === true],
+      showValueLabels: [normalized.showValueLabels !== false],
+      valueLabelPosition: [normalized.valueLabelPosition || 'inside'],
+      labels: this.fb.array((normalized.labels || []).map((label: string) => this.fb.control(label))),
+      labelVisibility: this.fb.array(visibility.map((v) => this.fb.control(v))),
       series: this.fb.array(
-        chartData.series.map((series: ChartSeries, index: number) => this.createSeriesFormGroup(series, index, chartData.chartType))
+        normalized.series.map((series: ChartSeries, index: number) => this.createSeriesFormGroup(series, index, normalized.chartType))
       ),
     });
 
@@ -206,8 +211,37 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     return this.form.get('labels') as FormArray;
   }
 
+  get labelVisibilityFormArray(): FormArray {
+    return this.form.get('labelVisibility') as FormArray;
+  }
+
   get seriesFormArray(): FormArray {
     return this.form.get('series') as FormArray;
+  }
+
+  get visibleLabelIndexes(): number[] {
+    const values = (this.labelVisibilityFormArray?.value as boolean[] | undefined) ?? [];
+    const out: number[] = [];
+    for (let i = 0; i < values.length; i++) {
+      if (values[i]) out.push(i);
+    }
+    return out;
+  }
+
+  get areAllLabelsSelected(): boolean {
+    const values = (this.labelVisibilityFormArray?.value as boolean[] | undefined) ?? [];
+    return values.length > 0 && values.every(Boolean);
+  }
+
+  get isLabelSelectionIndeterminate(): boolean {
+    const values = (this.labelVisibilityFormArray?.value as boolean[] | undefined) ?? [];
+    const selected = values.filter(Boolean).length;
+    return selected > 0 && selected < values.length;
+  }
+
+  get selectedLabelCount(): number {
+    const values = (this.labelVisibilityFormArray?.value as boolean[] | undefined) ?? [];
+    return values.filter(Boolean).length;
   }
 
   get currentChartType(): ChartType {
@@ -239,10 +273,19 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
   addLabel(): void {
     this.labelsFormArray.push(this.fb.control(''));
+    this.labelVisibilityFormArray.push(this.fb.control(true));
+    // Keep all series aligned with labels (new label = new data point).
+    this.seriesFormArray.controls.forEach((seriesGroup) => {
+      const dataArray = seriesGroup.get('data') as FormArray;
+      dataArray.push(this.fb.control(0));
+    });
   }
 
   removeLabel(index: number): void {
     this.labelsFormArray.removeAt(index);
+    if (this.labelVisibilityFormArray.length > index) {
+      this.labelVisibilityFormArray.removeAt(index);
+    }
     this.seriesFormArray.controls.forEach((seriesGroup) => {
       const dataArray = seriesGroup.get('data') as FormArray;
       if (dataArray.length > index) {
@@ -272,7 +315,16 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     const dataArray = this.getSeriesDataArray(seriesIndex);
     dataArray.push(this.fb.control(0));
     if (this.labelsFormArray.length < dataArray.length) {
+      // New category added - keep everything aligned.
       this.labelsFormArray.push(this.fb.control(`Item ${dataArray.length}`));
+      this.labelVisibilityFormArray.push(this.fb.control(true));
+      this.seriesFormArray.controls.forEach((seriesGroup, idx) => {
+        if (idx === seriesIndex) return;
+        const otherDataArray = seriesGroup.get('data') as FormArray;
+        while (otherDataArray.length < this.labelsFormArray.length) {
+          otherDataArray.push(this.fb.control(0));
+        }
+      });
     }
   }
 
@@ -282,6 +334,9 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
     if (this.allSeriesEmptyAt(dataIndex)) {
       this.labelsFormArray.removeAt(dataIndex);
+      if (this.labelVisibilityFormArray.length > dataIndex) {
+        this.labelVisibilityFormArray.removeAt(dataIndex);
+      }
     }
 
     this.seriesFormArray.controls.forEach((seriesGroup, idx) => {
@@ -308,6 +363,50 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       while (dataArray.length < labelCount) dataArray.push(this.fb.control(0));
       while (dataArray.length > labelCount) dataArray.removeAt(dataArray.length - 1);
     });
+
+    // Keep visibility array aligned with labels.
+    while (this.labelVisibilityFormArray.length < labelCount) this.labelVisibilityFormArray.push(this.fb.control(true));
+    while (this.labelVisibilityFormArray.length > labelCount) this.labelVisibilityFormArray.removeAt(this.labelVisibilityFormArray.length - 1);
+  }
+
+  toggleAllLabels(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const checked = !!input.checked;
+    this.labelVisibilityFormArray.controls.forEach((ctrl) => ctrl.setValue(checked));
+  }
+
+  trackByIndex(index: number): number {
+    return index;
+  }
+
+  private normalizeChartDataForForm(input: ChartData): ChartData {
+    const labels = [...(input.labels ?? [])];
+    const normalizedSeries = (input.series ?? []).map((s) => ({
+      ...s,
+      data: [...(s.data ?? [])],
+    }));
+    const labelVisibility = [...(input.labelVisibility ?? [])];
+
+    const maxLength = Math.max(labels.length, labelVisibility.length, ...normalizedSeries.map((s) => s.data.length), 0);
+
+    while (labels.length < maxLength) {
+      labels.push(`Item ${labels.length + 1}`);
+    }
+
+    normalizedSeries.forEach((s) => {
+      while (s.data.length < maxLength) s.data.push(0);
+      while (s.data.length > maxLength) s.data.pop();
+    });
+
+    while (labelVisibility.length < maxLength) labelVisibility.push(true);
+    while (labelVisibility.length > maxLength) labelVisibility.pop();
+
+    return {
+      ...input,
+      labels,
+      series: normalizedSeries,
+      labelVisibility: labelVisibility.map((v) => v !== false),
+    };
   }
 
   onFileSelected(event: Event): void {
@@ -429,9 +528,16 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     const formValue = this.form.value;
+    const labels: string[] = (formValue.labels || []).map((l: string, idx: number) => {
+      const trimmed = (l ?? '').trim();
+      return trimmed ? trimmed : `Item ${idx + 1}`;
+    });
+    const visibilityRaw: boolean[] = (formValue.labelVisibility || []) as boolean[];
+    const labelVisibility: boolean[] = labels.map((_, idx) => visibilityRaw[idx] !== false);
     const chartData: ChartData = {
       chartType: formValue.chartType,
-      labels: formValue.labels.filter((l: string) => l?.trim()),
+      labels,
+      labelVisibility,
       series: formValue.series.map((s: any) => ({
         name: s.name,
         data: s.data || [],

@@ -181,7 +181,8 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       prevData.showValueLabels !== currData.showValueLabels ||
       prevData.valueLabelPosition !== currData.valueLabelPosition ||
       JSON.stringify(prevData.series) !== JSON.stringify(currData.series) ||
-      JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels)
+      JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels) ||
+      JSON.stringify(prevData.labelVisibility) !== JSON.stringify(currData.labelVisibility)
     );
   }
 
@@ -229,6 +230,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return {
       ...data,
       labels: data.labels ? [...data.labels] : [],
+      labelVisibility: data.labelVisibility ? [...data.labelVisibility] : undefined,
       series: data.series ? data.series.map(series => ({
         ...series,
         data: series.data ? [...series.data] : [],

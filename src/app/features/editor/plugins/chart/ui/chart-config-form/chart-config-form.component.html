@@ -1,316 +1,323 @@
 <form [formGroup]="form" class="chart-config-dialog__form" (ngSubmit)="save()">
-  <!-- Chart Type -->
-  <div class="chart-config-dialog__section">
-    <label class="chart-config-dialog__label" for="chartType">Chart Type</label>
-    <select
-      id="chartType"
-      formControlName="chartType"
-      class="chart-config-dialog__select"
-    >
-      <option *ngFor="let type of chartTypes" [value]="type">
-        {{ chartTypeLabels[type] }}
-      </option>
-    </select>
-  </div>
-
-  <!-- Title -->
-  <div class="chart-config-dialog__section">
-    <label class="chart-config-dialog__label" for="title">Chart Title</label>
-    <input
-      id="title"
-      type="text"
-      formControlName="title"
-      class="chart-config-dialog__input"
-      placeholder="Enter chart title"
-    />
-  </div>
-
-  <!-- Axis Labels -->
-  <div class="chart-config-dialog__row">
-    <div class="chart-config-dialog__section">
-      <label class="chart-config-dialog__label" for="xAxisLabel">X-Axis Label</label>
-      <input
-        id="xAxisLabel"
-        type="text"
-        formControlName="xAxisLabel"
-        class="chart-config-dialog__input"
-        placeholder="X-axis label"
-      />
-    </div>
-    <div class="chart-config-dialog__section">
-      <label class="chart-config-dialog__label" for="yAxisLabel">Y-Axis Label</label>
-      <input
-        id="yAxisLabel"
-        type="text"
-        formControlName="yAxisLabel"
-        class="chart-config-dialog__input"
-        placeholder="Y-axis label"
-      />
-    </div>
-  </div>
-
-  <!-- Legend -->
-  <div class="chart-config-dialog__row">
-    <div class="chart-config-dialog__section">
-      <label class="chart-config-dialog__label">
-        <input
-          type="checkbox"
-          formControlName="showLegend"
-          class="chart-config-dialog__checkbox"
-        />
-        Show Legend
-      </label>
-    </div>
-    <div class="chart-config-dialog__section" *ngIf="form.value.showLegend">
-      <label class="chart-config-dialog__label" for="legendPosition">Legend Position</label>
-      <select
-        id="legendPosition"
-        formControlName="legendPosition"
-        class="chart-config-dialog__select"
-      >
-        <option *ngFor="let pos of legendPositions" [value]="pos">
-          {{ pos | titlecase }}
-        </option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Axis Lines -->
-  <div class="chart-config-dialog__section">
-    <label class="chart-config-dialog__label">
-      <input
-        type="checkbox"
-        formControlName="showAxisLines"
-        class="chart-config-dialog__checkbox"
-      />
-      Show Axis Lines
-    </label>
-  </div>
-
-  <!-- Value Labels -->
-  <div class="chart-config-dialog__row">
-    <div class="chart-config-dialog__section">
-      <label class="chart-config-dialog__label">
-        <input
-          type="checkbox"
-          formControlName="showValueLabels"
-          class="chart-config-dialog__checkbox"
-        />
-        Show Value Labels
-      </label>
-    </div>
-    <div class="chart-config-dialog__section" *ngIf="form.value.showValueLabels">
-      <label class="chart-config-dialog__label" for="valueLabelPosition">Label Position</label>
-      <select
-        id="valueLabelPosition"
-        formControlName="valueLabelPosition"
-        class="chart-config-dialog__select"
-      >
-        <option *ngFor="let pos of valueLabelPositions" [value]="pos">
-          {{ pos | titlecase }}
-        </option>
-      </select>
-    </div>
-  </div>
-
-  <!-- CSV Import/Export -->
-  <div class="chart-config-dialog__section">
-    <div class="chart-config-dialog__actions">
-      <button
-        type="button"
-        class="chart-config-dialog__button chart-config-dialog__button--secondary"
-        (click)="showCsvImport = !showCsvImport"
-      >
-        {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
-      </button>
-    </div>
-
-    <div *ngIf="showCsvImport" class="chart-config-dialog__csv-section">
-      <label class="chart-config-dialog__label">Import Data from File</label>
-      <div class="chart-config-dialog__file-upload">
-        <input
-          type="file"
-          #fileInput
-          accept=".csv,.xlsx,.xls"
-          (change)="onFileSelected($event)"
-          class="chart-config-dialog__file-input"
-          id="csvFileInput"
-        />
-        <label for="csvFileInput" class="chart-config-dialog__file-label">
-          <span class="chart-config-dialog__file-button">Browse Files</span>
-          <span class="chart-config-dialog__file-hint">CSV, XLSX, or XLS files</span>
-        </label>
-        <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
-          Selected: {{ selectedFileName }}
-        </span>
-      </div>
-
-      <label class="chart-config-dialog__label">Or Paste CSV Data</label>
-      <textarea
-        [formControl]="csvFormControl"
-        class="chart-config-dialog__textarea"
-        rows="8"
-        placeholder="Category,Series 1,Series 2&#10;Q1,10,15&#10;Q2,20,25&#10;Q3,15,20&#10;Q4,25,30"
-      ></textarea>
-      <div class="chart-config-dialog__actions">
-        <button
-          type="button"
-          class="chart-config-dialog__button chart-config-dialog__button--secondary"
-          (click)="importFromCsv()"
-        >
-          Import from CSV
-        </button>
-        <button
-          type="button"
-          class="chart-config-dialog__button chart-config-dialog__button--secondary"
-          (click)="csvFormControl.setValue(exportToCsv())"
-        >
-          Export to CSV
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Labels -->
-  <div class="chart-config-dialog__section">
-    <div class="chart-config-dialog__section-header">
-      <label class="chart-config-dialog__label">Categories / Labels</label>
-      <button
-        type="button"
-        class="chart-config-dialog__button chart-config-dialog__button--small"
-        (click)="addLabel()"
-      >
-        + Add
-      </button>
-    </div>
-    <div formArrayName="labels" class="chart-config-dialog__list">
-      <div
-        *ngFor="let control of labelsFormArray.controls; let i = index"
-        class="chart-config-dialog__list-item"
-      >
-        <input
-          type="text"
-          [formControl]="$any(control)"
-          class="chart-config-dialog__input"
-          [placeholder]="'Label ' + (i + 1)"
-        />
-        <button
-          type="button"
-          class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"
-          (click)="removeLabel(i)"
-          [disabled]="labelsFormArray.length <= 1"
-        >
-          ×
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Series -->
-  <div class="chart-config-dialog__section">
-    <div class="chart-config-dialog__section-header">
-      <label class="chart-config-dialog__label">Data Series</label>
-      <button
-        type="button"
-        class="chart-config-dialog__button chart-config-dialog__button--small"
-        (click)="addSeries()"
-      >
-        + Add Series
-      </button>
-    </div>
-    <div formArrayName="series" class="chart-config-dialog__series-list">
-      <div
-        *ngFor="let seriesGroup of seriesFormArray.controls; let i = index"
-        formGroupName="{{ i }}"
-        class="chart-config-dialog__series-item"
-      >
-        <div class="chart-config-dialog__series-header">
-          <input
-            type="text"
-            formControlName="name"
-            class="chart-config-dialog__input chart-config-dialog__input--series-name"
-            placeholder="Series name"
-          />
-          <input
-            type="color"
-            formControlName="color"
-            class="chart-config-dialog__color-input"
-            title="Series color"
-          />
-          <select
-            *ngIf="shouldShowSeriesTypeSelector"
-            formControlName="seriesType"
-            class="chart-config-dialog__select chart-config-dialog__select--series-type"
-            title="Chart type for this series"
-          >
-            <option value="bar">Bar</option>
-            <option value="line">Line</option>
-          </select>
-          <select
-            *ngIf="shouldShowLineStyle(i)"
-            formControlName="lineStyle"
-            class="chart-config-dialog__select chart-config-dialog__select--line-style"
-            title="Line style"
-          >
-            <option *ngFor="let style of lineStyles" [value]="style">
-              {{ lineStyleLabels[style] }}
+  <app-tabs ariaLabel="Chart configuration tabs" [stickyHeader]="true">
+    <app-tab label="Chart">
+      <div class="chart-config-dialog__tab-content">
+        <!-- Chart Type -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label" for="chartType">Chart Type</label>
+          <select id="chartType" formControlName="chartType" class="chart-config-dialog__select">
+            <option *ngFor="let type of chartTypes" [value]="type">
+              {{ chartTypeLabels[type] }}
             </option>
           </select>
-          <button
-            type="button"
-            class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"
-            (click)="removeSeries(i)"
-            [disabled]="seriesFormArray.length <= 1"
-          >
-            Remove
-          </button>
         </div>
 
-        <div class="chart-config-dialog__data-points">
-          <div class="chart-config-dialog__section-header">
-            <label class="chart-config-dialog__label chart-config-dialog__label--small">Data Points</label>
+        <!-- Title -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label" for="title">Chart Title</label>
+          <input
+            id="title"
+            type="text"
+            formControlName="title"
+            class="chart-config-dialog__input"
+            placeholder="Enter chart title"
+          />
+        </div>
+      </div>
+    </app-tab>
+
+    <app-tab label="Data">
+      <div class="chart-config-dialog__tab-content">
+        <!-- CSV Import/Export -->
+        <div class="chart-config-dialog__section">
+          <div class="chart-config-dialog__actions">
             <button
               type="button"
-              class="chart-config-dialog__button chart-config-dialog__button--small"
-              (click)="addDataPoint(i)"
+              class="chart-config-dialog__button chart-config-dialog__button--secondary"
+              (click)="showCsvImport = !showCsvImport"
             >
-              + Add
-            </button>
-            <button
-              type="button"
-              class="chart-config-dialog__button chart-config-dialog__button--small"
-              (click)="syncDataPoints()"
-            >
-              Sync All
+              {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
             </button>
           </div>
-          <div formArrayName="data" class="chart-config-dialog__data-grid">
-            <div
-              *ngFor="let dataControl of getSeriesDataArray(i).controls; let j = index"
-              class="chart-config-dialog__data-item"
-            >
-              <label class="chart-config-dialog__data-label">
-                {{ labelsFormArray.at(j).value || ('Point ' + (j + 1)) }}:
-              </label>
+
+          <div *ngIf="showCsvImport" class="chart-config-dialog__csv-section">
+            <label class="chart-config-dialog__label">Import Data from File</label>
+            <div class="chart-config-dialog__file-upload">
               <input
-                type="number"
-                [formControl]="$any(dataControl)"
-                class="chart-config-dialog__input chart-config-dialog__input--number"
-                step="0.01"
+                type="file"
+                #fileInput
+                accept=".csv,.xlsx,.xls"
+                (change)="onFileSelected($event)"
+                class="chart-config-dialog__file-input"
+                id="csvFileInput"
               />
+              <label for="csvFileInput" class="chart-config-dialog__file-label">
+                <span class="chart-config-dialog__file-button">Browse Files</span>
+                <span class="chart-config-dialog__file-hint">CSV, XLSX, or XLS files</span>
+              </label>
+              <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
+                Selected: {{ selectedFileName }}
+              </span>
+            </div>
+
+            <label class="chart-config-dialog__label">Or Paste CSV Data</label>
+            <textarea
+              [formControl]="csvFormControl"
+              class="chart-config-dialog__textarea"
+              rows="8"
+              placeholder="Category,Series 1,Series 2&#10;Q1,10,15&#10;Q2,20,25&#10;Q3,15,20&#10;Q4,25,30"
+            ></textarea>
+            <div class="chart-config-dialog__actions">
               <button
                 type="button"
-                class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"
-                (click)="removeDataPoint(i, j)"
+                class="chart-config-dialog__button chart-config-dialog__button--secondary"
+                (click)="importFromCsv()"
               >
-                ×
+                Import from CSV
+              </button>
+              <button
+                type="button"
+                class="chart-config-dialog__button chart-config-dialog__button--secondary"
+                (click)="csvFormControl.setValue(exportToCsv())"
+              >
+                Export to CSV
               </button>
             </div>
           </div>
         </div>
+
+        <!-- Labels -->
+        <div class="chart-config-dialog__section">
+          <div class="chart-config-dialog__section-header">
+            <div class="chart-config-dialog__section-title">
+              <label class="chart-config-dialog__label">Categories / Labels</label>
+              <span class="chart-config-dialog__hint">{{ selectedLabelCount }} / {{ labelsFormArray.length }} selected</span>
+            </div>
+
+            <div class="chart-config-dialog__section-actions">
+              <label class="chart-config-dialog__label chart-config-dialog__label--inline chart-config-dialog__label--small">
+                <input
+                  type="checkbox"
+                  class="chart-config-dialog__checkbox"
+                  [checked]="areAllLabelsSelected"
+                  [indeterminate]="isLabelSelectionIndeterminate"
+                  (change)="toggleAllLabels($event)"
+                />
+                Select All
+              </label>
+              <button
+                type="button"
+                class="chart-config-dialog__button chart-config-dialog__button--small"
+                (click)="addLabel()"
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+          <div formArrayName="labels" class="chart-config-dialog__list">
+            <div *ngFor="let control of labelsFormArray.controls; let i = index" class="chart-config-dialog__list-item">
+              <input
+                type="checkbox"
+                class="chart-config-dialog__checkbox"
+                [formControl]="$any(labelVisibilityFormArray.at(i))"
+                [attr.aria-label]="'Toggle category ' + (labelsFormArray.at(i)?.value || ('Label ' + (i + 1)))"
+              />
+              <input
+                type="text"
+                [formControl]="$any(control)"
+                class="chart-config-dialog__input"
+                [placeholder]="'Label ' + (i + 1)"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Series -->
+        <div class="chart-config-dialog__section">
+          <div class="chart-config-dialog__section-header">
+            <label class="chart-config-dialog__label">Data Series</label>
+            <button
+              type="button"
+              class="chart-config-dialog__button chart-config-dialog__button--small"
+              (click)="addSeries()"
+            >
+              + Add Series
+            </button>
+          </div>
+          <div formArrayName="series" class="chart-config-dialog__series-list">
+            <div
+              *ngFor="let seriesGroup of seriesFormArray.controls; let i = index"
+              formGroupName="{{ i }}"
+              class="chart-config-dialog__series-item"
+            >
+              <div class="chart-config-dialog__series-header">
+                <input
+                  type="text"
+                  formControlName="name"
+                  class="chart-config-dialog__input chart-config-dialog__input--series-name"
+                  placeholder="Series name"
+                />
+                <input
+                  type="color"
+                  formControlName="color"
+                  class="chart-config-dialog__color-input"
+                  title="Series color"
+                />
+                <select
+                  *ngIf="shouldShowSeriesTypeSelector"
+                  formControlName="seriesType"
+                  class="chart-config-dialog__select chart-config-dialog__select--series-type"
+                  title="Chart type for this series"
+                >
+                  <option value="bar">Bar</option>
+                  <option value="line">Line</option>
+                </select>
+                <select
+                  *ngIf="shouldShowLineStyle(i)"
+                  formControlName="lineStyle"
+                  class="chart-config-dialog__select chart-config-dialog__select--line-style"
+                  title="Line style"
+                >
+                  <option *ngFor="let style of lineStyles" [value]="style">
+                    {{ lineStyleLabels[style] }}
+                  </option>
+                </select>
+                <button
+                  type="button"
+                  class="chart-config-dialog__button chart-config-dialog__button--small chart-config-dialog__button--danger"
+                  (click)="removeSeries(i)"
+                  [disabled]="seriesFormArray.length <= 1"
+                >
+                  Remove
+                </button>
+              </div>
+
+              <div class="chart-config-dialog__data-points">
+                <div class="chart-config-dialog__section-header">
+                  <label class="chart-config-dialog__label chart-config-dialog__label--small">Data Points</label>
+                  <button
+                    type="button"
+                    class="chart-config-dialog__button chart-config-dialog__button--small"
+                    (click)="addDataPoint(i)"
+                  >
+                    + Add
+                  </button>
+                  <button
+                    type="button"
+                    class="chart-config-dialog__button chart-config-dialog__button--small"
+                    (click)="syncDataPoints()"
+                  >
+                    Sync All
+                  </button>
+                </div>
+
+                <div
+                  *ngIf="visibleLabelIndexes.length > 0; else noLabelsSelected"
+                  formArrayName="data"
+                  class="chart-config-dialog__data-grid"
+                >
+                  <div *ngFor="let j of visibleLabelIndexes; trackBy: trackByIndex" class="chart-config-dialog__data-item">
+                    <label class="chart-config-dialog__data-label">
+                      {{ labelsFormArray.at(j)?.value || ('Point ' + (j + 1)) }}:
+                    </label>
+                    <input
+                      type="number"
+                      [formControl]="$any(getSeriesDataArray(i).at(j))"
+                      class="chart-config-dialog__input chart-config-dialog__input--number"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                <ng-template #noLabelsSelected>
+                  <div class="chart-config-dialog__empty">
+                    No categories selected. Use the checkboxes above (or Select All) to show data points.
+                  </div>
+                </ng-template>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
+    </app-tab>
+
+    <app-tab label="Axes">
+      <div class="chart-config-dialog__tab-content">
+        <!-- Axis Labels -->
+        <div class="chart-config-dialog__row">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="xAxisLabel">X-Axis Label</label>
+            <input
+              id="xAxisLabel"
+              type="text"
+              formControlName="xAxisLabel"
+              class="chart-config-dialog__input"
+              placeholder="X-axis label"
+            />
+          </div>
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="yAxisLabel">Y-Axis Label</label>
+            <input
+              id="yAxisLabel"
+              type="text"
+              formControlName="yAxisLabel"
+              class="chart-config-dialog__input"
+              placeholder="Y-axis label"
+            />
+          </div>
+        </div>
+
+        <!-- Axis Lines -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label">
+            <input type="checkbox" formControlName="showAxisLines" class="chart-config-dialog__checkbox" />
+            Show Axis Lines
+          </label>
+        </div>
+      </div>
+    </app-tab>
+
+    <app-tab label="Legend & Labels">
+      <div class="chart-config-dialog__tab-content">
+        <!-- Legend -->
+        <div class="chart-config-dialog__row">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label">
+              <input type="checkbox" formControlName="showLegend" class="chart-config-dialog__checkbox" />
+              Show Legend
+            </label>
+          </div>
+          <div class="chart-config-dialog__section" *ngIf="form.value.showLegend">
+            <label class="chart-config-dialog__label" for="legendPosition">Legend Position</label>
+            <select id="legendPosition" formControlName="legendPosition" class="chart-config-dialog__select">
+              <option *ngFor="let pos of legendPositions" [value]="pos">
+                {{ pos | titlecase }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Value Labels -->
+        <div class="chart-config-dialog__row">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label">
+              <input type="checkbox" formControlName="showValueLabels" class="chart-config-dialog__checkbox" />
+              Show Value Labels
+            </label>
+          </div>
+          <div class="chart-config-dialog__section" *ngIf="form.value.showValueLabels">
+            <label class="chart-config-dialog__label" for="valueLabelPosition">Label Position</label>
+            <select id="valueLabelPosition" formControlName="valueLabelPosition" class="chart-config-dialog__select">
+              <option *ngFor="let pos of valueLabelPositions" [value]="pos">
+                {{ pos | titlecase }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </app-tab>
+  </app-tabs>
 </form>
+
 
 

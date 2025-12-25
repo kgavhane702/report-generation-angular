@@ -1,7 +1,7 @@
 import { Chart, ChartConfiguration, registerables } from 'chart.js';
 import { ChartAdapter, ChartInstance } from '../../contracts/adapters/chart-adapter.interface';
 import { ChartWidgetProps } from '../../../../../../../models/widget.model';
-import { ChartData } from '../../../../../../../models/chart-data.model';
+import { ChartData, filterChartDataByLabelVisibility } from '../../../../../../../models/chart-data.model';
 import { getChartJsChartTypeRegistry } from '../../type-registries/chartjs-chart-type.registry';
 
 Chart.register(...registerables);
@@ -26,7 +26,8 @@ export class ChartJsChartAdapter implements ChartAdapter {
     
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
-    const config = this.convertToChartJsConfig(chartData, width, height);
+    const filteredData = filterChartDataByLabelVisibility(chartData);
+    const config = this.convertToChartJsConfig(filteredData, width, height);
     const chart = new Chart(canvas, config);
 
     return {

@@ -1,5 +1,6 @@
 .chart-config-dialog {
-  // Intentionally empty: legacy root class kept for compatibility with existing BEM selectors.
+  // Legacy root class kept for compatibility with existing BEM selectors (no-op).
+  --chart-config-dialog: 1;
 }
 
 .chart-config-dialog__header {
@@ -59,6 +60,12 @@
   background: #ffffff;
 }
 
+.chart-config-dialog__tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
 .chart-config-dialog__section {
   display: flex;
   flex-direction: column;
@@ -78,6 +85,26 @@
   gap: 12px;
 }
 
+.chart-config-dialog__section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chart-config-dialog__section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.chart-config-dialog__hint {
+  font-size: 12px;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
 .chart-config-dialog__label {
   font-size: 14px;
   font-weight: 500;
@@ -86,6 +113,13 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 2px;
+
+  &--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+  }
 
   &--small {
     font-size: 13px;
@@ -226,6 +260,7 @@
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .chart-config-dialog__data-points {
@@ -252,6 +287,15 @@
   color: #6b7280;
   min-width: 80px;
   flex-shrink: 0;
+}
+
+.chart-config-dialog__empty {
+  padding: 12px 14px;
+  border: 1px dashed #ced4da;
+  border-radius: 4px;
+  background: #f8f9fa;
+  color: #6c757d;
+  font-size: 13px;
 }
 
 .chart-config-dialog__actions {
@@ -405,6 +449,12 @@
   border-top: 1px solid #dee2e6;
   background: #f8f9fa;
   flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .chart-config-dialog__row {
+    grid-template-columns: 1fr;
+  }
 }
 
 

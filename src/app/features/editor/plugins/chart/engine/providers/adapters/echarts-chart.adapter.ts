@@ -1,7 +1,7 @@
 import * as echarts from 'echarts';
 import { ChartAdapter, ChartInstance } from '../../contracts/adapters/chart-adapter.interface';
 import { ChartWidgetProps } from '../../../../../../../models/widget.model';
-import { ChartData } from '../../../../../../../models/chart-data.model';
+import { ChartData, filterChartDataByLabelVisibility } from '../../../../../../../models/chart-data.model';
 import { getEChartsChartTypeRegistry } from '../../type-registries/echarts-chart-type.registry';
 
 export class EChartsChartAdapter implements ChartAdapter {
@@ -23,7 +23,8 @@ export class EChartsChartAdapter implements ChartAdapter {
     container.innerHTML = '';
     
     const chart = echarts.init(container);
-    const option = this.convertToEChartsOption(chartData, width, height);
+    const filteredData = filterChartDataByLabelVisibility(chartData);
+    const option = this.convertToEChartsOption(filteredData, width, height);
     chart.setOption(option);
 
     // Handle resize

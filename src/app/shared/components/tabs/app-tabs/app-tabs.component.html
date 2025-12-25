@@ -1,0 +1,37 @@
+<div
+  class="app-tabs__header"
+  role="tablist"
+  [attr.aria-label]="ariaLabel"
+  (keydown)="onHeaderKeydown($event)"
+>
+  <button
+    *ngFor="let tab of tabs; let i = index"
+    type="button"
+    class="app-tabs__tab"
+    [class.app-tabs__tab--active]="i === activeIndex"
+    [class.app-tabs__tab--disabled]="tab.disabled"
+    [attr.aria-selected]="i === activeIndex"
+    [attr.aria-controls]="tab.tabPanelId"
+    [attr.id]="tab.tabButtonId"
+    [attr.tabindex]="tab.disabled ? -1 : (i === activeIndex ? 0 : -1)"
+    role="tab"
+    [disabled]="tab.disabled"
+    (click)="select(i)"
+  >
+    <span *ngIf="tab.icon" class="app-tabs__icon" aria-hidden="true">{{ tab.icon }}</span>
+    <span class="app-tabs__label">{{ tab.label }}</span>
+  </button>
+</div>
+
+<div
+  class="app-tabs__panel"
+  role="tabpanel"
+  [attr.id]="activeTab?.tabPanelId"
+  [attr.aria-labelledby]="activeTab?.tabButtonId"
+>
+  <ng-container *ngIf="activeTab?.contentTpl as tpl">
+    <ng-container *ngTemplateOutlet="tpl"></ng-container>
+  </ng-container>
+</div>
+
+

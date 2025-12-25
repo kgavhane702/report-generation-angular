@@ -12,6 +12,12 @@ export interface ChartData {
    * Labels for categories/axis (typically X-axis for bar/line charts)
    */
   labels?: string[];
+
+  /**
+   * Optional per-label visibility. When omitted, all labels are considered visible.
+   * If provided, a value of `false` hides the corresponding label/category in the rendered chart.
+   */
+  labelVisibility?: boolean[];
   
   /**
    * Series data (datasets)
@@ -115,6 +121,7 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
   return {
     chartType,
     labels: ['Q1', 'Q2', 'Q3', 'Q4'],
+    labelVisibility: [true, true, true, true],
     series: [
       {
         name: 'Series 1',
@@ -172,6 +179,7 @@ export function parseCsvToChartData(csv: string, chartType: ChartType = 'column'
   return {
     chartType,
     labels,
+    labelVisibility: labels.map(() => true),
     series,
     title: 'Imported Chart',
     showLegend: true,
@@ -201,4 +209,44 @@ export function chartDataToCsv(data: ChartData): string {
   }
 
   return rows.join('\n');
+}
+
+/**
+ * Apply `labelVisibility` filtering to a ChartData object for rendering.
+ * Returns a new ChartData with `labels` and each series `data` filtered to the visible indexes.
+ *
+ * Notes:
+ * - If `labelVisibility` is missing/empty, data is returned unchanged.
+ * - Missing labels/data values are tolerated (they fall back to `Row N` and `0` respectively).
+ */
+export function filterChartDataByLabelVisibility(data: ChartData): ChartData {
+  const visibility = data.labelVisibility;
+  if (!visibility || visibility.length === 0) return data;
+
+  const labels = data.labels ?? [];
+  const series = data.series ?? [];
+
+  const maxLength = Math.max(labels.length, visibility.length, ...series.map((s) => s.data?.length ?? 0), 0);
+  const keepIndexes: number[] = [];
+
+  for (let i = 0; i < maxLength; i++) {
+    if (visibility[i] !== false) keepIndexes.push(i);
+  }
+
+  // Nothing to filter (all visible)
+  if (keepIndexes.length === maxLength) return data;
+
+  const nextLabels = keepIndexes.map((i) => labels[i] ?? `Row ${i + 1}`);
+  const nextSeries = series.map((s) => ({
+    ...s,
+    data: keepIndexes.map((i) => (s.data?.[i] ?? 0)),
+  }));
+
+  return {
+    ...data,
+    labels: nextLabels,
+    series: nextSeries,
+    // Once filtered for rendering, everything in the resulting data is visible.
+    labelVisibility: nextLabels.map(() => true),
+  };
 }
