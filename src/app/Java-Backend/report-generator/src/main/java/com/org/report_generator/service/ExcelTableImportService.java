@@ -1,7 +1,7 @@
 package com.org.report_generator.service;
 
 import com.org.report_generator.dto.table.CoveredByDto;
-import com.org.report_generator.dto.table.ExcelTableImportResponse;
+import com.org.report_generator.dto.table.TableImportResponse;
 import com.org.report_generator.dto.table.TableCellDto;
 import com.org.report_generator.dto.table.TableCellMergeDto;
 import com.org.report_generator.dto.table.TableRowDto;
@@ -39,7 +39,7 @@ public class ExcelTableImportService {
         this.limitsConfig = limitsConfig;
     }
 
-    public ExcelTableImportResponse parseXlsx(InputStream inputStream, Integer sheetIndex) throws Exception {
+    public TableImportResponse parseXlsx(InputStream inputStream, Integer sheetIndex) throws Exception {
         long startTime = System.currentTimeMillis();
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
             Sheet sheet = getSheet(workbook, sheetIndex);
@@ -71,7 +71,7 @@ public class ExcelTableImportService {
             logger.info("Excel import completed in {}ms: {} rows x {} columns", 
                 duration, gridResult.rowsCount(), gridResult.colsCount());
 
-            return new ExcelTableImportResponse(rows, columnFractions, rowFractions);
+            return new TableImportResponse(rows, columnFractions, rowFractions);
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             logger.error("Excel import failed after {}ms", duration, e);

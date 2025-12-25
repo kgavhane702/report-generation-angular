@@ -23,6 +23,10 @@ export class TableFileImportFacade {
 
   importFile(file: File): void {
     const name = (file?.name ?? '').toLowerCase();
+    if (name.endsWith('.json')) {
+      this.importJson(file);
+      return;
+    }
     if (name.endsWith('.csv')) {
       this.importCsv(file);
       return;
@@ -133,6 +137,56 @@ export class TableFileImportFacade {
             err?.error?.error?.message ||
             err?.error?.message ||
             'CSV import failed. Please verify the backend is running and the file is a valid .csv.';
+          alert(msg);
+        },
+      });
+  }
+
+  importJson(file: File): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+
+    this.tableImport
+      .importJson(file)
+      .pipe(take(1))
+      .subscribe({
+        next: (resp) => {
+          if (!resp?.success || !resp.data) {
+            alert(resp?.error?.message || 'JSON import failed');
+            return;
+          }
+          const data = resp.data;
+
+          const widget = this.widgetFactory.createWidget('table', {
+            rows: data.rows,
+            columnFractions: data.columnFractions,
+            rowFractions: data.rowFractions,
+          } as any);
+
+          this.documentService.addWidget(pageId, widget);
+          this.editorState.setActiveWidget(widget.id);
+          this.tableToolbar.setActiveTableWidget(widget.id);
+
+          const req = {
+            widgetId: widget.id,
+            rows: data.rows,
+            columnFractions: data.columnFractions,
+            rowFractions: data.rowFractions,
+          };
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              this.tableToolbar.requestImportTableFromExcel(req);
+            });
+          });
+        },
+        error: (err) => {
+          // eslint-disable-next-line no-console
+          console.error('JSON import failed', err);
+          const msg =
+            err?.error?.error?.message ||
+            err?.error?.message ||
+            'JSON import failed. Please verify the file is valid JSON.';
           alert(msg);
         },
       });

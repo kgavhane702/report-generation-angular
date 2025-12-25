@@ -1,6 +1,6 @@
 package com.org.report_generator.service;
 
-import com.org.report_generator.dto.table.ExcelTableImportResponse;
+import com.org.report_generator.dto.table.TableImportResponse;
 import com.org.report_generator.config.ImportLimitsConfig;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ class ExcelTableImportServiceTest {
                 // Skip if sample not present in repo.
                 return;
             }
-            ExcelTableImportResponse resp = svc.parseXlsx(is, 0);
+            TableImportResponse resp = svc.parseXlsx(is, 0);
             assertNotNull(resp);
             assertNotNull(resp.rows());
             assertFalse(resp.rows().isEmpty());

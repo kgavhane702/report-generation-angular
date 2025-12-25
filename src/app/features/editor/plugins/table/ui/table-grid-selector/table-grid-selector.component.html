@@ -69,14 +69,14 @@
           type="button"
           class="table-grid-selector__import-button"
           (click)="triggerExcelPicker($event)"
-          title="Import a new table from Excel/CSV (.xlsx, .csv)"
+          title="Import a new table from Excel/CSV/JSON (.xlsx, .csv, .json)"
         >
-          Import from Excel/CSV
+          Import from Excel/CSV/JSON
         </button>
         <input
           #excelFileInput
           type="file"
-          accept=".xlsx,.csv"
+          accept=".xlsx,.csv,.json"
           style="display: none"
           (change)="onExcelFileSelected($event)"
         />

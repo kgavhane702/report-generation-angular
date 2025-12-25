@@ -1,7 +1,7 @@
 package com.org.report_generator.importing.adapter;
 
 import com.org.report_generator.dto.table.CoveredByDto;
-import com.org.report_generator.dto.table.ExcelTableImportResponse;
+import com.org.report_generator.dto.table.TableImportResponse;
 import com.org.report_generator.dto.table.TableCellDto;
 import com.org.report_generator.dto.table.TableCellMergeDto;
 import com.org.report_generator.dto.table.TableRowDto;
@@ -14,13 +14,13 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Adapter: {@link TabularDataset} -> {@link ExcelTableImportResponse} (TABLE target).
+ * Adapter: {@link TabularDataset} -> {@link TableImportResponse} (TABLE target).
  *
  * This keeps the legacy Excel-table endpoint stable while allowing the parsing pipeline
  * to be format-agnostic internally.
  */
 @Component
-public class TableWidgetTargetAdapter implements TabularTargetAdapter<ExcelTableImportResponse> {
+public class TableWidgetTargetAdapter implements TabularTargetAdapter<TableImportResponse> {
 
     @Override
     public ImportTarget target() {
@@ -28,16 +28,16 @@ public class TableWidgetTargetAdapter implements TabularTargetAdapter<ExcelTable
     }
 
     @Override
-    public Class<ExcelTableImportResponse> outputType() {
-        return ExcelTableImportResponse.class;
+    public Class<TableImportResponse> outputType() {
+        return TableImportResponse.class;
     }
 
     @Override
-    public ExcelTableImportResponse adapt(TabularDataset dataset) {
+    public TableImportResponse adapt(TabularDataset dataset) {
         List<TableRowDto> rows = dataset.rows().stream()
                 .map(TableWidgetTargetAdapter::toRow)
                 .toList();
-        return new ExcelTableImportResponse(rows, dataset.columnFractions(), dataset.rowFractions());
+        return new TableImportResponse(rows, dataset.columnFractions(), dataset.rowFractions());
     }
 
     private static TableRowDto toRow(TabularRow row) {

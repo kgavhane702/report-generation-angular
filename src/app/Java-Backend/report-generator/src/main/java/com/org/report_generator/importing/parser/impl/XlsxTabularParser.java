@@ -1,6 +1,6 @@
 package com.org.report_generator.importing.parser.impl;
 
-import com.org.report_generator.dto.table.ExcelTableImportResponse;
+import com.org.report_generator.dto.table.TableImportResponse;
 import com.org.report_generator.dto.table.TableCellDto;
 import com.org.report_generator.dto.table.TableRowDto;
 import com.org.report_generator.importing.enums.ImportFormat;
@@ -40,11 +40,11 @@ public class XlsxTabularParser implements TabularParser {
     @Override
     public TabularDataset parse(MultipartFile file, ImportOptions options) throws Exception {
         Integer sheetIndex = options == null ? null : options.sheetIndex();
-        ExcelTableImportResponse resp = excelTableImportService.parseXlsx(file.getInputStream(), sheetIndex);
+        TableImportResponse resp = excelTableImportService.parseXlsx(file.getInputStream(), sheetIndex);
         return toDataset(resp);
     }
 
-    private static TabularDataset toDataset(ExcelTableImportResponse resp) {
+    private static TabularDataset toDataset(TableImportResponse resp) {
         List<TabularRow> rows = resp.rows().stream()
                 .map(XlsxTabularParser::toRow)
                 .toList();
