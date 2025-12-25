@@ -144,6 +144,97 @@
       background: rgba(25, 118, 210, 0.16);
     }
   }
+
+  // Import modal styles (kept local to this component)
+  &__import-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  &__import-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__import-dialog-hint {
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.4;
+  }
+
+  &__file-upload {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__file-input {
+    display: none;
+  }
+
+  &__file-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
+    cursor: pointer;
+    background: #fff;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 0, 0, 0.24);
+    }
+  }
+
+  &__file-button {
+    font-weight: 700;
+    color: #0b3d7a;
+  }
+
+  &__file-hint {
+    font-size: 12px;
+    color: #64748b;
+  }
+
+  &__file-name {
+    font-size: 12px;
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  &__import-dialog-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #fff;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &__import-dialog-btn--secondary {
+    background: #fff;
+  }
+
+  &__import-dialog-btn--primary {
+    border-color: rgba(25, 118, 210, 0.55);
+    background: rgba(25, 118, 210, 0.10);
+    color: #0b3d7a;
+
+    &:hover {
+      background: rgba(25, 118, 210, 0.16);
+    }
+  }
 }
 
 @keyframes dropdownFadeIn {

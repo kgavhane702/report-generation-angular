@@ -14,22 +14,33 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Subject, Subscription, takeUntil } from 'rxjs';
-import * as XLSX from 'xlsx';
+import { Subject, Subscription, take, takeUntil } from 'rxjs';
 import { AppTabsComponent } from '../../../../../../shared/components/tabs/app-tabs/app-tabs.component';
 import { AppTabComponent } from '../../../../../../shared/components/tabs/app-tab/app-tab.component';
+import { ChartImportApi } from '../../../../../../core/chart-import/api/chart-import.api';
+import {
+  ChartImportAggregation,
+  ChartImportMappingDto,
+  ChartImportRequestOptions,
+  ChartImportResponseDto,
+  TabularPreviewDto,
+} from '../../../../../../core/chart-import/models/chart-import.model';
+import { ImportFormat } from '../../../../../../core/tabular-import/enums/import-format.enum';
+import { TabularImportWarningDto } from '../../../../../../core/tabular-import/models/tabular-dataset.model';
 
 import {
   ChartData,
   ChartSeries,
   ChartType,
   createDefaultChartData,
-  parseCsvToChartData,
+  createEmptyChartData,
 } from '../../../../../../models/chart-data.model';
 
 export interface ChartConfigFormData {
   chartData: ChartData;
   widgetId?: string;
+  /** When true, the dialog should open directly on the Data tab and prompt for file import. */
+  openImportOnOpen?: boolean;
 }
 
 export interface ChartConfigFormResult {
@@ -51,11 +62,15 @@ export interface ChartConfigFormResult {
 export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly chartImportApi = inject(ChartImportApi);
   private readonly destroy$ = new Subject<void>();
   private chartTypeSubscription?: Subscription;
 
   @Input() data?: ChartConfigFormData;
   @Output() closed = new EventEmitter<ChartConfigFormResult>();
+
+  /** Tabs: 0=Chart, 1=Data, 2=Axes, 3=Legend & Labels */
+  activeTabIndex = 0;
 
   readonly chartTypes: ChartType[] = [
     'column',
@@ -115,13 +130,40 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   };
 
   form!: FormGroup;
-  csvFormControl = this.fb.control('');
-  showCsvImport = false;
   selectedFileName: string | null = null;
+
+  // Import (backend-driven)
+  importInProgress = false;
+  importError: string | null = null;
+  importResponse: ChartImportResponseDto | null = null;
+  importPreview: TabularPreviewDto | null = null;
+  importMapping: ChartImportMappingDto | null = null;
+  importWarnings: TabularImportWarningDto[] = [];
+  selectedImportFile: File | null = null;
+  detectedImportFormat: ImportFormat | null = null;
+  selectedSeriesColumns = new Set<number>();
+
+  readonly aggregationOptions: ChartImportAggregation[] = ['SUM', 'AVG', 'COUNT'];
+
+  // Expose enum for template comparisons.
+  readonly ImportFormat = ImportFormat;
+
+  readonly importForm = this.fb.group({
+    sheetIndex: [0],
+    delimiter: [','],
+    hasHeader: [true],
+    headerRowIndex: [0],
+    categoryColumnIndex: [0],
+    aggregation: ['SUM' as ChartImportAggregation],
+  });
 
   ngOnInit(): void {
     if (this.data) {
       this.initializeFormFromData();
+    }
+
+    if (this.data?.openImportOnOpen) {
+      this.openImportFlow();
     }
   }
 
@@ -130,6 +172,10 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       if (!changes['data'].firstChange) {
         this.initializeFormFromData();
         this.cdr.markForCheck();
+      }
+
+      if (this.data?.openImportOnOpen) {
+        this.openImportFlow();
       }
     }
   }
@@ -142,8 +188,14 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     this.destroy$.complete();
   }
 
+  private openImportFlow(): void {
+    // Data tab
+    this.activeTabIndex = 1;
+    this.cdr.markForCheck();
+  }
+
   private initializeFormFromData(): void {
-    const chartData = this.normalizeChartDataForForm(this.data?.chartData || createDefaultChartData());
+    const chartData = this.normalizeChartDataForForm(this.data?.chartData || createEmptyChartData());
     this.initializeForm(chartData);
 
     if (this.chartTypeSubscription) {
@@ -187,8 +239,6 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
         normalized.series.map((series: ChartSeries, index: number) => this.createSeriesFormGroup(series, index, normalized.chartType))
       ),
     });
-
-    this.csvFormControl.setValue(this.exportToCsv());
   }
 
   private createSeriesFormGroup(series: ChartSeries = { name: '', data: [] }, index: number = 0, chartType: ChartType = 'column'): FormGroup {
@@ -257,7 +307,9 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get shouldShowSeriesTypeSelector(): boolean {
-    return this.isStackedBarLineChart && this.hasMultipleSeries;
+    // Show bar/line selector for combo chart types even when there is only one series.
+    // This lets users switch a single imported series between bar and line and then pick line styles.
+    return this.isStackedBarLineChart;
   }
 
   shouldShowLineStyle(seriesIndex: number): boolean {
@@ -269,6 +321,11 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       return seriesType === 'line';
     }
     return false;
+  }
+
+  get previewColumnIndexes(): number[] {
+    const cols = this.importPreview?.totalCols ?? 0;
+    return Array.from({ length: cols }, (_, i) => i);
   }
 
   addLabel(): void {
@@ -409,116 +466,205 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     };
   }
 
-  onFileSelected(event: Event): void {
+  onImportFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
-    this.selectedFileName = file.name;
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
-
-    if (fileExtension === 'csv') {
-      this.readCsvFile(file);
-    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-      this.readExcelFile(file);
-    } else {
-      alert('Unsupported file format. Please select a CSV, XLSX, or XLS file.');
+    const detected = this.detectImportFormat(file.name);
+    if (!detected) {
+      this.importError = 'Unsupported file format. Please select .xlsx, .csv, .json, or .xml.';
       this.selectedFileName = null;
-    }
-  }
-
-  private readCsvFile(file: File): void {
-    const reader = new FileReader();
-    reader.onload = (e: ProgressEvent<FileReader>) => {
-      try {
-        const text = e.target?.result as string;
-        this.csvFormControl.setValue(text);
-        this.importFromCsv();
-      } catch {
-        alert('Failed to read CSV file. Please check the file format.');
-        this.selectedFileName = null;
-      }
-    };
-    reader.onerror = () => {
-      alert('Error reading CSV file.');
-      this.selectedFileName = null;
-    };
-    reader.readAsText(file);
-  }
-
-  private readExcelFile(file: File): void {
-    const reader = new FileReader();
-    reader.onload = (e: ProgressEvent<FileReader>) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const csv = XLSX.utils.sheet_to_csv(worksheet);
-        this.csvFormControl.setValue(csv);
-        this.importFromCsv();
-      } catch {
-        alert('Failed to read Excel file. Please check the file format.');
-        this.selectedFileName = null;
-      }
-    };
-    reader.onerror = () => {
-      alert('Error reading Excel file.');
-      this.selectedFileName = null;
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  importFromCsv(): void {
-    try {
-      const csvValue = this.csvFormControl.value || '';
-      if (!csvValue.trim()) {
-        alert('No data to import. Please select a file or paste CSV data.');
-        return;
-      }
-      const chartData = parseCsvToChartData(csvValue, this.form.value.chartType);
-      this.initializeForm(chartData);
-      this.showCsvImport = false;
-      this.selectedFileName = null;
+      this.selectedImportFile = null;
+      this.detectedImportFormat = null;
       this.cdr.markForCheck();
-    } catch {
-      alert('Failed to parse CSV. Please check the format.');
+      return;
     }
+
+    this.selectedImportFile = file;
+    this.selectedFileName = file.name;
+    this.detectedImportFormat = detected;
+
+    // Reset last results
+    this.importError = null;
+    this.importResponse = null;
+    this.importPreview = null;
+    this.importMapping = null;
+    this.importWarnings = [];
+    this.selectedSeriesColumns.clear();
+
+    // Auto-run preview import
+    this.previewImport();
   }
 
-  exportToCsv(): string {
-    const formValue = this.form.value;
-    const chartData: ChartData = {
-      chartType: formValue.chartType,
-      labels: formValue.labels || [],
-      series: formValue.series.map((s: any) => ({
-        name: s.name,
-        data: s.data || [],
-        color: s.color || undefined,
-        type: s.seriesType || undefined,
-        lineStyle: s.lineStyle || undefined,
-      })),
-      title: formValue.title,
-      xAxisLabel: formValue.xAxisLabel,
-      yAxisLabel: formValue.yAxisLabel,
-      showLegend: formValue.showLegend,
-      legendPosition: formValue.legendPosition,
-      showAxisLines: formValue.showAxisLines || false,
-      showValueLabels: formValue.showValueLabels || false,
-      valueLabelPosition: formValue.valueLabelPosition || undefined,
+  previewImport(): void {
+    if (!this.selectedImportFile) {
+      this.importError = 'No file selected.';
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!this.form) return;
+
+    const chartType: ChartType = (this.form.value.chartType as ChartType) || 'column';
+
+    const hasHeader = !!this.importForm.value.hasHeader;
+    const seriesColumnIndexes = Array.from(this.selectedSeriesColumns.values()).sort((a, b) => a - b);
+
+    this.importInProgress = true;
+    this.importError = null;
+    this.cdr.markForCheck();
+
+    const req = {
+      file: this.selectedImportFile,
+      chartType,
+      format: this.detectedImportFormat ?? undefined,
+      sheetIndex: this.detectedImportFormat === ImportFormat.XLSX ? (this.importForm.value.sheetIndex ?? undefined) : undefined,
+      delimiter: this.detectedImportFormat === ImportFormat.CSV ? (this.importForm.value.delimiter ?? undefined) : undefined,
+      hasHeader,
+      headerRowIndex: this.importForm.value.headerRowIndex ?? 0,
+      categoryColumnIndex: this.importForm.value.categoryColumnIndex ?? 0,
+      seriesColumnIndexes: seriesColumnIndexes.length > 0 ? seriesColumnIndexes : undefined,
+      aggregation: (this.importForm.value.aggregation as ChartImportAggregation) ?? 'SUM',
+    } satisfies ChartImportRequestOptions;
+
+    this.chartImportApi
+      .importChart(req)
+      .pipe(take(1))
+      .subscribe({
+        next: (resp) => {
+          this.importInProgress = false;
+
+          if (!resp?.success || !resp.data) {
+            this.importError = resp?.error?.message || 'Chart import failed';
+            this.importWarnings = [];
+            this.cdr.markForCheck();
+            return;
+          }
+
+          this.importResponse = resp.data;
+          this.importPreview = resp.data.preview;
+          this.importMapping = resp.data.mapping;
+          this.importWarnings = resp.data.warnings || [];
+
+          // Sync mapping controls with backend-inferred mapping.
+          this.importForm.patchValue(
+            {
+              hasHeader: resp.data.mapping.hasHeader,
+              headerRowIndex: resp.data.mapping.headerRowIndex,
+              categoryColumnIndex: resp.data.mapping.categoryColumnIndex,
+              aggregation: resp.data.mapping.aggregation,
+            },
+            { emitEvent: false }
+          );
+          this.selectedSeriesColumns = new Set(resp.data.mapping.seriesColumnIndexes || []);
+
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.importInProgress = false;
+          // eslint-disable-next-line no-console
+          console.error('Chart import failed', err);
+          const msg =
+            err?.error?.error?.message ||
+            err?.error?.message ||
+            err?.message ||
+            'Chart import failed. Please verify the backend is running and the file is valid.';
+          this.importError = msg;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  applyImportToChart(): void {
+    const imported = this.importResponse?.chartData as unknown as ChartData | undefined;
+    if (!imported) return;
+    this.applyImportedDataset(imported);
+    this.cdr.markForCheck();
+  }
+
+  isSeriesColumnSelected(colIndex: number): boolean {
+    return this.selectedSeriesColumns.has(colIndex);
+  }
+
+  toggleSeriesColumn(colIndex: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const checked = !!input.checked;
+    if (checked) this.selectedSeriesColumns.add(colIndex);
+    else this.selectedSeriesColumns.delete(colIndex);
+  }
+
+  previewColumnLabel(colIndex: number): string {
+    const preview = this.importPreview;
+    if (!preview) return `Column ${colIndex + 1}`;
+    const hasHeader = !!this.importForm.value.hasHeader;
+    const headerRowIndex = this.importForm.value.headerRowIndex ?? 0;
+    if (hasHeader && headerRowIndex >= 0 && headerRowIndex < preview.rows.length) {
+      const headerRow = preview.rows[headerRowIndex];
+      const text = (headerRow?.[colIndex] ?? '').trim();
+      if (text) return text;
+    }
+    return `Column ${colIndex + 1}`;
+  }
+
+  private detectImportFormat(fileName: string): ImportFormat | null {
+    const lower = (fileName || '').toLowerCase();
+    if (lower.endsWith('.xlsx')) return ImportFormat.XLSX;
+    if (lower.endsWith('.csv')) return ImportFormat.CSV;
+    if (lower.endsWith('.json')) return ImportFormat.JSON;
+    if (lower.endsWith('.xml')) return ImportFormat.XML;
+    return null;
+  }
+
+  private applyImportedDataset(imported: ChartData): void {
+    if (!this.form) return;
+
+    // Preserve chart presentation config.
+    const preserved = {
+      title: this.form.value.title,
+      xAxisLabel: this.form.value.xAxisLabel,
+      yAxisLabel: this.form.value.yAxisLabel,
+      showLegend: this.form.value.showLegend,
+      legendPosition: this.form.value.legendPosition,
+      showAxisLines: this.form.value.showAxisLines,
+      showValueLabels: this.form.value.showValueLabels,
+      valueLabelPosition: this.form.value.valueLabelPosition,
     };
 
-    const headers = ['Category', ...chartData.series.map((s: ChartSeries) => s.name)];
-    const rows: string[] = [headers.join(',')];
-    const maxLength = Math.max(chartData.labels?.length || 0, ...chartData.series.map((s: ChartSeries) => s.data.length));
+    const chartType: ChartType = (this.form.value.chartType as ChartType) || 'column';
 
-    for (let i = 0; i < maxLength; i++) {
-      const label = chartData.labels?.[i] || `Row ${i + 1}`;
-      const values = chartData.series.map((s: ChartSeries) => s.data[i] || 0);
-      rows.push([label, ...values].join(','));
-    }
+    const nextLabels = [...(imported.labels ?? [])];
+    this.labelsFormArray.clear();
+    this.labelVisibilityFormArray.clear();
+    nextLabels.forEach((label) => {
+      this.labelsFormArray.push(this.fb.control(label));
+      this.labelVisibilityFormArray.push(this.fb.control(true));
+    });
 
-    return rows.join('\n');
+    // Preserve per-series styling (color/lineStyle) by index when possible.
+    const existingSeries = (this.seriesFormArray?.value as any[] | undefined) ?? [];
+    const importedSeries = imported.series ?? [];
+
+    this.seriesFormArray.clear();
+    importedSeries.forEach((s: any, index: number) => {
+      const existing = existingSeries[index] || {};
+      const data: number[] = Array.isArray(s.data) ? [...s.data] : [];
+
+      // Keep series aligned with labels.
+      while (data.length < nextLabels.length) data.push(0);
+      while (data.length > nextLabels.length) data.pop();
+
+      const merged: ChartSeries = {
+        name: (s.name ?? existing.name ?? `Series ${index + 1}`) as string,
+        data,
+        color: (s.color || existing.color || undefined) as string | undefined,
+        type: (s.type || existing.seriesType || undefined) as ChartType | undefined,
+        lineStyle: (s.lineStyle || existing.lineStyle || undefined) as any,
+      };
+
+      this.seriesFormArray.push(this.createSeriesFormGroup(merged, index, chartType));
+    });
+
+    this.form.patchValue(preserved, { emitEvent: false });
   }
 
   save(): void {
@@ -560,7 +706,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
   cancel(): void {
     this.closed.emit({
-      chartData: this.data?.chartData || createDefaultChartData(),
+      chartData: this.data?.chartData || createEmptyChartData(),
       cancelled: true,
     });
   }

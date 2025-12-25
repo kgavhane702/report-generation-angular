@@ -24,6 +24,8 @@ import { ChartInstance } from '../engine/contracts';
 import { ChartData } from '../../../../../models/chart-data.model';
 import type { ChartConfigFormData, ChartConfigFormResult } from '../ui/chart-config-form/chart-config-form.component';
 import { ChartRenderRegistry } from '../../../../../core/services/chart-render-registry.service';
+import { ChartToolbarService } from '../../../../../core/services/chart-toolbar.service';
+import { Subject, filter, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-chart-widget',
@@ -42,7 +44,9 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private instance?: ChartInstance;
   private readonly registry = inject(ChartRegistryService);
   private readonly renderRegistry = inject(ChartRenderRegistry);
+  private readonly chartToolbar = inject(ChartToolbarService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroy$ = new Subject<void>();
   
   showDialog = false;
   dialogData?: ChartConfigFormData;
@@ -73,6 +77,16 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Register this chart with the render registry
     console.log('[ChartWidget] ngOnInit - registering:', this.widget.id, 'subsection:', this.subsectionId);
     this.renderRegistry.register(this.widget.id, this.subsectionId, this.pageId);
+
+    // Allow toolbar to open config/import dialog for a freshly inserted chart.
+    this.chartToolbar.openConfigRequested$
+      .pipe(
+        takeUntil(this.destroy$),
+        filter((req) => req.widgetId === this.widget.id)
+      )
+      .subscribe((req) => {
+        this.openConfigDialog(req.mode === 'import');
+      });
   }
 
   ngAfterViewInit(): void {
@@ -191,6 +205,8 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     console.log('[ChartWidget] ngOnDestroy - unregistering:', this.widget.id);
     this.renderRegistry.unregister(this.widget.id);
     this.instance?.destroy?.();
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   onDoubleClick(event: MouseEvent): void {
@@ -198,7 +214,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.openConfigDialog();
   }
 
-  openConfigDialog(): void {
+  openConfigDialog(openImportOnOpen: boolean = false): void {
     // Use pendingChartData if available (most recent unsaved changes), otherwise use widget data
     const sourceChartData = this.pendingChartData || (this.chartProps.data as ChartData);
     
@@ -214,6 +230,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.dialogData = {
       chartData: clonedChartData,
       widgetId: this.widget.id,
+      openImportOnOpen,
     };
     this.showDialog = true;
     this.cdr.markForCheck();
@@ -276,6 +293,23 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.instance.destroy?.();
     }
 
+    // Empty-state: if the chart has no dataset yet, show a friendly prompt instead of rendering an empty/broken chart.
+    // This is especially important for production where charts start without sample data.
+    const chartData = this.chartProps.data as ChartData | undefined;
+    if (this.isEmptyDataset(chartData)) {
+      this.containerRef.nativeElement.innerHTML = `
+        <div class="chart-widget__empty">
+          <div class="chart-widget__empty-title">No data connected</div>
+          <div class="chart-widget__empty-body">Double-click to configure → Data → Import</div>
+        </div>
+      `;
+      this.isChartRendered = true;
+      queueMicrotask(() => {
+        this.renderRegistry.markRendered(this.widget.id);
+      });
+      return;
+    }
+
     const providerId = this.chartProps.provider || 'echarts';
     const adapter = this.registry.getAdapter(providerId);
 
@@ -330,5 +364,12 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private get chartProps(): ChartWidgetProps {
     return this.widget.props as ChartWidgetProps;
+  }
+
+  private isEmptyDataset(data: ChartData | undefined | null): boolean {
+    if (!data) return true;
+    const series = (data as any).series as ChartData['series'] | undefined;
+    if (!Array.isArray(series) || series.length === 0) return true;
+    return !series.some((s) => Array.isArray((s as any)?.data) && (s as any).data.length > 0);
   }
 }

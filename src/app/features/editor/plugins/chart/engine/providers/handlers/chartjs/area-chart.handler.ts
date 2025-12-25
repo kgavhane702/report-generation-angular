@@ -36,6 +36,7 @@ export class ChartJsAreaChartHandler implements ChartJsChartTypeHandler {
             borderColor: baseColor,
             backgroundColor: bgColor,
             borderWidth: 2,
+            borderDash: this.getBorderDash(s.lineStyle),
             fill: true,
             tension: 0.1,
           };
@@ -86,6 +87,21 @@ export class ChartJsAreaChartHandler implements ChartJsChartTypeHandler {
       'rgb(244, 91, 91)',
       'rgb(145, 232, 225)',
     ];
+  }
+
+  private getBorderDash(
+    lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'
+  ): number[] | undefined {
+    if (!lineStyle || lineStyle === 'solid') return undefined;
+    const map: Record<string, number[]> = {
+      dashed: [6, 4],
+      dotted: [2, 3],
+      dashDot: [6, 3, 2, 3],
+      longDash: [10, 4],
+      longDashDot: [10, 3, 2, 3],
+      longDashDotDot: [10, 3, 2, 3, 2, 3],
+    };
+    return map[lineStyle] || undefined;
   }
 }
 

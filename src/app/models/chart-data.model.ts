@@ -138,6 +138,29 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
 }
 
 /**
+ * Helper to create an empty chart data structure (no sample data).
+ *
+ * Intended for production defaults where data is expected to be imported/connected.
+ */
+export function createEmptyChartData(chartType: ChartType = 'column'): ChartData {
+  // Keep the same default label-position logic as sample data.
+  const defaultLabelPosition = chartType === 'line' ? 'top' : 'inside';
+
+  return {
+    chartType,
+    labels: [],
+    labelVisibility: [],
+    series: [],
+    // Keep defaults for common presentation toggles; these are not "data".
+    showLegend: true,
+    legendPosition: 'bottom',
+    showAxisLines: false,
+    showValueLabels: true,
+    valueLabelPosition: defaultLabelPosition,
+  };
+}
+
+/**
  * Parse CSV string to ChartData
  */
 export function parseCsvToChartData(csv: string, chartType: ChartType = 'column'): ChartData {

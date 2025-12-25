@@ -1,5 +1,5 @@
 <form [formGroup]="form" class="chart-config-dialog__form" (ngSubmit)="save()">
-  <app-tabs ariaLabel="Chart configuration tabs" [stickyHeader]="true">
+  <app-tabs ariaLabel="Chart configuration tabs" [stickyHeader]="true" [(activeIndex)]="activeTabIndex">
     <app-tab label="Chart">
       <div class="chart-config-dialog__tab-content">
         <!-- Chart Type -->
@@ -28,60 +28,150 @@
 
     <app-tab label="Data">
       <div class="chart-config-dialog__tab-content">
-        <!-- CSV Import/Export -->
-        <div class="chart-config-dialog__section">
+        <!-- Import Dataset (Backend) -->
+        <div class="chart-config-dialog__section" [formGroup]="importForm">
+          <label class="chart-config-dialog__label">Import Dataset</label>
+
+          <div class="chart-config-dialog__file-upload">
+            <input
+              type="file"
+              accept=".xlsx,.csv,.json,.xml"
+              (change)="onImportFileSelected($event)"
+              class="chart-config-dialog__file-input"
+              id="chartImportFileInput"
+            />
+            <label for="chartImportFileInput" class="chart-config-dialog__file-label">
+              <span class="chart-config-dialog__file-button">Browse Files</span>
+              <span class="chart-config-dialog__file-hint">XLSX, CSV, JSON, or XML</span>
+            </label>
+            <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
+              Selected: {{ selectedFileName }}
+            </span>
+          </div>
+
+          <div
+            class="chart-config-dialog__row"
+            *ngIf="detectedImportFormat === ImportFormat.XLSX || detectedImportFormat === ImportFormat.CSV"
+          >
+            <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.XLSX">
+              <label class="chart-config-dialog__label" for="sheetIndex">Sheet Index (0-based)</label>
+              <input
+                id="sheetIndex"
+                type="number"
+                class="chart-config-dialog__input"
+                formControlName="sheetIndex"
+                min="0"
+              />
+            </div>
+            <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.CSV">
+              <label class="chart-config-dialog__label" for="delimiter">Delimiter</label>
+              <input id="delimiter" type="text" class="chart-config-dialog__input" formControlName="delimiter" placeholder="," />
+            </div>
+          </div>
+
+          <div class="chart-config-dialog__row">
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+                <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="hasHeader" />
+                Header row present
+              </label>
+            </div>
+            <div class="chart-config-dialog__section" *ngIf="importForm.value.hasHeader">
+              <label class="chart-config-dialog__label" for="headerRowIndex">Header Row Index</label>
+              <input
+                id="headerRowIndex"
+                type="number"
+                class="chart-config-dialog__input"
+                formControlName="headerRowIndex"
+                min="0"
+              />
+            </div>
+          </div>
+
+          <div class="chart-config-dialog__row">
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="categoryColumnIndex">Category Column</label>
+              <select
+                id="categoryColumnIndex"
+                class="chart-config-dialog__select"
+                formControlName="categoryColumnIndex"
+                [disabled]="!importPreview"
+              >
+                <option *ngFor="let col of previewColumnIndexes" [value]="col">
+                  {{ previewColumnLabel(col) }}
+                </option>
+              </select>
+            </div>
+
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="aggregation">Aggregation (duplicates)</label>
+              <select id="aggregation" class="chart-config-dialog__select" formControlName="aggregation">
+                <option *ngFor="let agg of aggregationOptions" [value]="agg">{{ agg }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chart-config-dialog__section" *ngIf="importPreview">
+            <label class="chart-config-dialog__label">Series Columns</label>
+            <div class="chart-config-dialog__series-columns">
+              <label
+                *ngFor="let col of previewColumnIndexes"
+                class="chart-config-dialog__label chart-config-dialog__label--inline chart-config-dialog__label--small"
+              >
+                <input
+                  type="checkbox"
+                  class="chart-config-dialog__checkbox"
+                  [checked]="isSeriesColumnSelected(col)"
+                  [disabled]="col === importForm.value.categoryColumnIndex"
+                  (change)="toggleSeriesColumn(col, $event)"
+                />
+                {{ previewColumnLabel(col) }}
+              </label>
+            </div>
+          </div>
+
           <div class="chart-config-dialog__actions">
             <button
               type="button"
               class="chart-config-dialog__button chart-config-dialog__button--secondary"
-              (click)="showCsvImport = !showCsvImport"
+              (click)="previewImport()"
+              [disabled]="importInProgress || !selectedImportFile"
             >
-              {{ showCsvImport ? 'Hide' : 'Show' }} CSV Import/Export
+              {{ importInProgress ? 'Importing…' : (importPreview ? 'Update Preview' : 'Preview Import') }}
+            </button>
+            <button
+              type="button"
+              class="chart-config-dialog__button chart-config-dialog__button--primary"
+              (click)="applyImportToChart()"
+              [disabled]="!importResponse?.chartData"
+            >
+              Apply to Chart
             </button>
           </div>
 
-          <div *ngIf="showCsvImport" class="chart-config-dialog__csv-section">
-            <label class="chart-config-dialog__label">Import Data from File</label>
-            <div class="chart-config-dialog__file-upload">
-              <input
-                type="file"
-                #fileInput
-                accept=".csv,.xlsx,.xls"
-                (change)="onFileSelected($event)"
-                class="chart-config-dialog__file-input"
-                id="csvFileInput"
-              />
-              <label for="csvFileInput" class="chart-config-dialog__file-label">
-                <span class="chart-config-dialog__file-button">Browse Files</span>
-                <span class="chart-config-dialog__file-hint">CSV, XLSX, or XLS files</span>
-              </label>
-              <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
-                Selected: {{ selectedFileName }}
-              </span>
-            </div>
+          <div *ngIf="importError" class="chart-config-dialog__import-error">
+            {{ importError }}
+          </div>
 
-            <label class="chart-config-dialog__label">Or Paste CSV Data</label>
-            <textarea
-              [formControl]="csvFormControl"
-              class="chart-config-dialog__textarea"
-              rows="8"
-              placeholder="Category,Series 1,Series 2&#10;Q1,10,15&#10;Q2,20,25&#10;Q3,15,20&#10;Q4,25,30"
-            ></textarea>
-            <div class="chart-config-dialog__actions">
-              <button
-                type="button"
-                class="chart-config-dialog__button chart-config-dialog__button--secondary"
-                (click)="importFromCsv()"
-              >
-                Import from CSV
-              </button>
-              <button
-                type="button"
-                class="chart-config-dialog__button chart-config-dialog__button--secondary"
-                (click)="csvFormControl.setValue(exportToCsv())"
-              >
-                Export to CSV
-              </button>
+          <div *ngIf="importWarnings.length" class="chart-config-dialog__import-warnings">
+            <div class="chart-config-dialog__import-warnings-title">Warnings</div>
+            <ul class="chart-config-dialog__import-warnings-list">
+              <li *ngFor="let w of importWarnings">{{ w.code }}: {{ w.message }}</li>
+            </ul>
+          </div>
+
+          <div *ngIf="importPreview" class="chart-config-dialog__preview">
+            <div class="chart-config-dialog__preview-meta">
+              Preview: {{ importPreview.totalRows }} rows × {{ importPreview.totalCols }} cols (showing first {{ importPreview.rows.length }})
+            </div>
+            <div class="chart-config-dialog__preview-table-wrapper">
+              <table class="chart-config-dialog__preview-table">
+                <tbody>
+                  <tr *ngFor="let row of importPreview.rows">
+                    <td *ngFor="let cell of row">{{ cell }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

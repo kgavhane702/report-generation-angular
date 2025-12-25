@@ -1,0 +1,53 @@
+<div class="chart-widget-selector">
+  <button
+    type="button"
+    class="chart-widget-selector__trigger"
+    (click)="toggleDropdown()"
+    title="Insert Chart"
+  >
+    <span class="material-symbols-outlined">bar_chart</span>
+    <span class="chart-widget-selector__label">Chart</span>
+    <svg class="chart-widget-selector__caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+
+  <div class="chart-widget-selector__dropdown" *ngIf="isOpen()">
+    <div class="chart-widget-selector__header">Insert Chart</div>
+
+    <button
+      type="button"
+      class="chart-widget-selector__item"
+      (click)="select('sample', $event)"
+      title="Insert a chart with sample data"
+    >
+      Sample Chart
+    </button>
+
+    <button
+      type="button"
+      class="chart-widget-selector__item"
+      (click)="select('placeholder', $event)"
+      title="Insert an empty placeholder chart"
+    >
+      Placeholder Chart
+    </button>
+
+    <button
+      type="button"
+      class="chart-widget-selector__item chart-widget-selector__item--primary"
+      (click)="select('import', $event)"
+      title="Insert a chart and open import dialog"
+    >
+      Import Chart…
+    </button>
+  </div>
+
+  <div
+    class="chart-widget-selector__backdrop"
+    *ngIf="isOpen()"
+    (click)="onBackdropClick($event)"
+  ></div>
+</div>
+
+

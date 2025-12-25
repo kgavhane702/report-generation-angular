@@ -19,6 +19,7 @@ import { ZoomControlsComponent } from './plugins/editor-tools/zoom-controls/zoom
 import { UndoRedoControlsComponent } from './plugins/editor-tools/undo-redo-controls/undo-redo-controls.component';
 import { ChartRegistryInitializer } from './plugins/chart/engine/runtime';
 import { ChartConfigFormComponent } from './plugins/chart/ui/chart-config-form/chart-config-form.component';
+import { ChartWidgetSelectorComponent } from './plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
 import { RichTextToolbarComponent } from './plugins/text/ui/rich-text-toolbar/rich-text-toolbar.component';
 import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
@@ -51,6 +52,7 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
     CKEditorModule,
     AppModalComponent,
     ChartConfigFormComponent,
+    ChartWidgetSelectorComponent,
     RichTextToolbarComponent,
     TextWidgetColorPickerComponent,
     TableToolbarComponent,

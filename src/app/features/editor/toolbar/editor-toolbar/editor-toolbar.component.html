@@ -42,14 +42,7 @@
     >
       <span class="material-symbols-outlined">text_fields</span>
     </button>
-    <button 
-      type="button" 
-      class="editor-toolbar__icon-button"
-      (click)="addWidget('chart')"
-      title="Add Chart Widget"
-    >
-      <span class="material-symbols-outlined">bar_chart</span>
-    </button>
+    <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     <button 
       type="button" 
       class="editor-toolbar__icon-button"

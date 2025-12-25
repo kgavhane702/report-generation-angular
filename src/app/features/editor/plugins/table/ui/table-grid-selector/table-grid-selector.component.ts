@@ -8,6 +8,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AppModalComponent } from '../../../../../../shared/components/modal/app-modal/app-modal.component';
 
 export interface TableDimensions {
   rows: number;
@@ -23,7 +24,7 @@ export interface TableDimensions {
 @Component({
   selector: 'app-table-grid-selector',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AppModalComponent],
   templateUrl: './table-grid-selector.component.html',
   styleUrls: ['./table-grid-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,6 +52,11 @@ export class TableGridSelectorComponent {
   readonly mode = signal<'new' | 'import'>('new');
 
   @ViewChild('excelFileInput', { static: false }) excelFileInput?: ElementRef<HTMLInputElement>;
+
+  /** Import dialog state */
+  importDialogOpen = false;
+  importFile: File | null = null;
+  importFileName: string | null = null;
 
   get selectionLabel(): string {
     if (this.mode() === 'import') {
@@ -112,12 +118,17 @@ export class TableGridSelectorComponent {
     this.closeDropdown();
   }
 
-  triggerExcelPicker(event?: MouseEvent): void {
+  openImportDialog(event?: MouseEvent): void {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
-    this.excelFileInput?.nativeElement?.click();
+
+    // Close the dropdown first, then open modal.
+    this.closeDropdown();
+    this.importDialogOpen = true;
+    this.importFile = null;
+    this.importFileName = null;
   }
 
   onExcelFileSelected(event: Event): void {
@@ -126,8 +137,22 @@ export class TableGridSelectorComponent {
     // reset immediately so selecting same file again triggers change
     input.value = '';
     if (!file) return;
-    this.excelImport.emit(file);
-    this.closeDropdown();
+    this.importFile = file;
+    this.importFileName = file.name;
+  }
+
+  confirmImport(): void {
+    if (!this.importFile) return;
+    this.excelImport.emit(this.importFile);
+    this.importDialogOpen = false;
+    this.importFile = null;
+    this.importFileName = null;
+  }
+
+  cancelImport(): void {
+    this.importDialogOpen = false;
+    this.importFile = null;
+    this.importFileName = null;
   }
 
   isCellSelected(rowIndex: number, colIndex: number): boolean {

@@ -5,6 +5,9 @@
  */
 export enum ImportFormat {
   XLSX = 'XLSX',
+  CSV = 'CSV',
+  JSON = 'JSON',
+  XML = 'XML',
 }
 
 

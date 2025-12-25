@@ -39,6 +39,14 @@ public class ApiExceptionHandler {
         return ApiResponseEntity.badRequest("BAD_REQUEST", safeMessage(e));
     }
 
+    @ExceptionHandler(ChartImportValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleChartImportValidation(ChartImportValidationException e) {
+        if (e.getDetails() == null || e.getDetails().isEmpty()) {
+            return ApiResponseEntity.badRequest("CHART_IMPORT_INVALID", safeMessage(e));
+        }
+        return ApiResponseEntity.badRequest("CHART_IMPORT_INVALID", safeMessage(e), e.getDetails());
+    }
+
     @ExceptionHandler(InvalidExcelFileException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidExcel(InvalidExcelFileException e) {
         return ApiResponseEntity.badRequest("INVALID_FILE", safeMessage(e));

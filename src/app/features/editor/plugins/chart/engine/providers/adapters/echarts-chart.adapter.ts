@@ -21,9 +21,20 @@ export class EChartsChartAdapter implements ChartAdapter {
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
     container.innerHTML = '';
-    
-    const chart = echarts.init(container);
     const filteredData = filterChartDataByLabelVisibility(chartData);
+
+    // Production-friendly empty state: show a prompt instead of rendering an empty chart.
+    if (!this.hasRenderableData(filteredData)) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: #666;">No data connected. Double-click to configure and import data.</div>';
+      return {
+        destroy() {
+          container.innerHTML = '';
+        },
+      };
+    }
+
+    const chart = echarts.init(container);
     const option = this.convertToEChartsOption(filteredData, width, height);
     chart.setOption(option);
 
@@ -43,6 +54,12 @@ export class EChartsChartAdapter implements ChartAdapter {
       },
       chartInstance: chart,
     } as ChartInstance & { chartInstance: echarts.ECharts };
+  }
+
+  private hasRenderableData(data: ChartData): boolean {
+    const series = data.series ?? [];
+    if (series.length === 0) return false;
+    return series.some((s) => Array.isArray(s.data) && s.data.length > 0);
   }
 
   private convertToEChartsOption(

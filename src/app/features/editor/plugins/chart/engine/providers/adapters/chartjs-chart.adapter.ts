@@ -23,10 +23,21 @@ export class ChartJsChartAdapter implements ChartAdapter {
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
     container.innerHTML = '';
-    
+    const filteredData = filterChartDataByLabelVisibility(chartData);
+
+    // Production-friendly empty state: show a prompt instead of rendering an empty chart.
+    if (!this.hasRenderableData(filteredData)) {
+      container.innerHTML =
+        '<div style="padding: 20px; text-align: center; color: #666;">No data connected. Double-click to configure and import data.</div>';
+      return {
+        destroy() {
+          container.innerHTML = '';
+        },
+      };
+    }
+
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
-    const filteredData = filterChartDataByLabelVisibility(chartData);
     const config = this.convertToChartJsConfig(filteredData, width, height);
     const chart = new Chart(canvas, config);
 
@@ -39,6 +50,12 @@ export class ChartJsChartAdapter implements ChartAdapter {
       },
       chartInstance: chart,
     } as ChartInstance & { chartInstance: Chart };
+  }
+
+  private hasRenderableData(data: ChartData): boolean {
+    const series = data.series ?? [];
+    if (series.length === 0) return false;
+    return series.some((s) => Array.isArray(s.data) && s.data.length > 0);
   }
 
   private convertToChartJsConfig(

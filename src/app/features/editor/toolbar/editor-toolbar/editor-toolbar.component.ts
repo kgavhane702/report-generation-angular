@@ -12,6 +12,11 @@ import { PendingChangesRegistry } from '../../../../core/services/pending-change
 import { WidgetType, TableRow, TableCell } from '../../../../models/widget.model';
 import { TableDimensions } from '../../plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableFileImportFacade } from '../../../../core/tabular-import/facades/table-file-import.facade';
+import { ChartToolbarService } from '../../../../core/services/chart-toolbar.service';
+import { createDefaultChartData, createEmptyChartData } from '../../../../models/chart-data.model';
+import type { ChartWidgetProps } from '../../../../models/widget.model';
+import type { ChartType } from '../../../../models/chart-data.model';
+import type { ChartWidgetInsertAction } from '../../plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 
@@ -30,6 +35,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly pdfService = inject(PdfService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly tableFileImport = inject(TableFileImportFacade);
+  private readonly chartToolbar = inject(ChartToolbarService);
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
   private readonly store = inject(Store<AppState>);
@@ -63,6 +69,44 @@ export class EditorToolbarComponent implements AfterViewInit {
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
+  }
+
+  onChartWidgetAction(action: ChartWidgetInsertAction): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+
+    // Create a new chart widget and seed its dataset depending on the selection.
+    const widget = this.widgetFactory.createWidget('chart') as any;
+    const props = widget.props as ChartWidgetProps;
+
+    const defaultType: ChartType = 'column';
+
+    if (action === 'sample') {
+      const data = createDefaultChartData(defaultType);
+      props.chartType = data.chartType;
+      props.data = data;
+    } else if (action === 'placeholder') {
+      const data = createEmptyChartData(defaultType);
+      props.chartType = data.chartType;
+      props.data = data;
+    } else {
+      // import: keep placeholder dataset, but open import dialog after insertion
+      const data = createEmptyChartData(defaultType);
+      props.chartType = data.chartType;
+      props.data = data;
+    }
+
+    this.documentService.addWidget(pageId, widget);
+    this.editorState.setActiveWidget(widget.id);
+
+    if (action === 'import') {
+      // Ensure chart widget is mounted before requesting dialog open (Subject is not replayed).
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.chartToolbar.requestOpenImport(widget.id);
+        });
+      });
+    }
   }
 
   onTableInsert(dimensions: TableDimensions): void {

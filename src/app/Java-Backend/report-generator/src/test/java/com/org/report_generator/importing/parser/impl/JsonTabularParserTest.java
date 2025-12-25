@@ -99,6 +99,81 @@ class JsonTabularParserTest {
         TabularCell dataId = ds.rows().get(2).cells().get(0);
         assertThat(dataId.contentHtml()).contains("1001");
     }
+
+    @Test
+    void chartLikeWrapper_withDataArray_unwrapsDataAndParsesAsTable() throws Exception {
+        String json = """
+                {
+                  "chartId": "sales-distribution-pie",
+                  "chartType": "pie",
+                  "title": "Sales Distribution by Product",
+                  "data": [
+                    { "label": "Product A", "value": 420 },
+                    { "label": "Product B", "value": 310 },
+                    { "label": "Product C", "value": 190 },
+                    { "label": "Product D", "value": 80 }
+                  ]
+                }
+                """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "pie-chart-sample.json",
+                "application/json",
+                json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        // Header + 4 rows, 2 columns: label/value
+        assertThat(ds.rows()).hasSize(5);
+        assertThat(ds.rows().get(0).cells()).hasSize(2);
+        assertThat(ds.rows().get(0).cells().get(0).contentHtml()).contains("label");
+        assertThat(ds.rows().get(0).cells().get(1).contentHtml()).contains("value");
+
+        TabularCell r1c0 = ds.rows().get(1).cells().get(0);
+        TabularCell r1c1 = ds.rows().get(1).cells().get(1);
+        assertThat(r1c0.contentHtml()).contains("Product A");
+        assertThat(r1c1.contentHtml()).contains("420");
+    }
+
+    @Test
+    void categoriesAndSeriesShape_parsesIntoCategoryPlusSeriesColumns() throws Exception {
+        String json = """
+                {
+                  "categories": ["Jan","Feb","Mar"],
+                  "series": [
+                    { "name": "Product A", "stack": "total", "data": [120, 150, 180] },
+                    { "name": "Product B", "stack": "total", "data": [80, 90, 110] }
+                  ]
+                }
+                """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "stacked-bar-multiple-data.json",
+                "application/json",
+                json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        // Header + 3 category rows; 1 category column + 2 series columns.
+        assertThat(ds.rows()).hasSize(4);
+        assertThat(ds.rows().get(0).cells()).hasSize(3);
+        assertThat(ds.rows().get(0).cells().get(0).contentHtml()).contains("Category");
+        assertThat(ds.rows().get(0).cells().get(1).contentHtml()).contains("Product A");
+        assertThat(ds.rows().get(0).cells().get(2).contentHtml()).contains("Product B");
+
+        TabularCell jan = ds.rows().get(1).cells().get(0);
+        TabularCell janA = ds.rows().get(1).cells().get(1);
+        TabularCell janB = ds.rows().get(1).cells().get(2);
+        assertThat(jan.contentHtml()).contains("Jan");
+        assertThat(janA.contentHtml()).contains("120");
+        assertThat(janB.contentHtml()).contains("80");
+    }
 }
 
 

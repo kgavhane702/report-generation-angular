@@ -61,7 +61,7 @@ export class EChartsStackedOverlappedBarLineChartHandler implements EChartsChart
           type: 'line' as const,
           data: offsetData,
           itemStyle: { color },
-          lineStyle: { color, width: 2 },
+          lineStyle: { color, width: 2, type: this.getLineStyleType(s.lineStyle) as any },
           label: {
             show: showValueLabels,
             position: valueLabelPosition === 'inside' ? 'top' : (valueLabelPosition || 'top'),
@@ -145,5 +145,23 @@ export class EChartsStackedOverlappedBarLineChartHandler implements EChartsChart
       '#F45B5B',
       '#91E8E1',
     ];
+  }
+
+  private getLineStyleType(
+    lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'
+  ): string | undefined {
+    if (!lineStyle || lineStyle === 'solid') {
+      return undefined; // ECharts default is solid
+    }
+    // Map to ECharts line style types
+    const styleMap: Record<string, string> = {
+      dashed: 'dashed',
+      dotted: 'dotted',
+      dashDot: 'dashDot',
+      longDash: 'longDash',
+      longDashDot: 'longDashDot',
+      longDashDotDot: 'longDashDotDot',
+    };
+    return styleMap[lineStyle] || undefined;
   }
 }

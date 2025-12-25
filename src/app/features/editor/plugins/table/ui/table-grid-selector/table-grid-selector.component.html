@@ -68,18 +68,11 @@
         <button
           type="button"
           class="table-grid-selector__import-button"
-          (click)="triggerExcelPicker($event)"
+          (click)="openImportDialog($event)"
           title="Import a new table from Excel/CSV/JSON/XML (.xlsx, .csv, .json, .xml)"
         >
           Import from Excel/CSV/JSON/XML
         </button>
-        <input
-          #excelFileInput
-          type="file"
-          accept=".xlsx,.csv,.json,.xml"
-          style="display: none"
-          (change)="onExcelFileSelected($event)"
-        />
       </div>
     </ng-template>
   </div>
@@ -90,4 +83,58 @@
     (click)="onBackdropClick($event)"
   ></div>
 </div>
+
+<app-modal
+  [(open)]="importDialogOpen"
+  size="md"
+  (closed)="cancelImport()"
+>
+  <ng-container appModalHeader>
+    <h2 class="table-grid-selector__import-title">Import Table</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <div class="table-grid-selector__import-dialog">
+      <div class="table-grid-selector__import-dialog-hint">
+        Select a file to import as a table. Supported: XLSX, CSV, JSON, XML.
+      </div>
+
+      <div class="table-grid-selector__file-upload">
+        <input
+          #excelFileInput
+          type="file"
+          accept=".xlsx,.csv,.json,.xml"
+          (change)="onExcelFileSelected($event)"
+          class="table-grid-selector__file-input"
+          id="tableImportFileInput"
+        />
+        <label for="tableImportFileInput" class="table-grid-selector__file-label">
+          <span class="table-grid-selector__file-button">Browse Files</span>
+          <span class="table-grid-selector__file-hint">XLSX, CSV, JSON, or XML</span>
+        </label>
+        <div *ngIf="importFileName" class="table-grid-selector__file-name">
+          Selected: {{ importFileName }}
+        </div>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-container appModalFooter>
+    <button
+      type="button"
+      class="table-grid-selector__import-dialog-btn table-grid-selector__import-dialog-btn--secondary"
+      (click)="cancelImport()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="table-grid-selector__import-dialog-btn table-grid-selector__import-dialog-btn--primary"
+      (click)="confirmImport()"
+      [disabled]="!importFile"
+    >
+      Import
+    </button>
+  </ng-container>
+</app-modal>
 

@@ -261,6 +261,14 @@ public class XmlTabularParser implements TabularParser {
     }
 
     private JsonNode genericXmlToJson(Element root) {
+        // Prefer Spreadsheet-like Row/Cell grids when present. Our generic repeated-sibling heuristic can
+        // incorrectly pick the repeated <Cell> siblings within a single <Row> (since there are often more
+        // cells than rows). This pre-pass ensures workbook-like XML imports as a coordinate grid.
+        List<Element> spreadsheetRows = findDescendantElements(root, "row", "r");
+        if (looksLikeRowCellGrid(spreadsheetRows)) {
+            return rowCellGridToJson(spreadsheetRows);
+        }
+
         List<Element> rowElements = detectRowElements(root);
         if (rowElements.isEmpty()) {
             rowElements = List.of(root);
@@ -331,6 +339,39 @@ public class XmlTabularParser implements TabularParser {
             if (anyHasCol) hits++;
         }
         return hits >= Math.max(1, examined / 2);
+    }
+
+    private static List<Element> findDescendantElements(Element root, String... wantedNames) {
+        List<Element> out = new ArrayList<>();
+        if (root == null || wantedNames == null || wantedNames.length == 0) return out;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        stack.push(root);
+
+        while (!stack.isEmpty()) {
+            Element cur = stack.pop();
+            if (cur != null) {
+                String ln = localName(cur);
+                if (ln != null && !ln.isBlank()) {
+                    for (String w : wantedNames) {
+                        if (w != null && w.equalsIgnoreCase(ln)) {
+                            out.add(cur);
+                            break;
+                        }
+                    }
+                }
+
+                NodeList children = cur.getChildNodes();
+                for (int i = children.getLength() - 1; i >= 0; i--) {
+                    Node n = children.item(i);
+                    if (n instanceof Element e) {
+                        stack.push(e);
+                    }
+                }
+            }
+        }
+
+        return out;
     }
 
     private JsonNode rowCellGridToJson(List<Element> rowElements) {

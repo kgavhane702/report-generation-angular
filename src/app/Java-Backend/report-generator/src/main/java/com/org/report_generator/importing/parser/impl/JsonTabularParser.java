@@ -39,6 +39,13 @@ import java.util.*;
  * 5) ECharts-like dataset:
  *    { "source": [ ["A","B"], [1,2] ] }
  *
+ * 6) Common chart config wrapper (data array):
+ *    { "data": [ { "label": "A", "value": 1 }, ... ], ...other metadata... }
+ *
+ * 7) Common chart dataset (categories + series):
+ *    { "categories": ["Jan","Feb"], "series": [ { "name":"A", "data":[1,2] }, ... ] }
+ *    (Also supports { "labels": [...], "series": [...] } and { "xAxis": { "data": [...] }, "series": [...] } )
+ *
  * Additionally, if a file is an ApiResponse envelope {success,data,error}, we unwrap `data` and parse it.
  */
 @Component
@@ -131,6 +138,20 @@ public class JsonTabularParser implements TabularParser {
                     return data;
                 }
             }
+            // Also allow { "data": [ ... ] } (common in chart configs).
+            // Only unwrap when the root itself doesn't already match a supported table object shape.
+            if (data != null && data.isArray()) {
+                JsonNode rows = node.get("rows");
+                JsonNode source = node.get("source");
+                JsonNode columns = node.get("columns");
+                boolean looksLikeTableObject =
+                        (rows != null && rows.isArray()) ||
+                        (source != null && source.isArray()) ||
+                        (columns != null && columns.isArray() && rows != null && rows.isArray());
+                if (!looksLikeTableObject) {
+                    return data;
+                }
+            }
         }
         return node;
     }
@@ -151,6 +172,24 @@ public class JsonTabularParser implements TabularParser {
                 return parseArrayRoot(source);
             }
 
+            // Common chart dataset shapes:
+            // - { categories: [...], series: [...] }
+            // - { labels: [...], series: [...] } (ChartData-like)
+            // - { xAxis: { data: [...] }, series: [...] } (ECharts option-like)
+            JsonNode series = node.get("series");
+            if (series != null && series.isArray()) {
+                JsonNode categories = node.get("categories");
+                if (categories == null || !categories.isArray()) {
+                    categories = node.get("labels");
+                }
+                if (categories == null || !categories.isArray()) {
+                    categories = extractXAxisData(node.get("xAxis"));
+                }
+                if (categories != null && categories.isArray()) {
+                    return parseCategoriesAndSeries(categories, series);
+                }
+            }
+
             // { columns: [...], rows: [...] }
             JsonNode columns = node.get("columns");
             JsonNode rows = node.get("rows");
@@ -165,6 +204,102 @@ public class JsonTabularParser implements TabularParser {
         }
 
         throw new IllegalArgumentException("Unsupported JSON shape for table import");
+    }
+
+    private JsonNode extractXAxisData(JsonNode xAxis) {
+        if (xAxis == null || xAxis.isNull()) return null;
+        // ECharts can use xAxis: { data: [...] } or xAxis: [ { data: [...] } ]
+        if (xAxis.isObject()) {
+            JsonNode data = xAxis.get("data");
+            return (data != null && data.isArray()) ? data : null;
+        }
+        if (xAxis.isArray() && xAxis.size() > 0) {
+            JsonNode first = xAxis.get(0);
+            if (first != null && first.isObject()) {
+                JsonNode data = first.get("data");
+                return (data != null && data.isArray()) ? data : null;
+            }
+        }
+        return null;
+    }
+
+    private Grid parseCategoriesAndSeries(JsonNode categoriesNode, JsonNode seriesNode) {
+        if (categoriesNode == null || !categoriesNode.isArray()) {
+            throw new IllegalArgumentException("Invalid JSON: expected 'categories'/'labels' array");
+        }
+        if (seriesNode == null || !seriesNode.isArray()) {
+            throw new IllegalArgumentException("Invalid JSON: expected 'series' array");
+        }
+
+        // Categories (labels)
+        List<String> categories = new ArrayList<>();
+        for (JsonNode c : categoriesNode) {
+            categories.add(valueToString(c));
+        }
+
+        // Series specs
+        record SeriesSpec(String name, JsonNode data) {}
+        List<SeriesSpec> specs = new ArrayList<>();
+        int maxLen = categories.size();
+        int fallbackSeriesIndex = 1;
+
+        for (JsonNode s : seriesNode) {
+            if (s == null || !s.isObject()) continue;
+
+            JsonNode data = s.get("data");
+            if (data == null || !data.isArray()) {
+                // Ignore non-data series entries (config-only).
+                continue;
+            }
+
+            String name = "";
+            JsonNode nameNode = s.get("name");
+            if (nameNode == null) nameNode = s.get("label");
+            if (nameNode != null) {
+                name = valueToString(nameNode);
+            }
+            if (name == null || name.isBlank()) {
+                name = "Series " + fallbackSeriesIndex;
+            }
+            fallbackSeriesIndex++;
+
+            maxLen = Math.max(maxLen, data.size());
+            specs.add(new SeriesSpec(name, data));
+        }
+
+        if (specs.isEmpty()) {
+            throw new IllegalArgumentException("Unsupported chart JSON: series[] must contain objects with a 'data' array");
+        }
+
+        int rows = Math.max(1, maxLen + 1); // + header row
+        int cols = Math.max(1, specs.size() + 1); // + category column
+        validateDimensions(rows, cols);
+
+        TabularCell[][] cells = new TabularCell[rows][cols];
+
+        // Header row
+        cells[0][0] = new TabularCell("0-0", escapeToHtml("Category"), null, null);
+        for (int i = 0; i < specs.size(); i++) {
+            cells[0][i + 1] = new TabularCell("0-" + (i + 1), escapeToHtml(specs.get(i).name), null, null);
+        }
+
+        // Data rows
+        for (int r = 0; r < maxLen; r++) {
+            String label = r < categories.size() ? categories.get(r) : "";
+            label = label == null ? "" : label.trim();
+            if (label.isBlank()) label = "Row " + (r + 1);
+            cells[r + 1][0] = new TabularCell((r + 1) + "-0", escapeToHtml(label), null, null);
+
+            for (int s = 0; s < specs.size(); s++) {
+                JsonNode dataArr = specs.get(s).data;
+                JsonNode v = (dataArr != null && dataArr.isArray() && r < dataArr.size()) ? dataArr.get(r) : null;
+                String text = valueToString(v);
+                String html = escapeToHtml(text).replace("\n", "<br>");
+                cells[r + 1][s + 1] = new TabularCell((r + 1) + "-" + (s + 1), html, null, null);
+            }
+        }
+
+        return new Grid(rows, cols, cells, null, null);
     }
 
     private Grid parseArrayRoot(JsonNode arr) {

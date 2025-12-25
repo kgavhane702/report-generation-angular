@@ -50,6 +50,7 @@ export class ChartJsStackedOverlappedBarLineChartHandler implements ChartJsChart
         backgroundColor: isBar ? this.addAlpha(color, 0.5) : 'transparent',
         borderColor: color,
         borderWidth: isBar ? 1 : 2,
+        borderDash: isBar ? undefined : this.getBorderDash(s.lineStyle),
         ...extra,
       };
     });
@@ -143,5 +144,20 @@ export class ChartJsStackedOverlappedBarLineChartHandler implements ChartJsChart
 
     // Fallback: wrap in rgba
     return `rgba(${color}, ${alpha})`;
+  }
+
+  private getBorderDash(
+    lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'
+  ): number[] | undefined {
+    if (!lineStyle || lineStyle === 'solid') return undefined;
+    const map: Record<string, number[]> = {
+      dashed: [6, 4],
+      dotted: [2, 3],
+      dashDot: [6, 3, 2, 3],
+      longDash: [10, 4],
+      longDashDot: [10, 3, 2, 3],
+      longDashDotDot: [10, 3, 2, 3, 2, 3],
+    };
+    return map[lineStyle] || undefined;
   }
 }

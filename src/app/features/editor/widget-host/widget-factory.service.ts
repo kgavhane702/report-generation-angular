@@ -11,7 +11,7 @@ import {
   TableRow,
   WidgetProps,
 } from '../../../models/widget.model';
-import { createDefaultChartData } from '../../../models/chart-data.model';
+import { createEmptyChartData } from '../../../models/chart-data.model';
 import { TABLE_DEFAULT_WIDTH_PX, TABLE_INITIAL_ROW_PX } from '../plugins/table/table-constants';
 
 @Injectable({
@@ -48,7 +48,9 @@ export class WidgetFactoryService {
   }
 
   private createChartWidget(): WidgetModel<ChartWidgetProps> {
-    const defaultChartData = createDefaultChartData('column');
+    // Always start with a placeholder dataset (no environment-dependent behavior).
+    // Users can choose Sample / Placeholder / Import from the chart config dropdown.
+    const defaultChartData = createEmptyChartData('column');
     
     return {
       id: uuid(),
