@@ -488,6 +488,28 @@
   gap: 8px;
 }
 
+.chart-config-dialog__import-mode {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chart-config-dialog__import-mode-btn {
+  min-width: 84px;
+}
+
+.chart-config-dialog__import-mode-btn--active {
+  border-color: rgba(33, 37, 41, 0.55);
+  background: rgba(33, 37, 41, 0.08);
+  color: #212529;
+}
+
+.chart-config-dialog__url-import {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .chart-config-dialog__file-input {
   display: none;
 }

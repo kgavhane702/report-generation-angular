@@ -1,4 +1,5 @@
 import { UUID } from './document.model';
+import type { ChartHttpDataSourceConfig, TableHttpDataSourceConfig } from '../shared/http-request/models/http-data-source.model';
 
 export type WidgetType =
   | 'text'
@@ -52,6 +53,8 @@ export interface ChartWidgetProps {
   data: unknown;
   renderMode?: 'svg' | 'canvas';
   exportedImage?: string;
+  /** Optional persisted remote source (Postman-like request config). */
+  dataSource?: ChartHttpDataSourceConfig | null;
   /** Optional transient UI state: show placeholder/skeleton while data is loading. */
   loading?: boolean;
   loadingMessage?: string;
@@ -111,6 +114,8 @@ export interface TableWidgetProps {
    * and `coveredBy` (covered cells), allowing merged areas to behave like normal cells.
    */
   mergedRegions?: TableMergedRegion[];
+  /** Optional persisted remote source (Postman-like request config). */
+  dataSource?: TableHttpDataSourceConfig | null;
   /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
   loading?: boolean;
   loadingMessage?: string;

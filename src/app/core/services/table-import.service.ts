@@ -2,6 +2,8 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { TableCellMerge, TableRow } from '../../models/widget.model';
+import type { ImportFormat } from '../tabular-import/enums/import-format.enum';
+import type { HttpRequestSpec } from '../../shared/http-request/models/http-request.model';
 
 export interface ApiErrorDto {
   code?: string;
@@ -27,6 +29,14 @@ export interface TableImportResponseDto {
   }>;
   columnFractions: number[];
   rowFractions: number[];
+}
+
+export interface TableImportFromUrlRequestDto {
+  request: HttpRequestSpec;
+  /** Optional parser override; otherwise backend detects. */
+  format?: ImportFormat;
+  sheetIndex?: number;
+  delimiter?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -62,5 +72,9 @@ export class TableImportService {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<ApiResponseDto<TableImportResponseDto>>('/api/table/import/xml', form);
+  }
+
+  importFromUrl(request: TableImportFromUrlRequestDto): Observable<ApiResponseDto<TableImportResponseDto>> {
+    return this.http.post<ApiResponseDto<TableImportResponseDto>>('/api/table/import/url', request);
   }
 }

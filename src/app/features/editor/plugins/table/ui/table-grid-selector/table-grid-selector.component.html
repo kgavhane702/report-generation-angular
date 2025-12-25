@@ -99,7 +99,28 @@
   <ng-container appModalBody>
     <div class="table-grid-selector__import-dialog">
       <div class="table-grid-selector__import-dialog-hint">
-        Select a file to import as a table. Supported: XLSX, CSV, JSON, XML.
+        Import a table from a file or from an HTTP request (URL/path).
+      </div>
+
+      <div class="table-grid-selector__import-mode">
+        <button
+          type="button"
+          class="table-grid-selector__import-mode-btn"
+          [class.table-grid-selector__import-mode-btn--active]="importDialogMode === 'file'"
+          (click)="setImportDialogMode('file')"
+          [disabled]="importInProgress"
+        >
+          File
+        </button>
+        <button
+          type="button"
+          class="table-grid-selector__import-mode-btn"
+          [class.table-grid-selector__import-mode-btn--active]="importDialogMode === 'url'"
+          (click)="setImportDialogMode('url')"
+          [disabled]="importInProgress"
+        >
+          URL
+        </button>
       </div>
 
       <div *ngIf="visibleImportError" class="table-grid-selector__import-error">
@@ -111,27 +132,77 @@
         Importing table…
       </div>
 
-      <div class="table-grid-selector__file-upload">
-        <input
-          #excelFileInput
-          type="file"
-          accept=".xlsx,.csv,.json,.xml"
-          (change)="onExcelFileSelected($event)"
-          class="table-grid-selector__file-input"
-          id="tableImportFileInput"
-        />
-        <label
-          for="tableImportFileInput"
-          class="table-grid-selector__file-label"
-          [class.table-grid-selector__file-label--disabled]="importInProgress"
-        >
-          <span class="table-grid-selector__file-button">Browse Files</span>
-          <span class="table-grid-selector__file-hint">XLSX, CSV, JSON, or XML</span>
-        </label>
-        <div *ngIf="importFileName" class="table-grid-selector__file-name">
-          Selected: {{ importFileName }}
+      <ng-container *ngIf="importDialogMode === 'file'; else urlImport">
+        <div class="table-grid-selector__file-upload">
+          <input
+            #excelFileInput
+            type="file"
+            accept=".xlsx,.csv,.json,.xml"
+            (change)="onExcelFileSelected($event)"
+            class="table-grid-selector__file-input"
+            id="tableImportFileInput"
+          />
+          <label
+            for="tableImportFileInput"
+            class="table-grid-selector__file-label"
+            [class.table-grid-selector__file-label--disabled]="importInProgress"
+          >
+            <span class="table-grid-selector__file-button">Browse Files</span>
+            <span class="table-grid-selector__file-hint">XLSX, CSV, JSON, or XML</span>
+          </label>
+          <div *ngIf="importFileName" class="table-grid-selector__file-name">
+            Selected: {{ importFileName }}
+          </div>
         </div>
-      </div>
+      </ng-container>
+
+      <ng-template #urlImport>
+        <div class="table-grid-selector__url-import">
+          <app-http-request-builder [(value)]="urlRequest" [disabled]="importInProgress"></app-http-request-builder>
+
+          <div class="table-grid-selector__url-options">
+            <div class="table-grid-selector__url-option">
+              <label class="table-grid-selector__url-label">Format</label>
+              <select
+                class="table-grid-selector__url-select"
+                [value]="urlFormat || ''"
+                (change)="urlFormat = ($any($event.target).value || null)"
+                [disabled]="importInProgress"
+              >
+                <option value="">Auto-detect</option>
+                <option [value]="ImportFormat.XLSX">XLSX</option>
+                <option [value]="ImportFormat.CSV">CSV</option>
+                <option [value]="ImportFormat.JSON">JSON</option>
+                <option [value]="ImportFormat.XML">XML</option>
+              </select>
+            </div>
+
+            <div class="table-grid-selector__url-option">
+              <label class="table-grid-selector__url-label">Sheet index (XLSX)</label>
+              <input
+                class="table-grid-selector__url-input"
+                type="number"
+                [value]="urlSheetIndex ?? ''"
+                (input)="urlSheetIndex = ($any($event.target).value === '' ? null : +$any($event.target).value)"
+                [disabled]="importInProgress"
+                min="0"
+              />
+            </div>
+
+            <div class="table-grid-selector__url-option">
+              <label class="table-grid-selector__url-label">Delimiter (CSV)</label>
+              <input
+                class="table-grid-selector__url-input"
+                type="text"
+                [value]="urlDelimiter"
+                (input)="urlDelimiter = $any($event.target).value"
+                [disabled]="importInProgress"
+                placeholder=","
+              />
+            </div>
+          </div>
+        </div>
+      </ng-template>
     </div>
   </ng-container>
 
@@ -147,8 +218,8 @@
     <button
       type="button"
       class="table-grid-selector__import-dialog-btn table-grid-selector__import-dialog-btn--primary"
-      (click)="confirmImport()"
-      [disabled]="!importFile || importInProgress"
+      (click)="importDialogMode === 'file' ? confirmImport() : confirmUrlImport()"
+      [disabled]="importDialogMode === 'file' ? (!importFile || importInProgress) : (!canImportUrl)"
     >
       <span *ngIf="importInProgress" class="table-grid-selector__btn-spinner" aria-hidden="true"></span>
       {{ importInProgress ? 'Importing…' : 'Import' }}

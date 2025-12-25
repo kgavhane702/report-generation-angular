@@ -1,0 +1,174 @@
+<form class="http-request-builder" [class.http-request-builder--disabled]="disabled" [formGroup]="form">
+  <div class="http-request-builder__top">
+    <select class="http-request-builder__method" formControlName="method">
+      <option *ngFor="let m of methods" [value]="m">{{ m }}</option>
+    </select>
+
+    <input
+      class="http-request-builder__url"
+      type="text"
+      placeholder="Enter URL or path (e.g. /api/data or https://example.com/file.xlsx)"
+      formControlName="url"
+    />
+  </div>
+
+  <app-tabs ariaLabel="HTTP request builder tabs" [stickyHeader]="false">
+    <app-tab label="Params">
+      <div class="http-request-builder__kv">
+        <div class="http-request-builder__kv-header">
+          <div>Enabled</div>
+          <div>Key</div>
+          <div>Value</div>
+          <div></div>
+        </div>
+        <div
+          class="http-request-builder__kv-row"
+          *ngFor="let row of queryParams.controls; let i = index; trackBy: trackByIndex"
+          [formGroup]="$any(row)"
+        >
+          <input type="checkbox" formControlName="enabled" />
+          <input type="text" formControlName="key" placeholder="key" />
+          <input type="text" formControlName="value" placeholder="value" />
+          <button type="button" class="http-request-builder__icon-btn" (click)="removeQueryParam(i)" [disabled]="disabled">
+            ×
+          </button>
+        </div>
+        <button type="button" class="http-request-builder__add-btn" (click)="addQueryParam()" [disabled]="disabled">
+          + Add param
+        </button>
+      </div>
+    </app-tab>
+
+    <app-tab label="Headers">
+      <div class="http-request-builder__kv">
+        <div class="http-request-builder__kv-header">
+          <div>Enabled</div>
+          <div>Key</div>
+          <div>Value</div>
+          <div></div>
+        </div>
+        <div
+          class="http-request-builder__kv-row"
+          *ngFor="let row of headers.controls; let i = index; trackBy: trackByIndex"
+          [formGroup]="$any(row)"
+        >
+          <input type="checkbox" formControlName="enabled" />
+          <input type="text" formControlName="key" placeholder="Header" />
+          <input type="text" formControlName="value" placeholder="Value" />
+          <button type="button" class="http-request-builder__icon-btn" (click)="removeHeader(i)" [disabled]="disabled">
+            ×
+          </button>
+        </div>
+        <button type="button" class="http-request-builder__add-btn" (click)="addHeader()" [disabled]="disabled">
+          + Add header
+        </button>
+      </div>
+    </app-tab>
+
+    <app-tab label="Cookies">
+      <div class="http-request-builder__cookies">
+        <label class="http-request-builder__label">Cookie header (raw)</label>
+        <textarea
+          class="http-request-builder__textarea"
+          rows="2"
+          placeholder="e.g. session=abc; theme=dark"
+          formControlName="cookieHeader"
+        ></textarea>
+        <div class="http-request-builder__hint">If set, this takes precedence over the cookie table below.</div>
+
+        <div class="http-request-builder__kv">
+          <div class="http-request-builder__kv-header">
+            <div>Enabled</div>
+            <div>Name</div>
+            <div>Value</div>
+            <div></div>
+          </div>
+          <div
+            class="http-request-builder__kv-row"
+            *ngFor="let row of cookies.controls; let i = index; trackBy: trackByIndex"
+            [formGroup]="$any(row)"
+          >
+            <input type="checkbox" formControlName="enabled" />
+            <input type="text" formControlName="key" placeholder="cookie" />
+            <input type="text" formControlName="value" placeholder="value" />
+            <button type="button" class="http-request-builder__icon-btn" (click)="removeCookie(i)" [disabled]="disabled">
+              ×
+            </button>
+          </div>
+          <button type="button" class="http-request-builder__add-btn" (click)="addCookie()" [disabled]="disabled">
+            + Add cookie
+          </button>
+        </div>
+      </div>
+    </app-tab>
+
+    <app-tab label="Body">
+      <div class="http-request-builder__body">
+        <label class="http-request-builder__label">Mode</label>
+        <select class="http-request-builder__select" formControlName="bodyMode">
+          <option *ngFor="let m of bodyModes" [value]="m">{{ m }}</option>
+        </select>
+
+        <ng-container *ngIf="form.value.bodyMode === 'raw'">
+          <label class="http-request-builder__label">Content-Type</label>
+          <input class="http-request-builder__input" type="text" formControlName="bodyContentType" />
+
+          <label class="http-request-builder__label">Raw body</label>
+          <textarea class="http-request-builder__textarea" rows="6" formControlName="bodyRaw"></textarea>
+        </ng-container>
+
+        <div class="http-request-builder__hint">Body is only sent for POST/PUT/PATCH/DELETE.</div>
+      </div>
+    </app-tab>
+
+    <app-tab label="Auth">
+      <div class="http-request-builder__auth">
+        <label class="http-request-builder__label">Type</label>
+        <select class="http-request-builder__select" formControlName="authType">
+          <option *ngFor="let t of authTypes" [value]="t">{{ t }}</option>
+        </select>
+
+        <ng-container *ngIf="form.value.authType === 'bearer'">
+          <label class="http-request-builder__label">Bearer token</label>
+          <input class="http-request-builder__input" type="text" formControlName="bearerToken" placeholder="token" />
+        </ng-container>
+
+        <ng-container *ngIf="form.value.authType === 'basic'">
+          <label class="http-request-builder__label">Username</label>
+          <input class="http-request-builder__input" type="text" formControlName="basicUsername" />
+          <label class="http-request-builder__label">Password</label>
+          <input class="http-request-builder__input" type="password" formControlName="basicPassword" />
+        </ng-container>
+
+        <ng-container *ngIf="form.value.authType === 'apiKey'">
+          <label class="http-request-builder__label">Location</label>
+          <select class="http-request-builder__select" formControlName="apiKeyLocation">
+            <option value="header">header</option>
+            <option value="query">query</option>
+          </select>
+          <label class="http-request-builder__label">Name</label>
+          <input class="http-request-builder__input" type="text" formControlName="apiKeyName" />
+          <label class="http-request-builder__label">Value</label>
+          <input class="http-request-builder__input" type="text" formControlName="apiKeyValue" />
+        </ng-container>
+
+        <div class="http-request-builder__hint">Explicit headers override Auth-generated headers (e.g. Authorization).</div>
+      </div>
+    </app-tab>
+
+    <app-tab label="Settings">
+      <div class="http-request-builder__settings">
+        <label class="http-request-builder__label">Timeout (ms)</label>
+        <input class="http-request-builder__input" type="number" formControlName="timeoutMs" min="1000" />
+
+        <label class="http-request-builder__label http-request-builder__label--inline">
+          <input type="checkbox" formControlName="followRedirects" />
+          Follow redirects
+        </label>
+      </div>
+    </app-tab>
+  </app-tabs>
+</form>
+
+
+

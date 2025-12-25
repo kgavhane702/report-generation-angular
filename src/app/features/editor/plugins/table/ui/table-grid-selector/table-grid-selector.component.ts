@@ -12,6 +12,10 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppModalComponent } from '../../../../../../shared/components/modal/app-modal/app-modal.component';
+import { HttpRequestBuilderComponent } from '../../../../../../shared/http-request/components/http-request-builder/http-request-builder.component';
+import type { HttpRequestSpec } from '../../../../../../shared/http-request/models/http-request.model';
+import type { TableHttpDataSourceConfig } from '../../../../../../shared/http-request/models/http-data-source.model';
+import { ImportFormat } from '../../../../../../core/tabular-import/enums/import-format.enum';
 
 export interface TableDimensions {
   rows: number;
@@ -27,7 +31,7 @@ export interface TableDimensions {
 @Component({
   selector: 'app-table-grid-selector',
   standalone: true,
-  imports: [CommonModule, AppModalComponent],
+  imports: [CommonModule, AppModalComponent, HttpRequestBuilderComponent],
   templateUrl: './table-grid-selector.component.html',
   styleUrls: ['./table-grid-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -39,6 +43,7 @@ export class TableGridSelectorComponent implements OnChanges {
 
   @Output() tableInsert = new EventEmitter<TableDimensions>();
   @Output() excelImport = new EventEmitter<File>();
+  @Output() urlImport = new EventEmitter<TableHttpDataSourceConfig>();
   @Output() close = new EventEmitter<void>();
 
   readonly maxRows = 10;
@@ -62,10 +67,26 @@ export class TableGridSelectorComponent implements OnChanges {
 
   /** Import dialog state */
   importDialogOpen = false;
+  importDialogMode: 'file' | 'url' = 'file';
   importFile: File | null = null;
   importFileName: string | null = null;
   private importRequested = false;
   visibleImportError: string | null = null;
+
+  // URL import state
+  urlRequest: HttpRequestSpec = {
+    url: '',
+    method: 'GET',
+    timeoutMs: 20000,
+    followRedirects: true,
+    queryParams: [{ key: '', value: '', enabled: true }],
+    headers: [{ key: '', value: '', enabled: true }],
+  };
+  urlFormat: ImportFormat | null = null;
+  urlSheetIndex: number | null = null;
+  urlDelimiter = '';
+
+  readonly ImportFormat = ImportFormat;
 
   ngOnChanges(changes: SimpleChanges): void {
     const importInProgressChange = changes['importInProgress'];
@@ -157,8 +178,15 @@ export class TableGridSelectorComponent implements OnChanges {
     // Close the dropdown first, then open modal.
     this.closeDropdown();
     this.importDialogOpen = true;
+    this.importDialogMode = 'file';
     this.importFile = null;
     this.importFileName = null;
+    this.visibleImportError = null;
+  }
+
+  setImportDialogMode(mode: 'file' | 'url'): void {
+    if (this.importInProgress) return;
+    this.importDialogMode = mode;
     this.visibleImportError = null;
   }
 
@@ -189,6 +217,33 @@ export class TableGridSelectorComponent implements OnChanges {
     this.importFileName = null;
 
     this.excelImport.emit(file);
+  }
+
+  get canImportUrl(): boolean {
+    const url = (this.urlRequest?.url ?? '').trim();
+    return url.length > 0 && !this.importInProgress;
+  }
+
+  confirmUrlImport(): void {
+    if (!this.canImportUrl) return;
+
+    this.importRequested = true;
+    this.visibleImportError = null;
+
+    // Close immediately so canvas is visible while backend import runs.
+    this.importDialogOpen = false;
+    this.importFile = null;
+    this.importFileName = null;
+
+    const cfg: TableHttpDataSourceConfig = {
+      kind: 'http',
+      request: this.urlRequest,
+      format: this.urlFormat ?? undefined,
+      sheetIndex: this.urlSheetIndex ?? undefined,
+      delimiter: this.urlDelimiter?.trim() ? this.urlDelimiter.trim() : undefined,
+    };
+
+    this.urlImport.emit(cfg);
   }
 
   cancelImport(): void {

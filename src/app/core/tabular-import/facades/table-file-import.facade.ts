@@ -4,9 +4,11 @@ import { finalize, take } from 'rxjs';
 import { WidgetFactoryService } from '../../../features/editor/widget-host/widget-factory.service';
 import { DocumentService } from '../../services/document.service';
 import { EditorStateService } from '../../services/editor-state.service';
-import { TableImportService } from '../../services/table-import.service';
+import { TableImportFromUrlRequestDto, TableImportService } from '../../services/table-import.service';
 import { TableToolbarService } from '../../services/table-toolbar.service';
 import type { TableWidgetProps, WidgetModel } from '../../../models/widget.model';
+import type { TableHttpDataSourceConfig } from '../../../shared/http-request/models/http-data-source.model';
+import { RemoteWidgetLoadRegistryService } from '../../services/remote-widget-load-registry.service';
 
 /**
  * Facade for importing a file and inserting it into a Table widget.
@@ -21,6 +23,7 @@ export class TableFileImportFacade {
   private readonly editorState = inject(EditorStateService);
   private readonly tableImport = inject(TableImportService);
   private readonly tableToolbar = inject(TableToolbarService);
+  private readonly remoteLoads = inject(RemoteWidgetLoadRegistryService);
 
   private readonly _importInProgress = signal<boolean>(false);
   readonly importInProgress = this._importInProgress.asReadonly();
@@ -28,11 +31,14 @@ export class TableFileImportFacade {
   private readonly _importError = signal<string | null>(null);
   readonly importError = this._importError.asReadonly();
 
-  private insertLoadingPlaceholder(pageId: string, message: string): WidgetModel {
+  private insertLoadingPlaceholder(pageId: string, message: string, dataSource?: TableHttpDataSourceConfig): WidgetModel {
     const widget = this.widgetFactory.createWidget('table');
     const props = widget.props as TableWidgetProps;
     props.loading = true;
     props.loadingMessage = message;
+    if (dataSource) {
+      props.dataSource = dataSource;
+    }
 
     this.documentService.addWidget(pageId, widget);
     this.editorState.setActiveWidget(widget.id);
@@ -48,6 +54,72 @@ export class TableFileImportFacade {
     if (this.tableToolbar.activeTableWidgetId === widgetId) {
       this.tableToolbar.setActiveTableWidget(null);
     }
+  }
+
+  importFromUrl(dataSource: TableHttpDataSourceConfig): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+
+    const previousActiveWidgetId = this.editorState.activeWidgetId();
+    const placeholder = this.insertLoadingPlaceholder(pageId, 'Importing table…', dataSource);
+
+    this._importInProgress.set(true);
+    this._importError.set(null);
+    this.remoteLoads.start(placeholder.id);
+
+    const req: TableImportFromUrlRequestDto = {
+      request: dataSource.request,
+      format: dataSource.format,
+      sheetIndex: dataSource.sheetIndex,
+      delimiter: dataSource.delimiter,
+    };
+
+    this.tableImport
+      .importFromUrl(req)
+      .pipe(
+        take(1),
+        finalize(() => {
+          this._importInProgress.set(false);
+          this.remoteLoads.stop(placeholder.id);
+        })
+      )
+      .subscribe({
+        next: (resp) => {
+          if (!resp?.success || !resp.data) {
+            const msg = resp?.error?.message || 'URL import failed';
+            this._importError.set(msg);
+            alert(msg);
+            this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
+            return;
+          }
+
+          const data = resp.data;
+          const importReq = {
+            widgetId: placeholder.id,
+            rows: data.rows,
+            columnFractions: data.columnFractions,
+            rowFractions: data.rowFractions,
+          };
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              this.tableToolbar.requestImportTableFromExcel(importReq);
+            });
+          });
+        },
+        error: (err) => {
+          // eslint-disable-next-line no-console
+          console.error('URL import failed', err);
+          const msg =
+            err?.error?.error?.message ||
+            err?.error?.message ||
+            err?.message ||
+            'URL import failed. Please verify the backend is running and the URL is accessible.';
+          this._importError.set(msg);
+          alert(msg);
+          this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
+        },
+      });
   }
 
   importFile(file: File): void {

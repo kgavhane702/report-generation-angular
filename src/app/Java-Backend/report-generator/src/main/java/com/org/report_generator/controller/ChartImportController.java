@@ -5,12 +5,17 @@ import com.org.report_generator.dto.chart.ChartImportAggregation;
 import com.org.report_generator.dto.chart.ChartImportResponse;
 import com.org.report_generator.dto.common.ApiResponse;
 import com.org.report_generator.dto.common.ApiResponseEntity;
+import com.org.report_generator.dto.http.ChartImportFromUrlRequest;
 import com.org.report_generator.importing.enums.ImportFormat;
 import com.org.report_generator.importing.model.ChartImportOptions;
 import com.org.report_generator.importing.model.ImportOptions;
 import com.org.report_generator.importing.model.TabularDataset;
 import com.org.report_generator.importing.service.ChartImportService;
+import com.org.report_generator.importing.service.FormatDetector;
 import com.org.report_generator.importing.service.TabularImportService;
+import com.org.report_generator.importing.service.RemoteHttpFetchResult;
+import com.org.report_generator.importing.service.RemoteHttpFetcherService;
+import com.org.report_generator.importing.util.ByteArrayMultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -21,6 +26,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -38,15 +47,21 @@ public class ChartImportController {
     private final TabularImportService tabularImportService;
     private final ChartImportService chartImportService;
     private final ImportLimitsConfig limitsConfig;
+    private final RemoteHttpFetcherService remoteFetcher;
+    private final FormatDetector formatDetector;
 
     public ChartImportController(
             TabularImportService tabularImportService,
             ChartImportService chartImportService,
-            ImportLimitsConfig limitsConfig
+            ImportLimitsConfig limitsConfig,
+            RemoteHttpFetcherService remoteFetcher,
+            FormatDetector formatDetector
     ) {
         this.tabularImportService = tabularImportService;
         this.chartImportService = chartImportService;
         this.limitsConfig = limitsConfig;
+        this.remoteFetcher = remoteFetcher;
+        this.formatDetector = formatDetector;
     }
 
     @PostMapping(
@@ -105,6 +120,71 @@ public class ChartImportController {
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             logger.error("Chart import failed after {}ms", duration, e);
+            throw e;
+        }
+    }
+
+    @PostMapping(
+            value = "/api/import/chart/url",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<ChartImportResponse>> importChartFromUrl(
+            @Valid @RequestBody ChartImportFromUrlRequest request,
+            HttpServletRequest httpRequest
+    ) throws Exception {
+        long startTime = System.currentTimeMillis();
+        logger.info("Chart URL import request: method={}, url={}, chartType={}",
+                request != null ? request.request().method() : "null",
+                request != null ? request.request().url() : "null",
+                request != null ? request.chartType() : "null");
+
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+
+        RemoteHttpFetchResult fetched = remoteFetcher.fetch(request.request(), httpRequest);
+        ImportFormat fmt = formatDetector.detect(request.format(), fetched.effectiveUrl(), fetched.contentType(), fetched.bytes());
+
+        if (fetched.bytes() == null || fetched.bytes().length == 0) {
+            throw new IllegalArgumentException("Remote resource is empty");
+        }
+        if (fetched.bytes().length > limitsConfig.getMaxFileSizeBytes()) {
+            throw new IllegalArgumentException(
+                    String.format("Remote size exceeds maximum limit: %d bytes > %d bytes",
+                            fetched.bytes().length, limitsConfig.getMaxFileSizeBytes()));
+        }
+
+        MultipartFile file = new ByteArrayMultipartFile(
+                "file",
+                fetched.fileName(),
+                fetched.contentType(),
+                fetched.bytes()
+        );
+
+        try {
+            TabularDataset dataset = tabularImportService.importDataset(
+                    file,
+                    fmt,
+                    new ImportOptions(request.sheetIndex(), request.delimiter())
+            );
+
+            ChartImportOptions options = new ChartImportOptions(
+                    request.chartType().trim(),
+                    request.hasHeader() == null || request.hasHeader(),
+                    request.headerRowIndex() == null ? 0 : request.headerRowIndex(),
+                    request.categoryColumnIndex() == null ? 0 : request.categoryColumnIndex(),
+                    request.seriesColumnIndexes(),
+                    request.aggregation() == null ? ChartImportAggregation.SUM : request.aggregation()
+            );
+
+            ChartImportResponse response = chartImportService.importChart(dataset, options);
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("Chart URL import successful in {}ms", duration);
+            return ApiResponseEntity.ok(response);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error("Chart URL import failed after {}ms", duration, e);
             throw e;
         }
     }

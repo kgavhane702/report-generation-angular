@@ -2,12 +2,17 @@ package com.org.report_generator.controller;
 
 import com.org.report_generator.dto.common.ApiResponse;
 import com.org.report_generator.dto.common.ApiResponseEntity;
+import com.org.report_generator.dto.http.TableImportFromUrlRequest;
 import com.org.report_generator.dto.table.TableImportResponse;
+import com.org.report_generator.importing.service.FormatDetector;
+import com.org.report_generator.importing.service.RemoteHttpFetchResult;
+import com.org.report_generator.importing.service.RemoteHttpFetcherService;
 import com.org.report_generator.importing.enums.ImportFormat;
 import com.org.report_generator.importing.enums.ImportTarget;
 import com.org.report_generator.importing.model.ImportOptions;
 import com.org.report_generator.config.ImportLimitsConfig;
 import com.org.report_generator.importing.service.TabularImportService;
+import com.org.report_generator.importing.util.ByteArrayMultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -18,6 +23,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -27,10 +36,19 @@ public class TableImportController {
     private static final Logger logger = LoggerFactory.getLogger(TableImportController.class);
     private final TabularImportService tabularImportService;
     private final ImportLimitsConfig limitsConfig;
+    private final RemoteHttpFetcherService remoteFetcher;
+    private final FormatDetector formatDetector;
 
-    public TableImportController(TabularImportService tabularImportService, ImportLimitsConfig limitsConfig) {
+    public TableImportController(
+            TabularImportService tabularImportService,
+            ImportLimitsConfig limitsConfig,
+            RemoteHttpFetcherService remoteFetcher,
+            FormatDetector formatDetector
+    ) {
         this.tabularImportService = tabularImportService;
         this.limitsConfig = limitsConfig;
+        this.remoteFetcher = remoteFetcher;
+        this.formatDetector = formatDetector;
     }
 
     @PostMapping(
@@ -215,6 +233,57 @@ public class TableImportController {
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             logger.error("XML table import failed after {}ms", duration, e);
+            throw e;
+        }
+    }
+
+    @PostMapping(
+            value = "/api/table/import/url",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<TableImportResponse>> importFromUrl(
+            @Valid @RequestBody TableImportFromUrlRequest request,
+            HttpServletRequest httpRequest
+    ) throws Exception {
+        long startTime = System.currentTimeMillis();
+        logger.info("URL table import request: method={}, url={}",
+                request != null ? request.request().method() : "null",
+                request != null ? request.request().url() : "null");
+
+        RemoteHttpFetchResult fetched = remoteFetcher.fetch(request.request(), httpRequest);
+        ImportFormat fmt = formatDetector.detect(request.format(), fetched.effectiveUrl(), fetched.contentType(), fetched.bytes());
+
+        if (fetched.bytes() == null || fetched.bytes().length == 0) {
+            throw new IllegalArgumentException("Remote resource is empty");
+        }
+        if (fetched.bytes().length > limitsConfig.getMaxFileSizeBytes()) {
+            throw new IllegalArgumentException(
+                    String.format("Remote size exceeds maximum limit: %d bytes > %d bytes",
+                            fetched.bytes().length, limitsConfig.getMaxFileSizeBytes()));
+        }
+
+        MultipartFile file = new ByteArrayMultipartFile(
+                "file",
+                fetched.fileName(),
+                fetched.contentType(),
+                fetched.bytes()
+        );
+
+        try {
+            TableImportResponse response = tabularImportService.importForTarget(
+                    file,
+                    fmt,
+                    ImportTarget.TABLE,
+                    new ImportOptions(request.sheetIndex(), request.delimiter()),
+                    TableImportResponse.class
+            );
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("URL table import successful in {}ms: {} rows", duration, response.rows().size());
+            return ApiResponseEntity.ok(response);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error("URL table import failed after {}ms", duration, e);
             throw e;
         }
     }

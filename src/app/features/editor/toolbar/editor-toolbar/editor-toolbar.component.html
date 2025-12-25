@@ -54,6 +54,7 @@
     <app-table-grid-selector
       (tableInsert)="onTableInsert($event)"
       (excelImport)="onTableImportExcel($event)"
+      (urlImport)="onTableImportUrl($event)"
       [importInProgress]="tableImportInProgress()"
       [importError]="tableImportError()"
     ></app-table-grid-selector>
@@ -71,6 +72,7 @@
       class="editor-toolbar__button editor-toolbar__button--export"
       (click)="exportDocument()"
       title="Export document as JSON file"
+      [disabled]="remoteLoadCount() > 0"
     >
       <span class="material-symbols-outlined">download</span>
     </button>
@@ -87,6 +89,7 @@
       class="editor-toolbar__button editor-toolbar__button--pdf"
       (click)="downloadPDF()"
       title="Download document as PDF"
+      [disabled]="remoteLoadCount() > 0"
     >
       <span class="material-symbols-outlined">picture_as_pdf</span>
     </button>

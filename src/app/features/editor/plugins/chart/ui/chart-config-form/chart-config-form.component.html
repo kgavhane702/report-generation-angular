@@ -32,156 +32,239 @@
         <div class="chart-config-dialog__section" [formGroup]="importForm">
           <label class="chart-config-dialog__label">Import Dataset</label>
 
-          <div class="chart-config-dialog__file-upload">
-            <input
-              type="file"
-              accept=".xlsx,.csv,.json,.xml"
-              (change)="onImportFileSelected($event)"
-              class="chart-config-dialog__file-input"
-              id="chartImportFileInput"
-            />
-            <label for="chartImportFileInput" class="chart-config-dialog__file-label">
-              <span class="chart-config-dialog__file-button">Browse Files</span>
-              <span class="chart-config-dialog__file-hint">XLSX, CSV, JSON, or XML</span>
-            </label>
-            <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
-              Selected: {{ selectedFileName }}
-            </span>
-          </div>
-
-          <div
-            class="chart-config-dialog__row"
-            *ngIf="detectedImportFormat === ImportFormat.XLSX || detectedImportFormat === ImportFormat.CSV"
+          <app-tabs
+            ariaLabel="Import dataset tabs"
+            [stickyHeader]="false"
+            [activeIndex]="importTabIndex"
+            (activeIndexChange)="onImportTabChanged($event)"
           >
-            <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.XLSX">
-              <label class="chart-config-dialog__label" for="sheetIndex">Sheet Index (0-based)</label>
-              <input
-                id="sheetIndex"
-                type="number"
-                class="chart-config-dialog__input"
-                formControlName="sheetIndex"
-                min="0"
-              />
-            </div>
-            <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.CSV">
-              <label class="chart-config-dialog__label" for="delimiter">Delimiter</label>
-              <input id="delimiter" type="text" class="chart-config-dialog__input" formControlName="delimiter" placeholder="," />
-            </div>
-          </div>
-
-          <div class="chart-config-dialog__row">
-            <div class="chart-config-dialog__section">
-              <label class="chart-config-dialog__label chart-config-dialog__label--inline">
-                <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="hasHeader" />
-                Header row present
-              </label>
-            </div>
-            <div class="chart-config-dialog__section" *ngIf="importForm.value.hasHeader">
-              <label class="chart-config-dialog__label" for="headerRowIndex">Header Row Index</label>
-              <input
-                id="headerRowIndex"
-                type="number"
-                class="chart-config-dialog__input"
-                formControlName="headerRowIndex"
-                min="0"
-              />
-            </div>
-          </div>
-
-          <div class="chart-config-dialog__row">
-            <div class="chart-config-dialog__section">
-              <label class="chart-config-dialog__label" for="categoryColumnIndex">Category Column</label>
-              <select
-                id="categoryColumnIndex"
-                class="chart-config-dialog__select"
-                formControlName="categoryColumnIndex"
-                [disabled]="!importPreview"
-              >
-                <option *ngFor="let col of previewColumnIndexes" [value]="col">
-                  {{ previewColumnLabel(col) }}
-                </option>
-              </select>
-            </div>
-
-            <div class="chart-config-dialog__section">
-              <label class="chart-config-dialog__label" for="aggregation">Aggregation (duplicates)</label>
-              <select id="aggregation" class="chart-config-dialog__select" formControlName="aggregation">
-                <option *ngFor="let agg of aggregationOptions" [value]="agg">{{ agg }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="chart-config-dialog__section" *ngIf="importPreview">
-            <label class="chart-config-dialog__label">Series Columns</label>
-            <div class="chart-config-dialog__series-columns">
-              <label
-                *ngFor="let col of previewColumnIndexes"
-                class="chart-config-dialog__label chart-config-dialog__label--inline chart-config-dialog__label--small"
-              >
+            <app-tab label="Browse">
+              <div class="chart-config-dialog__file-upload">
                 <input
-                  type="checkbox"
-                  class="chart-config-dialog__checkbox"
-                  [checked]="isSeriesColumnSelected(col)"
-                  [disabled]="col === importForm.value.categoryColumnIndex"
-                  (change)="toggleSeriesColumn(col, $event)"
+                  type="file"
+                  accept=".xlsx,.csv,.json,.xml"
+                  (change)="onImportFileSelected($event)"
+                  class="chart-config-dialog__file-input"
+                  id="chartImportFileInput"
                 />
-                {{ previewColumnLabel(col) }}
-              </label>
-            </div>
-          </div>
-
-          <div class="chart-config-dialog__actions">
-            <button
-              type="button"
-              class="chart-config-dialog__button chart-config-dialog__button--secondary"
-              (click)="previewImport()"
-              [disabled]="importInProgress || !selectedImportFile"
-            >
-              {{ importInProgress ? 'Importing…' : (importPreview ? 'Update Preview' : 'Preview Import') }}
-            </button>
-            <button
-              type="button"
-              class="chart-config-dialog__button chart-config-dialog__button--primary"
-              (click)="applyImportToChart()"
-              [disabled]="!importResponse?.chartData"
-            >
-              Apply to Chart
-            </button>
-          </div>
-
-          <div *ngIf="importError" class="chart-config-dialog__import-error">
-            {{ importError }}
-          </div>
-
-          <div *ngIf="importWarnings.length" class="chart-config-dialog__import-warnings">
-            <div class="chart-config-dialog__import-warnings-title">Warnings</div>
-            <ul class="chart-config-dialog__import-warnings-list">
-              <li *ngFor="let w of importWarnings">{{ w.code }}: {{ w.message }}</li>
-            </ul>
-          </div>
-
-          <div *ngIf="importInProgress || importPreview" class="chart-config-dialog__preview">
-            <div class="chart-config-dialog__preview-meta">
-              <ng-container *ngIf="importPreview; else previewLoadingMeta">
-                Preview: {{ importPreview.totalRows }} rows × {{ importPreview.totalCols }} cols (showing first {{ importPreview.rows.length }})
-              </ng-container>
-              <ng-template #previewLoadingMeta>Loading preview…</ng-template>
-            </div>
-
-            <div class="chart-config-dialog__preview-table-wrapper">
-              <div *ngIf="importInProgress" class="chart-config-dialog__loading-overlay" aria-live="polite" aria-busy="true">
-                <div class="chart-config-dialog__loading-spinner"></div>
+                <label for="chartImportFileInput" class="chart-config-dialog__file-label">
+                  <span class="chart-config-dialog__file-button">Browse Files</span>
+                  <span class="chart-config-dialog__file-hint">XLSX, CSV, JSON, or XML</span>
+                </label>
+                <span *ngIf="selectedFileName" class="chart-config-dialog__file-name">
+                  Selected: {{ selectedFileName }}
+                </span>
               </div>
 
-              <table *ngIf="importPreview" class="chart-config-dialog__preview-table">
-                <tbody>
-                  <tr *ngFor="let row of importPreview.rows">
-                    <td *ngFor="let cell of row">{{ cell }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+              <div
+                class="chart-config-dialog__row"
+                *ngIf="detectedImportFormat === ImportFormat.XLSX || detectedImportFormat === ImportFormat.CSV"
+              >
+                <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.XLSX">
+                  <label class="chart-config-dialog__label" for="sheetIndex">Sheet Index (0-based)</label>
+                  <input
+                    id="sheetIndex"
+                    type="number"
+                    class="chart-config-dialog__input"
+                    formControlName="sheetIndex"
+                    min="0"
+                    [disabled]="importInProgress"
+                  />
+                </div>
+                <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.CSV">
+                  <label class="chart-config-dialog__label" for="delimiter">Delimiter</label>
+                  <input
+                    id="delimiter"
+                    type="text"
+                    class="chart-config-dialog__input"
+                    formControlName="delimiter"
+                    placeholder=","
+                    [disabled]="importInProgress"
+                  />
+                </div>
+              </div>
+            </app-tab>
+
+            <app-tab label="URL">
+              <div class="chart-config-dialog__url-import">
+                <app-http-request-builder [(value)]="urlRequest" [disabled]="importInProgress"></app-http-request-builder>
+
+                <div class="chart-config-dialog__row">
+                  <div class="chart-config-dialog__section">
+                    <label class="chart-config-dialog__label" for="urlFormatOverride">Format (optional)</label>
+                    <select
+                      id="urlFormatOverride"
+                      class="chart-config-dialog__select"
+                      [value]="urlFormatOverride || ''"
+                      (change)="urlFormatOverride = ($any($event.target).value || null)"
+                      [disabled]="importInProgress"
+                    >
+                      <option value="">Auto-detect</option>
+                      <option [value]="ImportFormat.XLSX">XLSX</option>
+                      <option [value]="ImportFormat.CSV">CSV</option>
+                      <option [value]="ImportFormat.JSON">JSON</option>
+                      <option [value]="ImportFormat.XML">XML</option>
+                    </select>
+                  </div>
+
+                  <div class="chart-config-dialog__section">
+                    <label class="chart-config-dialog__label" for="urlSheetIndex">Sheet Index (XLSX, optional)</label>
+                    <input
+                      id="urlSheetIndex"
+                      type="number"
+                      class="chart-config-dialog__input"
+                      formControlName="sheetIndex"
+                      min="0"
+                      [disabled]="importInProgress"
+                    />
+                  </div>
+                </div>
+
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label" for="urlDelimiter">Delimiter (CSV, optional)</label>
+                  <input
+                    id="urlDelimiter"
+                    type="text"
+                    class="chart-config-dialog__input"
+                    formControlName="delimiter"
+                    placeholder=","
+                    [disabled]="importInProgress"
+                  />
+                </div>
+
+                <div class="chart-config-dialog__actions">
+                  <button
+                    type="button"
+                    class="chart-config-dialog__button chart-config-dialog__button--primary"
+                    (click)="submitUrlImport()"
+                    [disabled]="importInProgress || !(urlRequest.url || '').trim()"
+                  >
+                    Submit URL
+                  </button>
+                </div>
+              </div>
+            </app-tab>
+
+            <app-tab label="Data">
+              <div class="chart-config-dialog__row">
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+                    <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="hasHeader" />
+                    Header row present
+                  </label>
+                </div>
+                <div class="chart-config-dialog__section" *ngIf="importForm.value.hasHeader">
+                  <label class="chart-config-dialog__label" for="headerRowIndex">Header Row Index</label>
+                  <input
+                    id="headerRowIndex"
+                    type="number"
+                    class="chart-config-dialog__input"
+                    formControlName="headerRowIndex"
+                    min="0"
+                    [disabled]="importInProgress"
+                  />
+                </div>
+              </div>
+
+              <div class="chart-config-dialog__row">
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label" for="categoryColumnIndex">Category Column</label>
+                  <select
+                    id="categoryColumnIndex"
+                    class="chart-config-dialog__select"
+                    formControlName="categoryColumnIndex"
+                    [disabled]="!importPreview || importInProgress"
+                  >
+                    <option *ngFor="let col of previewColumnIndexes" [value]="col">
+                      {{ previewColumnLabel(col) }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label" for="aggregation">Aggregation (duplicates)</label>
+                  <select id="aggregation" class="chart-config-dialog__select" formControlName="aggregation" [disabled]="importInProgress">
+                    <option *ngFor="let agg of aggregationOptions" [value]="agg">{{ agg }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="chart-config-dialog__section" *ngIf="importPreview">
+                <label class="chart-config-dialog__label">Series Columns</label>
+                <div class="chart-config-dialog__series-columns">
+                  <label
+                    *ngFor="let col of previewColumnIndexes"
+                    class="chart-config-dialog__label chart-config-dialog__label--inline chart-config-dialog__label--small"
+                  >
+                    <input
+                      type="checkbox"
+                      class="chart-config-dialog__checkbox"
+                      [checked]="isSeriesColumnSelected(col)"
+                      [disabled]="importInProgress || col === importForm.value.categoryColumnIndex"
+                      (change)="toggleSeriesColumn(col, $event)"
+                    />
+                    {{ previewColumnLabel(col) }}
+                  </label>
+                </div>
+              </div>
+
+              <div class="chart-config-dialog__actions">
+                <button
+                  type="button"
+                  class="chart-config-dialog__button chart-config-dialog__button--secondary"
+                  (click)="previewImport()"
+                  [disabled]="
+                    importInProgress ||
+                    (importSourceMode === 'file' ? !selectedImportFile : !(urlRequest.url || '').trim())
+                  "
+                >
+                  {{ importInProgress ? 'Importing…' : (importPreview ? 'Update Preview' : 'Preview Import') }}
+                </button>
+                <button
+                  type="button"
+                  class="chart-config-dialog__button chart-config-dialog__button--primary"
+                  (click)="applyImportToChart()"
+                  [disabled]="!importResponse?.chartData"
+                >
+                  Apply to Chart
+                </button>
+              </div>
+
+              <div *ngIf="importError" class="chart-config-dialog__import-error">
+                {{ importError }}
+              </div>
+
+              <div *ngIf="importWarnings.length" class="chart-config-dialog__import-warnings">
+                <div class="chart-config-dialog__import-warnings-title">Warnings</div>
+                <ul class="chart-config-dialog__import-warnings-list">
+                  <li *ngFor="let w of importWarnings">{{ w.code }}: {{ w.message }}</li>
+                </ul>
+              </div>
+
+              <div *ngIf="importInProgress || importPreview" class="chart-config-dialog__preview">
+                <div class="chart-config-dialog__preview-meta">
+                  <ng-container *ngIf="importPreview; else previewLoadingMeta">
+                    Preview: {{ importPreview.totalRows }} rows × {{ importPreview.totalCols }} cols (showing first {{ importPreview.rows.length }})
+                  </ng-container>
+                  <ng-template #previewLoadingMeta>Loading preview…</ng-template>
+                </div>
+
+                <div class="chart-config-dialog__preview-table-wrapper">
+                  <div *ngIf="importInProgress" class="chart-config-dialog__loading-overlay" aria-live="polite" aria-busy="true">
+                    <div class="chart-config-dialog__loading-spinner"></div>
+                  </div>
+
+                  <table *ngIf="importPreview" class="chart-config-dialog__preview-table">
+                    <tbody>
+                      <tr *ngFor="let row of importPreview.rows">
+                        <td *ngFor="let cell of row">{{ cell }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </app-tab>
+          </app-tabs>
         </div>
 
         <!-- Labels -->

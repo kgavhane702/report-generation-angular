@@ -248,6 +248,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       chartData: clonedChartData,
       widgetId: this.widget.id,
       openImportOnOpen,
+      dataSource: this.chartProps.dataSource ?? null,
     };
     this.showDialog = true;
     this.cdr.markForCheck();
@@ -280,10 +281,14 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Store pending changes immediately so they're available when dialog reopens
       this.pendingChartData = result.chartData;
       // Emit chart props change event
-      this.chartPropsChange.emit({
+      const patch: Partial<ChartWidgetProps> = {
         chartType: result.chartData.chartType,
         data: result.chartData,
-      });
+      };
+      if (result.dataSource !== undefined) {
+        patch.dataSource = result.dataSource;
+      }
+      this.chartPropsChange.emit(patch);
     }
 
     this.cdr.markForCheck();

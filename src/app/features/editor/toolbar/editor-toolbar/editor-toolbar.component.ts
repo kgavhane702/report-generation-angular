@@ -12,6 +12,7 @@ import { PendingChangesRegistry } from '../../../../core/services/pending-change
 import { WidgetType, TableRow, TableCell } from '../../../../models/widget.model';
 import { TableDimensions } from '../../plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableFileImportFacade } from '../../../../core/tabular-import/facades/table-file-import.facade';
+import type { TableHttpDataSourceConfig } from '../../../../shared/http-request/models/http-data-source.model';
 import { ChartToolbarService } from '../../../../core/services/chart-toolbar.service';
 import { createDefaultChartData, createEmptyChartData } from '../../../../models/chart-data.model';
 import type { ChartWidgetProps } from '../../../../models/widget.model';
@@ -19,6 +20,7 @@ import type { ChartType } from '../../../../models/chart-data.model';
 import type { ChartWidgetInsertAction } from '../../plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
+import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
 
 @Component({
   selector: 'app-editor-toolbar',
@@ -39,6 +41,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
   private readonly store = inject(Store<AppState>);
+  private readonly remoteLoads = inject(RemoteWidgetLoadRegistryService);
 
   /** Document title from store */
   readonly documentTitle = toSignal(
@@ -52,6 +55,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   /** Table import UI state (backend request in progress + last error) */
   readonly tableImportInProgress = this.tableFileImport.importInProgress;
   readonly tableImportError = this.tableFileImport.importError;
+
+  /** URL-based widgets loading state (auto-fetch after import/open) */
+  readonly remoteLoadCount = this.remoteLoads.pendingCount;
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
@@ -130,6 +136,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.tableFileImport.importFile(file);
   }
 
+  onTableImportUrl(config: TableHttpDataSourceConfig): void {
+    this.tableFileImport.importFromUrl(config);
+  }
+
   private createTableRows(rowCount: number, colCount: number): TableRow[] {
     const rows: TableRow[] = [];
     for (let r = 0; r < rowCount; r++) {
@@ -149,6 +159,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportDocument(): Promise<void> {
+    if (this.remoteLoadCount() > 0) {
+      alert('Please wait: remote (URL-based) widgets are still loading. Export is disabled until loading completes.');
+      return;
+    }
     // Flush any pending changes from active editors before export
     await this.pendingChangesRegistry.flushAll();
     
@@ -159,6 +173,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportToClipboard(): Promise<void> {
+    if (this.remoteLoadCount() > 0) {
+      alert('Please wait: remote (URL-based) widgets are still loading. Export is disabled until loading completes.');
+      return;
+    }
     // Flush any pending changes from active editors before export
     await this.pendingChangesRegistry.flushAll();
     
@@ -241,6 +259,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async downloadPDF(): Promise<void> {
+    if (this.remoteLoadCount() > 0) {
+      alert('Please wait: remote (URL-based) widgets are still loading. PDF download is disabled until loading completes.');
+      return;
+    }
     // Flush any pending changes from active editors before export
     await this.pendingChangesRegistry.flushAll();
     

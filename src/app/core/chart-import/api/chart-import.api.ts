@@ -2,6 +2,9 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ChartImportRequestOptions, ChartImportResponseDto } from '../models/chart-import.model';
+import type { HttpRequestSpec } from '../../../shared/http-request/models/http-request.model';
+import type { ImportFormat } from '../../tabular-import/enums/import-format.enum';
+import type { ChartImportAggregation } from '../models/chart-import.model';
 
 export interface ApiErrorDto {
   code?: string;
@@ -59,6 +62,25 @@ export class ChartImportApi {
 
     return this.http.post<ApiResponseDto<ChartImportResponseDto>>('/api/import/chart', form);
   }
+
+  importChartFromUrl(request: ChartImportFromUrlRequestDto): Observable<ApiResponseDto<ChartImportResponseDto>> {
+    return this.http.post<ApiResponseDto<ChartImportResponseDto>>('/api/import/chart/url', request);
+  }
+}
+
+export interface ChartImportFromUrlRequestDto {
+  request: HttpRequestSpec;
+  format?: ImportFormat;
+  sheetIndex?: number;
+  delimiter?: string;
+
+  chartType: string;
+
+  hasHeader?: boolean;
+  headerRowIndex?: number;
+  categoryColumnIndex?: number;
+  seriesColumnIndexes?: number[];
+  aggregation?: ChartImportAggregation;
 }
 
 

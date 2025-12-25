@@ -17,6 +17,7 @@ import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } fr
 import { Subject, Subscription, take, takeUntil } from 'rxjs';
 import { AppTabsComponent } from '../../../../../../shared/components/tabs/app-tabs/app-tabs.component';
 import { AppTabComponent } from '../../../../../../shared/components/tabs/app-tab/app-tab.component';
+import { HttpRequestBuilderComponent } from '../../../../../../shared/http-request/components/http-request-builder/http-request-builder.component';
 import { ChartImportApi } from '../../../../../../core/chart-import/api/chart-import.api';
 import {
   ChartImportAggregation,
@@ -27,6 +28,8 @@ import {
 } from '../../../../../../core/chart-import/models/chart-import.model';
 import { ImportFormat } from '../../../../../../core/tabular-import/enums/import-format.enum';
 import { TabularImportWarningDto } from '../../../../../../core/tabular-import/models/tabular-dataset.model';
+import type { HttpRequestSpec } from '../../../../../../shared/http-request/models/http-request.model';
+import type { ChartHttpDataSourceConfig } from '../../../../../../shared/http-request/models/http-data-source.model';
 
 import {
   ChartData,
@@ -41,17 +44,21 @@ export interface ChartConfigFormData {
   widgetId?: string;
   /** When true, the dialog should open directly on the Data tab and prompt for file import. */
   openImportOnOpen?: boolean;
+  /** Optional persisted remote source (URL-based chart). */
+  dataSource?: ChartHttpDataSourceConfig | null;
 }
 
 export interface ChartConfigFormResult {
   chartData: ChartData;
   cancelled: boolean;
+  /** When set (including null), updates the widget's persisted data source. */
+  dataSource?: ChartHttpDataSourceConfig | null;
 }
 
 @Component({
   selector: 'app-chart-config-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AppTabsComponent, AppTabComponent],
+  imports: [CommonModule, ReactiveFormsModule, AppTabsComponent, AppTabComponent, HttpRequestBuilderComponent],
   exportAs: 'chartConfigForm',
   templateUrl: './chart-config-form.component.html',
   styleUrls: ['./chart-config-form.component.scss'],
@@ -72,6 +79,8 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
   /** Tabs: 0=Chart, 1=Data, 2=Axes, 3=Legend & Labels */
   activeTabIndex = 0;
+  /** Import sub-tabs: 0=Browse, 1=URL, 2=Data (mapping/preview) */
+  importTabIndex = 0;
 
   readonly chartTypes: ChartType[] = [
     'column',
@@ -144,6 +153,18 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   detectedImportFormat: ImportFormat | null = null;
   selectedSeriesColumns = new Set<number>();
 
+  importSourceMode: 'file' | 'url' = 'file';
+  urlRequest: HttpRequestSpec = {
+    url: '',
+    method: 'GET',
+    timeoutMs: 20000,
+    followRedirects: true,
+    queryParams: [{ key: '', value: '', enabled: true }],
+    headers: [{ key: '', value: '', enabled: true }],
+  };
+  /** Optional format override for URL imports; otherwise backend detects. */
+  urlFormatOverride: ImportFormat | null = null;
+
   readonly aggregationOptions: ChartImportAggregation[] = ['SUM', 'AVG', 'COUNT'];
 
   // Expose enum for template comparisons.
@@ -157,6 +178,30 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     categoryColumnIndex: [0],
     aggregation: ['SUM' as ChartImportAggregation],
   });
+
+  setImportSourceMode(mode: 'file' | 'url'): void {
+    if (this.importInProgress) return;
+    if (this.importSourceMode === mode) return;
+
+    this.importSourceMode = mode;
+
+    // Reset last results
+    this.importError = null;
+    this.importResponse = null;
+    this.importPreview = null;
+    this.importMapping = null;
+    this.importWarnings = [];
+    this.selectedSeriesColumns.clear();
+
+    if (mode === 'url') {
+      // Clear file-specific state
+      this.selectedFileName = null;
+      this.selectedImportFile = null;
+      this.detectedImportFormat = null;
+    }
+
+    this.cdr.markForCheck();
+  }
 
   ngOnInit(): void {
     if (this.data) {
@@ -195,12 +240,38 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   private openImportFlow(): void {
     // Data tab
     this.activeTabIndex = 1;
+    this.importTabIndex = 0;
+    this.setImportSourceMode('file');
     this.cdr.markForCheck();
   }
 
   private initializeFormFromData(): void {
     const chartData = this.normalizeChartDataForForm(this.data?.chartData || createEmptyChartData());
     this.initializeForm(chartData);
+
+    // Initialize URL-based source if present.
+    const ds = this.data?.dataSource ?? null;
+    if (ds && ds.kind === 'http') {
+      this.importSourceMode = 'url';
+      this.importTabIndex = 1;
+      this.urlRequest = ds.request;
+      this.urlFormatOverride = ds.format ?? null;
+      this.importForm.patchValue(
+        {
+          sheetIndex: ds.sheetIndex ?? 0,
+          delimiter: ds.delimiter ?? ',',
+          hasHeader: ds.hasHeader ?? true,
+          headerRowIndex: ds.headerRowIndex ?? 0,
+          categoryColumnIndex: ds.categoryColumnIndex ?? 0,
+          aggregation: (ds.aggregation as any) ?? ('SUM' as ChartImportAggregation),
+        },
+        { emitEvent: false }
+      );
+      this.selectedSeriesColumns = new Set(ds.seriesColumnIndexes || []);
+    } else {
+      this.importSourceMode = 'file';
+      this.importTabIndex = 0;
+    }
 
     if (this.chartTypeSubscription) {
       this.chartTypeSubscription.unsubscribe();
@@ -488,6 +559,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     this.selectedImportFile = file;
     this.selectedFileName = file.name;
     this.detectedImportFormat = detected;
+    this.importSourceMode = 'file';
 
     // Reset last results
     this.importError = null;
@@ -498,15 +570,27 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     this.selectedSeriesColumns.clear();
 
     // Auto-run preview import
+    this.importTabIndex = 2;
+    this.previewImport();
+  }
+
+  onImportTabChanged(index: number): void {
+    this.importTabIndex = index;
+    if (index === 0) {
+      this.setImportSourceMode('file');
+    } else if (index === 1) {
+      this.setImportSourceMode('url');
+    }
+  }
+
+  submitUrlImport(): void {
+    if (this.importInProgress) return;
+    this.setImportSourceMode('url');
+    this.importTabIndex = 2;
     this.previewImport();
   }
 
   previewImport(): void {
-    if (!this.selectedImportFile) {
-      this.importError = 'No file selected.';
-      this.cdr.markForCheck();
-      return;
-    }
     if (!this.form) return;
 
     // Cancel any in-flight preview import to avoid race conditions (spinner hiding too early, stale preview, etc).
@@ -524,67 +608,109 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     this.importError = null;
     this.cdr.markForCheck();
 
-    const req = {
-      file: this.selectedImportFile,
+    if (this.importSourceMode === 'file') {
+      if (!this.selectedImportFile) {
+        this.importError = 'No file selected.';
+        this.cdr.markForCheck();
+        return;
+      }
+
+      const req = {
+        file: this.selectedImportFile,
+        chartType,
+        format: this.detectedImportFormat ?? undefined,
+        sheetIndex: this.detectedImportFormat === ImportFormat.XLSX ? (this.importForm.value.sheetIndex ?? undefined) : undefined,
+        delimiter: this.detectedImportFormat === ImportFormat.CSV ? (this.importForm.value.delimiter ?? undefined) : undefined,
+        hasHeader,
+        headerRowIndex: this.importForm.value.headerRowIndex ?? 0,
+        categoryColumnIndex: this.importForm.value.categoryColumnIndex ?? 0,
+        seriesColumnIndexes: seriesColumnIndexes.length > 0 ? seriesColumnIndexes : undefined,
+        aggregation: (this.importForm.value.aggregation as ChartImportAggregation) ?? 'SUM',
+      } satisfies ChartImportRequestOptions;
+
+      this.importPreviewSubscription = this.chartImportApi
+        .importChart(req)
+        .pipe(take(1))
+        .subscribe(this.buildPreviewSubscribeHandlers());
+      return;
+    }
+
+    // URL mode
+    const url = (this.urlRequest?.url ?? '').trim();
+    if (!url) {
+      this.importError = 'No URL provided.';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const urlReq = {
+      request: this.urlRequest,
       chartType,
-      format: this.detectedImportFormat ?? undefined,
-      sheetIndex: this.detectedImportFormat === ImportFormat.XLSX ? (this.importForm.value.sheetIndex ?? undefined) : undefined,
-      delimiter: this.detectedImportFormat === ImportFormat.CSV ? (this.importForm.value.delimiter ?? undefined) : undefined,
+      format: this.urlFormatOverride ?? undefined,
+      sheetIndex: this.importForm.value.sheetIndex ?? undefined,
+      delimiter: this.importForm.value.delimiter ?? undefined,
       hasHeader,
       headerRowIndex: this.importForm.value.headerRowIndex ?? 0,
       categoryColumnIndex: this.importForm.value.categoryColumnIndex ?? 0,
       seriesColumnIndexes: seriesColumnIndexes.length > 0 ? seriesColumnIndexes : undefined,
       aggregation: (this.importForm.value.aggregation as ChartImportAggregation) ?? 'SUM',
-    } satisfies ChartImportRequestOptions;
+    };
 
     this.importPreviewSubscription = this.chartImportApi
-      .importChart(req)
+      .importChartFromUrl(urlReq as any)
       .pipe(take(1))
-      .subscribe({
-        next: (resp) => {
-          this.importInProgress = false;
-          this.importPreviewSubscription = undefined;
+      .subscribe(this.buildPreviewSubscribeHandlers());
+  }
 
-          if (!resp?.success || !resp.data) {
-            this.importError = resp?.error?.message || 'Chart import failed';
-            this.importWarnings = [];
-            this.cdr.markForCheck();
-            return;
-          }
+  private buildPreviewSubscribeHandlers(): {
+    next: (resp: any) => void;
+    error: (err: any) => void;
+  } {
+    return {
+      next: (resp) => {
+        this.importInProgress = false;
+        this.importPreviewSubscription = undefined;
 
-          this.importResponse = resp.data;
-          this.importPreview = resp.data.preview;
-          this.importMapping = resp.data.mapping;
-          this.importWarnings = resp.data.warnings || [];
-
-          // Sync mapping controls with backend-inferred mapping.
-          this.importForm.patchValue(
-            {
-              hasHeader: resp.data.mapping.hasHeader,
-              headerRowIndex: resp.data.mapping.headerRowIndex,
-              categoryColumnIndex: resp.data.mapping.categoryColumnIndex,
-              aggregation: resp.data.mapping.aggregation,
-            },
-            { emitEvent: false }
-          );
-          this.selectedSeriesColumns = new Set(resp.data.mapping.seriesColumnIndexes || []);
-
+        if (!resp?.success || !resp.data) {
+          this.importError = resp?.error?.message || 'Chart import failed';
+          this.importWarnings = [];
           this.cdr.markForCheck();
-        },
-        error: (err) => {
-          this.importInProgress = false;
-          this.importPreviewSubscription = undefined;
-          // eslint-disable-next-line no-console
-          console.error('Chart import failed', err);
-          const msg =
-            err?.error?.error?.message ||
-            err?.error?.message ||
-            err?.message ||
-            'Chart import failed. Please verify the backend is running and the file is valid.';
-          this.importError = msg;
-          this.cdr.markForCheck();
-        },
-      });
+          return;
+        }
+
+        this.importResponse = resp.data;
+        this.importPreview = resp.data.preview;
+        this.importMapping = resp.data.mapping;
+        this.importWarnings = resp.data.warnings || [];
+
+        // Sync mapping controls with backend-inferred mapping.
+        this.importForm.patchValue(
+          {
+            hasHeader: resp.data.mapping.hasHeader,
+            headerRowIndex: resp.data.mapping.headerRowIndex,
+            categoryColumnIndex: resp.data.mapping.categoryColumnIndex,
+            aggregation: resp.data.mapping.aggregation,
+          },
+          { emitEvent: false }
+        );
+        this.selectedSeriesColumns = new Set(resp.data.mapping.seriesColumnIndexes || []);
+
+        this.cdr.markForCheck();
+      },
+      error: (err) => {
+        this.importInProgress = false;
+        this.importPreviewSubscription = undefined;
+        // eslint-disable-next-line no-console
+        console.error('Chart import failed', err);
+        const msg =
+          err?.error?.error?.message ||
+          err?.error?.message ||
+          err?.message ||
+          'Chart import failed. Please verify the backend is running and the input is valid.';
+        this.importError = msg;
+        this.cdr.markForCheck();
+      },
+    };
   }
 
   applyImportToChart(): void {
@@ -713,7 +839,34 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       valueLabelPosition: formValue.valueLabelPosition || undefined,
     };
 
-    this.closed.emit({ chartData, cancelled: false });
+    const dataSource = this.buildDataSourceForSave();
+    this.closed.emit({ chartData, cancelled: false, dataSource });
+  }
+
+  private buildDataSourceForSave(): ChartHttpDataSourceConfig | null {
+    if (this.importSourceMode !== 'url') {
+      return null;
+    }
+    const url = (this.urlRequest?.url ?? '').trim();
+    if (!url) return null;
+
+    const chartType: ChartType = (this.form.value.chartType as ChartType) || 'column';
+    const seriesColumnIndexes = Array.from(this.selectedSeriesColumns.values()).sort((a, b) => a - b);
+
+    return {
+      kind: 'http',
+      request: this.urlRequest,
+      format: this.urlFormatOverride ?? undefined,
+      sheetIndex: this.importForm.value.sheetIndex ?? undefined,
+      delimiter: this.importForm.value.delimiter ?? undefined,
+
+      chartType,
+      hasHeader: !!this.importForm.value.hasHeader,
+      headerRowIndex: this.importForm.value.headerRowIndex ?? 0,
+      categoryColumnIndex: this.importForm.value.categoryColumnIndex ?? 0,
+      seriesColumnIndexes,
+      aggregation: (this.importForm.value.aggregation as ChartImportAggregation) ?? 'SUM',
+    };
   }
 
   cancel(): void {

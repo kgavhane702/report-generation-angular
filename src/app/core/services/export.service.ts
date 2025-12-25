@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import { DocumentModel } from '../../models/document.model';
 import { convertDocumentLogo } from '../utils/image-converter.util';
+import { createEmptyChartData } from '../../models/chart-data.model';
+import type { WidgetModel } from '../../models/widget.model';
 
 /**
  * Export metadata included in exported JSON
@@ -37,6 +39,8 @@ export class ExportService {
     description?: string;
   }): Promise<string> {
     const clonedDocument = JSON.parse(JSON.stringify(documentModel)) as DocumentModel;
+    // URL-based widgets: persist only the request config, not the fetched data.
+    this.stripRemoteWidgetData(clonedDocument);
     const documentWithLogo = await convertDocumentLogo(clonedDocument);
 
     const exportData: DocumentExport = {
@@ -51,6 +55,44 @@ export class ExportService {
     };
 
     return JSON.stringify(exportData, null, 2);
+  }
+
+  private stripRemoteWidgetData(document: DocumentModel): void {
+    for (const section of document.sections || []) {
+      for (const subsection of section.subsections || []) {
+        for (const page of subsection.pages || []) {
+          const widgets = page.widgets || [];
+          for (const widget of widgets as unknown as WidgetModel[]) {
+            if (!widget || !widget.props) continue;
+            const props: any = widget.props as any;
+            const ds: any = props.dataSource;
+            if (!ds || ds.kind !== 'http') continue;
+
+            // Never export transient loading flags/messages.
+            props.loading = false;
+            props.loadingMessage = undefined;
+
+            if (widget.type === 'chart') {
+              // Replace with empty dataset; keep chart type/provider + dataSource.
+              const chartType = (props.chartType as any) || 'column';
+              props.data = createEmptyChartData(chartType as any);
+              props.exportedImage = undefined;
+            } else if (widget.type === 'table') {
+              // Replace with a minimal empty grid; keep styling flags + dataSource.
+              props.rows = [
+                {
+                  id: 'row-0',
+                  cells: [{ id: 'cell-0-0', contentHtml: '' }],
+                },
+              ];
+              props.columnFractions = [1];
+              props.rowFractions = [1];
+              props.mergedRegions = [];
+            }
+          }
+        }
+      }
+    }
   }
 
   /**

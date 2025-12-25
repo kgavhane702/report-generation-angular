@@ -19,6 +19,7 @@ import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { DraftStateService } from '../../../../core/services/draft-state.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
+import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
@@ -83,6 +84,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly documentService = inject(DocumentService);
   private readonly draftState = inject(DraftStateService);
   protected readonly uiState = inject(UIStateService);
+  private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
   
   // ============================================
   // WIDGET DATA (GRANULAR SELECTOR)
@@ -194,6 +196,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       .select(DocumentSelectors.selectWidgetById(this.widgetId))
       .subscribe(widget => {
         this.persistedWidget.set(widget);
+        // Auto-load URL-based widgets (non-blocking) after document import/open.
+        if (widget) {
+          this.remoteAutoLoad.maybeAutoLoad(widget, this.pageId);
+        }
       });
   }
   
