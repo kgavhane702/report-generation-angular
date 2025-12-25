@@ -261,6 +261,14 @@ public class XmlTabularParser implements TabularParser {
     }
 
     private JsonNode genericXmlToJson(Element root) {
+        // Chart-like XML dataset shapes:
+        // - <categories><category>Jan</category>...</categories> + <series><item><name>..</name><data>..</data></item>...</series>
+        // Convert to the same JSON shape supported by JsonTabularParser (categories + series arrays).
+        JsonNode chartLike = tryChartDatasetXmlToJson(root);
+        if (chartLike != null) {
+            return chartLike;
+        }
+
         // Prefer Spreadsheet-like Row/Cell grids when present. Our generic repeated-sibling heuristic can
         // incorrectly pick the repeated <Cell> siblings within a single <Row> (since there are often more
         // cells than rows). This pre-pass ensures workbook-like XML imports as a coordinate grid.
@@ -314,6 +322,147 @@ public class XmlTabularParser implements TabularParser {
             }
 
             out.add(obj);
+        }
+
+        return out;
+    }
+
+    /**
+     * Detect common chart dataset XML shapes and convert them into a JSON object:
+     * { "categories": [...], "series": [ { "name": "...", "data": [...] }, ... ] }
+     *
+     * This allows the existing JsonTabularParser to parse it consistently (same as JSON chart datasets).
+     */
+    private JsonNode tryChartDatasetXmlToJson(Element root) {
+        if (root == null) return null;
+
+        // Find categories/labels container
+        Element categoriesEl = findFirstDescendantElement(root, "categories");
+        if (categoriesEl == null) categoriesEl = findFirstDescendantElement(root, "labels");
+
+        List<String> categories = new ArrayList<>();
+        if (categoriesEl != null) {
+            categories.addAll(collectLeafTexts(categoriesEl));
+        } else {
+            // Try xAxis->data (ECharts-like option shape)
+            Element xAxisEl = findFirstDescendantElement(root, "xAxis");
+            if (xAxisEl == null) xAxisEl = findFirstDescendantElement(root, "xaxis");
+            if (xAxisEl != null) {
+                Element dataEl = findFirstDescendantElement(xAxisEl, "data");
+                if (dataEl != null) {
+                    categories.addAll(collectLeafTexts(dataEl));
+                }
+            }
+        }
+
+        categories = categories.stream()
+                .map(s -> s == null ? "" : s.trim())
+                .filter(s -> !s.isEmpty())
+                .toList();
+
+        if (categories.isEmpty()) return null;
+
+        Element seriesEl = findFirstDescendantElement(root, "series");
+        if (seriesEl == null) return null;
+
+        List<Element> seriesItems = allChildElements(seriesEl);
+        if (seriesItems.isEmpty()) return null;
+
+        ArrayNode seriesOut = objectMapper.createArrayNode();
+        int fallbackSeriesIndex = 1;
+
+        for (Element item : seriesItems) {
+            if (item == null) continue;
+
+            // Name: attribute or child <name>/<label>
+            String name = firstNonBlank(
+                    attr(item, "name"),
+                    attr(item, "label"),
+                    textChild(item, "name"),
+                    textChild(item, "label")
+            );
+            if (name == null || name.isBlank()) {
+                name = "Series " + (fallbackSeriesIndex++);
+            }
+
+            // Data: prefer direct child <data>, else try <values>
+            Element dataEl = firstChildElement(item, "data");
+            if (dataEl == null) dataEl = firstChildElement(item, "values");
+            if (dataEl == null) {
+                // Some XML uses <series> items with values directly under the series item.
+                dataEl = item;
+            }
+
+            List<String> values = collectLeafTexts(dataEl);
+            // Avoid using the name itself as a value if we fell back to `item` and it has <name> child.
+            if (dataEl == item) {
+                final String seriesName = name;
+                values = values.stream()
+                        .filter(v -> v != null && !v.equalsIgnoreCase(seriesName))
+                        .toList();
+            }
+
+            values = values.stream()
+                    .map(v -> v == null ? "" : v.trim())
+                    .filter(v -> !v.isEmpty())
+                    .toList();
+
+            if (values.isEmpty()) {
+                continue;
+            }
+
+            ArrayNode dataArr = objectMapper.createArrayNode();
+            for (String v : values) {
+                dataArr.add(v);
+            }
+
+            ObjectNode sObj = objectMapper.createObjectNode();
+            sObj.put("name", name);
+            sObj.set("data", dataArr);
+
+            String stack = firstNonBlank(attr(item, "stack"), textChild(item, "stack"));
+            if (stack != null && !stack.isBlank()) {
+                sObj.put("stack", stack.trim());
+            }
+
+            seriesOut.add(sObj);
+        }
+
+        if (seriesOut.isEmpty()) return null;
+
+        ObjectNode out = objectMapper.createObjectNode();
+        ArrayNode categoriesArr = objectMapper.createArrayNode();
+        for (String c : categories) categoriesArr.add(c);
+        out.set("categories", categoriesArr);
+        out.set("series", seriesOut);
+        return out;
+    }
+
+    /**
+     * Collect text values from leaf elements under the given container, preserving order.
+     * Leaf element = an element that has no element children and has non-blank direct text.
+     */
+    private static List<String> collectLeafTexts(Element container) {
+        List<String> out = new ArrayList<>();
+        if (container == null) return out;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        stack.push(container);
+
+        while (!stack.isEmpty()) {
+            Element cur = stack.pop();
+            List<Element> children = allChildElements(cur);
+            if (children.isEmpty()) {
+                String t = directText(cur);
+                if (t != null && !t.isBlank()) {
+                    out.add(t.trim());
+                }
+                continue;
+            }
+            // Preserve document order by pushing in reverse.
+            for (int i = children.size() - 1; i >= 0; i--) {
+                stack.push(children.get(i));
+            }
         }
 
         return out;

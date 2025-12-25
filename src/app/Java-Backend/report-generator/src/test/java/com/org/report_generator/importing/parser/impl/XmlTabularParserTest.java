@@ -238,6 +238,71 @@ class XmlTabularParserTest {
         assertThat(c06.merge().rowSpan()).isEqualTo(1);
         assertThat(c06.merge().colSpan()).isEqualTo(2);
     }
+
+    @Test
+    void chartLikeXml_categoriesAndSeries_isParsedAsCategoryPlusSeriesColumns() throws Exception {
+        String xml = """
+                <chart>
+                  <categories>
+                    <category>Jan</category>
+                    <category>Feb</category>
+                    <category>Mar</category>
+                  </categories>
+                  <series>
+                    <item>
+                      <name>Product A</name>
+                      <stack>total</stack>
+                      <data>
+                        <v>120</v>
+                        <v>150</v>
+                        <v>180</v>
+                      </data>
+                    </item>
+                    <item>
+                      <name>Product B</name>
+                      <stack>total</stack>
+                      <data>
+                        <v>80</v>
+                        <v>90</v>
+                        <v>110</v>
+                      </data>
+                    </item>
+                  </series>
+                </chart>
+                """;
+
+        ObjectMapper om = new ObjectMapper();
+        ImportLimitsConfig limits = new ImportLimitsConfig();
+        JsonTabularParser json = new JsonTabularParser(om, limits);
+        XmlTabularParser xmlParser = new XmlTabularParser(om, json);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "stacked-bar-multiple-data.xml",
+                "application/xml",
+                xml.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = xmlParser.parse(file, new ImportOptions(null, null));
+
+        // Header + 3 category rows; 1 category column + 2 series columns.
+        assertThat(ds.rows()).hasSize(4);
+        assertThat(ds.rows().get(0).cells()).hasSize(3);
+
+        String h0 = ds.rows().get(0).cells().get(0).contentHtml();
+        String h1 = ds.rows().get(0).cells().get(1).contentHtml();
+        String h2 = ds.rows().get(0).cells().get(2).contentHtml();
+        assertThat(h0).contains("Category");
+        assertThat(h1).contains("Product A");
+        assertThat(h2).contains("Product B");
+
+        TabularCell jan = ds.rows().get(1).cells().get(0);
+        TabularCell janA = ds.rows().get(1).cells().get(1);
+        TabularCell janB = ds.rows().get(1).cells().get(2);
+        assertThat(jan.contentHtml()).contains("Jan");
+        assertThat(janA.contentHtml()).contains("120");
+        assertThat(janB.contentHtml()).contains("80");
+    }
 }
 
 
