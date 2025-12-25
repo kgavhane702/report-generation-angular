@@ -79,7 +79,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   onTableImportExcel(file: File): void {
-    this.tableFileImport.importExcel(file);
+    this.tableFileImport.importFile(file);
   }
 
   private createTableRows(rowCount: number, colCount: number): TableRow[] {

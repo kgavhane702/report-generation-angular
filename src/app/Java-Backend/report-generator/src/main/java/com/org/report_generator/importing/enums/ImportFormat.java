@@ -7,7 +7,8 @@ package com.org.report_generator.importing.enums;
  * {@code TabularParser} implementations (Strategy pattern) without changing callers.
  */
 public enum ImportFormat {
-    XLSX
+    XLSX,
+    CSV
 }
 
 

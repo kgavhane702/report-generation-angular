@@ -1,5 +1,7 @@
 package com.org.report_generator.importing.controller;
 
+import com.org.report_generator.dto.common.ApiResponse;
+import com.org.report_generator.dto.common.ApiResponseEntity;
 import com.org.report_generator.importing.enums.ImportFormat;
 import com.org.report_generator.importing.model.ImportOptions;
 import com.org.report_generator.importing.model.TabularDataset;
@@ -9,6 +11,7 @@ import com.org.report_generator.importing.service.TabularImportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,10 +41,15 @@ public class TabularImportController {
         this.limitsConfig = limitsConfig;
     }
 
-    @PostMapping(value = "/api/import/tabular", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public TabularImportResponse importTabular(
+    @PostMapping(
+            value = "/api/import/tabular",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<ApiResponse<TabularImportResponse>> importTabular(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "sheetIndex", required = false) Integer sheetIndex,
+            @RequestParam(value = "delimiter", required = false) String delimiter,
             @RequestParam(value = "format", required = false) ImportFormat format
     ) throws Exception {
         long startTime = System.currentTimeMillis();
@@ -66,13 +74,13 @@ public class TabularImportController {
         }
 
         try {
-            TabularDataset dataset = tabularImportService.importDataset(file, fmt, new ImportOptions(sheetIndex));
+            TabularDataset dataset = tabularImportService.importDataset(file, fmt, new ImportOptions(sheetIndex, delimiter));
             long duration = System.currentTimeMillis() - startTime;
             logger.info("Tabular import successful in {}ms: {} rows x {} columns", 
                 duration, 
                 dataset.rows().size(),
                 dataset.rows().isEmpty() ? 0 : dataset.rows().get(0).cells().size());
-            return new TabularImportResponse(dataset, List.of());
+            return ApiResponseEntity.ok(new TabularImportResponse(dataset, List.of()));
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             logger.error("Tabular import failed after {}ms", duration, e);

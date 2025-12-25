@@ -69,14 +69,14 @@
           type="button"
           class="table-grid-selector__import-button"
           (click)="triggerExcelPicker($event)"
-          title="Import a new table from Excel (.xlsx)"
+          title="Import a new table from Excel/CSV (.xlsx, .csv)"
         >
-          Import from Excel (.xlsx)
+          Import from Excel/CSV
         </button>
         <input
           #excelFileInput
           type="file"
-          accept=".xlsx"
+          accept=".xlsx,.csv"
           style="display: none"
           (change)="onExcelFileSelected($event)"
         />

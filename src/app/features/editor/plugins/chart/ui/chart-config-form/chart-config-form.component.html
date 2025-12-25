@@ -120,7 +120,7 @@
                 type="checkbox"
                 class="chart-config-dialog__checkbox"
                 [formControl]="$any(labelVisibilityFormArray.at(i))"
-                [attr.aria-label]="'Toggle category ' + (labelsFormArray.at(i)?.value || ('Label ' + (i + 1)))"
+                [attr.aria-label]="'Toggle category ' + (labelsFormArray.at(i).value || ('Label ' + (i + 1)))"
               />
               <input
                 type="text"
@@ -218,7 +218,7 @@
                 >
                   <div *ngFor="let j of visibleLabelIndexes; trackBy: trackByIndex" class="chart-config-dialog__data-item">
                     <label class="chart-config-dialog__data-label">
-                      {{ labelsFormArray.at(j)?.value || ('Point ' + (j + 1)) }}:
+                      {{ labelsFormArray.at(j).value || ('Point ' + (j + 1)) }}:
                     </label>
                     <input
                       type="number"
