@@ -160,12 +160,20 @@
             </ul>
           </div>
 
-          <div *ngIf="importPreview" class="chart-config-dialog__preview">
+          <div *ngIf="importInProgress || importPreview" class="chart-config-dialog__preview">
             <div class="chart-config-dialog__preview-meta">
-              Preview: {{ importPreview.totalRows }} rows × {{ importPreview.totalCols }} cols (showing first {{ importPreview.rows.length }})
+              <ng-container *ngIf="importPreview; else previewLoadingMeta">
+                Preview: {{ importPreview.totalRows }} rows × {{ importPreview.totalCols }} cols (showing first {{ importPreview.rows.length }})
+              </ng-container>
+              <ng-template #previewLoadingMeta>Loading preview…</ng-template>
             </div>
+
             <div class="chart-config-dialog__preview-table-wrapper">
-              <table class="chart-config-dialog__preview-table">
+              <div *ngIf="importInProgress" class="chart-config-dialog__loading-overlay" aria-live="polite" aria-busy="true">
+                <div class="chart-config-dialog__loading-spinner"></div>
+              </div>
+
+              <table *ngIf="importPreview" class="chart-config-dialog__preview-table">
                 <tbody>
                   <tr *ngFor="let row of importPreview.rows">
                     <td *ngFor="let cell of row">{{ cell }}</td>

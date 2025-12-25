@@ -65,6 +65,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   private readonly chartImportApi = inject(ChartImportApi);
   private readonly destroy$ = new Subject<void>();
   private chartTypeSubscription?: Subscription;
+  private importPreviewSubscription?: Subscription;
 
   @Input() data?: ChartConfigFormData;
   @Output() closed = new EventEmitter<ChartConfigFormResult>();
@@ -183,6 +184,9 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   ngOnDestroy(): void {
     if (this.chartTypeSubscription) {
       this.chartTypeSubscription.unsubscribe();
+    }
+    if (this.importPreviewSubscription) {
+      this.importPreviewSubscription.unsubscribe();
     }
     this.destroy$.next();
     this.destroy$.complete();
@@ -505,6 +509,12 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     }
     if (!this.form) return;
 
+    // Cancel any in-flight preview import to avoid race conditions (spinner hiding too early, stale preview, etc).
+    if (this.importPreviewSubscription) {
+      this.importPreviewSubscription.unsubscribe();
+      this.importPreviewSubscription = undefined;
+    }
+
     const chartType: ChartType = (this.form.value.chartType as ChartType) || 'column';
 
     const hasHeader = !!this.importForm.value.hasHeader;
@@ -527,12 +537,13 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       aggregation: (this.importForm.value.aggregation as ChartImportAggregation) ?? 'SUM',
     } satisfies ChartImportRequestOptions;
 
-    this.chartImportApi
+    this.importPreviewSubscription = this.chartImportApi
       .importChart(req)
       .pipe(take(1))
       .subscribe({
         next: (resp) => {
           this.importInProgress = false;
+          this.importPreviewSubscription = undefined;
 
           if (!resp?.success || !resp.data) {
             this.importError = resp?.error?.message || 'Chart import failed';
@@ -562,6 +573,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
         },
         error: (err) => {
           this.importInProgress = false;
+          this.importPreviewSubscription = undefined;
           // eslint-disable-next-line no-console
           console.error('Chart import failed', err);
           const msg =

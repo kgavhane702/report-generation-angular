@@ -4,7 +4,13 @@
   [class.table-widget--editing]="editing"
   [class.table-widget--format-painter]="isFormatPainterActive"
   [class.table-widget--active]="toolbarService.activeTableWidgetId === widget.id"
+  [class.table-widget--loading]="isLoading"
 >
+  <div *ngIf="isLoading" class="table-widget__loading-overlay" aria-live="polite" aria-busy="true">
+    <div class="table-widget__loading-spinner"></div>
+    <div class="table-widget__loading-text">{{ loadingMessage }}</div>
+  </div>
+
   <!--
     IMPORTANT:
     The top-level table is rendered as a CSS grid (same as split grids) so the browser's native <table>
@@ -85,8 +91,8 @@
           [style.color]="cell.style?.color || null"
           [style.background-color]="cell.style?.textHighlightColor || null"
           [style.line-height]="cell.style?.lineHeight || null"
-          contenteditable="true"
-          tabindex="0"
+          [attr.contenteditable]="isLoading ? 'false' : 'true'"
+          [attr.tabindex]="isLoading ? -1 : 0"
           [innerHTML]="cell.contentHtml | safeHtml"
           (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
           (blur)="onCellBlur($event, rowIndex, cellIndex, path)"

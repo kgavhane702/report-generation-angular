@@ -3,7 +3,10 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  Input,
+  OnChanges,
   Output,
+  SimpleChanges,
   signal,
   ViewChild,
 } from '@angular/core';
@@ -29,7 +32,11 @@ export interface TableDimensions {
   styleUrls: ['./table-grid-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TableGridSelectorComponent {
+export class TableGridSelectorComponent implements OnChanges {
+  /** Backend import state (provided by parent) */
+  @Input() importInProgress = false;
+  @Input() importError: string | null = null;
+
   @Output() tableInsert = new EventEmitter<TableDimensions>();
   @Output() excelImport = new EventEmitter<File>();
   @Output() close = new EventEmitter<void>();
@@ -57,6 +64,29 @@ export class TableGridSelectorComponent {
   importDialogOpen = false;
   importFile: File | null = null;
   importFileName: string | null = null;
+  private importRequested = false;
+  visibleImportError: string | null = null;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    const importInProgressChange = changes['importInProgress'];
+    if (!importInProgressChange) return;
+
+    const prev = !!importInProgressChange.previousValue;
+    const cur = !!importInProgressChange.currentValue;
+
+    // When a user-triggered import completes, close the modal on success.
+    if (prev && !cur && this.importRequested) {
+      this.importRequested = false;
+      if (this.importError) {
+        this.visibleImportError = this.importError;
+      } else {
+        this.importDialogOpen = false;
+        this.importFile = null;
+        this.importFileName = null;
+        this.visibleImportError = null;
+      }
+    }
+  }
 
   get selectionLabel(): string {
     if (this.mode() === 'import') {
@@ -129,6 +159,7 @@ export class TableGridSelectorComponent {
     this.importDialogOpen = true;
     this.importFile = null;
     this.importFileName = null;
+    this.visibleImportError = null;
   }
 
   onExcelFileSelected(event: Event): void {
@@ -136,23 +167,37 @@ export class TableGridSelectorComponent {
     const file = input.files?.[0];
     // reset immediately so selecting same file again triggers change
     input.value = '';
+    if (this.importInProgress) {
+      return;
+    }
     if (!file) return;
     this.importFile = file;
     this.importFileName = file.name;
+    this.visibleImportError = null;
   }
 
   confirmImport(): void {
-    if (!this.importFile) return;
-    this.excelImport.emit(this.importFile);
+    const file = this.importFile;
+    if (!file || this.importInProgress) return;
+
+    this.importRequested = true;
+    this.visibleImportError = null;
+
+    // Close immediately so the canvas (and placeholder widget) is visible while backend import runs.
     this.importDialogOpen = false;
     this.importFile = null;
     this.importFileName = null;
+
+    this.excelImport.emit(file);
   }
 
   cancelImport(): void {
+    if (this.importInProgress) return;
     this.importDialogOpen = false;
     this.importFile = null;
     this.importFileName = null;
+    this.importRequested = false;
+    this.visibleImportError = null;
   }
 
   isCellSelected(rowIndex: number, colIndex: number): boolean {

@@ -54,6 +54,8 @@
     <app-table-grid-selector
       (tableInsert)="onTableInsert($event)"
       (excelImport)="onTableImportExcel($event)"
+      [importInProgress]="tableImportInProgress()"
+      [importError]="tableImportError()"
     ></app-table-grid-selector>
   </div>
 

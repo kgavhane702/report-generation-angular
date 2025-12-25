@@ -9,6 +9,16 @@
     outline-offset: -2px;
   }
 
+  &--loading {
+    cursor: progress;
+
+    // Prevent interaction with editors while keeping widget drag/resize working.
+    .table-widget__cell-editor {
+      pointer-events: none;
+      caret-color: transparent;
+    }
+  }
+
   // Format painter active - show brush cursor
   &--format-painter {
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231976d2' stroke-width='2'%3E%3Crect x='4' y='3' width='10' height='6' rx='1'%3E%3C/rect%3E%3Cpath d='M9 9v3'%3E%3C/path%3E%3Cpath d='M6 12h6l-1 8h-4l-1-8z'%3E%3C/path%3E%3C/svg%3E") 0 24, copy;
@@ -399,6 +409,41 @@
     .table-widget__cell {
       border-color: rgba(25, 118, 210, 0.3);
     }
+  }
+}
+
+.table-widget__loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(1px);
+  z-index: 200;
+  pointer-events: none;
+}
+
+.table-widget__loading-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  animation: tableWidgetSpin 0.8s linear infinite;
+}
+
+.table-widget__loading-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+@keyframes tableWidgetSpin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

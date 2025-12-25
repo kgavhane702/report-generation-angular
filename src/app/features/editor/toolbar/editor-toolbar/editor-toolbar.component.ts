@@ -48,6 +48,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   
   /** Denormalized document for export */
   readonly document$ = this.store.select(DocumentSelectors.selectDenormalizedDocument);
+
+  /** Table import UI state (backend request in progress + last error) */
+  readonly tableImportInProgress = this.tableFileImport.importInProgress;
+  readonly tableImportError = this.tableFileImport.importError;
   
   // File input reference for import
   private fileInput?: HTMLInputElement;

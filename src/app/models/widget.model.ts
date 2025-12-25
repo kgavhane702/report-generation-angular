@@ -52,6 +52,9 @@ export interface ChartWidgetProps {
   data: unknown;
   renderMode?: 'svg' | 'canvas';
   exportedImage?: string;
+  /** Optional transient UI state: show placeholder/skeleton while data is loading. */
+  loading?: boolean;
+  loadingMessage?: string;
 }
 
 
@@ -108,6 +111,9 @@ export interface TableWidgetProps {
    * and `coveredBy` (covered cells), allowing merged areas to behave like normal cells.
    */
   mergedRegions?: TableMergedRegion[];
+  /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
+  loading?: boolean;
+  loadingMessage?: string;
 }
 
 export interface TableMergedRegion {

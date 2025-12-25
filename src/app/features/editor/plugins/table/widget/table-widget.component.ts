@@ -105,6 +105,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   /** Local copy of rows during editing */
   private readonly localRows = signal<TableRow[]>([]);
+  /** Optional transient loading state (e.g. placeholder widget while importing). */
+  private readonly isLoadingSig = signal<boolean>(false);
 
   /** Persisted sizing state (fractions that sum to 1) */
   private readonly columnFractions = signal<number[]>([]);
@@ -267,6 +269,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get tableProps(): TableWidgetProps {
     return this.widget.props as TableWidgetProps;
+  }
+
+  get isLoading(): boolean {
+    return this.isLoadingSig();
+  }
+
+  get loadingMessage(): string {
+    return this.tableProps.loadingMessage || 'Loading…';
   }
 
   private get headerRowEnabled(): boolean {
@@ -468,6 +478,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const migrated = this.migrateLegacyMergedRegions(initialRows, this.tableProps.mergedRegions ?? []);
     this.localRows.set(migrated);
     this.initializeFractionsFromProps();
+    this.isLoadingSig.set(!!this.tableProps.loading);
 
     // Sync persisted table options into toolbar state on init.
     this.toolbarService.syncTableOptionsFromProps(this.tableProps);
@@ -665,6 +676,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     columnFractions: number[];
     rowFractions: number[];
   }): void {
+    // Import is complete once we reach this point (backend response already received).
+    // Hide placeholder overlay immediately (don't wait for store update).
+    this.isLoadingSig.set(false);
+
     // Replace entire table content with imported data.
     const rows: TableRow[] = req.rows.map((r, rowIndex) => ({
       id: r.id || `r-${rowIndex}`,
@@ -723,6 +738,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       mergedRegions: [],
       columnFractions: normalizedCols,
       rowFractions: normalizedRows,
+      loading: false,
+      loadingMessage: undefined,
     });
 
     // Now commit any draft size we applied above (if any).
@@ -955,6 +972,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const migrated = this.migrateLegacyMergedRegions(nextRows, this.tableProps.mergedRegions ?? []);
       this.localRows.set(migrated);
       this.initializeFractionsFromProps();
+      this.isLoadingSig.set(!!this.tableProps.loading);
       this.scheduleRecomputeResizeSegments();
 
       // Keep toolbar checkboxes aligned with persisted props.

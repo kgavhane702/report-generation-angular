@@ -53,6 +53,9 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   
   // Flag to track if chart is rendered
   private isChartRendered = false;
+
+  /** Transient UI state: show placeholder overlay while chart is rendering. */
+  private isChartRendering = false;
   
   // Store pending changes that haven't been saved yet
   private pendingChartData?: ChartData;
@@ -77,6 +80,20 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Register this chart with the render registry
     console.log('[ChartWidget] ngOnInit - registering:', this.widget.id, 'subsection:', this.subsectionId);
     this.renderRegistry.register(this.widget.id, this.subsectionId, this.pageId);
+
+    // Track render status for placeholder overlay.
+    this.renderRegistry.stateChange$
+      .pipe(
+        takeUntil(this.destroy$),
+        filter(({ widgetId }) => widgetId === this.widget.id)
+      )
+      .subscribe(({ state }) => {
+        const next = state.status === 'pending' || state.status === 'rendering';
+        if (this.isChartRendering !== next) {
+          this.isChartRendering = next;
+          this.cdr.markForCheck();
+        }
+      });
 
     // Allow toolbar to open config/import dialog for a freshly inserted chart.
     this.chartToolbar.openConfigRequested$
@@ -364,6 +381,21 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private get chartProps(): ChartWidgetProps {
     return this.widget.props as ChartWidgetProps;
+  }
+
+  get showLoadingOverlay(): boolean {
+    // Allow explicit loading flag to force placeholder even if dataset is empty.
+    const explicit = !!this.chartProps.loading;
+    if (explicit) return true;
+
+    // Otherwise, show while rendering only when dataset is non-empty (avoid spinner on brand-new empty charts).
+    const data = this.chartProps.data as ChartData | undefined;
+    if (this.isEmptyDataset(data)) return false;
+    return this.isChartRendering;
+  }
+
+  get loadingMessage(): string {
+    return this.chartProps.loadingMessage || 'Loading chart…';
   }
 
   private isEmptyDataset(data: ChartData | undefined | null): boolean {

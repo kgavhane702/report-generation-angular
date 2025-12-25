@@ -436,8 +436,36 @@
   overflow: auto;
   border: 1px solid #dee2e6;
   border-radius: 4px;
+  position: relative;
+  min-height: 120px;
   max-height: 240px;
   background: #ffffff;
+}
+
+.chart-config-dialog__loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(1px);
+  z-index: 2;
+}
+
+.chart-config-dialog__loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #212529;
+  border-radius: 50%;
+  animation: chartConfigSpin 0.8s linear infinite;
+}
+
+@keyframes chartConfigSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .chart-config-dialog__preview-table {

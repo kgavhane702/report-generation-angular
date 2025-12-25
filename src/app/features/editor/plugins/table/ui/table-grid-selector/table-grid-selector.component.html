@@ -87,6 +87,9 @@
 <app-modal
   [(open)]="importDialogOpen"
   size="md"
+  [closeOnBackdrop]="!importInProgress"
+  [closeOnEsc]="!importInProgress"
+  [showCloseButton]="!importInProgress"
   (closed)="cancelImport()"
 >
   <ng-container appModalHeader>
@@ -99,6 +102,15 @@
         Select a file to import as a table. Supported: XLSX, CSV, JSON, XML.
       </div>
 
+      <div *ngIf="visibleImportError" class="table-grid-selector__import-error">
+        {{ visibleImportError }}
+      </div>
+
+      <div *ngIf="importInProgress" class="table-grid-selector__import-loading" aria-live="polite" aria-busy="true">
+        <div class="table-grid-selector__loading-spinner"></div>
+        Importing table…
+      </div>
+
       <div class="table-grid-selector__file-upload">
         <input
           #excelFileInput
@@ -108,7 +120,11 @@
           class="table-grid-selector__file-input"
           id="tableImportFileInput"
         />
-        <label for="tableImportFileInput" class="table-grid-selector__file-label">
+        <label
+          for="tableImportFileInput"
+          class="table-grid-selector__file-label"
+          [class.table-grid-selector__file-label--disabled]="importInProgress"
+        >
           <span class="table-grid-selector__file-button">Browse Files</span>
           <span class="table-grid-selector__file-hint">XLSX, CSV, JSON, or XML</span>
         </label>
@@ -124,6 +140,7 @@
       type="button"
       class="table-grid-selector__import-dialog-btn table-grid-selector__import-dialog-btn--secondary"
       (click)="cancelImport()"
+      [disabled]="importInProgress"
     >
       Cancel
     </button>
@@ -131,9 +148,10 @@
       type="button"
       class="table-grid-selector__import-dialog-btn table-grid-selector__import-dialog-btn--primary"
       (click)="confirmImport()"
-      [disabled]="!importFile"
+      [disabled]="!importFile || importInProgress"
     >
-      Import
+      <span *ngIf="importInProgress" class="table-grid-selector__btn-spinner" aria-hidden="true"></span>
+      {{ importInProgress ? 'Importing…' : 'Import' }}
     </button>
   </ng-container>
 </app-modal>
