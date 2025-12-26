@@ -114,6 +114,32 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    */
   private suppressWidgetSyncDuringAutoFit = false;
 
+  /** Throttle clipped-table logs to avoid spamming the console. */
+  private lastClippedLogTs = 0;
+
+  /**
+   * Debug helper: log when the table is currently clipping content (any cell overflowing its visible height).
+   * Uses `findWorstLeafOverflow()` which scans rendered leaves and checks needed vs visible height.
+   */
+  private logIfTableIsClipped(context: string): void {
+    const now = Date.now();
+    if (now - this.lastClippedLogTs < 1500) return;
+
+    const worst = this.findWorstLeafOverflow();
+    if (!worst || worst.overflowPx <= 1) return;
+
+    this.lastClippedLogTs = now;
+    // eslint-disable-next-line no-console
+    console.warn('[TableWidget] Table is clipping content', {
+      context,
+      widgetId: this.widget?.id,
+      overflowPx: Math.round(worst.overflowPx),
+      leafId: worst.leafId,
+      zoom: this.uiState.zoomLevel(),
+      widgetSize: this.widget?.size,
+    });
+  }
+
   /**
    * When a URL-based table is exported, we replace rows with a 1x1 placeholder but we now preserve
    * the user's saved sizing fractions in the JSON. On import, the widget initially renders the 1x1
@@ -1253,6 +1279,61 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
 
     if (persist) {
+      // If width shrink (or corner resize) increased wrapping, ensure we end the outer resize with NO clipped content.
+      // IMPORTANT: match internal column-resize behavior:
+      // - Grow the widget height if needed
+      // - Grow ONLY the rows that need more height (deficit rows), keep other rows' pixel heights stable
+      if (fit.minTableHeightPx > tableHeightPx + 1) {
+        const minHeightsPx = Array.from({ length: rowCount }, (_, r) =>
+          this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit')
+        );
+
+        const deficitRows: Array<{ r: number; deficitPx: number }> = [];
+        let deficitSumPx = 0;
+        for (let r = 0; r < rowCount; r++) {
+          const cur = heightsPx[r] ?? 0;
+          const min = minHeightsPx[r] ?? this.minRowPx;
+          const d = Math.max(0, min - cur);
+          if (d > 0.5) {
+            deficitRows.push({ r, deficitPx: d });
+            deficitSumPx += d;
+          }
+        }
+
+        if (deficitSumPx > 0.5) {
+          const bufferPx = 4;
+          const stepPx = 8;
+          const growPx = this.roundUpPx(deficitSumPx + bufferPx, stepPx);
+
+          if (Number.isFinite(growPx) && growPx > 0.5) {
+            // Update widget height (commit) and adjust fractions so only deficit rows gain height.
+            this.suppressWidgetSyncDuringAutoFit = true;
+
+            const growRes = this.growWidgetSizeBy(0, growPx, { commit: true });
+            const appliedGrowPx = growRes?.appliedHeightPx ?? 0;
+
+            if (Number.isFinite(appliedGrowPx) && appliedGrowPx > 0.5) {
+              const newTotalH = tableHeightPx + appliedGrowPx;
+              const nextHeights = [...heightsPx];
+
+              // Give each deficit row exactly what it needs to reach its min, plus distribute any extra buffer
+              // proportionally by deficit.
+              const extraPx = Math.max(0, appliedGrowPx - deficitSumPx);
+              for (const { r, deficitPx } of deficitRows) {
+                const extraShare = deficitSumPx > 0 ? extraPx * (deficitPx / deficitSumPx) : 0;
+                nextHeights[r] = (nextHeights[r] ?? 0) + deficitPx + extraShare;
+              }
+
+              const nextFractions = nextHeights.map((px) => px / newTotalH);
+              this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+              this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
+            }
+
+            this.suppressWidgetSyncDuringAutoFit = false;
+          }
+        }
+      }
+
       this.emitPropsChange(this.localRows());
 
       // Mark that rows are now tightly fitted after widget resize.
@@ -1314,6 +1395,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     this.cdr.markForCheck();
+    this.logIfTableIsClipped('recomputeContentMinTableHeight');
   }
 
   ngOnDestroy(): void {
