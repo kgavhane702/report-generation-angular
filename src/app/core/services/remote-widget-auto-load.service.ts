@@ -88,6 +88,9 @@ export class RemoteWidgetAutoLoadService {
             rows: data.rows,
             columnFractions: data.columnFractions,
             rowFractions: data.rowFractions,
+            // Preserve the widget's saved frame (width/height) when auto-loading a URL table
+            // after document import/open. This prevents unexpected growth on load.
+            preserveWidgetFrame: true,
           };
 
           // Ensure the table widget component is mounted before emitting (Subject is not replayed).

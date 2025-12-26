@@ -53,6 +53,13 @@ export interface TableImportFromExcelRequest {
   }>;
   columnFractions: number[];
   rowFractions: number[];
+  /**
+   * When true, keep the widget frame size (width/height) as-is while applying imported rows.
+   *
+   * Used for URL-based auto-load after JSON import so user-defined sizing is preserved
+   * and the widget does not "grow" unexpectedly.
+   */
+  preserveWidgetFrame?: boolean;
 }
 
 /**

@@ -44,6 +44,7 @@ import {
   SplitCellRequest,
   TableDeleteRequest,
   TableInsertRequest,
+  TableImportFromExcelRequest,
   TableToolbarService,
 } from '../../../../../core/services/table-toolbar.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
@@ -81,6 +82,26 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly minSplitRowPx = TABLE_MIN_SPLIT_ROW_PX;
 
   /**
+   * For JSON-imported documents: URL-based tables auto-load their data after open.
+   * In that scenario we preserve the widget frame (width/height) and instead "auto-fit" the text/padding
+   * so content doesn't get clipped in dense tables.
+   *
+   * This is transient UI state (not persisted).
+   */
+  private autoFitTextToFrame = false;
+
+  /**
+   * When a URL-based table is exported, we replace rows with a 1x1 placeholder but we now preserve
+   * the user's saved sizing fractions in the JSON. On import, the widget initially renders the 1x1
+   * grid so the fractions length doesn't match and would normally be discarded.
+   *
+   * We keep the raw fractions here so that when the URL data loads (real rows arrive),
+   * we can re-apply the user's saved sizing (header row height, column widths, etc.).
+   */
+  private pendingPropsColumnFractions: number[] | null = null;
+  private pendingPropsRowFractions: number[] | null = null;
+
+  /**
    * Manual top-level row minimum heights (in widget layout px).
    * When set (>0), live auto-fit will NOT shrink the row below this value (PPT-like behavior).
    *
@@ -89,6 +110,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private manualTopLevelRowMinHeightsPx: number[] = [];
 
   private autoFitRowHeightRaf: number | null = null;
+  private postImportFitHeaderRaf: number | null = null;
 
   @Input({ required: true }) widget!: WidgetModel;
 
@@ -670,12 +692,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.scheduleRecomputeResizeSegments();
   }
 
-  private applyExcelImport(req: {
-    widgetId: string;
-    rows: Array<{ id: string; cells: Array<{ id: string; contentHtml: string; merge: any; coveredBy: any }> }>;
-    columnFractions: number[];
-    rowFractions: number[];
-  }): void {
+  private applyExcelImport(req: TableImportFromExcelRequest): void {
     // Import is complete once we reach this point (backend response already received).
     // Hide placeholder overlay immediately (don't wait for store update).
     this.isLoadingSig.set(false);
@@ -704,32 +721,87 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const rowCount = this.getTopLevelRowCount(rows);
     const colCount = this.getTopLevelColCount(rows);
 
-    // Ensure the widget is large enough so imported tables don't start out with "microscopic" rows/cols.
-    // This also avoids the AutoFit loop having to fix dozens of rows one-by-one.
     const curW = this.widget?.size?.width ?? 0;
     const curH = this.widget?.size?.height ?? 0;
-    const minW = Math.max(20, colCount * this.minColPx);
-    // Use the same baseline row height as a freshly inserted table so single-line imports fit immediately.
-    const baselineRowPx = Math.max(this.minRowPx, TABLE_INITIAL_ROW_PX);
-    const minH = Math.max(20, rowCount * baselineRowPx);
-    const targetW = Math.max(curW, minW);
-    const targetH = Math.max(curH, minH);
-    const dw = targetW - curW;
-    const dh = targetH - curH;
-    if ((dw !== 0 || dh !== 0) && Number.isFinite(dw) && Number.isFinite(dh)) {
-      // Draft-only for now: committing size updates the store and would trigger ngOnChanges.
-      // We must persist the imported rows/fractions first, otherwise the widget would re-render with the old (empty) props.
-      this.growWidgetSizeBy(dw, dh, { commit: false });
+
+    const preserveWidgetFrame = req.preserveWidgetFrame === true;
+    this.autoFitTextToFrame = preserveWidgetFrame;
+
+    // By default (user-triggered imports), we make sure the widget is large enough so imported tables
+    // don't start out with "microscopic" rows/cols, and then run AutoFit to avoid clipped content.
+    //
+    // For URL-based auto-load after JSON import/open, we MUST preserve the user's saved widget size
+    // (height/width). Otherwise tables can "grow" significantly (often ~2x) when data is loaded.
+    let targetW = curW;
+    let targetH = curH;
+
+    if (!preserveWidgetFrame) {
+      const minW = Math.max(20, colCount * this.minColPx);
+      // Use the same baseline row height as a freshly inserted table so single-line imports fit immediately.
+      const baselineRowPx = Math.max(this.minRowPx, TABLE_INITIAL_ROW_PX);
+      const minH = Math.max(20, rowCount * baselineRowPx);
+      targetW = Math.max(curW, minW);
+      targetH = Math.max(curH, minH);
+
+      const dw = targetW - curW;
+      const dh = targetH - curH;
+      if ((dw !== 0 || dh !== 0) && Number.isFinite(dw) && Number.isFinite(dh)) {
+        // Draft-only for now: committing size updates the store and would trigger ngOnChanges.
+        // We must persist the imported rows/fractions first, otherwise the widget would re-render with the old (empty) props.
+        this.growWidgetSizeBy(dw, dh, { commit: false });
+      }
     }
 
-    // Apply a content-weighted column distribution so long-text columns get more room
-    // (reduces wrapping and the need for manual column dragging after import).
-    const nextColFractions = this.computeImportColumnFractionsFromRows(rows, this.minColPx, targetW);
-    const nextRowFractions = Array.from({ length: rowCount }, () => 1 / rowCount);
-    const normalizedCols = this.normalizeFractions(nextColFractions, colCount);
-    const normalizedRows = this.normalizeFractions(nextRowFractions, rowCount);
+    // Choose sizing fractions:
+    // - For preserveWidgetFrame (URL auto-load after JSON import): prefer existing persisted fractions
+    //   so the table retains the user's previous column/row sizing as much as possible.
+    // - Otherwise (user-triggered imports): compute a content-weighted distribution (PPT-like).
+
+    const existingCols = this.columnFractions();
+    const existingRows = this.rowFractions();
+    const pendingCols = this.pendingPropsColumnFractions;
+    const pendingRows = this.pendingPropsRowFractions;
+
+    const normalizedCols = (() => {
+      if (preserveWidgetFrame && Array.isArray(existingCols) && existingCols.length === colCount) {
+        return this.normalizeFractions(existingCols, colCount);
+      }
+      if (preserveWidgetFrame && Array.isArray(pendingCols) && pendingCols.length === colCount) {
+        return this.normalizeFractions(pendingCols, colCount);
+      }
+      if (Array.isArray(req.columnFractions) && req.columnFractions.length === colCount) {
+        return this.normalizeFractions(req.columnFractions, colCount);
+      }
+      const nextColFractions = this.computeImportColumnFractionsFromRows(rows, this.minColPx, targetW);
+      return this.normalizeFractions(nextColFractions, colCount);
+    })();
+
+    const normalizedRows = (() => {
+      if (preserveWidgetFrame && Array.isArray(existingRows) && existingRows.length === rowCount) {
+        return this.normalizeFractions(existingRows, rowCount);
+      }
+      if (preserveWidgetFrame && Array.isArray(pendingRows)) {
+        if (pendingRows.length === rowCount) {
+          return this.normalizeFractions(pendingRows, rowCount);
+        }
+        // Fallback: preserve the header row share (and total row share if enabled) even if row count changed.
+        const mapped = this.mapSavedRowFractionsToNewRowCount(pendingRows, rowCount);
+        if (mapped) {
+          return this.normalizeFractions(mapped, rowCount);
+        }
+      }
+      if (Array.isArray(req.rowFractions) && req.rowFractions.length === rowCount) {
+        return this.normalizeFractions(req.rowFractions, rowCount);
+      }
+      const nextRowFractions = Array.from({ length: rowCount }, () => 1 / rowCount);
+      return this.normalizeFractions(nextRowFractions, rowCount);
+    })();
     this.columnFractions.set(normalizedCols);
     this.rowFractions.set(normalizedRows);
+
+    // Once we've applied real fractions for the real row/col counts, we can drop the pending copies.
+    this.pendingPropsColumnFractions = null;
+    this.pendingPropsRowFractions = null;
 
     // Persist imported rows + sizing to the document model immediately.
     // (This ensures a subsequent store-driven widget update doesn't overwrite the imported content.)
@@ -752,11 +824,148 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.scheduleRecomputeResizeSegments();
     this.cdr.markForCheck();
 
-    // Run a deterministic AutoFit pass AFTER the DOM updates so no imported content is clipped.
-    // (Uses the same proven flow as post-column-resize, but triggered on import.)
-    window.requestAnimationFrame(() => {
-      this.startAutoFitAfterTopColResize();
+    if (!preserveWidgetFrame) {
+      // Run a deterministic AutoFit pass AFTER the DOM updates so no imported content is clipped.
+      // (Uses the same proven flow as post-column-resize, but triggered on import.)
+      window.requestAnimationFrame(() => {
+        this.startAutoFitAfterTopColResize();
+      });
+    } else {
+      // URL auto-load after JSON import/open: keep widget frame and preserve saved fractions,
+      // but ensure the header row isn't clipped by redistributing height within the current table frame.
+      this.schedulePostImportFitHeaderRow();
+    }
+  }
+
+  private schedulePostImportFitHeaderRow(): void {
+    if (this.postImportFitHeaderRaf !== null) {
+      cancelAnimationFrame(this.postImportFitHeaderRaf);
+      this.postImportFitHeaderRaf = null;
+    }
+
+    // Two RAFs: wait for rows+fractions to render, then measure real DOM sizes.
+    this.postImportFitHeaderRaf = window.requestAnimationFrame(() => {
+      this.postImportFitHeaderRaf = null;
+      window.requestAnimationFrame(() => {
+        this.runPostImportFitHeaderRow();
+      });
     });
+  }
+
+  private runPostImportFitHeaderRow(): void {
+    if (!this.autoFitTextToFrame) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 1) return;
+
+    const rect = this.getTableRect();
+    if (!rect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableHeightPx = Math.max(1, rect.height / zoomScale);
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const heightsPx = baseFractions.map((f) => f * tableHeightPx);
+
+    // Treat first row as "header" (even if the header style flag is off); it should not be clipped.
+    const headerIdx = 0;
+    const minHeaderPx = this.computeMinTopLevelRowHeightPx(headerIdx, heightsPx, zoomScale, 'autoFit');
+    const curHeaderPx = heightsPx[headerIdx] ?? 0;
+    const deficitPx = Math.max(0, minHeaderPx - curHeaderPx);
+    if (!Number.isFinite(deficitPx) || deficitPx <= 1) return;
+
+    // Compute how much we can take from other rows without clipping them.
+    const slackPx: number[] = Array.from({ length: rowCount }, () => 0);
+    let totalSlack = 0;
+    for (let r = 1; r < rowCount; r++) {
+      const minR = this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit');
+      const curR = heightsPx[r] ?? 0;
+      const slack = Math.max(0, curR - minR);
+      slackPx[r] = slack;
+      totalSlack += slack;
+    }
+
+    if (!Number.isFinite(totalSlack) || totalSlack <= 1) {
+      return;
+    }
+
+    const takeTotal = Math.min(deficitPx, totalSlack);
+    if (takeTotal <= 0) return;
+
+    const nextHeights = [...heightsPx];
+    nextHeights[headerIdx] = (nextHeights[headerIdx] ?? 0) + takeTotal;
+
+    for (let r = 1; r < rowCount; r++) {
+      const slack = slackPx[r] ?? 0;
+      if (slack <= 0) continue;
+      const take = takeTotal * (slack / totalSlack);
+      nextHeights[r] = Math.max(0, (nextHeights[r] ?? 0) - take);
+    }
+
+    const nextFractions = nextHeights.map((px) => px / tableHeightPx);
+    this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+
+    // Persist immediately so the user sees a stable, correct result without manual clicking.
+    this.emitPropsChange(this.localRows());
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * When preserving the widget frame (URL auto-load after JSON import/open), tables can become "dense"
+   * (many rows squeezed into a fixed height). We scale down padding/font-size to avoid clipped text
+   * without changing the widget size.
+   */
+  get autoFitTextScale(): number {
+    if (!this.autoFitTextToFrame) return 1;
+    // Do not globally shrink the entire table on load; it makes headers and normal rows look wrong.
+    // We preserve the user's saved sizing fractions and do a targeted post-import fit pass instead.
+    return 1;
+  }
+
+  private mapSavedRowFractionsToNewRowCount(saved: number[], newRowCount: number): number[] | null {
+    const n = Math.max(1, Math.trunc(newRowCount));
+    if (!Array.isArray(saved) || saved.length === 0) return null;
+    if (n === 1) return [1];
+
+    // Normalize the saved array to weights (independent of its original length).
+    const cleaned = saved.map((x) => (Number.isFinite(x) && x > 0 ? x : 0));
+    const sum = cleaned.reduce((a, b) => a + b, 0);
+    if (!Number.isFinite(sum) || sum <= 0) return null;
+    const norm = cleaned.map((x) => x / sum);
+
+    const preserveHeader = this.headerRowEnabled;
+    const preserveTotal = this.totalRowEnabled;
+
+    let first = preserveHeader ? (norm[0] ?? 0) : 0;
+    let last = preserveTotal ? (norm[norm.length - 1] ?? 0) : 0;
+
+    // Safety clamps so we always leave room for the other rows.
+    first = this.clamp(first, 0, 0.6);
+    last = this.clamp(last, 0, 0.6);
+    const reserved = first + last;
+    const remaining = Math.max(0.05, 1 - reserved);
+
+    const out = Array.from({ length: n }, () => 0);
+    out[0] = preserveHeader ? first : 0;
+    out[n - 1] = preserveTotal ? last : 0;
+
+    const midCount = n - 2;
+    const midShare = midCount > 0 ? remaining / midCount : remaining;
+    for (let i = 1; i <= n - 2; i++) {
+      out[i] = midShare;
+    }
+
+    // If we didn't preserve header/total, distribute evenly.
+    if (!preserveHeader && !preserveTotal) {
+      return Array.from({ length: n }, () => 1 / n);
+    }
+
+    // Renormalize to sum to 1 (handles reserved clamping + remaining floor).
+    const outSum = out.reduce((a, b) => a + b, 0);
+    if (!Number.isFinite(outSum) || outSum <= 0) return null;
+    return out.map((x) => x / outSum);
   }
 
   private computeImportColumnFractionsFromRows(rows: TableRow[], minColPx: number, tableWidthPx: number): number[] {
@@ -933,6 +1142,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.autoFitRowHeightRaf !== null) {
       cancelAnimationFrame(this.autoFitRowHeightRaf);
       this.autoFitRowHeightRaf = null;
+    }
+
+    if (this.postImportFitHeaderRaf !== null) {
+      cancelAnimationFrame(this.postImportFitHeaderRaf);
+      this.postImportFitHeaderRaf = null;
     }
 
     if (this.postCommitTopColResizeRaf !== null) {
@@ -7064,8 +7278,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const rowCount = this.getTopLevelRowCount(rows);
     const colCount = this.getTopLevelColCount(rows);
 
-    const nextCols = this.normalizeFractions(this.tableProps.columnFractions ?? [], colCount);
-    const nextRows = this.normalizeFractions(this.tableProps.rowFractions ?? [], rowCount);
+    const rawCols = this.tableProps.columnFractions ?? [];
+    const rawRows = this.tableProps.rowFractions ?? [];
+
+    // Preserve raw fractions for URL-based tables imported from JSON (placeholder rows mismatch),
+    // so we can re-apply them once the real data loads.
+    this.pendingPropsColumnFractions =
+      Array.isArray(rawCols) && rawCols.length > 0 && rawCols.length !== colCount ? [...rawCols] : null;
+    this.pendingPropsRowFractions =
+      Array.isArray(rawRows) && rawRows.length > 0 && rawRows.length !== rowCount ? [...rawRows] : null;
+
+    const nextCols = this.normalizeFractions(rawCols, colCount);
+    const nextRows = this.normalizeFractions(rawRows, rowCount);
 
     this.columnFractions.set(nextCols);
     this.rowFractions.set(nextRows);

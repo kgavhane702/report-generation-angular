@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostBinding,
   HostListener,
   Input,
@@ -85,6 +86,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly draftState = inject(DraftStateService);
   protected readonly uiState = inject(UIStateService);
   private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
+  private readonly hostRef = inject(ElementRef<HTMLElement>);
   
   // ============================================
   // WIDGET DATA (GRANULAR SELECTOR)
@@ -127,6 +129,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     pointerY: number;
     positionX: number;
     positionY: number;
+    minWidth: number;
+    minHeight: number;
   };
   
   /** Local preview frame for smooth resize without store updates */
@@ -315,6 +319,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Start resize tracking
     this.uiState.startResizing(this.widgetId);
     this.activeHandle = handle;
+
+    const widget = this.displayWidget();
+    const { minWidth, minHeight } = this.computeResizeMinConstraints(widget);
     
     this.resizeStart = {
       width: this.frame.width,
@@ -323,6 +330,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       pointerY: event.clientY,
       positionX: this.frame.x,
       positionY: this.frame.y,
+      minWidth,
+      minHeight,
     };
     
     // Initialize preview frame
@@ -385,7 +394,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     }
     
     // Clamp and set preview frame (LOCAL state only, no store update!)
-    const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY);
+    const frame = this.clampFrame(
+      nextWidth,
+      nextHeight,
+      nextX,
+      nextY,
+      this.resizeStart?.minWidth ?? 20,
+      this.resizeStart?.minHeight ?? 20
+    );
     this._previewFrame.set(frame);
   }
   
@@ -469,10 +485,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // HELPERS
   // ============================================
   
-  private clampFrame(width: number, height: number, x: number, y: number): WidgetFrame {
-    const minWidth = 20;
-    const minHeight = 20;
-    
+  private clampFrame(
+    width: number,
+    height: number,
+    x: number,
+    y: number,
+    minWidth: number,
+    minHeight: number
+  ): WidgetFrame {
     let newWidth = width;
     let newHeight = height;
     let newX = x;
@@ -498,5 +518,80 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     }
     
     return { width: newWidth, height: newHeight, x: newX, y: newY };
+  }
+
+  private computeResizeMinConstraints(widget: WidgetEntity | null): { minWidth: number; minHeight: number } {
+    const baseMinWidth = 20;
+    const baseMinHeight = 20;
+    if (!widget) return { minWidth: baseMinWidth, minHeight: baseMinHeight };
+
+    if (widget.type === 'table') {
+      // PPT-like behavior: prevent shrinking a table widget below the minimum size required
+      // to keep all currently-visible content visible. If content is already clipped,
+      // we do NOT clamp (user is already in an overflow state).
+      const currentH = this.frame.height;
+      const contentMinH = this.computeTableMinHeightPx(currentH);
+      return { minWidth: baseMinWidth, minHeight: Math.max(baseMinHeight, contentMinH) };
+    }
+
+    return { minWidth: baseMinWidth, minHeight: baseMinHeight };
+  }
+
+  /**
+   * Compute the minimum widget height (layout px) for the current table content so that
+   * shrinking further would start clipping text.
+   *
+   * If any cell is already overflowing at the current size, returns the base minimum (no clamp),
+   * because the user is already in a clipped state and should still be able to resize freely.
+   */
+  private computeTableMinHeightPx(currentTableHeightPx: number): number {
+    const baseMin = 20;
+    const tableHeight = Number.isFinite(currentTableHeightPx) ? currentTableHeightPx : 0;
+    if (tableHeight <= 0) return baseMin;
+
+    const root = this.hostRef.nativeElement;
+    const leafEls = Array.from(root.querySelectorAll('.table-widget__cell-editor[data-leaf]')) as HTMLElement[];
+    if (leafEls.length === 0) return baseMin;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+
+    let hasOverflow = false;
+    let minRequiredTableH = 0;
+
+    for (const leafEl of leafEls) {
+      const clipEl =
+        (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+        (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
+        leafEl;
+
+      let visibleH = clipEl.clientHeight;
+      if (!Number.isFinite(visibleH) || visibleH <= 0) {
+        visibleH = clipEl.getBoundingClientRect().height / zoomScale;
+      }
+
+      const neededH = Math.max(
+        leafEl.scrollHeight || 0,
+        leafEl.offsetHeight || 0,
+        leafEl.getBoundingClientRect().height / zoomScale || 0
+      );
+
+      if (!Number.isFinite(visibleH) || !Number.isFinite(neededH) || visibleH <= 0 || neededH <= 0) continue;
+
+      if (neededH - visibleH > 1) {
+        hasOverflow = true;
+        break;
+      }
+
+      const p = visibleH / tableHeight;
+      const eps = 0.02;
+      const required = neededH / Math.max(eps, p);
+      if (Number.isFinite(required) && required > minRequiredTableH) {
+        minRequiredTableH = required;
+      }
+    }
+
+    if (hasOverflow) return baseMin;
+    // Round up slightly to avoid 1px oscillation due to sub-pixel layout.
+    return Math.max(baseMin, Math.ceil(minRequiredTableH));
   }
 }

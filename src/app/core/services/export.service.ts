@@ -85,8 +85,15 @@ export class ExportService {
                   cells: [{ id: 'cell-0-0', contentHtml: '' }],
                 },
               ];
-              props.columnFractions = [1];
-              props.rowFractions = [1];
+              // IMPORTANT: Preserve existing sizing fractions (if present) so exported+reimported URL tables
+              // retain the user's column/row sizing after the remote data loads again.
+              // These arrays may not match the 1x1 placeholder grid, but the table widget normalizes them safely.
+              if (!Array.isArray(props.columnFractions) || props.columnFractions.length === 0) {
+                props.columnFractions = [1];
+              }
+              if (!Array.isArray(props.rowFractions) || props.rowFractions.length === 0) {
+                props.rowFractions = [1];
+              }
               props.mergedRegions = [];
             }
           }

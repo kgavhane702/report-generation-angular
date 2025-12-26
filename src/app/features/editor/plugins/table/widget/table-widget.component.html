@@ -5,6 +5,7 @@
   [class.table-widget--format-painter]="isFormatPainterActive"
   [class.table-widget--active]="toolbarService.activeTableWidgetId === widget.id"
   [class.table-widget--loading]="isLoading"
+  [style.--tw-auto-fit-scale]="autoFitTextScale"
 >
   <div *ngIf="isLoading" class="table-widget__loading-overlay" aria-live="polite" aria-busy="true">
     <div class="table-widget__loading-spinner"></div>

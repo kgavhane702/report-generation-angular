@@ -3,6 +3,8 @@
   height: 100%;
   overflow: auto;
   position: relative;
+  // Auto-fit scaling (used by URL auto-load after JSON import). Defaults to 1 (no change).
+  --tw-auto-fit-scale: 1;
 
   &--active {
     outline: 2px solid rgba(25, 118, 210, 0.85);
@@ -193,6 +195,17 @@
     .custom-marker-check li::before {
       content: '✓';
     }
+  }
+
+  // When preserving the widget frame, many rows may be squeezed into a fixed height.
+  // Scale down font + padding (relative to the inherited cell font) to prevent clipped text.
+  // This is applied only to TOP-LEVEL editors (sub-cells have their own container-query scaling).
+  .table-widget__cell-editor:not(.table-widget__cell-editor--subcell) {
+    font-size: clamp(8px, calc(1em * var(--tw-auto-fit-scale, 1)), 1em);
+    line-height: clamp(1.0, calc(1.5 * var(--tw-auto-fit-scale, 1)), 1.5);
+    padding:
+      clamp(0px, calc(4px * var(--tw-auto-fit-scale, 1)), 4px)
+      clamp(0px, calc(8px * var(--tw-auto-fit-scale, 1)), 8px);
   }
 
   // Wrapper surface (handles cell-level background + vertical alignment).
