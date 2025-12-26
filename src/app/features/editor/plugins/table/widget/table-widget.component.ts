@@ -115,6 +115,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private outerResizeCommitRaf: number | null = null;
   private wasOuterResizingThisWidget = false;
   private resizeEndEffectRef?: EffectRef;
+  private minHeightEffectRef?: EffectRef;
+  private computeMinHeightRaf: number | null = null;
 
   /** Content-based minimum total table height (px) so no top-level row clips. Used by outer (widget) resizer. */
   private contentMinTableHeightPx = 20;
@@ -509,8 +511,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // When the OUTER widget resizer is released, persist the fitted row fractions so the layout is stable.
     // This avoids the "header blocks shrink" problem by shrinking slack rows first.
     this.resizeEndEffectRef = effect(() => {
-      const myId = this.widget?.id;
       const resizingId = this.uiState.resizingWidgetId();
+      const myId = this.widget?.id;
       const isResizingMe = !!myId && resizingId === myId;
       const was = this.wasOuterResizingThisWidget;
       this.wasOuterResizingThisWidget = isResizingMe;
@@ -518,6 +520,22 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (was && !isResizingMe) {
         this.scheduleOuterResizeCommitFit();
       }
+    });
+
+    // For ALL tables: compute and expose the true minimum table height (no clipping) whenever the table is selected.
+    // This makes the outer widget resizer clamp consistently, not only for exported→imported URL tables.
+    this.minHeightEffectRef = effect(() => {
+      // IMPORTANT: don't early-return before reading signals, otherwise this effect may never re-run
+      // (constructor runs before @Input is set).
+      const activeId = this.uiState.activeWidgetId();
+      this.uiState.zoomLevel();
+      this.localRows();
+      this.rowFractions();
+
+      const myId = this.widget?.id;
+      if (!myId || activeId !== myId) return;
+
+      this.scheduleComputeContentMinTableHeight();
     });
   }
 
@@ -1166,6 +1184,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.outerResizeCommitRaf = null;
     }
 
+    if (this.computeMinHeightRaf !== null) {
+      cancelAnimationFrame(this.computeMinHeightRaf);
+      this.computeMinHeightRaf = null;
+    }
+
     // Two RAFs: wait for the widget container to commit its final height.
     this.outerResizeCommitRaf = window.requestAnimationFrame(() => {
       this.outerResizeCommitRaf = null;
@@ -1200,6 +1223,43 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
+  private scheduleComputeContentMinTableHeight(): void {
+    // If the outer resize flow is active, it already computes content min height.
+    const myId = this.widget?.id;
+    if (myId && this.uiState.isResizing(myId)) return;
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    if (this.computeMinHeightRaf !== null) return;
+    this.computeMinHeightRaf = window.requestAnimationFrame(() => {
+      this.computeMinHeightRaf = null;
+      this.recomputeContentMinTableHeight();
+    });
+  }
+
+  private recomputeContentMinTableHeight(): void {
+    const rect = this.getTableRect();
+    if (!rect) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableHeightPx = Math.max(1, rect.height / zoomScale);
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const heightsPx = baseFractions.map((f) => f * tableHeightPx);
+
+    let minSum = 0;
+    for (let r = 0; r < rowCount; r++) {
+      minSum += this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit');
+    }
+
+    if (!Number.isFinite(minSum) || minSum <= 0) return;
+    this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
     this.cdr.markForCheck();
   }
 
@@ -1319,6 +1379,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.resizeEndEffectRef) {
       this.resizeEndEffectRef.destroy();
       this.resizeEndEffectRef = undefined;
+    }
+
+    if (this.minHeightEffectRef) {
+      this.minHeightEffectRef.destroy();
+      this.minHeightEffectRef = undefined;
     }
     
     if (this.blurTimeoutId !== null) {

@@ -394,14 +394,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     }
     
     // Clamp and set preview frame (LOCAL state only, no store update!)
-    const frame = this.clampFrame(
-      nextWidth,
-      nextHeight,
-      nextX,
-      nextY,
-      this.resizeStart?.minWidth ?? 20,
-      this.resizeStart?.minHeight ?? 20
-    );
+    //
+    // IMPORTANT: For tables, the true minimum height is computed asynchronously (after DOM updates).
+    // If we only capture minHeight once on pointerdown, the *first* resize attempt may feel broken:
+    // the first drag "calculates" and the second drag works.
+    // Fix: recompute min constraints live during the drag so the first drag uses the latest value.
+    const widget = this.displayWidget();
+    const live = this.computeResizeMinConstraints(widget);
+    const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY, live.minWidth, live.minHeight);
     this._previewFrame.set(frame);
   }
   
@@ -531,7 +531,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       // we do NOT clamp (user is already in an overflow state).
       const currentH = this.frame.height;
       const domMinH = this.readTableMinHeightPxFromDom();
-      const contentMinH = domMinH ?? this.computeTableMinHeightPx(currentH);
+      // If the table hasn't computed its min height yet (first interaction / immediately after style changes),
+      // do NOT block the first drag. We'll pick up the DOM-provided value as soon as it's available.
+      const contentMinH = domMinH ?? 20;
       return { minWidth: baseMinWidth, minHeight: Math.max(baseMinHeight, contentMinH) };
     }
 
