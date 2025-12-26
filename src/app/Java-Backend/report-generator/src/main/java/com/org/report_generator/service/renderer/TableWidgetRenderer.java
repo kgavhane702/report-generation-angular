@@ -26,6 +26,8 @@ public class TableWidgetRenderer {
             --table-border-width: 1px;
             --table-border-color: #cbd5e1;
             --subcell-border-color: #e2e8f0;
+            /* Runtime-only scaling to prevent clipped text for dense (URL-based) tables in fixed frames. */
+            --tw-auto-fit-scale: 1;
         }
         
         .widget-table .table-widget {
@@ -56,6 +58,7 @@ public class TableWidgetRenderer {
             position: relative;
             min-width: 40px;
             min-height: 24px;
+            overflow: hidden; /* Match frontend: prevent content from spilling outside fixed row heights */
         }
         
         /* Matches frontend wrapper: handles background + vertical alignment (top/middle/bottom). */
@@ -84,7 +87,9 @@ public class TableWidgetRenderer {
         .widget-table .table-widget__cell-content {
             width: 100%;
             min-height: 24px;
-            padding: 4px 8px;
+            padding:
+                clamp(0px, calc(4px * var(--tw-auto-fit-scale, 1)), 4px)
+                clamp(0px, calc(8px * var(--tw-auto-fit-scale, 1)), 8px);
             box-sizing: border-box;
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -92,8 +97,8 @@ public class TableWidgetRenderer {
             background: transparent;
             color: inherit;
             font-family: inherit;
-            font-size: inherit;
-            line-height: 1.5;
+            font-size: clamp(8px, calc(1em * var(--tw-auto-fit-scale, 1)), 1em);
+            line-height: clamp(1.0, calc(1.5 * var(--tw-auto-fit-scale, 1)), 1.5);
             display: block;
         }
 
@@ -250,6 +255,9 @@ public class TableWidgetRenderer {
         boolean totalRow = props.path("totalRow").asBoolean(false);
         boolean lastColumn = props.path("lastColumn").asBoolean(false);
 
+        // Mark URL-based tables so the PDF pipeline can apply runtime auto-fit scaling before rendering.
+        boolean isUrlTable = "http".equalsIgnoreCase(props.path("dataSource").path("kind").asText(""));
+
         double[] colFractions = parseFractions(props.path("columnFractions"), colCount);
         double[] rowFractions = parseFractions(props.path("rowFractions"), rowCount);
 
@@ -260,7 +268,11 @@ public class TableWidgetRenderer {
             outerStyle.append("--table-border-style: none; --table-border-width: 0px;");
         }
 
-        html.append("<div class=\"widget widget-table\" style=\"").append(escapeHtmlAttribute(outerStyle.toString())).append("\">");
+        html.append("<div class=\"widget widget-table\"");
+        if (isUrlTable) {
+            html.append(" data-url-table=\"true\"");
+        }
+        html.append(" style=\"").append(escapeHtmlAttribute(outerStyle.toString())).append("\">");
         html.append("<div class=\"table-widget\"><table class=\"table-widget__table\">");
 
         // Column sizing via <colgroup> for stable fixed-layout tables (matches frontend)

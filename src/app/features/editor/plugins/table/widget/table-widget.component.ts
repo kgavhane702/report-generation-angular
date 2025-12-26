@@ -170,10 +170,34 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   /** Content-based minimum total table height (px) so no top-level row clips. Used by outer (widget) resizer. */
   private contentMinTableHeightPx = 20;
+  /**
+   * Unclamped minimum required table height (px) so no top-level row clips.
+   *
+   * For 'preserved' (URL) tables we intentionally clamp `contentMinTableHeightPx` to the current widget height
+   * so the outer resizer doesn't force the widget to grow. But we still need the *true* required height to:
+   * - compute runtime font/padding scaling (so content isn't hidden when saved styles are missing)
+   * - debug/diagnose dense-table scenarios
+   */
+  private contentRequiredTableHeightPx = 20;
 
   /** Exposed to the template/host for outer-resize clamping in `WidgetContainerComponent`. */
   get minTableHeightPx(): number {
     return this.contentMinTableHeightPx;
+  }
+
+  private setContentMinHeights(requiredPx: number): void {
+    const req = Math.max(20, Math.ceil(Number.isFinite(requiredPx) ? requiredPx : 20));
+    this.contentRequiredTableHeightPx = req;
+
+    if (this.sizingState === 'preserved') {
+      const currentWidgetHeight = this.widget?.size?.height ?? 0;
+      if (Number.isFinite(currentWidgetHeight) && currentWidgetHeight > 0) {
+        this.contentMinTableHeightPx = Math.max(20, Math.min(req, Math.ceil(currentWidgetHeight)));
+        return;
+      }
+    }
+
+    this.contentMinTableHeightPx = req;
   }
 
   @Input({ required: true }) widget!: WidgetModel;
@@ -973,7 +997,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Update layout immediately.
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
-    this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
+    this.setContentMinHeights(fit.minTableHeightPx);
 
     // Persist immediately so the user sees a stable, correct result without manual clicking.
     this.emitPropsChange(this.localRows());
@@ -1009,7 +1033,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       );
 
       const minSum = minHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
-      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
+      this.setContentMinHeights(minSum);
 
       // If impossible to fit within current height, we can't redistribute enough.
       if (minSum > safeH + 1) {
@@ -1071,9 +1095,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    */
   get autoFitTextScale(): number {
     if (!this.autoFitTextToFrame) return 1;
-    // Do not globally shrink the entire table on load; it makes headers and normal rows look wrong.
-    // We preserve the user's saved sizing fractions and do a targeted post-import fit pass instead.
-    return 1;
+    // Runtime-only scaling for dense URL tables when we preserve the widget frame.
+    // This is intentionally NOT persisted into cell styles; it only adjusts rendering so text is not hidden.
+    const rect = this.getTableRect();
+    if (!rect) return 1;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableHeightPx = Math.max(1, rect.height / zoomScale);
+
+    const required = Math.max(20, this.contentRequiredTableHeightPx);
+    if (!Number.isFinite(required) || required <= 0) return 1;
+
+    // If everything fits, keep normal sizing.
+    if (required <= tableHeightPx + 1) return 1;
+
+    // Scale down font + padding just enough to match the available height (with a small buffer).
+    const bufferPx = 2;
+    const ratio = Math.max(0.1, (tableHeightPx - bufferPx) / required);
+    return this.clamp(ratio, 0.65, 1);
   }
 
   private mapSavedRowFractionsToNewRowCount(saved: number[], newRowCount: number): number[] | null {
@@ -1276,7 +1315,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!fit) return;
 
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
-    this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
+    this.setContentMinHeights(fit.minTableHeightPx);
 
     if (persist) {
       // If width shrink (or corner resize) increased wrapping, ensure we end the outer resize with NO clipped content.
@@ -1326,7 +1365,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
               const nextFractions = nextHeights.map((px) => px / newTotalH);
               this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
-              this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
+              this.setContentMinHeights(fit.minTableHeightPx);
             }
 
             this.suppressWidgetSyncDuringAutoFit = false;
@@ -1380,19 +1419,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     if (!Number.isFinite(minSum) || minSum <= 0) return;
-
-    // In 'preserved' mode (URL tables with fixed size), clamp min height to current widget height.
-    // This prevents the widget resizer from forcing the table to grow beyond user's chosen size.
-    if (this.sizingState === 'preserved') {
-      const currentWidgetHeight = this.widget?.size?.height ?? 0;
-      if (currentWidgetHeight > 0) {
-        this.contentMinTableHeightPx = Math.max(20, Math.min(Math.ceil(minSum), currentWidgetHeight));
-      } else {
-        this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
-      }
-    } else {
-      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
-    }
+    this.setContentMinHeights(minSum);
 
     this.cdr.markForCheck();
     this.logIfTableIsClipped('recomputeContentMinTableHeight');
@@ -5399,14 +5426,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Convert to fractions for new height
       const newFractions = scaledHeightsPx.map((h) => h / newTableHeightPx);
       this.rowFractions.set(this.normalizeFractions(newFractions, rowCount));
-      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minRequiredHeightPx));
+      this.setContentMinHeights(minRequiredHeightPx);
 
       // Commit draft
       this.draftState.commitDraft(this.widget.id);
     } else {
       // No growth needed - just apply the redistributed fractions
       this.rowFractions.set(this.normalizeFractions(fitResult.nextFractions, rowCount));
-      this.contentMinTableHeightPx = Math.max(20, Math.ceil(fitResult.minTableHeightPx));
+      this.setContentMinHeights(fitResult.minTableHeightPx);
     }
 
     this.suppressWidgetSyncDuringAutoFit = false;

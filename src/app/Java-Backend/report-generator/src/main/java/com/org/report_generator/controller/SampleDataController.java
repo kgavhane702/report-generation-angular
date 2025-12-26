@@ -25,13 +25,11 @@ public class SampleDataController {
 
     @GetMapping(value = "/stacked-bar-multiple-data.json", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<byte[]> stackedBarMultipleDataJson() throws IOException, InterruptedException {
-      Thread.sleep(15000);
       return serve("sample-data/stacked-bar-multiple-data.json", MediaType.APPLICATION_JSON, "stacked-bar-multiple-data.json");
     }
 
     @GetMapping(value = "/sample_split_headers.csv", produces = "text/csv")
     public ResponseEntity<byte[]> sampleSplitHeadersCsv() throws IOException, InterruptedException {
-      Thread.sleep(10000);
         return serve("sample-data/sample_split_headers.csv", MediaType.valueOf("text/csv"), "sample_split_headers.csv");
     }
 

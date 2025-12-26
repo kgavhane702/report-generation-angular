@@ -78,6 +78,12 @@ public class PdfGeneratorService {
                 throw new PdfGenerationTimeoutException("PDF generation timed out waiting for fonts/images to load", e);
             }
 
+            // Runtime auto-fit for URL-based tables:
+            // In the editor UI, URL tables can preserve a fixed widget frame and use runtime scaling to prevent clipped text.
+            // The PDF pipeline renders HTML directly (no Angular runtime), so we replicate the same idea here by computing
+            // a safe `--tw-auto-fit-scale` per URL table before printing.
+            applyUrlTableAutoFitScale(page);
+
             PdfOptions options = new PdfOptions()
                     .setFormat("A4")
                     .setPrintBackground(true)
@@ -159,6 +165,91 @@ public class PdfGeneratorService {
     }
 
     private record Viewport(int width, int height) {
+    }
+
+    /**
+     * For URL-based tables (marked with data-url-table="true"), compute and apply a CSS variable
+     * (--tw-auto-fit-scale) to shrink font/padding just enough so text is not clipped within the fixed row heights.
+     *
+     * This runs inside the Playwright page before PDF generation so the PDF output matches the UI's "no hidden data" goal.
+     */
+    private void applyUrlTableAutoFitScale(Page page) {
+        try {
+            Object result = page.evaluate("""
+                () => {
+                  const widgets = Array.from(document.querySelectorAll('.widget-table[data-url-table=\"true\"]'));
+                  let adjusted = 0;
+                  let stillClipped = 0;
+
+                  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+                  const hasOverflow = (widget) => {
+                    const contents = Array.from(widget.querySelectorAll('.table-widget__cell-content'));
+                    for (const el of contents) {
+                      const clip = el.closest('.table-widget__cell') || el;
+                      const visibleH = clip.clientHeight || clip.getBoundingClientRect().height || 0;
+                      const neededH = el.scrollHeight || el.getBoundingClientRect().height || 0;
+                      if (neededH - visibleH > 1) return true;
+                    }
+                    return false;
+                  };
+
+                  const requiredHeight = (widget) => {
+                    const table = widget.querySelector('.table-widget__table');
+                    if (!table) return 0;
+                    const rows = Array.from(table.querySelectorAll('tr'));
+                    if (rows.length === 0) return 0;
+                    let sum = 0;
+                    for (const row of rows) {
+                      const cells = Array.from(row.querySelectorAll('.table-widget__cell-content'));
+                      let rowReq = 0;
+                      for (const el of cells) {
+                        const needed = el.scrollHeight || el.getBoundingClientRect().height || 0;
+                        if (needed > rowReq) rowReq = needed;
+                      }
+                      sum += rowReq;
+                    }
+                    return sum;
+                  };
+
+                  for (const widget of widgets) {
+                    const container = widget.querySelector('.table-widget') || widget;
+                    const rect = container.getBoundingClientRect();
+                    const availableH = rect.height || 0;
+                    if (!(availableH > 0)) continue;
+
+                    // First compute a ratio estimate.
+                    const req = requiredHeight(widget);
+                    if (!(req > 0)) continue;
+
+                    if (req <= availableH + 1) {
+                      widget.style.setProperty('--tw-auto-fit-scale', '1');
+                      continue;
+                    }
+
+                    const bufferPx = 2;
+                    let scale = clamp((availableH - bufferPx) / req, 0.65, 1);
+                    widget.style.setProperty('--tw-auto-fit-scale', String(scale));
+
+                    // Verify and step down slightly if still clipped (fonts/layout nuances).
+                    for (let i = 0; i < 6; i++) {
+                      if (!hasOverflow(widget)) break;
+                      scale = clamp(scale - 0.05, 0.65, 1);
+                      widget.style.setProperty('--tw-auto-fit-scale', String(scale));
+                    }
+
+                    if (scale < 1) adjusted++;
+                    if (hasOverflow(widget)) stillClipped++;
+                  }
+
+                  return { widgets: widgets.length, adjusted, stillClipped };
+                }
+                """);
+            logger.debug("URL table auto-fit scaling applied: {}", result);
+        } catch (Exception e) {
+            // Non-fatal: PDF can still be generated; we just might have clipped table text.
+            logger.warn("Failed to apply URL table auto-fit scaling; PDF may contain clipped table text", e);
+        }
     }
 }
 
