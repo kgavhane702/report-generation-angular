@@ -91,6 +91,30 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private autoFitTextToFrame = false;
 
   /**
+   * Unified sizing state for the table. Controls how auto-fit, widget resize, and column resize behave.
+   *
+   * - 'auto': Normal behavior - auto-fit grows height iteratively, rows redistribute freely.
+   * - 'preserved': URL import with fixed frame - widget size is locked, content must fit within frame.
+   *                Column resize should NOT trigger auto-fit height growth.
+   * - 'fitted': After widget resize completed - rows are tightly fitted to content.
+   *             Next column resize uses single-pass auto-fit (full growth at once), then resets to 'auto'.
+   *
+   * This is transient UI state (not persisted).
+   */
+  private sizingState: 'auto' | 'preserved' | 'fitted' = 'auto';
+
+  /**
+   * Guard to prevent store-driven `ngOnChanges` sync from overwriting local fractions while we are
+   * doing an internal auto-fit pass.
+   *
+   * Why: auto-fit may update widget draft height (via DraftStateService). If the parent re-computes
+   * a new `widget` input object for that draft size, `ngOnChanges` would normally re-run
+   * `initializeFractionsFromProps()` and overwrite the *newly applied* `columnFractions` from a
+   * column-resize that hasn't been persisted yet. That manifests as: "column doesn't shrink, only row height grows".
+   */
+  private suppressWidgetSyncDuringAutoFit = false;
+
+  /**
    * When a URL-based table is exported, we replace rows with a 1x1 placeholder but we now preserve
    * the user's saved sizing fractions in the JSON. On import, the widget initially renders the 1x1
    * grid so the fractions length doesn't match and would normally be discarded.
@@ -771,6 +795,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const preserveWidgetFrame = req.preserveWidgetFrame === true;
     this.autoFitTextToFrame = preserveWidgetFrame;
 
+    // Set sizing state based on import mode:
+    // - 'preserved' for URL tables: lock widget size, skip auto-fit on column resize
+    // - 'auto' for user-triggered imports: normal auto-fit behavior
+    this.sizingState = preserveWidgetFrame ? 'preserved' : 'auto';
+
     // By default (user-triggered imports), we make sure the widget is large enough so imported tables
     // don't start out with "microscopic" rows/cols, and then run AutoFit to avoid clipped content.
     //
@@ -1199,6 +1228,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   private runOuterResizeFit(persist: boolean): void {
+    // Skip row redistribution for 'preserved' mode (URL tables with fixed size)
+    if (this.sizingState === 'preserved') {
+      return;
+    }
+
     const rect = this.getTableRect();
     if (!rect) return;
 
@@ -1220,6 +1254,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     if (persist) {
       this.emitPropsChange(this.localRows());
+
+      // Mark that rows are now tightly fitted after widget resize.
+      // Next column resize will use single-pass auto-fit for smoother behavior.
+      if (this.sizingState === 'auto') {
+        this.sizingState = 'fitted';
+      }
     }
 
     this.scheduleRecomputeResizeSegments();
@@ -1259,7 +1299,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     if (!Number.isFinite(minSum) || minSum <= 0) return;
-    this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
+
+    // In 'preserved' mode (URL tables with fixed size), clamp min height to current widget height.
+    // This prevents the widget resizer from forcing the table to grow beyond user's chosen size.
+    if (this.sizingState === 'preserved') {
+      const currentWidgetHeight = this.widget?.size?.height ?? 0;
+      if (currentWidgetHeight > 0) {
+        this.contentMinTableHeightPx = Math.max(20, Math.min(Math.ceil(minSum), currentWidgetHeight));
+      } else {
+        this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
+      }
+    } else {
+      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
+    }
+
     this.cdr.markForCheck();
   }
 
@@ -1397,7 +1450,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['widget'] && !this.isActivelyEditing()) {
+    if (changes['widget'] && !this.isActivelyEditing() && !this.suppressWidgetSyncDuringAutoFit) {
       const nextRows = this.cloneRows(this.tableProps.rows);
       const migrated = this.migrateLegacyMergedRegions(nextRows, this.tableProps.mergedRegions ?? []);
       this.localRows.set(migrated);
@@ -5136,6 +5189,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.autoFitAfterColResizeIteration = 0;
     this.autoFitAfterColResizeDraftHeightPx = null;
     this.autoFitAfterColResizeDidResizeWidget = false;
+    this.suppressWidgetSyncDuringAutoFit = false;
   }
 
   private schedulePostCommitTopColResizeWork(): void {
@@ -5144,9 +5198,30 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.postCommitTopColResizeRaf = null;
     }
 
+    // 'preserved' mode (URL tables): skip auto-fit entirely, just persist column fractions.
+    // The widget size is locked; content should reflow/clip within the fixed frame.
+    if (this.sizingState === 'preserved') {
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
     this.postCommitTopColResizeRaf = window.requestAnimationFrame(() => {
       this.postCommitTopColResizeRaf = null;
-      // After column resize commit, run a deterministic AutoFit pass so wrapped text becomes visible
+
+      // 'fitted' mode (after widget resize): use single-pass auto-fit for smoother behavior,
+      // then reset to 'auto' mode.
+      // Use double-RAF to ensure DOM has fully updated with new column widths before measuring.
+      if (this.sizingState === 'fitted') {
+        window.requestAnimationFrame(() => {
+          this.runSinglePassAutoFit();
+          this.sizingState = 'auto';
+        });
+        return;
+      }
+
+      // 'auto' mode (normal): run iterative auto-fit so wrapped text becomes visible
       // immediately (no "type one key" needed).
       this.startAutoFitAfterTopColResize();
     });
@@ -5157,7 +5232,105 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.autoFitAfterColResizeIteration = 0;
     this.autoFitAfterColResizeDraftHeightPx = this.widget?.size?.height ?? null;
     this.autoFitAfterColResizeDidResizeWidget = false;
+    // Prevent draft-size driven `@Input widget` updates from overwriting local fractions mid auto-fit.
+    this.suppressWidgetSyncDuringAutoFit = true;
     this.runAutoFitAfterTopColResizeStep();
+  }
+
+  /**
+   * Single-pass auto-fit for use after widget resize ('fitted' state).
+   * 
+   * This approach:
+   * 1. First tries to redistribute height within the current frame (take from slack rows, give to overflow rows)
+   * 2. If redistribution isn't enough, grows the widget height by the remaining deficit
+   * 3. Applies everything in one step for smooth column resize behavior
+   * 
+   * This is more effective than the iterative approach because it handles both slack and overflow together.
+   */
+  private runSinglePassAutoFit(): void {
+    // Prevent draft-size driven `@Input widget` updates from overwriting local fractions mid auto-fit.
+    this.suppressWidgetSyncDuringAutoFit = true;
+    const rect = this.getTableRect();
+    if (!rect) {
+      this.suppressWidgetSyncDuringAutoFit = false;
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) {
+      this.suppressWidgetSyncDuringAutoFit = false;
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const currentTableHeightPx = Math.max(1, rect.height / zoomScale);
+    // Use the DOM-measured table height as the authoritative current height (draft size may not be reflected in Input yet).
+    const oldWidgetHeightPx = currentTableHeightPx;
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const currentRowHeightsPx = baseFractions.map((f) => f * currentTableHeightPx);
+
+    // Step 1: Try to redistribute within current height (handles slack → overflow transfer)
+    const fitResult = this.fitTopLevelRowsToContentWithinHeight(currentRowHeightsPx, currentTableHeightPx, zoomScale);
+
+    if (!fitResult) {
+      this.suppressWidgetSyncDuringAutoFit = false;
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // Check if the minimum required height exceeds current height
+    const minRequiredHeightPx = fitResult.minTableHeightPx;
+    const needsGrowth = minRequiredHeightPx > currentTableHeightPx + 1;
+
+    if (needsGrowth) {
+      // Step 2: Need to grow widget - calculate full growth needed
+      const deficitPx = minRequiredHeightPx - currentTableHeightPx;
+      const bufferPx = 4;
+      const stepPx = 8;
+      const totalGrowPx = Math.min(800, this.roundUpPx(deficitPx + bufferPx, stepPx));
+      const newWidgetHeightPx = Math.max(20, Math.round(oldWidgetHeightPx + totalGrowPx));
+
+      // Update widget size via draft state
+      this.draftState.updateDraftSize(this.widget.id, {
+        width: this.widget.size.width,
+        height: newWidgetHeightPx,
+      });
+
+      // Recalculate row heights for new widget size
+      const newTableHeightPx = newWidgetHeightPx;
+      const redistributedHeightsPx = fitResult.nextFractions.map((f) => f * currentTableHeightPx);
+      
+      // Scale up the redistributed heights to fill the new widget height
+      const scaleFactor = newTableHeightPx / currentTableHeightPx;
+      const scaledHeightsPx = redistributedHeightsPx.map((h) => h * scaleFactor);
+      
+      // Convert to fractions for new height
+      const newFractions = scaledHeightsPx.map((h) => h / newTableHeightPx);
+      this.rowFractions.set(this.normalizeFractions(newFractions, rowCount));
+      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minRequiredHeightPx));
+
+      // Commit draft
+      this.draftState.commitDraft(this.widget.id);
+    } else {
+      // No growth needed - just apply the redistributed fractions
+      this.rowFractions.set(this.normalizeFractions(fitResult.nextFractions, rowCount));
+      this.contentMinTableHeightPx = Math.max(20, Math.ceil(fitResult.minTableHeightPx));
+    }
+
+    this.suppressWidgetSyncDuringAutoFit = false;
+    this.emitPropsChange(this.localRows());
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
   }
 
   private runAutoFitAfterTopColResizeStep(): void {
@@ -5167,6 +5340,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (this.autoFitAfterColResizeDidResizeWidget) {
         this.draftState.commitDraft(this.widget.id);
       }
+      this.suppressWidgetSyncDuringAutoFit = false;
       this.emitPropsChange(this.localRows());
       this.scheduleRecomputeResizeSegments();
       this.cdr.markForCheck();
@@ -5179,6 +5353,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const stepPx = 8;
     const growPx = Math.min(600, this.roundUpPx(worst.overflowPx + bufferPx, stepPx));
     if (!Number.isFinite(growPx) || growPx <= 0) {
+      this.suppressWidgetSyncDuringAutoFit = false;
       this.emitPropsChange(this.localRows());
       this.scheduleRecomputeResizeSegments();
       this.cdr.markForCheck();
@@ -5187,6 +5362,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const oldWidgetHeightPx = this.autoFitAfterColResizeDraftHeightPx ?? this.widget?.size?.height ?? 0;
     if (!Number.isFinite(oldWidgetHeightPx) || oldWidgetHeightPx <= 0) {
+      this.suppressWidgetSyncDuringAutoFit = false;
       this.emitPropsChange(this.localRows());
       this.scheduleRecomputeResizeSegments();
       this.cdr.markForCheck();
