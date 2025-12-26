@@ -27,6 +27,17 @@ export class RemoteWidgetAutoLoadService {
    */
   private readonly startedKeys = new Set<string>();
 
+  /**
+   * Reset session-only auto-load memory.
+   *
+   * Needed when the entire document is replaced (e.g. import document JSON).
+   * Imported documents can reuse the same widget IDs, so without clearing this,
+   * URL-based widgets may not re-fetch on subsequent imports in the same app session.
+   */
+  resetSession(): void {
+    this.startedKeys.clear();
+  }
+
   maybeAutoLoad(widget: WidgetEntity | null, pageId: string): void {
     if (!widget || !pageId) return;
 

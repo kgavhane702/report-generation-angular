@@ -21,6 +21,7 @@ import type { ChartWidgetInsertAction } from '../../plugins/chart/ui/chart-widge
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
+import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 
 @Component({
   selector: 'app-editor-toolbar',
@@ -42,6 +43,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly ngZone = inject(NgZone);
   private readonly store = inject(Store<AppState>);
   private readonly remoteLoads = inject(RemoteWidgetLoadRegistryService);
+  private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
 
   /** Document title from store */
   readonly documentTitle = toSignal(
@@ -196,13 +198,18 @@ export class EditorToolbarComponent implements AfterViewInit {
       this.fileInput.accept = '.json,application/json';
       this.fileInput.style.display = 'none';
       this.fileInput.addEventListener('change', (event) => {
-        const file = (event.target as HTMLInputElement).files?.[0];
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        // Important: reset the input so selecting the SAME file again triggers a change event.
+        input.value = '';
         if (file) {
           this.importDocument(file);
         }
       });
       document.body.appendChild(this.fileInput);
     }
+    // Also clear before opening picker (some browsers keep last selection until cleared).
+    this.fileInput.value = '';
     this.fileInput.click();
   }
 
@@ -227,6 +234,11 @@ export class EditorToolbarComponent implements AfterViewInit {
       );
 
       if (confirmed) {
+        // Reset URL auto-load memory so URL-based widgets will re-fetch after replacing the document.
+        // This is important when importing the same JSON multiple times in one session (widget IDs repeat).
+        this.remoteAutoLoad.resetSession();
+        this.remoteLoads.clear();
+
         // Replace document in store
         this.documentService.replaceDocument(result.document);
 
