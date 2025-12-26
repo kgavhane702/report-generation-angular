@@ -530,11 +530,20 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       // to keep all currently-visible content visible. If content is already clipped,
       // we do NOT clamp (user is already in an overflow state).
       const currentH = this.frame.height;
-      const contentMinH = this.computeTableMinHeightPx(currentH);
+      const domMinH = this.readTableMinHeightPxFromDom();
+      const contentMinH = domMinH ?? this.computeTableMinHeightPx(currentH);
       return { minWidth: baseMinWidth, minHeight: Math.max(baseMinHeight, contentMinH) };
     }
 
     return { minWidth: baseMinWidth, minHeight: baseMinHeight };
+  }
+
+  private readTableMinHeightPxFromDom(): number | null {
+    const root = this.hostRef.nativeElement;
+    const tableEl = root.querySelector('.table-widget[data-tw-min-height]') as HTMLElement | null;
+    const raw = tableEl?.getAttribute('data-tw-min-height') ?? '';
+    const v = Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : null;
   }
 
   /**

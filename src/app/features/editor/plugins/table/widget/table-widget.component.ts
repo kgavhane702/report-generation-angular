@@ -111,6 +111,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private autoFitRowHeightRaf: number | null = null;
   private postImportFitHeaderRaf: number | null = null;
+  private outerResizeFitRaf: number | null = null;
+  private outerResizeCommitRaf: number | null = null;
+  private wasOuterResizingThisWidget = false;
+  private resizeEndEffectRef?: EffectRef;
+
+  /** Content-based minimum total table height (px) so no top-level row clips. Used by outer (widget) resizer. */
+  private contentMinTableHeightPx = 20;
+
+  /** Exposed to the template/host for outer-resize clamping in `WidgetContainerComponent`. */
+  get minTableHeightPx(): number {
+    return this.contentMinTableHeightPx;
+  }
 
   @Input({ required: true }) widget!: WidgetModel;
 
@@ -493,6 +505,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.uiState.zoomLevel();
       this.scheduleRecomputeResizeSegments();
     });
+
+    // When the OUTER widget resizer is released, persist the fitted row fractions so the layout is stable.
+    // This avoids the "header blocks shrink" problem by shrinking slack rows first.
+    this.resizeEndEffectRef = effect(() => {
+      const myId = this.widget?.id;
+      const resizingId = this.uiState.resizingWidgetId();
+      const isResizingMe = !!myId && resizingId === myId;
+      const was = this.wasOuterResizingThisWidget;
+      this.wasOuterResizingThisWidget = isResizingMe;
+
+      if (was && !isResizingMe) {
+        this.scheduleOuterResizeCommitFit();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -832,7 +858,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       });
     } else {
       // URL auto-load after JSON import/open: keep widget frame and preserve saved fractions,
-      // but ensure the header row isn't clipped by redistributing height within the current table frame.
+      // but ensure NO rows are clipped by redistributing height within the current table frame.
       this.schedulePostImportFitHeaderRow();
     }
   }
@@ -868,48 +894,101 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
     const heightsPx = baseFractions.map((f) => f * tableHeightPx);
 
-    // Treat first row as "header" (even if the header style flag is off); it should not be clipped.
-    const headerIdx = 0;
-    const minHeaderPx = this.computeMinTopLevelRowHeightPx(headerIdx, heightsPx, zoomScale, 'autoFit');
-    const curHeaderPx = heightsPx[headerIdx] ?? 0;
-    const deficitPx = Math.max(0, minHeaderPx - curHeaderPx);
-    if (!Number.isFinite(deficitPx) || deficitPx <= 1) return;
+    // Fit ALL rows: compute each row's content-min and redistribute within the fixed height.
+    const fit = this.fitTopLevelRowsToContentWithinHeight(heightsPx, tableHeightPx, zoomScale);
+    if (!fit) return;
 
-    // Compute how much we can take from other rows without clipping them.
-    const slackPx: number[] = Array.from({ length: rowCount }, () => 0);
-    let totalSlack = 0;
-    for (let r = 1; r < rowCount; r++) {
-      const minR = this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit');
-      const curR = heightsPx[r] ?? 0;
-      const slack = Math.max(0, curR - minR);
-      slackPx[r] = slack;
-      totalSlack += slack;
-    }
-
-    if (!Number.isFinite(totalSlack) || totalSlack <= 1) {
-      return;
-    }
-
-    const takeTotal = Math.min(deficitPx, totalSlack);
-    if (takeTotal <= 0) return;
-
-    const nextHeights = [...heightsPx];
-    nextHeights[headerIdx] = (nextHeights[headerIdx] ?? 0) + takeTotal;
-
-    for (let r = 1; r < rowCount; r++) {
-      const slack = slackPx[r] ?? 0;
-      if (slack <= 0) continue;
-      const take = takeTotal * (slack / totalSlack);
-      nextHeights[r] = Math.max(0, (nextHeights[r] ?? 0) - take);
-    }
-
-    const nextFractions = nextHeights.map((px) => px / tableHeightPx);
-    this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+    // Update layout immediately.
+    this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
+    this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
 
     // Persist immediately so the user sees a stable, correct result without manual clicking.
     this.emitPropsChange(this.localRows());
     this.scheduleRecomputeResizeSegments();
     this.cdr.markForCheck();
+  }
+
+  private fitTopLevelRowsToContentWithinHeight(
+    currentRowHeightsPx: number[],
+    tableHeightPx: number,
+    zoomScale: number
+  ): { nextFractions: number[]; minTableHeightPx: number } | null {
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return null;
+
+    const safeH = Math.max(1, Number.isFinite(tableHeightPx) ? tableHeightPx : 0);
+    const safeScale = Math.max(0.1, Number.isFinite(zoomScale) ? zoomScale : 1);
+
+    let heights = Array.isArray(currentRowHeightsPx) ? [...currentRowHeightsPx] : [];
+    if (heights.length !== rowCount) {
+      const base = this.normalizeFractions(this.rowFractions(), rowCount);
+      heights = base.map((f) => f * safeH);
+    }
+
+    const maxIterations = 3;
+    let minHeights: number[] = [];
+
+    for (let iter = 0; iter < maxIterations; iter++) {
+      // Compute min height for each row at current distribution.
+      minHeights = Array.from({ length: rowCount }, (_, r) =>
+        this.computeMinTopLevelRowHeightPx(r, heights, safeScale, 'autoFit')
+      );
+
+      const minSum = minHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+      this.contentMinTableHeightPx = Math.max(20, Math.ceil(minSum));
+
+      // If impossible to fit within current height, we can't redistribute enough.
+      if (minSum > safeH + 1) {
+        return { nextFractions: this.normalizeFractions(this.rowFractions(), rowCount), minTableHeightPx: minSum };
+      }
+
+      let deficitSum = 0;
+      let slackSum = 0;
+      const deficit = Array.from({ length: rowCount }, () => 0);
+      const slack = Array.from({ length: rowCount }, () => 0);
+
+      for (let r = 0; r < rowCount; r++) {
+        const cur = heights[r] ?? 0;
+        const min = minHeights[r] ?? this.minRowPx;
+        const d = Math.max(0, min - cur);
+        const s = Math.max(0, cur - min);
+        deficit[r] = d;
+        slack[r] = s;
+        deficitSum += d;
+        slackSum += s;
+      }
+
+      if (deficitSum <= 1 || slackSum <= 1) {
+        break;
+      }
+
+      const takeTotal = Math.min(deficitSum, slackSum);
+
+      // Add to deficit rows.
+      for (let r = 0; r < rowCount; r++) {
+        const d = deficit[r] ?? 0;
+        if (d <= 0) continue;
+        heights[r] = (heights[r] ?? 0) + takeTotal * (d / deficitSum);
+      }
+
+      // Subtract from slack rows.
+      for (let r = 0; r < rowCount; r++) {
+        const s = slack[r] ?? 0;
+        if (s <= 0) continue;
+        heights[r] = Math.max(0, (heights[r] ?? 0) - takeTotal * (s / slackSum));
+      }
+
+      // Normalize total back to safeH to avoid drift due to rounding.
+      const sum = heights.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+      if (Number.isFinite(sum) && sum > 0) {
+        const scale = safeH / sum;
+        heights = heights.map((px) => px * scale);
+      }
+    }
+
+    const nextFractions = heights.map((px) => px / safeH);
+    return { nextFractions: this.normalizeFractions(nextFractions, rowCount), minTableHeightPx: this.contentMinTableHeightPx };
   }
 
   /**
@@ -1062,9 +1141,66 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (table && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => {
         this.scheduleRecomputeResizeSegments();
+        this.scheduleOuterResizeFit();
       });
       this.resizeObserver.observe(table);
     }
+  }
+
+  private scheduleOuterResizeFit(): void {
+    const myId = this.widget?.id;
+    if (!myId) return;
+    if (!this.uiState.isResizing(myId)) return; // only during OUTER widget resizing
+    if (this.isResizingGrid || this.isResizingSplitGrid) return; // don't fight internal table resizers
+    if (this.outerResizeFitRaf !== null) return;
+
+    this.outerResizeFitRaf = window.requestAnimationFrame(() => {
+      this.outerResizeFitRaf = null;
+      this.runOuterResizeFit(false);
+    });
+  }
+
+  private scheduleOuterResizeCommitFit(): void {
+    if (this.outerResizeCommitRaf !== null) {
+      cancelAnimationFrame(this.outerResizeCommitRaf);
+      this.outerResizeCommitRaf = null;
+    }
+
+    // Two RAFs: wait for the widget container to commit its final height.
+    this.outerResizeCommitRaf = window.requestAnimationFrame(() => {
+      this.outerResizeCommitRaf = null;
+      window.requestAnimationFrame(() => {
+        this.runOuterResizeFit(true);
+      });
+    });
+  }
+
+  private runOuterResizeFit(persist: boolean): void {
+    const rect = this.getTableRect();
+    if (!rect) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableHeightPx = Math.max(1, rect.height / zoomScale);
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const heightsPx = baseFractions.map((f) => f * tableHeightPx);
+
+    const fit = this.fitTopLevelRowsToContentWithinHeight(heightsPx, tableHeightPx, zoomScale);
+    if (!fit) return;
+
+    this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
+    this.contentMinTableHeightPx = Math.max(20, Math.ceil(fit.minTableHeightPx));
+
+    if (persist) {
+      this.emitPropsChange(this.localRows());
+    }
+
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
   }
 
   ngOnDestroy(): void {
@@ -1149,6 +1285,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.postImportFitHeaderRaf = null;
     }
 
+    if (this.outerResizeFitRaf !== null) {
+      cancelAnimationFrame(this.outerResizeFitRaf);
+      this.outerResizeFitRaf = null;
+    }
+
+    if (this.outerResizeCommitRaf !== null) {
+      cancelAnimationFrame(this.outerResizeCommitRaf);
+      this.outerResizeCommitRaf = null;
+    }
+
     if (this.postCommitTopColResizeRaf !== null) {
       cancelAnimationFrame(this.postCommitTopColResizeRaf);
       this.postCommitTopColResizeRaf = null;
@@ -1168,6 +1314,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.zoomEffectRef) {
       this.zoomEffectRef.destroy();
       this.zoomEffectRef = undefined;
+    }
+
+    if (this.resizeEndEffectRef) {
+      this.resizeEndEffectRef.destroy();
+      this.resizeEndEffectRef = undefined;
     }
     
     if (this.blurTimeoutId !== null) {
