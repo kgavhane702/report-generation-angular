@@ -5,6 +5,7 @@ import {
   Component,
   EffectRef,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   OnDestroy,
@@ -1584,7 +1585,63 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
       // Keep toolbar checkboxes aligned with persisted props.
       this.toolbarService.syncTableOptionsFromProps(this.tableProps);
+
+      // If a document-level undo/redo happened while a cell was focused, we temporarily disabled
+      // local "actively editing" gating to allow the store update to apply. Now restore edit mode + focus.
+      if (this.resumeEditingAfterDocHistorySync) {
+        this.resumeEditingAfterDocHistorySync = false;
+        this.isActivelyEditing.set(true);
+        // Reset baseline to the new store-driven state so autosave/blur don't re-emit it.
+        this.rowsAtEditStart = this.cloneRows(this.localRows());
+
+        const leafId = this.resumeLeafId;
+        this.resumeLeafId = null;
+        if (leafId && this.tableContainer?.nativeElement) {
+          const el = this.tableContainer.nativeElement.querySelector(
+            `.table-widget__cell-editor[data-leaf="${leafId}"]`
+          ) as HTMLElement | null;
+
+          if (el) {
+            // Ensure the focused cell reflects the new model immediately (twSafeInnerHtml defers while focused).
+            const model = this.getCellModelByLeafId(leafId);
+            if (model) {
+              el.innerHTML = model.contentHtml ?? '';
+            }
+            el.focus();
+            this.activeCellElement = el;
+            this.activeCellId = leafId;
+            this.toolbarService.setActiveCell(el, this.widget.id);
+          }
+        }
+      }
     }
+  }
+
+  private resumeEditingAfterDocHistorySync = false;
+  private resumeLeafId: string | null = null;
+
+  @HostListener('document:tw-table-pre-doc-undo', ['$event'])
+  onPreDocUndo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+
+    // Keep focus in the cell but allow the next store-driven widget update to apply by temporarily
+    // disabling the "actively editing" gate. We'll restore edit mode after ngOnChanges applies it.
+    this.resumeEditingAfterDocHistorySync = true;
+    this.resumeLeafId = this.activeCellId;
+    this.isActivelyEditing.set(false);
+  }
+
+  @HostListener('document:tw-table-pre-doc-redo', ['$event'])
+  onPreDocRedo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+
+    this.resumeEditingAfterDocHistorySync = true;
+    this.resumeLeafId = this.activeCellId;
+    this.isActivelyEditing.set(false);
   }
 
   hasPendingChanges(): boolean {

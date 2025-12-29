@@ -7,6 +7,8 @@ import {
 import { UndoRedoService } from '../../../../../core/services/undo-redo.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry } from '../../../../../core/services/pending-changes-registry.service';
+import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
+import { RichTextToolbarService } from '../../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 
 /**
  * UndoRedoControlsComponent
@@ -24,6 +26,8 @@ export class UndoRedoControlsComponent {
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChanges = inject(PendingChangesRegistry);
+  private readonly tableToolbar = inject(TableToolbarService);
+  private readonly richTextToolbar = inject(RichTextToolbarService);
 
   // Signals automatically trigger change detection when used in templates
   readonly documentCanUndo = this.undoRedoService.documentCanUndo;
@@ -49,14 +53,53 @@ export class UndoRedoControlsComponent {
   }
 
   async undo(): Promise<void> {
+    const editingWidgetId = this.uiState.editingWidgetId();
+    // While editing a table cell, use DOCUMENT undo (so it can undo across multiple cells)
+    // but keep edit mode by telling the table widget to allow a one-off store sync while focused.
+    if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
+      if (this.documentCanUndo()) {
+        document.dispatchEvent(new CustomEvent('tw-table-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
+        this.undoRedoService.undoDocument();
+      }
+      return;
+    }
+
+    // While editing a text widget (CKEditor), do document undo but allow the widget to temporarily
+    // apply the store update even though it's actively editing (focus-preserving sync).
+    if (editingWidgetId && this.richTextToolbar.activeEditor) {
+      if (this.documentCanUndo()) {
+        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
+        this.undoRedoService.undoDocument();
+      }
+      return;
+    }
+
     // Ensure delayed-edit widgets (table/text) commit their changes before we snapshot/undo.
     await this.pendingChanges.flushAll();
+
     if (this.documentCanUndo()) {
       this.undoRedoService.undoDocument();
     }
   }
 
   async redo(): Promise<void> {
+    const editingWidgetId = this.uiState.editingWidgetId();
+    if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
+      if (this.documentCanRedo()) {
+        document.dispatchEvent(new CustomEvent('tw-table-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
+        this.undoRedoService.redoDocument();
+      }
+      return;
+    }
+
+    if (editingWidgetId && this.richTextToolbar.activeEditor) {
+      if (this.documentCanRedo()) {
+        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
+        this.undoRedoService.redoDocument();
+      }
+      return;
+    }
+
     await this.pendingChanges.flushAll();
     if (this.documentCanRedo()) {
       this.undoRedoService.redoDocument();

@@ -3,6 +3,7 @@ import {
   ChangeDetectorRef,
   Component,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   OnDestroy,
@@ -113,6 +114,9 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private readonly autosaveDelayMs = 650;
   private isClickingInsideEditor = false;
   private autoGrowRaf: number | null = null;
+
+  private resumeEditingAfterDocHistorySync = false;
+  private resumeWasFocused = false;
 
   // ============================================
   // PUBLIC GETTERS
@@ -262,12 +266,55 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
         if (this.currentEditorInstance.getData() !== newContent) {
           this.currentEditorInstance.setData(newContent);
         }
+
+        // If this update was triggered by a document undo/redo while the editor is focused,
+        // restore edit mode and focus after applying the store-driven state.
+        if (this.resumeEditingAfterDocHistorySync) {
+          this.resumeEditingAfterDocHistorySync = false;
+
+          // Baseline must match the newly-applied store state, otherwise autosave will re-emit it.
+          this.contentAtEditStart = newContent;
+
+          this.isActivelyEditing.set(true);
+
+          if (this.resumeWasFocused) {
+            const editableEl = this.currentEditorInstance.ui.getEditableElement() as HTMLElement | null;
+            editableEl?.focus();
+          }
+        }
       }
       // If actively editing, we ignore external updates to prevent:
       // - Cursor position reset
       // - Content flickering
       // - Focus loss
     }
+  }
+
+  @HostListener('document:tw-text-pre-doc-undo', ['$event'])
+  onPreDocUndo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.currentEditorInstance) return;
+
+    this.resumeEditingAfterDocHistorySync = true;
+    this.resumeWasFocused = !!this.currentEditorInstance.ui.focusTracker.isFocused;
+
+    // Allow the next store-driven widget update to apply by temporarily disabling the editing gate.
+    // Do NOT emit editingChange; we want UIState to stay in "editing" mode.
+    this.isActivelyEditing.set(false);
+  }
+
+  @HostListener('document:tw-text-pre-doc-redo', ['$event'])
+  onPreDocRedo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.currentEditorInstance) return;
+
+    this.resumeEditingAfterDocHistorySync = true;
+    this.resumeWasFocused = !!this.currentEditorInstance.ui.focusTracker.isFocused;
+    this.isActivelyEditing.set(false);
   }
 
   // ============================================

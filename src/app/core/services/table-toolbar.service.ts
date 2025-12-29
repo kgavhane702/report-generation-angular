@@ -394,6 +394,29 @@ export class TableToolbarService {
     this.updateFormattingState();
   }
 
+  /**
+   * Editor-level undo for the active table cell (contenteditable).
+   * Keeps focus/selection in the cell so we don't exit edit mode.
+   */
+  undo(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    this.activeCell.focus();
+    document.execCommand('undo', false);
+    this.updateFormattingState();
+  }
+
+  /**
+   * Editor-level redo for the active table cell (contenteditable).
+   */
+  redo(): void {
+    if (!this.activeCell) return;
+    this.restoreSelectionIfNeeded();
+    this.activeCell.focus();
+    document.execCommand('redo', false);
+    this.updateFormattingState();
+  }
+
   applySuperscript(): void {
     if (!this.activeCell) return;
     this.restoreSelectionIfNeeded();
