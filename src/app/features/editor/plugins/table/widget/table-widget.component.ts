@@ -338,6 +338,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    */
   private autosaveTimeoutId: number | null = null;
   private readonly autosaveDelayMs = 650;
+   private pendingAutosaveLeafId: string | null = null;
+   private pendingAutosaveElement: HTMLElement | null = null;
 
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
@@ -1658,8 +1660,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
     
-    // Sync the content from the blurred cell
-    this.syncCellContent();
+    // IMPORTANT:
+    // When switching cells quickly, autosave/active cell tracking can move to the next cell before
+    // we persist the previous cell's DOM. Always sync using the blur event's element + its leaf id.
+    const blurredEl = event.target as HTMLElement | null;
+    const blurredLeafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
+    if (blurredEl) {
+      this.syncCellContentFromElement(blurredEl, blurredLeafId);
+    } else {
+      this.syncCellContent();
+    }
     
     this.blurTimeoutId = window.setTimeout(() => {
       const activeElement = document.activeElement;
@@ -1701,11 +1711,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);
     }
 
-    this.scheduleAutosaveCommit();
+    const leafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
+    this.scheduleAutosaveCommit(leafId, el);
     this.cdr.markForCheck();
   }
 
-  private scheduleAutosaveCommit(): void {
+  private scheduleAutosaveCommit(leafId: string, el: HTMLElement | null): void {
     if (!this.isActivelyEditing()) return;
 
     if (this.autosaveTimeoutId !== null) {
@@ -1713,10 +1724,27 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.autosaveTimeoutId = null;
     }
 
+    this.pendingAutosaveLeafId = leafId;
+    this.pendingAutosaveElement = el;
+
     this.autosaveTimeoutId = window.setTimeout(() => {
       this.autosaveTimeoutId = null;
-      // Ensure model has the latest active cell's content before persisting.
-      this.syncCellContent();
+      // Ensure model has the latest content for the cell that scheduled this autosave (not "current active cell").
+      const id = this.pendingAutosaveLeafId;
+      const preferred = this.pendingAutosaveElement;
+      this.pendingAutosaveLeafId = null;
+      this.pendingAutosaveElement = null;
+
+      if (id) {
+        const resolved = this.resolveLeafEditorElement(id, preferred);
+        if (resolved) {
+          this.syncCellContentFromElement(resolved, id);
+        } else {
+          this.syncCellContent();
+        }
+      } else {
+        this.syncCellContent();
+      }
       this.commitChanges('autosave');
     }, this.autosaveDelayMs);
   }
@@ -2647,13 +2675,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!this.activeCellElement || !this.activeCellId) {
       return;
     }
+    this.syncCellContentFromElement(this.activeCellElement, this.activeCellId);
+  }
 
-    const parsed = this.parseLeafId(this.activeCellId);
+  private syncCellContentFromElement(el: HTMLElement, leafId: string): void {
+    const parsed = this.parseLeafId(leafId);
     if (!parsed) return;
 
     const { row: rowIndex, col: cellIndex, path } = parsed;
-    const content = this.normalizeEditorHtmlForModel(this.activeCellElement.innerHTML);
-    
+    const content = this.normalizeEditorHtmlForModel(el.innerHTML);
+
     untracked(() => {
       this.localRows.update(rows => {
         const newRows = this.cloneRows(rows);
@@ -2681,6 +2712,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         return newRows;
       });
     });
+  }
+
+  private resolveLeafEditorElement(leafId: string, preferred: HTMLElement | null): HTMLElement | null {
+    if (preferred && (preferred as any).isConnected) {
+      const attr = preferred.getAttribute('data-leaf');
+      if (attr === leafId) return preferred;
+    }
+    const container = this.tableContainer?.nativeElement;
+    if (!container) return null;
+    const esc = (v: string): string => {
+      const css = (window as any).CSS;
+      if (css && typeof css.escape === 'function') return css.escape(v);
+      return v.replace(/"/g, '\\"');
+    };
+    return container.querySelector(`.table-widget__cell-editor[data-leaf="${esc(leafId)}"]`) as HTMLElement | null;
   }
 
   /**

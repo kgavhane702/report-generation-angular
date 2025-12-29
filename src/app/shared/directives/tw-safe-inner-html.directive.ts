@@ -33,12 +33,31 @@ export class TwSafeInnerHtmlDirective implements OnChanges {
 
   @HostListener('blur')
   onHostBlur(): void {
-    // Apply the last deferred value (if any) now that the caret/selection is no longer relevant.
-    if (this.pendingHtml !== undefined) {
-      this.html = this.pendingHtml;
-      this.pendingHtml = undefined;
+    // CRITICAL:
+    // Do NOT write innerHTML during the same blur event tick.
+    //
+    // In the table widget, (blur) is used to read the current DOM content and sync it into the model.
+    // If we overwrite DOM on blur (with whatever the last bound value was), fast cell switching can
+    // cause the user's latest typed text to be replaced by stale model HTML => "text resets".
+    //
+    // Only apply if we actually deferred a binding update while focused, and do it in a microtask
+    // after the component blur handler has run.
+    if (this.pendingHtml === undefined) {
+      return;
     }
-    this.applyNow();
+
+    const pending = this.pendingHtml;
+    this.pendingHtml = undefined;
+
+    const schedule =
+      typeof queueMicrotask === 'function'
+        ? queueMicrotask
+        : (cb: () => void) => Promise.resolve().then(cb);
+
+    schedule(() => {
+      this.html = pending;
+      this.applyNow();
+    });
   }
 
   private applyOrDefer(): void {
