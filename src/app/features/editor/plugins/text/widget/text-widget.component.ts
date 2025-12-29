@@ -107,6 +107,8 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private currentEditorInstance: DecoupledEditor | null = null;
   private isEditorInitialized = false;
   private blurTimeoutId: number | null = null;
+  private autosaveTimeoutId: number | null = null;
+  private readonly autosaveDelayMs = 650;
   private isClickingInsideEditor = false;
   private autoGrowRaf: number | null = null;
 
@@ -166,9 +168,13 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
         clearTimeout(this.blurTimeoutId);
         this.blurTimeoutId = null;
       }
+      if (this.autosaveTimeoutId !== null) {
+        clearTimeout(this.autosaveTimeoutId);
+        this.autosaveTimeoutId = null;
+      }
       
       // Commit changes immediately
-      this.commitContentChange();
+      this.commitContentChange('flush');
 
       // Persist any auto-grown size (we keep size in draft while typing for smoothness).
       if (this.draftState.hasDraft(this.widget.id)) {
@@ -206,7 +212,11 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   ngOnDestroy(): void {
     // Commit any pending changes before destroying
     if (this.isActivelyEditing()) {
-      this.commitContentChange();
+      if (this.autosaveTimeoutId !== null) {
+        clearTimeout(this.autosaveTimeoutId);
+        this.autosaveTimeoutId = null;
+      }
+      this.commitContentChange('destroy');
       this.pendingChangesRegistry.unregister(this.widget.id);
     }
 
@@ -220,6 +230,9 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
+    }
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
     }
     
     // Unregister editor from toolbar service
@@ -286,6 +299,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       editor.model.document.on('change:data', () => {
         // Update local content signal (no store update!)
         this.localContent.set(editor.getData());
+        this.scheduleAutosaveCommit();
         this.scheduleAutoGrow();
         this.cdr.markForCheck();
       });
@@ -378,7 +392,11 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       // Only commit and exit editing if focus moved completely outside
       if (!isStillInsideEditor && !isStillInsideToolbar && !this.isClickingInsideEditor) {
         // Commit the content change - this is the ONLY time we update the store
-        this.commitContentChange();
+        if (this.autosaveTimeoutId !== null) {
+          clearTimeout(this.autosaveTimeoutId);
+          this.autosaveTimeoutId = null;
+        }
+        this.commitContentChange('blur');
 
         // Persist any auto-grown size now that editing is complete.
         if (this.draftState.hasDraft(this.widget.id)) {
@@ -459,14 +477,30 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
    * Commit the local content to the store
    * This is called ONLY when editing is complete (blur)
    */
-  private commitContentChange(): void {
+  private commitContentChange(reason: 'blur' | 'flush' | 'destroy' | 'autosave'): void {
     const currentContent = this.localContent();
     const originalContent = this.contentAtEditStart;
     
     // Only emit if content actually changed
     if (currentContent !== originalContent) {
       this.propsChange.emit({ contentHtml: currentContent });
+      // Advance baseline so subsequent autosaves/blur don't emit the same change again.
+      this.contentAtEditStart = currentContent;
     }
+  }
+
+  private scheduleAutosaveCommit(): void {
+    if (!this.isActivelyEditing()) return;
+
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
+
+    this.autosaveTimeoutId = window.setTimeout(() => {
+      this.autosaveTimeoutId = null;
+      this.commitContentChange('autosave');
+    }, this.autosaveDelayMs);
   }
 
   private scheduleAutoGrow(): void {

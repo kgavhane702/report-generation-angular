@@ -47,6 +47,9 @@ export class AddWidgetCommand implements Command {
  * Uses entity-level WidgetActions for targeted updates
  */
 export class UpdateWidgetCommand implements Command {
+  private lastMergedAt = Date.now();
+  private readonly mergeWindowMs = 800;
+
   constructor(
     private store: Store<AppState>,
     private pageId: string,
@@ -74,6 +77,50 @@ export class UpdateWidgetCommand implements Command {
   }
 
   description = 'Update widget';
+
+  canMerge(next: Command): boolean {
+    if (!(next instanceof UpdateWidgetCommand)) {
+      return false;
+    }
+
+    if (next.widgetId !== this.widgetId) {
+      return false;
+    }
+
+    // Merge only "props-only" updates (typing/autosave). Never merge moves/resizes/etc.
+    if (!this.isPropsOnly(this.changes) || !this.isPropsOnly(next.changes)) {
+      return false;
+    }
+
+    const now = Date.now();
+    return now - this.lastMergedAt <= this.mergeWindowMs;
+  }
+
+  merge(next: Command): void {
+    if (!(next instanceof UpdateWidgetCommand)) {
+      return;
+    }
+
+    // Latest values win, but keep the original `previousWidget` snapshot so undo goes back
+    // to the start of the merged burst.
+    const cur = this.changes as Record<string, unknown>;
+    const incoming = next.changes as Record<string, unknown>;
+
+    const merged: Record<string, unknown> = { ...cur, ...incoming };
+
+    if (cur['props'] && incoming['props'] && typeof cur['props'] === 'object' && typeof incoming['props'] === 'object') {
+      merged['props'] = { ...(cur['props'] as object), ...(incoming['props'] as object) };
+    }
+
+    this.changes = merged as Partial<WidgetModel>;
+    this.lastMergedAt = Date.now();
+  }
+
+  private isPropsOnly(changes: Partial<WidgetModel>): boolean {
+    const keys = Object.keys(changes ?? {});
+    if (keys.length === 0) return false;
+    return keys.every((k) => k === 'props');
+  }
 }
 
 /**

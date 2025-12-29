@@ -332,6 +332,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   /** Blur timeout for delayed blur handling */
   private blurTimeoutId: number | null = null;
 
+  /**
+   * Debounced autosave while editing.
+   * Lets global undo/redo get incremental steps without requiring the user to blur/click outside.
+   */
+  private autosaveTimeoutId: number | null = null;
+  private readonly autosaveDelayMs = 650;
+
   private splitSubscription?: Subscription;
   private mergeSubscription?: Subscription;
   private insertSubscription?: Subscription;
@@ -1427,7 +1434,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   ngOnDestroy(): void {
     if (this.isActivelyEditing()) {
-      this.commitChanges();
+      if (this.autosaveTimeoutId !== null) {
+        clearTimeout(this.autosaveTimeoutId);
+        this.autosaveTimeoutId = null;
+      }
+      this.commitChanges('destroy');
       this.pendingChangesRegistry.unregister(this.widget.id);
     }
 
@@ -1591,9 +1602,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         clearTimeout(this.blurTimeoutId);
         this.blurTimeoutId = null;
       }
+      if (this.autosaveTimeoutId !== null) {
+        clearTimeout(this.autosaveTimeoutId);
+        this.autosaveTimeoutId = null;
+      }
       
       this.syncCellContent();
-      this.commitChanges();
+      this.commitChanges('flush');
       
       this.isActivelyEditing.set(false);
       this.editingChange.emit(false);
@@ -1656,7 +1671,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         toolbarElement?.contains(activeElement);
       
       if (!isStillInsideTable && !isStillInsideToolbar) {
-        this.commitChanges();
+        if (this.autosaveTimeoutId !== null) {
+          clearTimeout(this.autosaveTimeoutId);
+          this.autosaveTimeoutId = null;
+        }
+        this.commitChanges('blur');
         
         this.isActivelyEditing.set(false);
         this.editingChange.emit(false);
@@ -1682,7 +1701,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);
     }
 
+    this.scheduleAutosaveCommit();
     this.cdr.markForCheck();
+  }
+
+  private scheduleAutosaveCommit(): void {
+    if (!this.isActivelyEditing()) return;
+
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
+
+    this.autosaveTimeoutId = window.setTimeout(() => {
+      this.autosaveTimeoutId = null;
+      // Ensure model has the latest active cell's content before persisting.
+      this.syncCellContent();
+      this.commitChanges('autosave');
+    }, this.autosaveDelayMs);
   }
 
   private maybeAutoGrowToFit(contentEl: HTMLElement, rowIndex: number, cellIndex: number, leafPath?: string): void {
@@ -2956,13 +2992,17 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return { row, col, path };
   }
 
-  private commitChanges(): void {
+  private commitChanges(reason: 'blur' | 'flush' | 'destroy' | 'autosave'): void {
     const currentRows = this.localRows();
     const originalRows = this.rowsAtEditStart;
 
-    if (JSON.stringify(currentRows) !== JSON.stringify(originalRows)) {
+    const currentJson = JSON.stringify(currentRows);
+    const originalJson = JSON.stringify(originalRows);
+    if (currentJson !== originalJson) {
       // Always clear legacy mergedRegions when we emit, since merges are now inline on cells.
       this.emitPropsChange(currentRows);
+      // Advance baseline so subsequent autosaves/blur don't emit the same change again.
+      this.rowsAtEditStart = this.cloneRows(currentRows);
     }
   }
 

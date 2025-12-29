@@ -7,6 +7,11 @@ export interface Command {
   description?: string;
 }
 
+export interface MergeableCommand extends Command {
+  canMerge(next: Command): boolean;
+  merge(next: Command): void;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -28,6 +33,20 @@ export class UndoRedoService {
   readonly zoomCanRedo = this.canRedoZoom.asReadonly();
 
   executeDocumentCommand(command: Command): void {
+    const last = this.documentUndoStack[this.documentUndoStack.length - 1];
+    const isMergeable = (c: Command): c is MergeableCommand =>
+      typeof (c as MergeableCommand).canMerge === 'function' &&
+      typeof (c as MergeableCommand).merge === 'function';
+
+    if (last && isMergeable(last) && last.canMerge(command)) {
+      // Coalesce rapid successive commands into a single undo step (e.g., typing bursts).
+      last.merge(command);
+      last.execute();
+      this.documentRedoStack.length = 0;
+      this.updateDocumentState();
+      return;
+    }
+
     command.execute();
     this.documentUndoStack.push(command);
     this.documentRedoStack.length = 0;

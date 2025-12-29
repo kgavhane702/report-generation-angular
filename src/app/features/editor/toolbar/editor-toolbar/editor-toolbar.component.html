@@ -31,6 +31,23 @@
         />
       </ng-template>
     </div>
+
+    <div class="editor-toolbar__save-indicator" aria-live="polite">
+      <ng-container [ngSwitch]="saveState()">
+        <span *ngSwitchCase="'saving'" class="editor-toolbar__save-indicator-inner" title="Saving...">
+          <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--spinning">sync</span>
+          <span class="editor-toolbar__save-indicator-text">Saving</span>
+        </span>
+        <span *ngSwitchCase="'saved'" class="editor-toolbar__save-indicator-inner" title="All changes saved">
+          <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--saved">check_circle</span>
+          <span class="editor-toolbar__save-indicator-text">Saved</span>
+        </span>
+        <span *ngSwitchDefault class="editor-toolbar__save-indicator-inner" title="All changes saved">
+          <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--idle">cloud_done</span>
+          <span class="editor-toolbar__save-indicator-text">Saved</span>
+        </span>
+      </ng-container>
+    </div>
   </div>
 
   <div class="editor-toolbar__group editor-toolbar__group--widgets">

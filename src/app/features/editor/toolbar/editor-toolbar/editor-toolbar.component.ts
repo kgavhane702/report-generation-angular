@@ -9,6 +9,7 @@ import { ExportService } from '../../../../core/services/export.service';
 import { ImportService } from '../../../../core/services/import.service';
 import { PdfService } from '../../../../core/services/pdf.service';
 import { PendingChangesRegistry } from '../../../../core/services/pending-changes-registry.service';
+import { SaveIndicatorService } from '../../../../core/services/save-indicator.service';
 import { WidgetType, TableRow, TableCell } from '../../../../models/widget.model';
 import { TableDimensions } from '../../plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableFileImportFacade } from '../../../../core/tabular-import/facades/table-file-import.facade';
@@ -37,6 +38,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly importService = inject(ImportService);
   private readonly pdfService = inject(PdfService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
+  private readonly saveIndicator = inject(SaveIndicatorService);
   private readonly tableFileImport = inject(TableFileImportFacade);
   private readonly chartToolbar = inject(ChartToolbarService);
   private readonly appRef = inject(ApplicationRef);
@@ -60,6 +62,9 @@ export class EditorToolbarComponent implements AfterViewInit {
 
   /** URL-based widgets loading state (auto-fetch after import/open) */
   readonly remoteLoadCount = this.remoteLoads.pendingCount;
+
+  /** Saving indicator state (UI-only) */
+  readonly saveState = this.saveIndicator.state;
   
   // File input reference for import
   private fileInput?: HTMLInputElement;

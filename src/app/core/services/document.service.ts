@@ -23,6 +23,7 @@ import {
 } from '../utils/document.factory';
 import { UndoRedoService } from './undo-redo.service';
 import { ClipboardService } from './clipboard.service';
+import { SaveIndicatorService } from './save-indicator.service';
 import {
   AddWidgetCommand,
   UpdateWidgetCommand,
@@ -56,6 +57,7 @@ export class DocumentService {
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly clipboardService = inject(ClipboardService);
   private readonly widgetFactory = inject(WidgetFactoryService);
+  private readonly saveIndicator = inject(SaveIndicatorService);
 
   // ============================================
   // STORE SIGNALS
@@ -173,6 +175,7 @@ export class DocumentService {
       deepClone(previousWidget)
     );
     this.undoRedoService.executeDocumentCommand(command);
+    this.saveIndicator.pulse();
   }
 
   deleteWidget(pageId: string, widgetId: string): void {
