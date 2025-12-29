@@ -56,6 +56,10 @@
   user-select: none;
 }
 
+.editor-toolbar__save-indicator-inner--clickable {
+  cursor: pointer;
+}
+
 .editor-toolbar__save-indicator-icon {
   font-size: 1.05rem;
   line-height: 1;

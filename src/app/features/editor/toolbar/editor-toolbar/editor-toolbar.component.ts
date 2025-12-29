@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 
@@ -65,6 +65,8 @@ export class EditorToolbarComponent implements AfterViewInit {
 
   /** Saving indicator state (UI-only) */
   readonly saveState = this.saveIndicator.state;
+  private readonly manualSaveInProgress = signal(false);
+  readonly displaySaveState = computed(() => (this.manualSaveInProgress() ? 'saving' : this.saveState()));
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
@@ -298,6 +300,27 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+  }
+
+  onSaveIndicatorKeydown(event: KeyboardEvent): void {
+    // Make the save indicator (a span) keyboard-accessible.
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      void this.saveNow();
+    }
+  }
+
+  async saveNow(): Promise<void> {
+    if (this.manualSaveInProgress()) return;
+    this.manualSaveInProgress.set(true);
+    // Always show the same saving/saved animation as normal edits (even if nothing to flush).
+    this.saveIndicator.pulse();
+    try {
+      // Force any delayed-edit widgets (text/table) to commit before considering the document "saved".
+      await this.pendingChangesRegistry.flushAll();
+    } finally {
+      this.manualSaveInProgress.set(false);
+    }
   }
 
   startEditingDocumentName(): void {

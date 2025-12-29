@@ -33,16 +33,39 @@
     </div>
 
     <div class="editor-toolbar__save-indicator" aria-live="polite">
-      <ng-container [ngSwitch]="saveState()">
-        <span *ngSwitchCase="'saving'" class="editor-toolbar__save-indicator-inner" title="Saving...">
+      <ng-container [ngSwitch]="displaySaveState()">
+        <span
+          *ngSwitchCase="'saving'"
+          class="editor-toolbar__save-indicator-inner"
+          title="Saving..."
+          aria-label="Saving"
+        >
           <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--spinning">sync</span>
           <span class="editor-toolbar__save-indicator-text">Saving</span>
         </span>
-        <span *ngSwitchCase="'saved'" class="editor-toolbar__save-indicator-inner" title="All changes saved">
+        <span
+          *ngSwitchCase="'saved'"
+          class="editor-toolbar__save-indicator-inner editor-toolbar__save-indicator-inner--clickable"
+          (click)="saveNow()"
+          (keydown)="onSaveIndicatorKeydown($event)"
+          title="All changes saved (click to save now)"
+          aria-label="Save now"
+          role="button"
+          tabindex="0"
+        >
           <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--saved">check_circle</span>
           <span class="editor-toolbar__save-indicator-text">Saved</span>
         </span>
-        <span *ngSwitchDefault class="editor-toolbar__save-indicator-inner" title="All changes saved">
+        <span
+          *ngSwitchDefault
+          class="editor-toolbar__save-indicator-inner editor-toolbar__save-indicator-inner--clickable"
+          (click)="saveNow()"
+          (keydown)="onSaveIndicatorKeydown($event)"
+          title="All changes saved (click to save now)"
+          aria-label="Save now"
+          role="button"
+          tabindex="0"
+        >
           <span class="material-symbols-outlined editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--idle">cloud_done</span>
           <span class="editor-toolbar__save-indicator-text">Saved</span>
         </span>
