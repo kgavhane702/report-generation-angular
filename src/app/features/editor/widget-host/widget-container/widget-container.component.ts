@@ -293,7 +293,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     // Update draft and immediately commit
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
-    this.draftState.commitDraft(this.widgetId);
+    this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     
     // Stop drag tracking
     this.uiState.stopDragging();
@@ -427,7 +427,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         { x: finalFrame.x, y: finalFrame.y },
         { width: finalFrame.width, height: finalFrame.height }
       );
-      this.draftState.commitDraft(this.widgetId);
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     }
   }
   

@@ -40,6 +40,7 @@ import {
 } from './document-commands';
 import { WidgetFactoryService } from '../../features/editor/widget-host/widget-factory.service';
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
+import { deepClone } from '../utils/deep-clone.util';
 
 /**
  * DocumentService
@@ -169,7 +170,7 @@ export class DocumentService {
       pageId,
       widgetId,
       mutation,
-      { ...previousWidget }
+      deepClone(previousWidget)
     );
     this.undoRedoService.executeDocumentCommand(command);
   }

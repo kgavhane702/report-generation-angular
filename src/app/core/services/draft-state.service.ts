@@ -1,11 +1,14 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
+import { Dictionary } from '@ngrx/entity';
 
 import { AppState } from '../../store/app.state';
 import { WidgetActions } from '../../store/document/document.actions';
 import { WidgetEntity } from '../../store/document/document.state';
 import { DocumentSelectors } from '../../store/document/document.selectors';
 import { WidgetModel, WidgetPosition, WidgetSize, WidgetProps } from '../../models/widget.model';
+import { DocumentService } from './document.service';
 
 /**
  * Draft changes for a widget
@@ -17,6 +20,16 @@ export interface WidgetDraft {
   zIndex?: number;
   rotation?: number;
   locked?: boolean;
+}
+
+export interface CommitDraftOptions {
+  /**
+   * When true, commits through the global Command-based pipeline so the change participates
+   * in document undo/redo.
+   *
+   * Default is false to preserve existing behavior (draft commits were historically not undoable).
+   */
+  recordUndo?: boolean;
 }
 
 /**
@@ -40,6 +53,15 @@ export interface WidgetDraft {
 })
 export class DraftStateService {
   private readonly store = inject(Store<AppState>);
+  private readonly documentService = inject(DocumentService);
+
+  /**
+   * Synchronous access to widget entities for commit-time merging (especially props) and pageId lookup.
+   */
+  private readonly widgetEntities = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Dictionary<WidgetEntity> }
+  );
   
   /**
    * Map of widget IDs to their draft changes
@@ -169,11 +191,13 @@ export class DraftStateService {
    * - blur after text editing
    * - explicit save action
    */
-  commitDraft(widgetId: string): void {
+  commitDraft(widgetId: string, options?: CommitDraftOptions): void {
     const draft = this.draftsMap().get(widgetId);
     if (!draft) {
       return; // No draft to commit
     }
+
+    const recordUndo = options?.recordUndo === true;
     
     // Build the changes object for NgRx
     const changes: Partial<WidgetEntity> = {};
@@ -206,7 +230,25 @@ export class DraftStateService {
     
     // Dispatch to store - this is the ONLY time we update the store
     if (Object.keys(changes).length > 0) {
-      this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes }));
+      if (recordUndo) {
+        const persisted = this.widgetEntities()[widgetId];
+        if (persisted) {
+          // IMPORTANT: ensure props is fully merged at commit time; NgRx updateOne does NOT deep-merge props.
+          const mergedProps = changes.props
+            ? ({ ...(persisted.props ?? {}), ...(changes.props as unknown as WidgetProps) } as WidgetProps)
+            : undefined;
+
+          this.documentService.updateWidget(persisted.pageId, widgetId, {
+            ...changes,
+            ...(mergedProps ? { props: mergedProps } : {}),
+          } as unknown as Partial<WidgetModel>);
+        } else {
+          // Fallback: if we can't resolve persisted entity/pageId, at least commit to store.
+          this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes }));
+        }
+      } else {
+        this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes }));
+      }
     }
     
     // Clear the draft
