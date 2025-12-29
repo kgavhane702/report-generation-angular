@@ -1693,7 +1693,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const cell = event.target as HTMLElement;
     this.activeCellElement = cell;
     this.activeCellId = leafPath ? this.composeLeafId(rowIndex, cellIndex, leafPath) : `${rowIndex}-${cellIndex}`;
- 
+
     // Cell focus should also mark the table as active.
     this.activateTableWidget();
     this.toolbarService.setActiveCell(cell, this.widget.id);
@@ -1753,7 +1753,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         this.activeCellId = null;
 
         // Clear only cell focus; keep table selected until user clicks away.
-        this.toolbarService.clearActiveCell();
+        // IMPORTANT: In multi-table scenarios, another table may already be active.
+        // Only clear the shared active cell if this table is still the active one.
+        if (this.toolbarService.activeTableWidgetId === this.widget.id) {
+          this.toolbarService.clearActiveCell();
+        }
         this.pendingChangesRegistry.unregister(this.widget.id);
       }
       
@@ -2442,7 +2446,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // This table widget behaves more like a spreadsheet: dragging selects cells (not text).
 
     // Mark this table widget as active for toolbar actions (even if no contenteditable is focused)
-    this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
+    this.activateTableWidget();
+    // Only set an active cell if we actually have one for this table (avoid clearing the shared active cell).
+    if (this.activeCellElement && this.tableContainer?.nativeElement?.contains(this.activeCellElement)) {
+      this.toolbarService.setActiveCell(this.activeCellElement, this.widget.id);
+    }
 
     const cellModel = this.localRows()?.[rowIndex]?.cells?.[cellIndex];
     const isSplitParent = !!cellModel?.split;

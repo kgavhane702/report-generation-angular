@@ -204,7 +204,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         // If the widget is removed (e.g., via undo), ensure we don't leave UI in a stuck "editing" state.
         // Otherwise global shortcuts like Ctrl+Y can be blocked because UIState still thinks we're editing.
         if (!widget && this.uiState.isEditing(this.widgetId)) {
-          this.uiState.stopEditing();
+          this.uiState.stopEditing(this.widgetId);
         }
 
         // Auto-load URL-based widgets (non-blocking) after document import/open.
@@ -221,7 +221,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // If this widget is being destroyed while in edit mode, clear edit mode.
     // (Covers cases where the widget is removed before it can emit editingChange(false).)
     if (this.uiState.isEditing(this.widgetId)) {
-      this.uiState.stopEditing();
+      this.uiState.stopEditing(this.widgetId);
     }
     
     // Commit any pending drafts before destroying
@@ -452,7 +452,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (editing) {
       this.uiState.startEditing(this.widgetId);
     } else {
-      this.uiState.stopEditing();
+      this.uiState.stopEditing(this.widgetId);
     }
   }
   

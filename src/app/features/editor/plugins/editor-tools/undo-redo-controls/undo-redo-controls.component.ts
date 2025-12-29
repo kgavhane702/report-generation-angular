@@ -47,8 +47,12 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
 
     const target = event.target as HTMLElement | null;
     if (!target) return;
-    // Only intercept when the keypress originates inside the active table cell editor.
-    if (!target.closest('.table-widget__cell-editor')) {
+    const inCellEditor = !!target.closest('.table-widget__cell-editor');
+    const containerId = (target.closest('.widget-container[data-widget-id]') as HTMLElement | null)?.getAttribute('data-widget-id') ?? null;
+
+    // Only intercept when the keypress originates inside the active table widget container.
+    // (When focus is elsewhere, allow the normal/global handler to run.)
+    if (containerId !== editingWidgetId) {
       return;
     }
 
@@ -84,10 +88,11 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   handleKeyboard(event: KeyboardEvent): void {
     const normalizedKey = event.key?.toLowerCase?.() ?? '';
     const isShortcutKey = normalizedKey === 'z' || normalizedKey === 'y';
+    const shouldHandle = this.shouldHandleGlobalShortcut(event);
 
     // Don't steal Ctrl+Z / Ctrl+Y from inline editors (CKEditor, contenteditable table cells, inputs, etc).
     // Those editors usually have their own internal undo stacks that should be used while focused.
-    if (!this.shouldHandleGlobalShortcut(event)) {
+    if (!shouldHandle) {
       return;
     }
 
@@ -104,6 +109,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
 
   async undo(): Promise<void> {
     const editingWidgetId = this.uiState.editingWidgetId();
+
     // While editing a table cell, use DOCUMENT undo (so it can undo across multiple cells)
     // but keep edit mode by telling the table widget to allow a one-off store sync while focused.
     if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {

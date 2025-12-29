@@ -173,7 +173,11 @@ export class UIStateService {
   /**
    * Stop editing
    */
-  stopEditing(): void {
+  stopEditing(widgetId?: string): void {
+    // If a widget id is provided, only stop editing if that widget is the current one.
+    if (widgetId && this._editingWidgetId() !== widgetId) {
+      return;
+    }
     this._editingWidgetId.set(null);
   }
   
