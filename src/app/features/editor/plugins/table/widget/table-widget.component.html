@@ -95,7 +95,7 @@
           [style.line-height]="cell.style?.lineHeight || null"
           [attr.contenteditable]="isLoading ? 'false' : 'true'"
           [attr.tabindex]="isLoading ? -1 : 0"
-          [innerHTML]="cell.contentHtml | safeHtml"
+          [twSafeInnerHtml]="cell.contentHtml | safeHtml"
           (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
           (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
           (input)="onCellInput($event, rowIndex, cellIndex, path)"
