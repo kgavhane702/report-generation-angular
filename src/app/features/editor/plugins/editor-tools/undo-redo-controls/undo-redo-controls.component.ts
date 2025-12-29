@@ -3,6 +3,8 @@ import {
   Component,
   inject,
   HostListener,
+  OnDestroy,
+  OnInit,
 } from '@angular/core';
 import { UndoRedoService } from '../../../../../core/services/undo-redo.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
@@ -22,12 +24,57 @@ import { RichTextToolbarService } from '../../../../../core/services/rich-text-e
   styleUrls: ['./undo-redo-controls.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class UndoRedoControlsComponent {
+export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChanges = inject(PendingChangesRegistry);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly richTextToolbar = inject(RichTextToolbarService);
+
+  // Capture-phase handler to override native contenteditable undo/redo for table cells.
+  // This prevents the browser's per-element undo stack from desyncing the document-level history.
+  private readonly handleUndoRedoCapture = (event: KeyboardEvent): void => {
+    const key = event.key?.toLowerCase?.() ?? '';
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.altKey) return;
+    if (key !== 'z' && key !== 'y') return;
+
+    const editingWidgetId = this.uiState.editingWidgetId();
+    // Only handle table-cell editing here.
+    if (!editingWidgetId || this.tableToolbar.activeTableWidgetId !== editingWidgetId || !this.tableToolbar.activeCell) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    // Only intercept when the keypress originates inside the active table cell editor.
+    if (!target.closest('.table-widget__cell-editor')) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
+    if (isRedo) {
+      if (!this.documentCanRedo()) return;
+      document.dispatchEvent(new CustomEvent('tw-table-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
+      this.undoRedoService.redoDocument();
+      return;
+    }
+
+    if (!this.documentCanUndo()) return;
+    document.dispatchEvent(new CustomEvent('tw-table-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
+    this.undoRedoService.undoDocument();
+  };
+
+  ngOnInit(): void {
+    window.addEventListener('keydown', this.handleUndoRedoCapture, { capture: true });
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('keydown', this.handleUndoRedoCapture, true);
+  }
 
   // Signals automatically trigger change detection when used in templates
   readonly documentCanUndo = this.undoRedoService.documentCanUndo;
@@ -35,6 +82,9 @@ export class UndoRedoControlsComponent {
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
+    const normalizedKey = event.key?.toLowerCase?.() ?? '';
+    const isShortcutKey = normalizedKey === 'z' || normalizedKey === 'y';
+
     // Don't steal Ctrl+Z / Ctrl+Y from inline editors (CKEditor, contenteditable table cells, inputs, etc).
     // Those editors usually have their own internal undo stacks that should be used while focused.
     if (!this.shouldHandleGlobalShortcut(event)) {
@@ -42,10 +92,10 @@ export class UndoRedoControlsComponent {
     }
 
     if (event.ctrlKey || event.metaKey) {
-      if (event.key === 'z' && !event.shiftKey) {
+      if (normalizedKey === 'z' && !event.shiftKey) {
         event.preventDefault();
         void this.undo();
-      } else if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+      } else if (normalizedKey === 'y' || (normalizedKey === 'z' && event.shiftKey)) {
         event.preventDefault();
         void this.redo();
       }

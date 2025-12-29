@@ -1718,6 +1718,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!this.isActivelyEditing()) {
       return;
     }
+
     
     // IMPORTANT:
     // When switching cells quickly, autosave/active cell tracking can move to the next cell before

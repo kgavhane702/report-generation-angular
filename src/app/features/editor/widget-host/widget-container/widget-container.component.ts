@@ -200,6 +200,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       .select(DocumentSelectors.selectWidgetById(this.widgetId))
       .subscribe(widget => {
         this.persistedWidget.set(widget);
+
+        // If the widget is removed (e.g., via undo), ensure we don't leave UI in a stuck "editing" state.
+        // Otherwise global shortcuts like Ctrl+Y can be blocked because UIState still thinks we're editing.
+        if (!widget && this.uiState.isEditing(this.widgetId)) {
+          this.uiState.stopEditing();
+        }
+
         // Auto-load URL-based widgets (non-blocking) after document import/open.
         if (widget) {
           this.remoteAutoLoad.maybeAutoLoad(widget, this.pageId);
@@ -210,6 +217,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     // Clean up subscription
     this.widgetSubscription?.unsubscribe();
+
+    // If this widget is being destroyed while in edit mode, clear edit mode.
+    // (Covers cases where the widget is removed before it can emit editingChange(false).)
+    if (this.uiState.isEditing(this.widgetId)) {
+      this.uiState.stopEditing();
+    }
     
     // Commit any pending drafts before destroying
     if (this.draftState.hasDraft(this.widgetId)) {
