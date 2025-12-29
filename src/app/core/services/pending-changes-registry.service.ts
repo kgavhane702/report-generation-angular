@@ -1,5 +1,6 @@
 import { Injectable, signal, computed, NgZone, inject, ApplicationRef } from '@angular/core';
 import { Subject } from 'rxjs';
+import { LoggerService } from './logger.service';
 
 /**
  * Interface for widgets that can have pending (uncommitted) changes
@@ -51,6 +52,7 @@ interface PendingChangeInfo {
 export class PendingChangesRegistry {
   private readonly ngZone = inject(NgZone);
   private readonly appRef = inject(ApplicationRef);
+  private readonly logger = inject(LoggerService);
   
   // Track all widgets with pending changes
   private readonly _pendingWidgets = signal<Map<string, PendingChangeInfo>>(new Map());
@@ -91,8 +93,7 @@ export class PendingChangesRegistry {
     });
     this._pendingWidgets.set(widgets);
     this._stateChange$.next({ widgetId: widget.widgetId, action: 'register' });
-    
-    console.log('[PendingChanges] Registered:', widget.widgetId, 'Total pending:', widgets.size);
+    this.logger.debug('[PendingChanges] Registered:', widget.widgetId, 'Total pending:', widgets.size);
   }
   
   /**
@@ -105,8 +106,7 @@ export class PendingChangesRegistry {
       widgets.delete(widgetId);
       this._pendingWidgets.set(widgets);
       this._stateChange$.next({ widgetId, action: 'unregister' });
-      
-      console.log('[PendingChanges] Unregistered:', widgetId, 'Total pending:', widgets.size);
+      this.logger.debug('[PendingChanges] Unregistered:', widgetId, 'Total pending:', widgets.size);
     }
   }
   
@@ -123,7 +123,7 @@ export class PendingChangesRegistry {
   flushWidget(widgetId: string): void {
     const info = this._pendingWidgets().get(widgetId);
     if (info && info.widgetRef.hasPendingChanges()) {
-      console.log('[PendingChanges] Flushing widget:', widgetId);
+      this.logger.debug('[PendingChanges] Flushing widget:', widgetId);
       info.widgetRef.flush();
       this._stateChange$.next({ widgetId, action: 'flush' });
     }
@@ -145,31 +145,31 @@ export class PendingChangesRegistry {
     const widgets = this._pendingWidgets();
     
     if (widgets.size === 0) {
-      console.log('[PendingChanges] No pending changes to flush');
+      this.logger.debug('[PendingChanges] No pending changes to flush');
       return;
     }
-    
-    console.log('[PendingChanges] Flushing all pending changes. Count:', widgets.size);
+
+    this.logger.debug('[PendingChanges] Flushing all pending changes. Count:', widgets.size);
     
     // Flush each widget
     const flushedWidgets: string[] = [];
     widgets.forEach((info, widgetId) => {
       if (info.widgetRef.hasPendingChanges()) {
-        console.log('[PendingChanges] Flushing:', widgetId);
+        this.logger.debug('[PendingChanges] Flushing:', widgetId);
         info.widgetRef.flush();
         flushedWidgets.push(widgetId);
       }
     });
     
     if (flushedWidgets.length === 0) {
-      console.log('[PendingChanges] No widgets had actual pending changes');
+      this.logger.debug('[PendingChanges] No widgets had actual pending changes');
       return;
     }
     
     // Force Angular change detection to propagate changes
     await this.waitForAngularStable();
-    
-    console.log('[PendingChanges] All changes flushed and propagated');
+
+    this.logger.debug('[PendingChanges] All changes flushed and propagated');
   }
   
   /**

@@ -25,6 +25,7 @@ import { ChartData } from '../../../../../models/chart-data.model';
 import type { ChartConfigFormData, ChartConfigFormResult } from '../ui/chart-config-form/chart-config-form.component';
 import { ChartRenderRegistry } from '../../../../../core/services/chart-render-registry.service';
 import { ChartToolbarService } from '../../../../../core/services/chart-toolbar.service';
+import { LoggerService } from '../../../../../core/services/logger.service';
 import { Subject, filter, takeUntil } from 'rxjs';
 
 @Component({
@@ -46,6 +47,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly renderRegistry = inject(ChartRenderRegistry);
   private readonly chartToolbar = inject(ChartToolbarService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly logger = inject(LoggerService);
   private readonly destroy$ = new Subject<void>();
   
   showDialog = false;
@@ -69,7 +71,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // 2. Chart hasn't been rendered yet
       // 3. Widget is available (inputs have been set)
       if (isExportMode && !this.isChartRendered && this.widget) {
-        console.log('[ChartWidget] Export mode effect triggered for:', this.widget.id);
+        this.logger.debug('[ChartWidget] Export mode effect triggered for:', this.widget.id);
         // Force re-render when export mode is activated
         this.forceRender();
       }
@@ -78,7 +80,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   ngOnInit(): void {
     // Register this chart with the render registry
-    console.log('[ChartWidget] ngOnInit - registering:', this.widget.id, 'subsection:', this.subsectionId);
+    this.logger.debug('[ChartWidget] ngOnInit - registering:', this.widget.id, 'subsection:', this.subsectionId);
     this.renderRegistry.register(this.widget.id, this.subsectionId, this.pageId);
 
     // Track render status for placeholder overlay.
@@ -107,11 +109,11 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   ngAfterViewInit(): void {
-    console.log('[ChartWidget] ngAfterViewInit:', this.widget.id);
+    this.logger.debug('[ChartWidget] ngAfterViewInit:', this.widget.id);
     // Use microtask to ensure DOM is ready
     queueMicrotask(() => {
       if (this.containerRef?.nativeElement) {
-        console.log('[ChartWidget] Container available, rendering:', this.widget.id);
+        this.logger.debug('[ChartWidget] Container available, rendering:', this.widget.id);
         this.renderChart();
       } else {
         // Container not available - mark as error to prevent hanging
@@ -219,7 +221,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   ngOnDestroy(): void {
     // Unregister from render registry
-    console.log('[ChartWidget] ngOnDestroy - unregistering:', this.widget.id);
+    this.logger.debug('[ChartWidget] ngOnDestroy - unregistering:', this.widget.id);
     this.renderRegistry.unregister(this.widget.id);
     this.instance?.destroy?.();
     this.destroy$.next();
@@ -295,7 +297,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   private renderChart(): void {
-    console.log('[ChartWidget] renderChart called:', this.widget.id);
+    this.logger.debug('[ChartWidget] renderChart called:', this.widget.id);
     
     if (!this.containerRef?.nativeElement) {
       console.error('[ChartWidget] Container not available in renderChart:', this.widget.id);
@@ -305,7 +307,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const containerWidth = this.containerRef.nativeElement.clientWidth;
     const containerHeight = this.containerRef.nativeElement.clientHeight;
-    console.log('[ChartWidget] Container dimensions:', this.widget.id, containerWidth, 'x', containerHeight);
+    this.logger.debug('[ChartWidget] Container dimensions:', this.widget.id, containerWidth, 'x', containerHeight);
 
     // Mark as rendering
     this.renderRegistry.markRendering(this.widget.id);
@@ -349,8 +351,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     try {
-      console.log('[ChartWidget] Calling adapter.render:', this.widget.id);
-      console.log('[ChartWidget] Chart props:', JSON.stringify(this.chartProps, null, 2));
+      this.logger.debug('[ChartWidget] Calling adapter.render:', this.widget.id);
       this.instance = adapter.render(
         this.containerRef.nativeElement,
         this.chartProps
@@ -358,12 +359,12 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       
       // Mark chart as successfully rendered
       this.isChartRendered = true;
-      console.log('[ChartWidget] Chart rendered, marking as rendered:', this.widget.id);
+      this.logger.debug('[ChartWidget] Chart rendered, marking as rendered:', this.widget.id);
       
       // Use microtask to ensure ECharts has finished initial render
       queueMicrotask(() => {
         this.renderRegistry.markRendered(this.widget.id);
-        console.log('[ChartWidget] Marked as rendered:', this.widget.id);
+        this.logger.debug('[ChartWidget] Marked as rendered:', this.widget.id);
       });
     } catch (error) {
       console.error('[ChartWidget] Render error:', this.widget.id, error);

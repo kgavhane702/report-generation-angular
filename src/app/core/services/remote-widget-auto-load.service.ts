@@ -1,9 +1,14 @@
 import { Injectable, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import type { Dictionary } from '@ngrx/entity';
 import { finalize, take } from 'rxjs';
 
 import type { WidgetEntity } from '../../store/document/document.state';
 import type { ChartWidgetProps, TableWidgetProps } from '../../models/widget.model';
 import type { ChartHttpDataSourceConfig, TableHttpDataSourceConfig } from '../../shared/http-request/models/http-data-source.model';
+import type { AppState } from '../../store/app.state';
+import { DocumentSelectors } from '../../store/document/document.selectors';
 import { TableImportService } from './table-import.service';
 import { ChartImportApi } from '../chart-import/api/chart-import.api';
 import { TableToolbarService } from './table-toolbar.service';
@@ -15,11 +20,16 @@ import { RemoteWidgetLoadRegistryService } from './remote-widget-load-registry.s
  */
 @Injectable({ providedIn: 'root' })
 export class RemoteWidgetAutoLoadService {
+  private readonly store = inject(Store<AppState>);
   private readonly tableImport = inject(TableImportService);
   private readonly chartImport = inject(ChartImportApi);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly documentService = inject(DocumentService);
   private readonly registry = inject(RemoteWidgetLoadRegistryService);
+  private readonly widgetEntities = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Dictionary<WidgetEntity> }
+  );
 
   /**
    * Track which widget+dataSource combos were already loaded in this session,
@@ -36,6 +46,24 @@ export class RemoteWidgetAutoLoadService {
    */
   resetSession(): void {
     this.startedKeys.clear();
+  }
+
+  /**
+   * IMPORTANT:
+   * These auto-load requests are async. While they're in-flight, the user might edit the widget.
+   * We must always merge updates against the latest widget props from the store, otherwise we can
+   * overwrite newer edits with stale `props` captured at request start.
+   */
+  private updateWidgetProps<T extends object>(
+    pageId: string,
+    widgetId: string,
+    fallbackProps: T,
+    patch: Partial<T>
+  ): void {
+    const latest = this.widgetEntities()?.[widgetId]?.props as T | undefined;
+    const base = (latest ?? fallbackProps) as T;
+    const next = { ...(base as any), ...(patch as any) } as T;
+    this.documentService.updateWidget(pageId, widgetId, { props: next as any });
   }
 
   maybeAutoLoad(widget: WidgetEntity | null, pageId: string): void {
@@ -63,12 +91,9 @@ export class RemoteWidgetAutoLoadService {
     this.registry.start(widgetId);
 
     // Show placeholder overlay on the existing widget frame.
-    this.documentService.updateWidget(pageId, widgetId, {
-      props: {
-        ...(props as any),
-        loading: true,
-        loadingMessage: 'Loading table…',
-      } as any,
+    this.updateWidgetProps(pageId, widgetId, props, {
+      loading: true,
+      loadingMessage: 'Loading table…',
     });
 
     this.tableImport
@@ -87,8 +112,9 @@ export class RemoteWidgetAutoLoadService {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL table load failed';
             alert(msg);
-            this.documentService.updateWidget(pageId, widgetId, {
-              props: { ...(props as any), loading: false, loadingMessage: undefined } as any,
+            this.updateWidgetProps(pageId, widgetId, props, {
+              loading: false,
+              loadingMessage: undefined,
             });
             return;
           }
@@ -120,8 +146,9 @@ export class RemoteWidgetAutoLoadService {
             err?.message ||
             'URL table load failed. Please verify the backend is running and the URL is accessible.';
           alert(msg);
-          this.documentService.updateWidget(pageId, widgetId, {
-            props: { ...(props as any), loading: false, loadingMessage: undefined } as any,
+          this.updateWidgetProps(pageId, widgetId, props, {
+            loading: false,
+            loadingMessage: undefined,
           });
         },
       });
@@ -130,12 +157,9 @@ export class RemoteWidgetAutoLoadService {
   private loadChart(widgetId: string, pageId: string, props: ChartWidgetProps, dataSource: ChartHttpDataSourceConfig): void {
     this.registry.start(widgetId);
 
-    this.documentService.updateWidget(pageId, widgetId, {
-      props: {
-        ...(props as any),
-        loading: true,
-        loadingMessage: 'Loading chart…',
-      } as any,
+    this.updateWidgetProps(pageId, widgetId, props, {
+      loading: true,
+      loadingMessage: 'Loading chart…',
     });
 
     this.chartImport
@@ -160,20 +184,18 @@ export class RemoteWidgetAutoLoadService {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL chart load failed';
             alert(msg);
-            this.documentService.updateWidget(pageId, widgetId, {
-              props: { ...(props as any), loading: false, loadingMessage: undefined } as any,
+            this.updateWidgetProps(pageId, widgetId, props, {
+              loading: false,
+              loadingMessage: undefined,
             });
             return;
           }
 
-          this.documentService.updateWidget(pageId, widgetId, {
-            props: {
-              ...(props as any),
-              chartType: resp.data.chartData.chartType,
-              data: resp.data.chartData,
-              loading: false,
-              loadingMessage: undefined,
-            } as any,
+          this.updateWidgetProps(pageId, widgetId, props, {
+            chartType: resp.data.chartData.chartType,
+            data: resp.data.chartData,
+            loading: false,
+            loadingMessage: undefined,
           });
         },
         error: (err) => {
@@ -185,8 +207,9 @@ export class RemoteWidgetAutoLoadService {
             err?.message ||
             'URL chart load failed. Please verify the backend is running and the URL is accessible.';
           alert(msg);
-          this.documentService.updateWidget(pageId, widgetId, {
-            props: { ...(props as any), loading: false, loadingMessage: undefined } as any,
+          this.updateWidgetProps(pageId, widgetId, props, {
+            loading: false,
+            loadingMessage: undefined,
           });
         },
       });

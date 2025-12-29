@@ -19,7 +19,12 @@ import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
   pure: true,
 })
 export class SafeHtmlPipe implements PipeTransform {
+  /**
+   * Cache avoids re-sanitizing the same HTML repeatedly during editing.
+   * Keep it bounded to prevent unbounded memory growth in long sessions / large documents.
+   */
   private readonly cache = new Map<string, SafeHtml>();
+  private readonly maxCacheEntries = 500;
 
   constructor(private readonly sanitizer: DomSanitizer) {}
 
@@ -31,6 +36,13 @@ export class SafeHtmlPipe implements PipeTransform {
     const cleaned = sanitizeRichTextHtml(html);
     const trusted = this.sanitizer.bypassSecurityTrustHtml(cleaned);
     this.cache.set(html, trusted);
+
+    // Best-effort LRU eviction: Map preserves insertion order.
+    while (this.cache.size > this.maxCacheEntries) {
+      const firstKey = this.cache.keys().next().value as string | undefined;
+      if (firstKey === undefined) break;
+      this.cache.delete(firstKey);
+    }
     return trusted;
   }
 }

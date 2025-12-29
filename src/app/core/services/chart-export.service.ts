@@ -4,6 +4,7 @@ import { DocumentModel } from '../../models/document.model';
 import { EditorStateService } from './editor-state.service';
 import { ChartRenderRegistry } from './chart-render-registry.service';
 import { ExportUiStateService } from './export-ui-state.service';
+import { LoggerService } from './logger.service';
 
 /**
  * Chart location info for export
@@ -35,6 +36,7 @@ export class ChartExportService {
   private readonly appRef = inject(ApplicationRef);
   private readonly ngZone = inject(NgZone);
   private readonly exportUi = inject(ExportUiStateService);
+  private readonly logger = inject(LoggerService);
 
   /**
    * Export a single chart widget to base64 image
@@ -140,30 +142,30 @@ export class ChartExportService {
   async exportAllCharts(document: DocumentModel): Promise<DocumentModel> {
     const updatedDocument = this.deepClone(document);
     const currentSubsectionId = this.editorState.activeSubsectionId();
-    
-    console.log('[ChartExport] Starting export. Current subsection:', currentSubsectionId);
+
+    this.logger.debug('[ChartExport] Starting export. Current subsection:', currentSubsectionId);
     
     // Collect all chart widgets with their locations
     const chartLocations = this.collectChartLocations(updatedDocument);
     
-    console.log('[ChartExport] Found charts:', chartLocations.length, chartLocations.map(c => ({
+    this.logger.debug('[ChartExport] Found charts:', chartLocations.length, chartLocations.map(c => ({
       widgetId: c.widget.id,
       subsectionId: c.subsectionId,
       pageId: c.pageId
     })));
     
     if (chartLocations.length === 0) {
-      console.log('[ChartExport] No charts found, returning');
+      this.logger.debug('[ChartExport] No charts found, returning');
       return updatedDocument;
     }
 
     // Group charts by subsection
     const chartsBySubsection = this.groupBySubsection(chartLocations);
-    console.log('[ChartExport] Charts by subsection:', Array.from(chartsBySubsection.keys()));
+    this.logger.debug('[ChartExport] Charts by subsection:', Array.from(chartsBySubsection.keys()));
 
     // Enter export mode - signals charts to force render
     this.renderRegistry.enterExportMode();
-    console.log('[ChartExport] Entered export mode');
+    this.logger.debug('[ChartExport] Entered export mode');
 
     try {
       this.exportUi.start('Exporting charts…');
@@ -172,33 +174,33 @@ export class ChartExportService {
       const entries = Array.from(chartsBySubsection.entries());
       for (let i = 0; i < entries.length; i++) {
         const [subsectionId, charts] = entries[i];
-        console.log('[ChartExport] Processing subsection:', subsectionId, 'with', charts.length, 'charts');
+        this.logger.debug('[ChartExport] Processing subsection:', subsectionId, 'with', charts.length, 'charts');
         this.exportUi.updateMessage(`Exporting charts… (${i + 1}/${entries.length})`);
         
         // Navigate to subsection to make charts visible
         await this.navigateToSubsection(subsectionId);
-        console.log('[ChartExport] Navigated to subsection:', subsectionId);
+        this.logger.debug('[ChartExport] Navigated to subsection:', subsectionId);
         
         // Check registry state
-        console.log('[ChartExport] Registry state after navigation:', 
+        this.logger.debug('[ChartExport] Registry state after navigation:', 
           this.renderRegistry.registeredWidgetIds(),
           'Pending:', this.renderRegistry.pendingCount()
         );
         
         // Wait for all charts in this subsection to render
         const chartWidgetIds = charts.map(c => c.widget.id);
-        console.log('[ChartExport] Waiting for charts to render:', chartWidgetIds);
+        this.logger.debug('[ChartExport] Waiting for charts to render:', chartWidgetIds);
         
         await this.waitForChartsToRender(chartWidgetIds);
-        console.log('[ChartExport] Charts rendered for subsection:', subsectionId);
+        this.logger.debug('[ChartExport] Charts rendered for subsection:', subsectionId);
         
         // Capture each chart
         for (const chartLocation of charts) {
-          console.log('[ChartExport] Capturing chart:', chartLocation.widget.id);
+          this.logger.debug('[ChartExport] Capturing chart:', chartLocation.widget.id);
           const base64Image = await this.captureChartImage(chartLocation.widget);
           
           if (base64Image) {
-            console.log('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
+            this.logger.debug('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
             // Update the document model with the captured image
             this.updateChartInDocument(
               updatedDocument,
@@ -217,16 +219,16 @@ export class ChartExportService {
       // Exit export mode
       this.renderRegistry.exitExportMode();
       this.exportUi.stop();
-      console.log('[ChartExport] Exited export mode');
+      this.logger.debug('[ChartExport] Exited export mode');
       
       // Restore original navigation state
       if (currentSubsectionId) {
         await this.navigateToSubsection(currentSubsectionId);
-        console.log('[ChartExport] Restored to subsection:', currentSubsectionId);
+        this.logger.debug('[ChartExport] Restored to subsection:', currentSubsectionId);
       }
     }
 
-    console.log('[ChartExport] Export complete');
+    this.logger.debug('[ChartExport] Export complete');
     return updatedDocument;
   }
 
@@ -286,15 +288,15 @@ export class ChartExportService {
    * Uses multiple stabilization techniques to ensure DOM is ready
    */
   private navigateToSubsection(subsectionId: string): Promise<void> {
-    console.log('[ChartExport] navigateToSubsection:', subsectionId);
-    console.log('[ChartExport] Current activeSubsectionId before:', this.editorState.activeSubsectionId());
-    console.log('[ChartExport] Current activeSubsectionPageIds before:', this.editorState.activeSubsectionPageIds());
+    this.logger.debug('[ChartExport] navigateToSubsection:', subsectionId);
+    this.logger.debug('[ChartExport] Current activeSubsectionId before:', this.editorState.activeSubsectionId());
+    this.logger.debug('[ChartExport] Current activeSubsectionPageIds before:', this.editorState.activeSubsectionPageIds());
     
     return new Promise(resolve => {
       this.ngZone.run(() => {
         this.editorState.setActiveSubsection(subsectionId);
-        console.log('[ChartExport] Called setActiveSubsection, now:', this.editorState.activeSubsectionId());
-        console.log('[ChartExport] New activeSubsectionPageIds:', this.editorState.activeSubsectionPageIds());
+        this.logger.debug('[ChartExport] Called setActiveSubsection, now:', this.editorState.activeSubsectionId());
+        this.logger.debug('[ChartExport] New activeSubsectionPageIds:', this.editorState.activeSubsectionPageIds());
         
         // Force multiple change detection cycles to ensure all nested components are created
         // This is needed because:
@@ -306,26 +308,26 @@ export class ChartExportService {
         
         // First change detection cycle
         this.appRef.tick();
-        console.log('[ChartExport] After first tick');
+        this.logger.debug('[ChartExport] After first tick');
         
         // Use multiple microtasks and RAFs to allow Angular to fully stabilize
         queueMicrotask(() => {
           this.appRef.tick();
-          console.log('[ChartExport] After second tick');
+          this.logger.debug('[ChartExport] After second tick');
           
           requestAnimationFrame(() => {
             this.appRef.tick();
-            console.log('[ChartExport] After third tick (RAF 1)');
+            this.logger.debug('[ChartExport] After third tick (RAF 1)');
             
             requestAnimationFrame(() => {
               this.appRef.tick();
-              console.log('[ChartExport] After fourth tick (RAF 2)');
+              this.logger.debug('[ChartExport] After fourth tick (RAF 2)');
               
               // One more microtask to ensure any final updates
               queueMicrotask(() => {
                 this.appRef.tick();
-                console.log('[ChartExport] After fifth tick - navigation complete');
-                console.log('[ChartExport] Registry state:', this.renderRegistry.registeredWidgetIds());
+                this.logger.debug('[ChartExport] After fifth tick - navigation complete');
+                this.logger.debug('[ChartExport] Registry state:', this.renderRegistry.registeredWidgetIds());
                 resolve();
               });
             });
@@ -340,21 +342,21 @@ export class ChartExportService {
    * This replaces the unreliable timeout approach
    */
   private async waitForChartsToRender(widgetIds: string[]): Promise<void> {
-    console.log('[ChartExport] waitForChartsToRender:', widgetIds);
+    this.logger.debug('[ChartExport] waitForChartsToRender:', widgetIds);
     
     if (widgetIds.length === 0) {
-      console.log('[ChartExport] No widgets to wait for');
+      this.logger.debug('[ChartExport] No widgets to wait for');
       return;
     }
 
     // First, ensure all charts are registered
-    console.log('[ChartExport] Waiting for charts to register...');
+    this.logger.debug('[ChartExport] Waiting for charts to register...');
     await this.waitForChartsToRegister(widgetIds);
-    console.log('[ChartExport] All charts registered, now waiting for render...');
+    this.logger.debug('[ChartExport] All charts registered, now waiting for render...');
 
     // Now wait for all charts to be rendered
     const states = await this.renderRegistry.waitForCharts(widgetIds);
-    console.log('[ChartExport] All charts rendered. States:', Array.from(states.entries()).map(([id, s]) => ({ id, status: s.status })));
+    this.logger.debug('[ChartExport] All charts rendered. States:', Array.from(states.entries()).map(([id, s]) => ({ id, status: s.status })));
   }
 
   /**
@@ -362,7 +364,7 @@ export class ChartExportService {
    * Charts register themselves in ngOnInit when the component is created
    */
   private waitForChartsToRegister(widgetIds: string[]): Promise<void> {
-    console.log('[ChartExport] waitForChartsToRegister:', widgetIds);
+    this.logger.debug('[ChartExport] waitForChartsToRegister:', widgetIds);
     
     return new Promise(resolve => {
       const timeoutMs = 15_000;
@@ -374,7 +376,7 @@ export class ChartExportService {
           this.renderRegistry.getState(id) === undefined
         );
         
-        console.log('[ChartExport] Registration check - registered:', registered.length, 'missing:', missing);
+        this.logger.debug('[ChartExport] Registration check - registered:', registered.length, 'missing:', missing);
         
         if (missing.length === 0) {
           return true;
@@ -384,18 +386,18 @@ export class ChartExportService {
 
       // Check immediately
       if (checkRegistration()) {
-        console.log('[ChartExport] All charts already registered');
+        this.logger.debug('[ChartExport] All charts already registered');
         resolve();
         return;
       }
 
-      console.log('[ChartExport] Subscribing to state changes to wait for registration...');
+      this.logger.debug('[ChartExport] Subscribing to state changes to wait for registration...');
       
       // Subscribe to state changes and wait for all charts to register
       const subscription = this.renderRegistry.stateChange$.subscribe((change) => {
-        console.log('[ChartExport] State change received:', change.widgetId, change.state.status);
+        this.logger.debug('[ChartExport] State change received:', change.widgetId, change.state.status);
         if (checkRegistration()) {
-          console.log('[ChartExport] All charts now registered');
+          this.logger.debug('[ChartExport] All charts now registered');
           subscription.unsubscribe();
           resolve();
         }

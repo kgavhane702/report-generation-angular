@@ -10,6 +10,10 @@ import { ImportService } from '../../../../core/services/import.service';
 import { PdfService } from '../../../../core/services/pdf.service';
 import { PendingChangesRegistry } from '../../../../core/services/pending-changes-registry.service';
 import { SaveIndicatorService } from '../../../../core/services/save-indicator.service';
+import { UndoRedoService } from '../../../../core/services/undo-redo.service';
+import { DraftStateService } from '../../../../core/services/draft-state.service';
+import { UIStateService } from '../../../../core/services/ui-state.service';
+import { ChartRenderRegistry } from '../../../../core/services/chart-render-registry.service';
 import { WidgetType, TableRow, TableCell } from '../../../../models/widget.model';
 import { TableDimensions } from '../../plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableFileImportFacade } from '../../../../core/tabular-import/facades/table-file-import.facade';
@@ -39,6 +43,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly pdfService = inject(PdfService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly saveIndicator = inject(SaveIndicatorService);
+  private readonly undoRedo = inject(UndoRedoService);
+  private readonly draftState = inject(DraftStateService);
+  private readonly uiState = inject(UIStateService);
+  private readonly chartRenderRegistry = inject(ChartRenderRegistry);
   private readonly tableFileImport = inject(TableFileImportFacade);
   private readonly chartToolbar = inject(ChartToolbarService);
   private readonly appRef = inject(ApplicationRef);
@@ -246,6 +254,13 @@ export class EditorToolbarComponent implements AfterViewInit {
         this.remoteAutoLoad.resetSession();
         this.remoteLoads.clear();
 
+        // Reset transient UI/app state tied to the previous document so we can't "undo into" the old doc.
+        this.pendingChangesRegistry.clear();
+        this.draftState.discardAllDrafts();
+        this.undoRedo.clearHistory();
+        this.uiState.clearSelection();
+        this.chartRenderRegistry.resetAllToPending();
+
         // Replace document in store
         this.documentService.replaceDocument(result.document);
 
@@ -295,7 +310,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     try {
       await this.pdfService.downloadPDF(document);
     } catch (error) {
-      alert(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure the PDF backend server is running on http://localhost:3000`);
+      alert(
+        `Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+          `Make sure the backend is running (default via proxy: http://localhost:8080).`
+      );
     }
   }
 

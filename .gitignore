@@ -39,6 +39,10 @@ yarn-error.log
 testem.log
 /typings
 
+# Backend artifacts accidentally present inside the frontend workspace
+src/app/Java-Backend/**/target/
+src/app/Java-Backend/**/*.jar
+
 # System files
 .DS_Store
 Thumbs.db

@@ -26,6 +26,7 @@ import { RichTextToolbarService } from '../../../../../core/services/rich-text-e
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../../core/services/pending-changes-registry.service';
 import { DraftStateService } from '../../../../../core/services/draft-state.service';
+import { LoggerService } from '../../../../../core/services/logger.service';
 import { DecoupledEditor } from 'ckeditor5';
 
 /**
@@ -68,6 +69,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly draftState = inject(DraftStateService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly logger = inject(LoggerService);
   
   // ============================================
   // EDITOR CONFIGURATION
@@ -161,7 +163,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
    */
   flush(): void {
     if (this.isActivelyEditing()) {
-      console.log('[TextWidget] Flushing pending changes for:', this.widget.id);
+      this.logger.debug('[TextWidget] Flushing pending changes for:', this.widget.id);
       
       // Clear any pending blur timeout
       if (this.blurTimeoutId !== null) {

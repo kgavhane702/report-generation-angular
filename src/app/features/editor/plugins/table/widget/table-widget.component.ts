@@ -50,6 +50,7 @@ import {
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry, FlushableWidget } from '../../../../../core/services/pending-changes-registry.service';
 import { DraftStateService } from '../../../../../core/services/draft-state.service';
+import { LoggerService } from '../../../../../core/services/logger.service';
 
 type ColResizeSegment = { boundaryIndex: number; leftPercent: number; topPercent: number; heightPercent: number };
 type RowResizeSegment = { boundaryIndex: number; topPercent: number; leftPercent: number; widthPercent: number };
@@ -212,6 +213,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly draftState = inject(DraftStateService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly logger = inject(LoggerService);
 
   /** Local copy of rows during editing */
   private readonly localRows = signal<TableRow[]>([]);
@@ -3078,8 +3080,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private logSelectedCells(reason: string): void {
     const selected = Array.from(this.selectedCells());
     (window as any).__tableWidgetSelectedCells = selected;
-    // eslint-disable-next-line no-console
-    console.log(`[TableWidget ${this.widget.id}] selectedCells (${reason}):`, selected);
+    this.logger.debug(`[TableWidget ${this.widget.id}] selectedCells (${reason}):`, selected);
   }
 
   // ============================================
