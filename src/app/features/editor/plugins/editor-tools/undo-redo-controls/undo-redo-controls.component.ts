@@ -40,15 +40,46 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (key !== 'z' && key !== 'y') return;
 
     const editingWidgetId = this.uiState.editingWidgetId();
+    const target = event.target as HTMLElement | null;
+    const containerId =
+      (target?.closest('.widget-container[data-widget-id]') as HTMLElement | null)?.getAttribute('data-widget-id') ?? null;
+
+    const activeCkEditableEl = this.richTextToolbar.activeEditor?.ui.getEditableElement() as HTMLElement | null;
+    const inActiveCkEditable = !!(activeCkEditableEl && target && activeCkEditableEl.contains(target));
+    const inCkToolbar = !!(this.richTextToolbar.activeToolbar && target && this.richTextToolbar.activeToolbar.contains(target));
+
+    // CKEditor: override native editor undo/redo and route to DOCUMENT undo/redo to keep global history synced.
+    // Scope: only when the keypress originates in the active editor's editable/toolbar AND the widget container matches UIState's editing widget.
+    if (
+      editingWidgetId &&
+      containerId === editingWidgetId &&
+      this.richTextToolbar.activeEditor &&
+      (inActiveCkEditable || inCkToolbar)
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
+      if (isRedo) {
+        if (!this.documentCanRedo()) return;
+        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
+        this.undoRedoService.redoDocument();
+
+        return;
+      }
+
+      if (!this.documentCanUndo()) return;
+      document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
+      this.undoRedoService.undoDocument();
+
+      return;
+    }
+
     // Only handle table-cell editing here.
     if (!editingWidgetId || this.tableToolbar.activeTableWidgetId !== editingWidgetId || !this.tableToolbar.activeCell) {
       return;
     }
-
-    const target = event.target as HTMLElement | null;
     if (!target) return;
-    const inCellEditor = !!target.closest('.table-widget__cell-editor');
-    const containerId = (target.closest('.widget-container[data-widget-id]') as HTMLElement | null)?.getAttribute('data-widget-id') ?? null;
 
     // Only intercept when the keypress originates inside the active table widget container.
     // (When focus is elsewhere, allow the normal/global handler to run.)
