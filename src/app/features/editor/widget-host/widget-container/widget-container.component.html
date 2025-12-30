@@ -6,6 +6,8 @@
     [attr.data-widget-id]="widgetId"
     cdkDrag
     [cdkDragDisabled]="isEditing || isResizing"
+    (cdkDragStarted)="onDragStarted($event)"
+    (cdkDragMoved)="onDragMoved($event)"
     (cdkDragEnded)="onDragEnded($event)"
     (pointerdown)="onWidgetPointerDown()"
     [style.left.px]="frame.x"

@@ -13,13 +13,14 @@ import {
 } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
-import { CdkDragEnd } from '@angular/cdk/drag-drop';
+import { CdkDragEnd, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 
 import { WidgetPosition, WidgetProps } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { DraftStateService } from '../../../../core/services/draft-state.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
+import { GuidesService } from '../../../../core/services/guides.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
@@ -85,6 +86,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly documentService = inject(DocumentService);
   private readonly draftState = inject(DraftStateService);
   protected readonly uiState = inject(UIStateService);
+  private readonly guides = inject(GuidesService);
   private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
   
@@ -122,6 +124,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // ============================================
   
   private activeHandle: ResizeHandle | null = null;
+  private dragStartFrame: WidgetFrame | null = null;
   private resizeStart?: {
     width: number;
     height: number;
@@ -296,13 +299,47 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Start drag tracking - CDK Drag will handle its own pointer capture
     this.uiState.startDragging(this.widgetId);
   }
+
+  onDragStarted(event: CdkDragStart): void {
+    // Capture starting frame so we can compute an absolute frame during drag moves.
+    this.dragStartFrame = { ...this.frame };
+    this.guides.start(this.pageId, this.widgetId, 'drag');
+  }
+
+  onDragMoved(event: CdkDragMove): void {
+    if (!this.dragStartFrame) return;
+
+    const dx = event.distance?.x ?? 0;
+    const dy = event.distance?.y ?? 0;
+
+    const rawFrame: WidgetFrame = {
+      x: this.dragStartFrame.x + dx,
+      y: this.dragStartFrame.y + dy,
+      width: this.dragStartFrame.width,
+      height: this.dragStartFrame.height,
+    };
+
+    // IMPORTANT: Guides must be "virtual" and must not interfere with CDK drag.
+    // We only update the guides overlay here (no snapping / no drag position mutation).
+    this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight);
+  }
   
   onDragEnded(event: CdkDragEnd): void {
     const position = event.source.getFreeDragPosition();
-    const newPosition: WidgetPosition = {
+
+    const rawFrame: WidgetFrame = {
       x: this.frame.x + position.x,
       y: this.frame.y + position.y,
+      width: this.frame.width,
+      height: this.frame.height,
     };
+
+    // If snapping is enabled, apply it at the end only (no mid-gesture interference).
+    const finalFrame = this.uiState.guidesSnapEnabled()
+      ? this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight)
+      : rawFrame;
+
+    const newPosition: WidgetPosition = { x: finalFrame.x, y: finalFrame.y };
     
     // Update draft and immediately commit
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
@@ -310,6 +347,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     // Stop drag tracking
     this.uiState.stopDragging();
+    this.guides.end(this.widgetId);
+    this.dragStartFrame = null;
     
     event.source.reset();
   }
@@ -332,6 +371,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Start resize tracking
     this.uiState.startResizing(this.widgetId);
     this.activeHandle = handle;
+    this.guides.start(this.pageId, this.widgetId, 'resize', handle);
 
     const widget = this.displayWidget();
     const { minWidth, minHeight } = this.computeResizeMinConstraints(widget);
@@ -415,7 +455,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const widget = this.displayWidget();
     const live = this.computeResizeMinConstraints(widget);
     const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY, live.minWidth, live.minHeight);
+
+    // Keep resize behavior unchanged during the gesture; guides are visual only.
     this._previewFrame.set(frame);
+    this.guides.updateResize(this.pageId, this.widgetId, frame, this.pageWidth, this.pageHeight, this.activeHandle);
   }
   
   @HostListener('document:pointerup', ['$event'])
@@ -424,22 +467,25 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       return;
     }
     
-    // Get the final frame
-    const finalFrame = this._previewFrame();
+    // Get the final frame (visual preview)
+    const previewFrame = this._previewFrame();
+    const handle = this.activeHandle;
     
     // Clear resize state
     this.uiState.stopResizing();
+    this.guides.end(this.widgetId);
     this.activeHandle = null;
     this.resizeStart = undefined;
     this._previewFrame.set(null);
     
     // NOW commit to store (only once, at the end)
-    if (finalFrame) {
-      this.draftState.updateDraftFrame(
-        this.widgetId,
-        { x: finalFrame.x, y: finalFrame.y },
-        { width: finalFrame.width, height: finalFrame.height }
-      );
+    if (previewFrame) {
+      // If snapping is enabled, apply it at the end only.
+      const finalFrame = this.uiState.guidesSnapEnabled() && handle
+        ? this.guides.updateResize(this.pageId, this.widgetId, previewFrame, this.pageWidth, this.pageHeight, handle)
+        : previewFrame;
+
+      this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     }
   }

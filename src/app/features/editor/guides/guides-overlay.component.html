@@ -1,0 +1,17 @@
+<div class="editor-guides" aria-hidden="true">
+  <div
+    *ngFor="let g of activeGuides()"
+    class="editor-guides__line"
+    [class.editor-guides__line--vertical]="g.orientation === 'vertical'"
+    [class.editor-guides__line--horizontal]="g.orientation === 'horizontal'"
+    [class.editor-guides__line--page]="g.kind === 'page'"
+    [class.editor-guides__line--widget]="g.kind === 'widget'"
+    [style.left.px]="g.orientation === 'vertical' ? g.posPx : null"
+    [style.top.px]="g.orientation === 'horizontal' ? g.posPx : g.fromPx"
+    [style.left.px]="g.orientation === 'horizontal' ? g.fromPx : g.posPx"
+    [style.height.px]="g.orientation === 'vertical' ? (g.toPx - g.fromPx) : null"
+    [style.width.px]="g.orientation === 'horizontal' ? (g.toPx - g.fromPx) : null"
+  ></div>
+</div>
+
+

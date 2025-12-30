@@ -134,6 +134,33 @@ export class UIStateService {
     this._draggingWidgetId() !== null || 
     this._resizingWidgetId() !== null
   );
+
+  // ============================================
+  // GUIDES / SNAPPING (PPT/Canva-like)
+  // ============================================
+
+  private readonly _guidesEnabled = signal<boolean>(true);
+  readonly guidesEnabled = this._guidesEnabled.asReadonly();
+
+  // IMPORTANT: default snapping OFF to avoid any regressions in drag/drop & resize behavior.
+  private readonly _guidesSnapEnabled = signal<boolean>(false);
+  readonly guidesSnapEnabled = this._guidesSnapEnabled.asReadonly();
+
+  private readonly _guidesSnapThresholdPx = signal<number>(6);
+  readonly guidesSnapThresholdPx = this._guidesSnapThresholdPx.asReadonly();
+
+  setGuidesEnabled(enabled: boolean): void {
+    this._guidesEnabled.set(!!enabled);
+  }
+
+  setGuidesSnapEnabled(enabled: boolean): void {
+    this._guidesSnapEnabled.set(!!enabled);
+  }
+
+  setGuidesSnapThresholdPx(px: number): void {
+    const v = Number(px);
+    this._guidesSnapThresholdPx.set(Number.isFinite(v) ? Math.max(1, Math.min(24, Math.round(v))) : 6);
+  }
   
   /**
    * Start dragging a widget

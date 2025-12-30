@@ -25,6 +25,7 @@ import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-co
 import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
 import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableResizeOverlayComponent } from './plugins/table/widget/resize/table-resize-overlay.component';
+import { GuidesOverlayComponent } from './guides/guides-overlay.component';
 import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-html.directive';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
@@ -59,6 +60,7 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
     TableToolbarComponent,
     TableGridSelectorComponent,
     TableResizeOverlayComponent,
+    GuidesOverlayComponent,
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
   ],
