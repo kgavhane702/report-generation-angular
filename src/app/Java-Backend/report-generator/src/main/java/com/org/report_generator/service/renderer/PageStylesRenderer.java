@@ -20,7 +20,8 @@ public class PageStylesRenderer {
     private static final String PAGE_CSS = """
         .page {
             position: relative;
-            overflow: visible;
+            /* Hard clip page overflow so PDF never paints content beyond the page box. */
+            overflow: hidden;
             box-sizing: border-box;
         }
         
@@ -31,7 +32,8 @@ public class PageStylesRenderer {
             padding: 0;
             border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0;
-            overflow: visible;
+            /* Hard clip at the surface boundary too (matches PPT-like viewport behavior). */
+            overflow: hidden;
             box-sizing: border-box;
         }
 
@@ -40,6 +42,12 @@ public class PageStylesRenderer {
             .page__surface {
                 box-shadow: none !important;
                 border: none !important;
+            }
+
+            /* Print hardening: ensure Chromium respects page clipping during PDF generation. */
+            .page,
+            .page__surface {
+                overflow: hidden !important;
             }
         }
         

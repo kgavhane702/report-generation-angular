@@ -130,7 +130,7 @@ public class DocumentRenderService {
                 .append(widthPx)
                 .append("px; height: ")
                 .append(heightPx)
-                .append("px; overflow: visible;\">");
+                .append("px;\">");
 
         builder.append(renderLogo(document, widthPx, heightPx));
 
