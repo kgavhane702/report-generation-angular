@@ -23,6 +23,19 @@
             placeholder="Enter chart title"
           />
         </div>
+
+        <div class="chart-config-dialog__row">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+              <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="titleTextBold" />
+              Bold title
+            </label>
+          </div>
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="titleTextColor">Title color</label>
+            <input id="titleTextColor" type="color" class="chart-config-dialog__color-input" formControlName="titleTextColor" />
+          </div>
+        </div>
       </div>
     </app-tab>
 
@@ -373,6 +386,97 @@
                 </button>
               </div>
 
+              <!-- Per-series: labels + formatting -->
+              <div class="chart-config-dialog__row">
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label" [attr.for]="'valueLabelsMode-' + i">Value Labels</label>
+                  <select
+                    class="chart-config-dialog__select"
+                    [id]="'valueLabelsMode-' + i"
+                    formControlName="valueLabelsMode"
+                    title="Value labels per series"
+                  >
+                    <option value="inherit">Inherit chart setting</option>
+                    <option value="show">Show</option>
+                    <option value="hide">Hide</option>
+                  </select>
+                </div>
+
+                <div class="chart-config-dialog__section">
+                  <label class="chart-config-dialog__label" [attr.for]="'valueLabelPositionOverride-' + i">Label Position</label>
+                  <select
+                    class="chart-config-dialog__select"
+                    [id]="'valueLabelPositionOverride-' + i"
+                    formControlName="valueLabelPositionOverride"
+                    title="Value label position per series"
+                  >
+                    <option value="">Inherit chart setting</option>
+                    <option *ngFor="let pos of valueLabelPositions" [value]="pos">{{ pos | titlecase }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="chart-config-dialog__section">
+                <label class="chart-config-dialog__label">Number Format (Series)</label>
+                <div class="chart-config-dialog__row">
+                  <div class="chart-config-dialog__section">
+                    <label class="chart-config-dialog__label" [attr.for]="'numberFormatMode-' + i">Mode</label>
+                    <select
+                      class="chart-config-dialog__select"
+                      [id]="'numberFormatMode-' + i"
+                      formControlName="numberFormatMode"
+                      title="Number format per series"
+                    >
+                      <option value="inherit">Inherit axis format</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+
+                  <div class="chart-config-dialog__section" *ngIf="$any(seriesGroup).get('numberFormatMode')?.value === 'custom'">
+                    <label class="chart-config-dialog__label" [attr.for]="'seriesNumberScale-' + i">Scale</label>
+                    <select class="chart-config-dialog__select" [id]="'seriesNumberScale-' + i" formControlName="numberScale">
+                      <option value="auto">Auto (K/M/B)</option>
+                      <option value="none">None</option>
+                      <option value="thousand">Thousand (K)</option>
+                      <option value="million">Million (M)</option>
+                      <option value="billion">Billion (B)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="chart-config-dialog__row" *ngIf="$any(seriesGroup).get('numberFormatMode')?.value === 'custom'">
+                  <div class="chart-config-dialog__section">
+                    <label class="chart-config-dialog__label" [attr.for]="'seriesNumberDecimals-' + i">Decimals</label>
+                    <input
+                      class="chart-config-dialog__input"
+                      [id]="'seriesNumberDecimals-' + i"
+                      type="number"
+                      min="0"
+                      max="8"
+                      formControlName="numberDecimals"
+                    />
+                  </div>
+
+                  <div class="chart-config-dialog__section">
+                    <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+                      <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="numberUseGrouping" />
+                      Use grouping separators
+                    </label>
+                  </div>
+                </div>
+
+                <div class="chart-config-dialog__section" *ngIf="$any(seriesGroup).get('numberFormatMode')?.value === 'custom'">
+                  <label class="chart-config-dialog__label" [attr.for]="'seriesNumberLocale-' + i">Locale (optional)</label>
+                  <input
+                    class="chart-config-dialog__input"
+                    [id]="'seriesNumberLocale-' + i"
+                    type="text"
+                    formControlName="numberLocale"
+                    placeholder="e.g. en-US (empty = browser default)"
+                  />
+                </div>
+              </div>
+
               <div class="chart-config-dialog__data-points">
                 <div class="chart-config-dialog__section-header">
                   <label class="chart-config-dialog__label chart-config-dialog__label--small">Data Points</label>
@@ -455,6 +559,66 @@
             Show Axis Lines
           </label>
         </div>
+
+        <div class="chart-config-dialog__row">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+              <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="axisTextBold" />
+              Bold axis text
+            </label>
+          </div>
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="axisTextColor">Axis text color</label>
+            <input id="axisTextColor" type="color" class="chart-config-dialog__color-input" formControlName="axisTextColor" />
+          </div>
+        </div>
+
+        <!-- Number Formatting -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label">Number Formatting</label>
+          <div class="chart-config-dialog__row">
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="numberScale">Scale</label>
+              <select id="numberScale" formControlName="numberScale" class="chart-config-dialog__select">
+                <option value="auto">Auto (K/M/B)</option>
+                <option value="none">None</option>
+                <option value="thousand">Thousand (K)</option>
+                <option value="million">Million (M)</option>
+                <option value="billion">Billion (B)</option>
+              </select>
+            </div>
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="numberDecimals">Decimals</label>
+              <input
+                id="numberDecimals"
+                type="number"
+                min="0"
+                max="8"
+                class="chart-config-dialog__input"
+                formControlName="numberDecimals"
+              />
+            </div>
+          </div>
+
+          <div class="chart-config-dialog__row">
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+                <input type="checkbox" formControlName="numberUseGrouping" class="chart-config-dialog__checkbox" />
+                Use grouping separators
+              </label>
+            </div>
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="numberLocale">Locale (optional)</label>
+              <input
+                id="numberLocale"
+                type="text"
+                class="chart-config-dialog__input"
+                formControlName="numberLocale"
+                placeholder="e.g. en-US (empty = browser default)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </app-tab>
 
@@ -478,6 +642,19 @@
           </div>
         </div>
 
+        <div class="chart-config-dialog__row" *ngIf="form.value.showLegend">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+              <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="legendTextBold" />
+              Bold legend text
+            </label>
+          </div>
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="legendTextColor">Legend text color</label>
+            <input id="legendTextColor" type="color" class="chart-config-dialog__color-input" formControlName="legendTextColor" />
+          </div>
+        </div>
+
         <!-- Value Labels -->
         <div class="chart-config-dialog__row">
           <div class="chart-config-dialog__section">
@@ -493,6 +670,72 @@
                 {{ pos | titlecase }}
               </option>
             </select>
+          </div>
+        </div>
+
+        <div class="chart-config-dialog__row" *ngIf="form.value.showValueLabels">
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+              <input type="checkbox" class="chart-config-dialog__checkbox" formControlName="valueLabelTextBold" />
+              Bold value labels
+            </label>
+          </div>
+          <div class="chart-config-dialog__section">
+            <label class="chart-config-dialog__label" for="valueLabelTextColor">Value label color</label>
+            <input id="valueLabelTextColor" type="color" class="chart-config-dialog__color-input" formControlName="valueLabelTextColor" />
+          </div>
+        </div>
+
+        <!-- Wrapping -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label">Label Wrapping</label>
+          <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+            <input type="checkbox" formControlName="wrapEnabled" class="chart-config-dialog__checkbox" />
+            Wrap category & legend labels
+          </label>
+
+          <div class="chart-config-dialog__row" *ngIf="form.value.wrapEnabled">
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="wrapMaxLines">Max Lines</label>
+              <input
+                id="wrapMaxLines"
+                type="number"
+                min="1"
+                max="6"
+                class="chart-config-dialog__input"
+                formControlName="wrapMaxLines"
+              />
+            </div>
+            <div class="chart-config-dialog__section">
+              <label class="chart-config-dialog__label" for="wrapMode">Wrap Mode</label>
+              <select id="wrapMode" formControlName="wrapMode" class="chart-config-dialog__select">
+                <option value="word">Word</option>
+                <option value="char">Character</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Typography -->
+        <div class="chart-config-dialog__section">
+          <label class="chart-config-dialog__label">Responsive Typography</label>
+          <label class="chart-config-dialog__label chart-config-dialog__label--inline">
+            <input type="checkbox" formControlName="typographyResponsive" class="chart-config-dialog__checkbox" />
+            Scale fonts when chart is resized
+          </label>
+
+          <div class="chart-config-dialog__section" *ngIf="form.value.typographyResponsive">
+            <label class="chart-config-dialog__label" for="typographyScaleFactor">Scale Factor</label>
+            <input
+              id="typographyScaleFactor"
+              type="number"
+              step="0.05"
+              min="0.2"
+              max="3"
+              class="chart-config-dialog__input"
+              formControlName="typographyScaleFactor"
+              placeholder="1"
+            />
           </div>
         </div>
       </div>

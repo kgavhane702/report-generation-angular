@@ -35,6 +35,7 @@ import {
   ChartData,
   ChartSeries,
   ChartType,
+  type ChartNumberScale,
   createDefaultChartData,
   createEmptyChartData,
 } from '../../../../../../models/chart-data.model';
@@ -42,6 +43,8 @@ import {
 export interface ChartConfigFormData {
   chartData: ChartData;
   widgetId?: string;
+  /** Optional initial tab index when opening config from toolbar. */
+  initialTabIndex?: number;
   /** When true, the dialog should open directly on the Data tab and prompt for file import. */
   openImportOnOpen?: boolean;
   /** Optional persisted remote source (URL-based chart). */
@@ -118,6 +121,9 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     'left',
     'right',
   ];
+
+  readonly numberScales: ChartNumberScale[] = ['auto', 'none', 'thousand', 'million', 'billion'];
+  readonly wrapModes: Array<'word' | 'char'> = ['word', 'char'];
 
   readonly lineStyles: Array<'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot'> = [
     'solid',
@@ -208,6 +214,11 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       this.initializeFormFromData();
     }
 
+    // Allow opening a specific tab directly (e.g., from chart toolbar buttons).
+    if (Number.isFinite(this.data?.initialTabIndex as any)) {
+      this.activeTabIndex = Math.max(0, Math.min(3, Number(this.data?.initialTabIndex)));
+    }
+
     if (this.data?.openImportOnOpen) {
       this.openImportFlow();
     }
@@ -218,6 +229,10 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       if (!changes['data'].firstChange) {
         this.initializeFormFromData();
         this.cdr.markForCheck();
+      }
+
+      if (Number.isFinite(this.data?.initialTabIndex as any)) {
+        this.activeTabIndex = Math.max(0, Math.min(3, Number(this.data?.initialTabIndex)));
       }
 
       if (this.data?.openImportOnOpen) {
@@ -298,6 +313,15 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
   private initializeForm(chartData: ChartData): void {
     const normalized = this.normalizeChartDataForForm(chartData);
     const visibility = (normalized.labelVisibility ?? (normalized.labels || []).map(() => true)).map((v) => v !== false);
+    const numberFormat = normalized.numberFormat ?? { scale: 'auto', decimals: 1, useGrouping: true };
+    const labelWrap = normalized.labelWrap ?? { enabled: true, maxLines: 2, mode: 'word' as const };
+    const typography = normalized.typography ?? { responsive: true, scaleFactor: 1 };
+    const textStyles = normalized.textStyles ?? {};
+    const titleStyle = textStyles.title ?? {};
+    const legendStyle = textStyles.legend ?? {};
+    const axisStyle = textStyles.axis ?? {};
+    const valueLabelStyle = textStyles.valueLabel ?? {};
+
     this.form = this.fb.group({
       chartType: [normalized.chartType, Validators.required],
       title: [normalized.title || ''],
@@ -308,20 +332,58 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       showAxisLines: [normalized.showAxisLines === true],
       showValueLabels: [normalized.showValueLabels !== false],
       valueLabelPosition: [normalized.valueLabelPosition || 'inside'],
+
+      // Chart-level formatting defaults
+      numberScale: [numberFormat.scale],
+      numberDecimals: [numberFormat.decimals],
+      numberUseGrouping: [numberFormat.useGrouping !== false],
+      numberLocale: [numberFormat.locale || ''],
+
+      // Wrapping (applies to category + legend labels)
+      wrapEnabled: [labelWrap.enabled !== false],
+      wrapMaxLines: [labelWrap.maxLines ?? 2],
+      wrapMode: [labelWrap.mode ?? 'word'],
+
+      // Typography responsiveness
+      typographyResponsive: [typography.responsive !== false],
+      typographyScaleFactor: [Number.isFinite((typography as any).scaleFactor) ? (typography as any).scaleFactor : 1],
+
+      // Text styles (color + bold)
+      titleTextColor: [titleStyle.color || ''],
+      titleTextBold: [!!titleStyle.bold],
+      legendTextColor: [legendStyle.color || ''],
+      legendTextBold: [!!legendStyle.bold],
+      axisTextColor: [axisStyle.color || ''],
+      axisTextBold: [!!axisStyle.bold],
+      valueLabelTextColor: [valueLabelStyle.color || ''],
+      valueLabelTextBold: [!!valueLabelStyle.bold],
+
       labels: this.fb.array((normalized.labels || []).map((label: string) => this.fb.control(label))),
       labelVisibility: this.fb.array(visibility.map((v) => this.fb.control(v))),
       series: this.fb.array(
-        normalized.series.map((series: ChartSeries, index: number) => this.createSeriesFormGroup(series, index, normalized.chartType))
+        normalized.series.map((series: ChartSeries, index: number) =>
+          this.createSeriesFormGroup(series, index, normalized.chartType, normalized.numberFormat)
+        )
       ),
     });
   }
 
-  private createSeriesFormGroup(series: ChartSeries = { name: '', data: [] }, index: number = 0, chartType: ChartType = 'column'): FormGroup {
+  private createSeriesFormGroup(
+    series: ChartSeries = { name: '', data: [] },
+    index: number = 0,
+    chartType: ChartType = 'column',
+    chartNumberFormat?: ChartData['numberFormat']
+  ): FormGroup {
     const dataArray = this.fb.array((series.data || []).map((value: number) => this.fb.control(value)));
 
     const defaultSeriesType =
       chartType === 'stackedBarLine' || chartType === 'stackedOverlappedBarLine' ? (index === 0 ? 'bar' : 'line') : undefined;
     const seriesType = series.type || defaultSeriesType;
+
+    const seriesNumberFormat = series.numberFormat ?? chartNumberFormat ?? { scale: 'auto', decimals: 1, useGrouping: true };
+    const numberFormatMode: 'inherit' | 'custom' = series.numberFormat ? 'custom' : 'inherit';
+    const valueLabelsMode: 'inherit' | 'show' | 'hide' =
+      typeof series.showValueLabels === 'boolean' ? (series.showValueLabels ? 'show' : 'hide') : 'inherit';
 
     return this.fb.group({
       name: [series.name || '', Validators.required],
@@ -329,6 +391,16 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       data: dataArray,
       seriesType: [seriesType],
       lineStyle: [series.lineStyle || 'solid'],
+
+      // Per-series overrides (optional)
+      valueLabelsMode: [valueLabelsMode],
+      valueLabelPositionOverride: [series.valueLabelPosition || ''],
+
+      numberFormatMode: [numberFormatMode],
+      numberScale: [seriesNumberFormat.scale],
+      numberDecimals: [seriesNumberFormat.decimals],
+      numberUseGrouping: [seriesNumberFormat.useGrouping !== false],
+      numberLocale: [seriesNumberFormat.locale || ''],
     });
   }
 
@@ -431,7 +503,9 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     const emptyData = Array(dataLength).fill(0);
     const chartType = this.form.value.chartType;
     const newIndex = this.seriesFormArray.length;
-    this.seriesFormArray.push(this.createSeriesFormGroup({ name: 'New Series', data: emptyData }, newIndex, chartType));
+    this.seriesFormArray.push(
+      this.createSeriesFormGroup({ name: 'New Series', data: emptyData }, newIndex, chartType, this.buildChartNumberFormatFromForm())
+    );
   }
 
   removeSeries(index: number): void {
@@ -766,6 +840,27 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       showAxisLines: this.form.value.showAxisLines,
       showValueLabels: this.form.value.showValueLabels,
       valueLabelPosition: this.form.value.valueLabelPosition,
+
+      numberScale: this.form.value.numberScale,
+      numberDecimals: this.form.value.numberDecimals,
+      numberUseGrouping: this.form.value.numberUseGrouping,
+      numberLocale: this.form.value.numberLocale,
+
+      wrapEnabled: this.form.value.wrapEnabled,
+      wrapMaxLines: this.form.value.wrapMaxLines,
+      wrapMode: this.form.value.wrapMode,
+
+      typographyResponsive: this.form.value.typographyResponsive,
+      typographyScaleFactor: this.form.value.typographyScaleFactor,
+
+      titleTextColor: this.form.value.titleTextColor,
+      titleTextBold: this.form.value.titleTextBold,
+      legendTextColor: this.form.value.legendTextColor,
+      legendTextBold: this.form.value.legendTextBold,
+      axisTextColor: this.form.value.axisTextColor,
+      axisTextBold: this.form.value.axisTextBold,
+      valueLabelTextColor: this.form.value.valueLabelTextColor,
+      valueLabelTextBold: this.form.value.valueLabelTextBold,
     };
 
     const chartType: ChartType = (this.form.value.chartType as ChartType) || 'column';
@@ -797,12 +892,54 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
         color: (s.color || existing.color || undefined) as string | undefined,
         type: (s.type || existing.seriesType || undefined) as ChartType | undefined,
         lineStyle: (s.lineStyle || existing.lineStyle || undefined) as any,
+        ...this.buildSeriesOverridesFromForm(existing),
       };
 
-      this.seriesFormArray.push(this.createSeriesFormGroup(merged, index, chartType));
+      this.seriesFormArray.push(this.createSeriesFormGroup(merged, index, chartType, this.buildChartNumberFormatFromForm(preserved)));
     });
 
     this.form.patchValue(preserved, { emitEvent: false });
+  }
+
+  private buildChartNumberFormatFromForm(source?: any): ChartData['numberFormat'] {
+    // Allow building from a saved "preserved" object or from the current form.
+    const v = source ?? this.form?.value ?? {};
+    const locale = (v.numberLocale ?? '').toString().trim();
+    return {
+      scale: (v.numberScale ?? 'auto') as any,
+      decimals: clampInt(v.numberDecimals, 0, 8),
+      useGrouping: v.numberUseGrouping !== false,
+      locale: locale || undefined,
+    };
+  }
+
+  private buildSeriesOverridesFromForm(existingSeriesFormValue: any): Partial<ChartSeries> {
+    if (!existingSeriesFormValue) return {};
+
+    // Value labels
+    const valueLabelsMode = (existingSeriesFormValue.valueLabelsMode ?? 'inherit') as 'inherit' | 'show' | 'hide';
+    const showValueLabels =
+      valueLabelsMode === 'inherit' ? undefined : valueLabelsMode === 'show' ? true : false;
+    const valueLabelPosition = (existingSeriesFormValue.valueLabelPositionOverride ?? '').toString().trim();
+
+    // Number formatting
+    const numberFormatMode = (existingSeriesFormValue.numberFormatMode ?? 'inherit') as 'inherit' | 'custom';
+    const locale = (existingSeriesFormValue.numberLocale ?? '').toString().trim();
+    const numberFormat =
+      numberFormatMode === 'custom'
+        ? {
+            scale: (existingSeriesFormValue.numberScale ?? 'auto') as any,
+            decimals: clampInt(existingSeriesFormValue.numberDecimals, 0, 8),
+            useGrouping: existingSeriesFormValue.numberUseGrouping !== false,
+            locale: locale || undefined,
+          }
+        : undefined;
+
+    return {
+      showValueLabels,
+      valueLabelPosition: valueLabelPosition ? (valueLabelPosition as any) : undefined,
+      numberFormat: numberFormat as any,
+    };
   }
 
   save(): void {
@@ -828,6 +965,18 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
         color: s.color || undefined,
         type: s.seriesType || undefined,
         lineStyle: s.lineStyle || undefined,
+        showValueLabels:
+          s.valueLabelsMode === 'inherit' ? undefined : s.valueLabelsMode === 'show' ? true : false,
+        valueLabelPosition: (s.valueLabelPositionOverride || '').toString().trim() || undefined,
+        numberFormat:
+          s.numberFormatMode === 'custom'
+            ? {
+                scale: s.numberScale,
+                decimals: clampInt(s.numberDecimals, 0, 8),
+                useGrouping: s.numberUseGrouping !== false,
+                locale: (s.numberLocale || '').toString().trim() || undefined,
+              }
+            : undefined,
       })),
       title: formValue.title || undefined,
       xAxisLabel: formValue.xAxisLabel || undefined,
@@ -837,6 +986,18 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       showAxisLines: formValue.showAxisLines || false,
       showValueLabels: formValue.showValueLabels || false,
       valueLabelPosition: formValue.valueLabelPosition || undefined,
+
+      numberFormat: this.buildChartNumberFormatFromForm(formValue),
+      labelWrap: {
+        enabled: formValue.wrapEnabled !== false,
+        maxLines: clampInt(formValue.wrapMaxLines, 1, 6),
+        mode: formValue.wrapMode === 'char' ? 'char' : 'word',
+      },
+      typography: {
+        responsive: formValue.typographyResponsive !== false,
+        scaleFactor: clampNum(formValue.typographyScaleFactor, 0.2, 3),
+      },
+      textStyles: buildTextStylesFromForm(formValue),
     };
 
     const dataSource = this.buildDataSourceForSave();
@@ -875,6 +1036,41 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       cancelled: true,
     });
   }
+}
+
+function clampInt(value: any, min: number, max: number): number {
+  const n = Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function clampNum(value: any, min: number, max: number): number {
+  const n = Number.isFinite(Number(value)) ? Number(value) : min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function buildTextStylesFromForm(formValue: any): ChartData['textStyles'] | undefined {
+  const title = normalizeTextStyle(formValue?.titleTextColor, formValue?.titleTextBold);
+  const legend = normalizeTextStyle(formValue?.legendTextColor, formValue?.legendTextBold);
+  const axis = normalizeTextStyle(formValue?.axisTextColor, formValue?.axisTextBold);
+  const valueLabel = normalizeTextStyle(formValue?.valueLabelTextColor, formValue?.valueLabelTextBold);
+
+  const out: any = {};
+  if (title) out.title = title;
+  if (legend) out.legend = legend;
+  if (axis) out.axis = axis;
+  if (valueLabel) out.valueLabel = valueLabel;
+
+  return Object.keys(out).length ? out : undefined;
+}
+
+function normalizeTextStyle(colorRaw: any, boldRaw: any): { color?: string; bold?: boolean } | null {
+  const color = (colorRaw ?? '').toString().trim();
+  const bold = !!boldRaw;
+  if (!color && !bold) return null;
+  return {
+    color: color || undefined,
+    bold: bold || undefined,
+  };
 }
 
 

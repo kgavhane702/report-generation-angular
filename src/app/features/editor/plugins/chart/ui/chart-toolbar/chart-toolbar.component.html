@@ -1,0 +1,134 @@
+<div class="chart-toolbar" *ngIf="isChartWidgetActive()">
+  <!-- Group: quick config tabs -->
+  <div class="chart-toolbar__group">
+    <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(0)" title="Open Chart tab">
+      <span class="material-symbols-outlined">insights</span>
+      <span class="chart-toolbar__button-label">Chart</span>
+    </button>
+    <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(1)" title="Open Data tab">
+      <span class="material-symbols-outlined">table_chart</span>
+      <span class="chart-toolbar__button-label">Data</span>
+    </button>
+    <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(2)" title="Open Axes tab">
+      <span class="material-symbols-outlined">tune</span>
+      <span class="chart-toolbar__button-label">Axes</span>
+    </button>
+    <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(3)" title="Open Legend & Labels tab">
+      <span class="material-symbols-outlined">label</span>
+      <span class="chart-toolbar__button-label">Labels</span>
+    </button>
+  </div>
+
+  <div class="chart-toolbar__separator"></div>
+
+  <!-- Group: import -->
+  <div class="chart-toolbar__group">
+    <button
+      type="button"
+      class="chart-toolbar__button chart-toolbar__button--wide chart-toolbar__button--primary"
+      (mousedown)="$event.preventDefault()"
+      (click)="openImport()"
+      title="Import data"
+    >
+      <span class="material-symbols-outlined">upload_file</span>
+      <span class="chart-toolbar__button-label">Import</span>
+    </button>
+  </div>
+
+  <div class="chart-toolbar__separator"></div>
+
+  <!-- Group: text styling (matches table toolbar pattern: bold toggle + same color picker dropdown) -->
+  <div class="chart-toolbar__group chart-toolbar__group--format">
+    <div class="chart-toolbar__field">
+      <span class="chart-toolbar__field-label">Title</span>
+      <button
+        type="button"
+        class="chart-toolbar__button"
+        [class.chart-toolbar__button--active]="isBold('title')"
+        (mousedown)="$event.preventDefault()"
+        (click)="toggleBold('title')"
+        title="Title bold"
+      >
+        <span class="material-symbols-outlined">format_bold</span>
+      </button>
+      <app-color-picker
+        [currentColor]="getStyle('title').color"
+        [colorPalette]="colorPalette"
+        icon="format_color_text"
+        title="Title color"
+        (colorSelected)="setColor('title', $event)"
+      ></app-color-picker>
+    </div>
+
+    <div class="chart-toolbar__mini-separator"></div>
+
+    <div class="chart-toolbar__field">
+      <span class="chart-toolbar__field-label">Legend</span>
+      <button
+        type="button"
+        class="chart-toolbar__button"
+        [class.chart-toolbar__button--active]="isBold('legend')"
+        (mousedown)="$event.preventDefault()"
+        (click)="toggleBold('legend')"
+        title="Legend bold"
+      >
+        <span class="material-symbols-outlined">format_bold</span>
+      </button>
+      <app-color-picker
+        [currentColor]="getStyle('legend').color"
+        [colorPalette]="colorPalette"
+        icon="format_color_text"
+        title="Legend color"
+        (colorSelected)="setColor('legend', $event)"
+      ></app-color-picker>
+    </div>
+
+    <div class="chart-toolbar__mini-separator"></div>
+
+    <div class="chart-toolbar__field">
+      <span class="chart-toolbar__field-label">Axis</span>
+      <button
+        type="button"
+        class="chart-toolbar__button"
+        [class.chart-toolbar__button--active]="isBold('axis')"
+        (mousedown)="$event.preventDefault()"
+        (click)="toggleBold('axis')"
+        title="Axis bold"
+      >
+        <span class="material-symbols-outlined">format_bold</span>
+      </button>
+      <app-color-picker
+        [currentColor]="getStyle('axis').color"
+        [colorPalette]="colorPalette"
+        icon="format_color_text"
+        title="Axis text color"
+        (colorSelected)="setColor('axis', $event)"
+      ></app-color-picker>
+    </div>
+
+    <div class="chart-toolbar__mini-separator"></div>
+
+    <div class="chart-toolbar__field">
+      <span class="chart-toolbar__field-label">Labels</span>
+      <button
+        type="button"
+        class="chart-toolbar__button"
+        [class.chart-toolbar__button--active]="isBold('valueLabel')"
+        (mousedown)="$event.preventDefault()"
+        (click)="toggleBold('valueLabel')"
+        title="Value labels bold"
+      >
+        <span class="material-symbols-outlined">format_bold</span>
+      </button>
+      <app-color-picker
+        [currentColor]="getStyle('valueLabel').color"
+        [colorPalette]="colorPalette"
+        icon="format_color_text"
+        title="Value label color"
+        (colorSelected)="setColor('valueLabel', $event)"
+      ></app-color-picker>
+    </div>
+  </div>
+</div>
+
+

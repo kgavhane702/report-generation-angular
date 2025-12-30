@@ -68,6 +68,27 @@ export interface ChartData {
    * Position of value labels (inside, top, bottom, left, right)
    */
   valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right';
+
+  /**
+   * Chart-level number formatting defaults (axis ticks, tooltips, value labels).
+   * Series can override via `ChartSeries.numberFormat`.
+   */
+  numberFormat?: ChartNumberFormatSpec;
+
+  /**
+   * Wrapping behavior for category/legend labels (avoid ellipsis where possible).
+   */
+  labelWrap?: ChartLabelWrapSpec;
+
+  /**
+   * Responsive typography behavior (scale fonts down/up with widget size).
+   */
+  typography?: ChartTypographySpec;
+
+  /**
+   * Text styling for chart chrome (title/legend/axes/value labels).
+   */
+  textStyles?: ChartTextStyles;
 }
 
 export type ChartType =
@@ -108,6 +129,86 @@ export interface ChartSeries {
    * Line style for line/area charts (solid, dashed, dotted, etc.)
    */
   lineStyle?: 'solid' | 'dashed' | 'dotted' | 'dashDot' | 'longDash' | 'longDashDot' | 'longDashDotDot';
+
+  /**
+   * Optional number formatting override for this series (tooltip/value labels).
+   * Axis tick formatting is still chart-level.
+   */
+  numberFormat?: ChartNumberFormatSpec;
+
+  /**
+   * Optional per-series value label visibility override.
+   */
+  showValueLabels?: boolean;
+
+  /**
+   * Optional per-series value label position override.
+   */
+  valueLabelPosition?: 'inside' | 'top' | 'bottom' | 'left' | 'right';
+
+  /**
+   * Optional per-series value label text style override.
+   */
+  valueLabelTextStyle?: ChartTextStyle;
+}
+
+export type ChartNumberScale = 'none' | 'auto' | 'thousand' | 'million' | 'billion';
+
+export interface ChartNumberFormatSpec {
+  /**
+   * Scaling behavior: auto chooses K/M/B based on magnitude.
+   */
+  scale: ChartNumberScale;
+  /**
+   * Decimal places to show (fixed).
+   */
+  decimals: number;
+  /**
+   * Whether to use localized grouping separators (e.g. 1,234).
+   */
+  useGrouping: boolean;
+  /**
+   * Optional locale override; when omitted, uses runtime default locale.
+   */
+  locale?: string;
+}
+
+export interface ChartLabelWrapSpec {
+  enabled: boolean;
+  /**
+   * Max number of lines before truncation is applied as a last resort.
+   */
+  maxLines: number;
+  /**
+   * Word breaks are nicer for sentences; char breaks help with long tokens.
+   */
+  mode: 'word' | 'char';
+}
+
+export interface ChartTypographySpec {
+  /**
+   * When true, scale internal chart typography based on widget size.
+   */
+  responsive: boolean;
+  /**
+   * User-controlled multiplier applied to the responsive scale.
+   * 1 = default, <1 smaller text, >1 bigger text.
+   */
+  scaleFactor: number;
+}
+
+export interface ChartTextStyle {
+  /** CSS color string (hex/rgb/etc). */
+  color?: string;
+  /** Bold toggle. */
+  bold?: boolean;
+}
+
+export interface ChartTextStyles {
+  title?: ChartTextStyle;
+  legend?: ChartTextStyle;
+  axis?: ChartTextStyle;
+  valueLabel?: ChartTextStyle;
 }
 
 /**
@@ -134,6 +235,20 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
     showAxisLines: false,
     showValueLabels: true,
     valueLabelPosition: defaultLabelPosition,
+    numberFormat: {
+      scale: 'auto',
+      decimals: 1,
+      useGrouping: true,
+    },
+    labelWrap: {
+      enabled: true,
+      maxLines: 2,
+      mode: 'word',
+    },
+    typography: {
+      responsive: true,
+      scaleFactor: 1,
+    },
   };
 }
 
@@ -157,6 +272,20 @@ export function createEmptyChartData(chartType: ChartType = 'column'): ChartData
     showAxisLines: false,
     showValueLabels: true,
     valueLabelPosition: defaultLabelPosition,
+    numberFormat: {
+      scale: 'auto',
+      decimals: 1,
+      useGrouping: true,
+    },
+    labelWrap: {
+      enabled: true,
+      maxLines: 2,
+      mode: 'word',
+    },
+    typography: {
+      responsive: true,
+      scaleFactor: 1,
+    },
   };
 }
 

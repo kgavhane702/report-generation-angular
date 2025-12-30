@@ -2,10 +2,12 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 
 export type ChartConfigOpenMode = 'default' | 'import';
+export type ChartConfigTabIndex = 0 | 1 | 2 | 3;
 
 export interface ChartOpenConfigRequest {
   widgetId: string;
   mode: ChartConfigOpenMode;
+  tabIndex?: ChartConfigTabIndex;
 }
 
 /**
@@ -24,6 +26,10 @@ export class ChartToolbarService {
 
   requestOpenImport(widgetId: string): void {
     this.openConfigRequestedSubject.next({ widgetId, mode: 'import' });
+  }
+
+  requestOpenTab(widgetId: string, tabIndex: ChartConfigTabIndex): void {
+    this.openConfigRequestedSubject.next({ widgetId, mode: 'default', tabIndex });
   }
 }
 

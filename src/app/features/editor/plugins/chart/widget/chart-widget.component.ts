@@ -26,6 +26,7 @@ import type { ChartConfigFormData, ChartConfigFormResult } from '../ui/chart-con
 import { ChartRenderRegistry } from '../../../../../core/services/chart-render-registry.service';
 import { ChartToolbarService } from '../../../../../core/services/chart-toolbar.service';
 import { LoggerService } from '../../../../../core/services/logger.service';
+import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { Subject, filter, takeUntil } from 'rxjs';
 
 @Component({
@@ -46,9 +47,11 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly registry = inject(ChartRegistryService);
   private readonly renderRegistry = inject(ChartRenderRegistry);
   private readonly chartToolbar = inject(ChartToolbarService);
+  private readonly uiState = inject(UIStateService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly logger = inject(LoggerService);
   private readonly destroy$ = new Subject<void>();
+  private zoomRerenderTimer: any = null;
   
   showDialog = false;
   dialogData?: ChartConfigFormData;
@@ -75,6 +78,16 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         // Force re-render when export mode is activated
         this.forceRender();
       }
+    });
+
+    // Re-render on zoom changes (canvas is scaled via transform: scale(...)).
+    // This allows us to re-init charts with an adjusted devicePixelRatio so they stay sharp.
+    effect(() => {
+      this.uiState.zoomLevel();
+      if (!this.widget) return;
+      if (!this.isChartRendered) return;
+      if (this.showDialog) return;
+      this.scheduleZoomRerender();
     });
   }
 
@@ -104,7 +117,9 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         filter((req) => req.widgetId === this.widget.id)
       )
       .subscribe((req) => {
-        this.openConfigDialog(req.mode === 'import');
+        const openImportOnOpen = req.mode === 'import';
+        const tab = typeof req.tabIndex === 'number' ? req.tabIndex : undefined;
+        this.openConfigDialog({ openImportOnOpen, initialTabIndex: tab });
       });
   }
 
@@ -213,6 +228,10 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       prevData.showAxisLines !== currData.showAxisLines ||
       prevData.showValueLabels !== currData.showValueLabels ||
       prevData.valueLabelPosition !== currData.valueLabelPosition ||
+      JSON.stringify(prevData.numberFormat) !== JSON.stringify(currData.numberFormat) ||
+      JSON.stringify(prevData.labelWrap) !== JSON.stringify(currData.labelWrap) ||
+      JSON.stringify(prevData.typography) !== JSON.stringify(currData.typography) ||
+      JSON.stringify(prevData.textStyles) !== JSON.stringify(currData.textStyles) ||
       JSON.stringify(prevData.series) !== JSON.stringify(currData.series) ||
       JSON.stringify(prevData.labels) !== JSON.stringify(currData.labels) ||
       JSON.stringify(prevData.labelVisibility) !== JSON.stringify(currData.labelVisibility)
@@ -224,8 +243,20 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.logger.debug('[ChartWidget] ngOnDestroy - unregistering:', this.widget.id);
     this.renderRegistry.unregister(this.widget.id);
     this.instance?.destroy?.();
+    if (this.zoomRerenderTimer) {
+      clearTimeout(this.zoomRerenderTimer);
+      this.zoomRerenderTimer = null;
+    }
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  private scheduleZoomRerender(): void {
+    if (this.zoomRerenderTimer) clearTimeout(this.zoomRerenderTimer);
+    this.zoomRerenderTimer = setTimeout(() => {
+      if (!this.containerRef?.nativeElement) return;
+      this.renderChart();
+    }, 80);
   }
 
   onDoubleClick(event: MouseEvent): void {
@@ -233,7 +264,10 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.openConfigDialog();
   }
 
-  openConfigDialog(openImportOnOpen: boolean = false): void {
+  openConfigDialog(opts?: { openImportOnOpen?: boolean; initialTabIndex?: number }): void {
+    const openImportOnOpen = opts?.openImportOnOpen === true;
+    const initialTabIndex = Number.isFinite(opts?.initialTabIndex as any) ? Number(opts?.initialTabIndex) : undefined;
+
     // Use pendingChartData if available (most recent unsaved changes), otherwise use widget data
     const sourceChartData = this.pendingChartData || (this.chartProps.data as ChartData);
     
@@ -249,6 +283,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.dialogData = {
       chartData: clonedChartData,
       widgetId: this.widget.id,
+      initialTabIndex,
       openImportOnOpen,
       dataSource: this.chartProps.dataSource ?? null,
     };

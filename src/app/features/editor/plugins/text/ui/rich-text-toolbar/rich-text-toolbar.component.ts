@@ -15,6 +15,7 @@ import { RichTextToolbarService } from '../../../../../../core/services/rich-tex
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
 import { TextWidgetColorPickerComponent } from '../text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from '../../../table/ui';
+import { ChartToolbarComponent } from '../../../chart/ui/chart-toolbar/chart-toolbar.component';
 import { Subscription } from 'rxjs';
 
 /**
@@ -26,7 +27,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-rich-text-toolbar',
   standalone: true,
-  imports: [CommonModule, TextWidgetColorPickerComponent, TableToolbarComponent],
+  imports: [CommonModule, TextWidgetColorPickerComponent, TableToolbarComponent, ChartToolbarComponent],
   templateUrl: './rich-text-toolbar.component.html',
   styleUrls: ['./rich-text-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -52,6 +53,11 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
   readonly isTableWidgetActive = computed(() => {
     const activeWidget = this.editorState.activeWidget();
     return activeWidget?.type === 'table';
+  });
+
+  readonly isChartWidgetActive = computed(() => {
+    const activeWidget = this.editorState.activeWidget();
+    return activeWidget?.type === 'chart';
   });
 
   ngOnInit(): void {
@@ -106,5 +112,9 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
 
   get hasTableToolbar(): boolean {
     return this.isTableWidgetActive();
+  }
+
+  get hasChartToolbar(): boolean {
+    return this.isChartWidgetActive();
   }
 }
