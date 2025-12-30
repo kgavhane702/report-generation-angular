@@ -77,7 +77,8 @@ export class WidgetFactoryService {
       props: {
         src: '',
         alt: '',
-        fit: 'cover',
+        // Default to contain so the full image is always visible (no cropping) when resizing.
+        fit: 'contain',
       },
     };
   }

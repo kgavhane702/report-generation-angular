@@ -45,7 +45,10 @@ export class ImageWidgetComponent {
   }
 
   get imageFitStyle(): string {
-    return this.imageProps?.fit || 'cover';
+    const fit = this.imageProps?.fit || 'contain';
+    // CSS object-fit uses 'fill' for stretching.
+    if (fit === 'stretch') return 'fill';
+    return fit;
   }
 
   onBrowseClick(): void {
@@ -87,7 +90,7 @@ export class ImageWidgetComponent {
           this.propsChange.emit({
             src: base64String,
             alt: file.name,
-            fit: this.imageProps?.fit || 'cover',
+            fit: this.imageProps?.fit || 'contain',
           });
         } else {
           this.imageError = true;
