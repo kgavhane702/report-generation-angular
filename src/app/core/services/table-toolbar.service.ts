@@ -553,8 +553,14 @@ export class TableToolbarService {
         const selectedContent = range.extractContents();
         li.appendChild(selectedContent);
       } else {
-        // Collapsed cursor - create empty list item
-        // Use zero-width space for cursor positioning without visible space
+        // Collapsed cursor: try to convert the current "line"/block into a list item
+        // (PPT-like behavior: bulletize the current line with existing text).
+        const didConvert = this.tryConvertCurrentBlockToList(range, cell, list, li);
+        if (didConvert) {
+          return;
+        }
+
+        // Fallback: create empty list item (still shows bullet in most browsers)
         li.appendChild(document.createTextNode('\u200B'));
       }
       
@@ -576,6 +582,75 @@ export class TableToolbarService {
       selection?.addRange(newRange);
     } catch (e) {
       // Ignore cursor positioning errors
+    }
+  }
+
+  /**
+   * When the caret is collapsed inside an existing line of text, convert that line into a list item
+   * so the bullet is visible immediately and keeps the existing text.
+   */
+  private tryConvertCurrentBlockToList(range: Range, cell: HTMLElement, list: HTMLElement, li: HTMLLIElement): boolean {
+    const start = range.startContainer;
+    if (!start) return false;
+
+    // Find nearest block element inside the cell (most contenteditables create DIV or P per line).
+    let node: Node | null = start.nodeType === Node.ELEMENT_NODE ? start : start.parentNode;
+    while (node && node !== cell) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        const tag = el.tagName;
+        if (tag === 'DIV' || tag === 'P') {
+          // If the block is already empty-ish, fall back.
+          const hasMeaningfulText = (el.textContent ?? '').replace(/\u200B/g, '').trim().length > 0;
+          // Move block contents into the list item.
+          while (el.firstChild) {
+            li.appendChild(el.firstChild);
+          }
+          if (!li.firstChild && !hasMeaningfulText) {
+            li.appendChild(document.createTextNode('\u200B'));
+          }
+          list.appendChild(li);
+          el.parentNode?.replaceChild(list, el);
+
+          // Place cursor at end of li content.
+          try {
+            const sel = window.getSelection();
+            const newRange = document.createRange();
+            newRange.selectNodeContents(li);
+            newRange.collapse(false);
+            sel?.removeAllRanges();
+            sel?.addRange(newRange);
+          } catch {
+            // ignore
+          }
+          return true;
+        }
+      }
+      node = node.parentNode;
+    }
+
+    // No block wrapper found (some editors keep plain text directly under the contenteditable).
+    // In that case, wrap the current content into a list item so the bullet is visible and includes the existing text.
+    try {
+      // Move all content from the cell into the list item.
+      while (cell.firstChild) {
+        li.appendChild(cell.firstChild);
+      }
+      if (!li.firstChild) {
+        li.appendChild(document.createTextNode('\u200B'));
+      }
+      list.appendChild(li);
+      cell.appendChild(list);
+
+      const sel = window.getSelection();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(li);
+      newRange.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(newRange);
+      return true;
+    } catch {
+      return false;
     }
   }
 

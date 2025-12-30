@@ -16,6 +16,7 @@ import { EditorStateService } from '../../../../../../core/services/editor-state
 import { TextWidgetColorPickerComponent } from '../text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from '../../../table/ui';
 import { ChartToolbarComponent } from '../../../chart/ui/chart-toolbar/chart-toolbar.component';
+import { EditastraToolbarComponent } from '../../../editastra/ui/editastra-toolbar/editastra-toolbar.component';
 import { Subscription } from 'rxjs';
 
 /**
@@ -27,7 +28,7 @@ import { Subscription } from 'rxjs';
 @Component({
   selector: 'app-rich-text-toolbar',
   standalone: true,
-  imports: [CommonModule, TextWidgetColorPickerComponent, TableToolbarComponent, ChartToolbarComponent],
+  imports: [CommonModule, TextWidgetColorPickerComponent, TableToolbarComponent, ChartToolbarComponent, EditastraToolbarComponent],
   templateUrl: './rich-text-toolbar.component.html',
   styleUrls: ['./rich-text-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,6 +59,11 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
   readonly isChartWidgetActive = computed(() => {
     const activeWidget = this.editorState.activeWidget();
     return activeWidget?.type === 'chart';
+  });
+
+  readonly isEditastraWidgetActive = computed(() => {
+    const activeWidget = this.editorState.activeWidget();
+    return activeWidget?.type === 'editastra';
   });
 
   ngOnInit(): void {
@@ -116,5 +122,9 @@ export class RichTextToolbarComponent implements OnInit, OnDestroy, AfterViewIni
 
   get hasChartToolbar(): boolean {
     return this.isChartWidgetActive();
+  }
+
+  get hasEditastraToolbar(): boolean {
+    return this.isEditastraWidgetActive();
   }
 }

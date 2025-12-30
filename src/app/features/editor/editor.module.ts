@@ -15,6 +15,7 @@ import { TextWidgetComponent } from './plugins/text/widget';
 import { ChartWidgetComponent } from './plugins/chart/widget';
 import { ImageWidgetComponent } from './plugins/image/widget';
 import { TableWidgetComponent } from './plugins/table/widget';
+import { EditastraWidgetComponent } from './plugins/editastra/widget/editastra-widget.component';
 import { ZoomControlsComponent } from './plugins/editor-tools/zoom-controls/zoom-controls.component';
 import { UndoRedoControlsComponent } from './plugins/editor-tools/undo-redo-controls/undo-redo-controls.component';
 import { ChartRegistryInitializer } from './plugins/chart/engine/runtime';
@@ -61,6 +62,7 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
     TableGridSelectorComponent,
     TableResizeOverlayComponent,
     GuidesOverlayComponent,
+    EditastraWidgetComponent,
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
   ],

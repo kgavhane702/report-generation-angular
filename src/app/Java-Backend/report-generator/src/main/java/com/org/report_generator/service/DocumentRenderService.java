@@ -17,6 +17,7 @@ import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import com.org.report_generator.service.renderer.TableWidgetRenderer;
+import com.org.report_generator.service.renderer.EditastraWidgetRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class DocumentRenderService {
     private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
     private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
     private final TableWidgetRenderer tableWidgetRenderer = new TableWidgetRenderer();
+    private final EditastraWidgetRenderer editastraWidgetRenderer = new EditastraWidgetRenderer();
     
     // Cache for mmToPx calculations to avoid repeated computations
     // Key format: "mm_dpi" (e.g., "254.0_96")
@@ -63,6 +65,7 @@ public class DocumentRenderService {
                 .append(TextWidgetRenderer.getCss())
                 .append(ImageWidgetRenderer.getCss())
                 .append(TableWidgetRenderer.getCss())
+                .append(EditastraWidgetRenderer.getCss())
                 .append(PageStylesRenderer.getCss(pages, document))
                 .append("</style></head><body><div class=\"document-container\">");
 
@@ -159,6 +162,7 @@ public class DocumentRenderService {
             case "image" -> imageWidgetRenderer.render(props, style);
             case "chart" -> renderChartWidget(props, style);
             case "table", "table-widget", "tablewidget" -> tableWidgetRenderer.render(props, style);
+            case "editastra" -> editastraWidgetRenderer.render(props, style);
             default -> "<div class=\"widget\" style=\"" + escapeHtmlAttribute(style) + "\"></div>";
         };
     }

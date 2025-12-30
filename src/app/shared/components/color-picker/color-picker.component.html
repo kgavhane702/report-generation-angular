@@ -25,6 +25,7 @@
     [minWidthPx]="200"
     [maxWidthPx]="360"
   >
+    <div class="color-picker__dropdown-content" [attr.data-color-picker-dropdown]="dropdownId || null">
     <div class="color-picker__custom" *ngIf="showLabel">
       <input
         type="color"
@@ -48,6 +49,7 @@
       >
         <span *ngIf="!color.value" class="color-picker__transparent-icon">×</span>
       </button>
+    </div>
     </div>
   </app-anchored-dropdown>
 </div>

@@ -69,6 +69,13 @@
           (propsChange)="onContentChange($event)"
         ></app-table-widget>
 
+        <app-editastra-widget
+          *ngSwitchCase="'editastra'"
+          [widget]="$any(widget)"
+          (editingChange)="onEditingChange($event)"
+          (propsChange)="onContentChange($event)"
+        ></app-editastra-widget>
+
         <div *ngSwitchDefault class="widget-container__placeholder">
           {{ widget.type }} widget
         </div>

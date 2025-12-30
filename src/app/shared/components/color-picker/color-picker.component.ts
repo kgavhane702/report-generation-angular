@@ -30,6 +30,7 @@ export class ColorPickerComponent {
   @Input() disabled: boolean = false;
   @Input() showLabel: boolean = true; // Show label in dropdown
   @Input() title?: string; // Tooltip text
+  @Input() dropdownId?: string; // Optional ID to identify the dropdown (for blur guard in editors)
 
   @Output() colorSelected = new EventEmitter<string>();
 

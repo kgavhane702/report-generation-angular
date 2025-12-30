@@ -54,6 +54,9 @@ public class GlobalStylesRenderer {
             .widget-text ul, .widget-text ol {
                 page-break-inside: avoid;
             }
+            .widget-editastra ul, .widget-editastra ol {
+                page-break-inside: avoid;
+            }
             .widget-text table {
                 page-break-inside: avoid;
             }

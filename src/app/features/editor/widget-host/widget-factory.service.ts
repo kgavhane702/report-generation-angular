@@ -7,6 +7,7 @@ import {
   ChartWidgetProps,
   TextWidgetProps,
   ImageWidgetProps,
+  EditastraWidgetProps,
   TableWidgetProps,
   TableRow,
   WidgetProps,
@@ -26,6 +27,8 @@ export class WidgetFactoryService {
         return this.createChartWidget();
       case 'image':
         return this.createImageWidget();
+      case 'editastra':
+        return this.createEditastraWidget();
       case 'table':
         return this.createTableWidget(props as Partial<TableWidgetProps>);
       default:
@@ -79,6 +82,22 @@ export class WidgetFactoryService {
         alt: '',
         // Default to contain so the full image is always visible (no cropping) when resizing.
         fit: 'contain',
+      },
+    };
+  }
+
+  private createEditastraWidget(): WidgetModel<EditastraWidgetProps> {
+    return {
+      id: uuid(),
+      type: 'editastra',
+      position: { x: 140, y: 140 },
+      size: { width: 360, height: 220 },
+      zIndex: 1,
+      props: {
+        contentHtml: '',
+        placeholder: 'Type here…',
+        backgroundColor: '#ffffff',
+        verticalAlign: 'top',
       },
     };
   }

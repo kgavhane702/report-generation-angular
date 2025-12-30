@@ -1,0 +1,16 @@
+<div class="editastra-editor" [class.editastra-editor--disabled]="disabled">
+  <div
+    #editorEl
+    class="editastra-editor__surface"
+    [attr.contenteditable]="isEditable ? 'true' : 'false'"
+    [attr.tabindex]="isEditable ? 0 : -1"
+    [attr.data-placeholder]="placeholder"
+    [twSafeInnerHtml]="html | safeHtml"
+    (focus)="onFocus()"
+    (blur)="onBlur()"
+    (input)="onInput($event)"
+    (keydown)="onKeydown($event)"
+  ></div>
+</div>
+
+

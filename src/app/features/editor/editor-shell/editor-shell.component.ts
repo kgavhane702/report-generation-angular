@@ -26,7 +26,12 @@ export class EditorShellComponent {
   // Computed signals to determine if toolbars should be shown
   readonly showRichTextToolbar = computed(() => {
     const widget = this.editorState.activeWidget();
-    return widget?.type === 'text' || widget?.type === 'table' || widget?.type === 'chart';
+    return (
+      widget?.type === 'text' ||
+      widget?.type === 'table' ||
+      widget?.type === 'chart' ||
+      widget?.type === 'editastra'
+    );
   });
 
   readonly showExportOverlay = computed(() => this.exportUi.active());

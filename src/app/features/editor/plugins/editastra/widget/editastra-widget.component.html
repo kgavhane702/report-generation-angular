@@ -1,0 +1,17 @@
+<div class="editastra-widget" [style.background]="props.backgroundColor || null">
+  <div
+    class="editastra-widget__content"
+    [attr.data-v-align]="props.verticalAlign || 'top'"
+    (mousedown)="focusEditorFromContainer($event)"
+  >
+    <app-editastra-editor
+      [html]="localHtml()"
+      [placeholder]="placeholder()"
+      (editorFocus)="onEditorFocus()"
+      (editorBlur)="onEditorBlur()"
+      (htmlInput)="onEditorInput($event)"
+    ></app-editastra-editor>
+  </div>
+</div>
+
+

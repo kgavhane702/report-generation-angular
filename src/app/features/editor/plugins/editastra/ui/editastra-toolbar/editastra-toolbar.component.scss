@@ -1,0 +1,59 @@
+// Reuse the Table toolbar visual system for Editastra (same look, different feature set).
+@import '../../../table/ui/table-toolbar/table-toolbar.component.scss';
+
+// Font dropdown: table's combo dropdown content is a grid (good for numbers),
+// but font names need a clean single-column list with consistent background.
+.editastra-toolbar__dropdown-list {
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editastra-toolbar__dropdown-item {
+  height: 30px; // match table combo items
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px; // match table combo items
+  padding: 0 10px;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  &:active {
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
+
+.editastra-toolbar__combo-value {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Ensure our combo buttons lay out value + arrow like table selects.
+.editastra-toolbar__combo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editastra-toolbar__combo--small {
+  justify-content: center;
+  gap: 6px;
+}
+
+

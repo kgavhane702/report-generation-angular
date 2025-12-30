@@ -82,6 +82,14 @@
     >
       <span class="material-symbols-outlined">text_fields</span>
     </button>
+    <button
+      type="button"
+      class="editor-toolbar__icon-button"
+      (click)="addWidget('editastra')"
+      title="Add Editastra Widget (temporary)"
+    >
+      <span class="material-symbols-outlined">edit_note</span>
+    </button>
     <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     <button 
       type="button" 

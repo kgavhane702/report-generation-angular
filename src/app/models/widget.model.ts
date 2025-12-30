@@ -5,6 +5,7 @@ export type WidgetType =
   | 'text'
   | 'chart'
   | 'image'
+  | 'editastra'
   | 'shape'
   | 'media'
   | 'object'
@@ -36,6 +37,7 @@ export type WidgetProps =
   | TextWidgetProps
   | ChartWidgetProps
   | ImageWidgetProps
+  | EditastraWidgetProps
   | ShapeWidgetProps
   | MediaWidgetProps
   | TableWidgetProps;
@@ -45,6 +47,20 @@ export interface TextWidgetProps {
   editorConfigId?: string;
   flowEnabled?: boolean;
   backgroundColor?: string;
+}
+
+/**
+ * EditastraWidgetProps
+ *
+ * Temporary widget that hosts the same custom contenteditable editor used in tables,
+ * extracted as a reusable component ("Editastra").
+ */
+export interface EditastraWidgetProps {
+  contentHtml: string;
+  placeholder?: string;
+  backgroundColor?: string;
+  /** Vertical alignment of the text block inside the widget (PPT-like). */
+  verticalAlign?: 'top' | 'middle' | 'bottom';
 }
 
 export interface ChartWidgetProps {

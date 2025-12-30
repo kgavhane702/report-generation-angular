@@ -1,0 +1,102 @@
+.editastra-editor {
+  width: 100%;
+  display: block;
+  background: transparent;
+}
+
+.editastra-editor__surface {
+  width: 100%;
+  // Do not force 100% height, otherwise vertical-align can't work (it would always fill the box).
+  max-height: 100%;
+  padding: 10px 12px;
+  outline: none;
+  /* Match rich text widget: no internal scrollbars; widget should grow instead. */
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  // Table-like defaults
+  font-size: 14px;
+  line-height: 1.35;
+  color: #0f172a;
+
+  // Subtle caret-friendly baseline blocks
+  > div {
+    min-height: 1em;
+  }
+
+  // List styling (match table editor behavior)
+  ul,
+  ol {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    list-style-position: inside !important;
+  }
+
+  ul {
+    list-style-type: disc !important;
+  }
+
+  ul[style*="list-style-type: circle"] {
+    list-style-type: circle !important;
+  }
+
+  ul[style*="list-style-type: square"] {
+    list-style-type: square !important;
+  }
+
+  ol {
+    list-style-type: decimal !important;
+  }
+
+  li {
+    display: list-item !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    text-indent: 0 !important;
+  }
+
+  // Custom marker lists (arrow/chevron/dash/check)
+  .custom-marker-list {
+    list-style-type: none !important;
+
+    li {
+      display: block !important;
+
+      &::before {
+        display: inline;
+        margin-right: 0.3em;
+      }
+    }
+  }
+
+  .custom-marker-arrow li::before {
+    content: '➤';
+  }
+
+  .custom-marker-chevron li::before {
+    content: '›';
+  }
+
+  .custom-marker-dash li::before {
+    content: '–';
+  }
+
+  .custom-marker-check li::before {
+    content: '✓';
+  }
+}
+
+// Placeholder for empty contenteditable
+.editastra-editor__surface:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(100, 116, 139, 0.85);
+  pointer-events: none;
+}
+
+.editastra-editor--disabled {
+  opacity: 0.75;
+}
+
+

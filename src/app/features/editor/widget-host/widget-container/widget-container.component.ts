@@ -580,9 +580,15 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   }
 
   private computeResizeMinConstraints(widget: WidgetEntity | null): { minWidth: number; minHeight: number } {
+    // Keep a usable minimum for text-like widgets (matches rich text feel).
     const baseMinWidth = 20;
     const baseMinHeight = 20;
     if (!widget) return { minWidth: baseMinWidth, minHeight: baseMinHeight };
+
+    if (widget.type === 'text' || widget.type === 'editastra') {
+      // Rich text widgets should not collapse to tiny sizes where editing becomes impossible.
+      return { minWidth: 80, minHeight: 50 };
+    }
 
     if (widget.type === 'table') {
       // PPT-like behavior: prevent shrinking a table widget below the minimum size required

@@ -1,0 +1,34 @@
+.editastra-widget {
+  width: 100%;
+  height: 100%;
+  // Match rich text widget look: no visible border box by default.
+  background: transparent;
+  border-radius: 0;
+  overflow: hidden;
+  border: none;
+  cursor: text;
+}
+
+.editastra-widget__content {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+
+  // Same approach as table cells: grid container controls vertical alignment of the editor block.
+  display: grid;
+  align-content: start;
+}
+
+.editastra-widget__content[data-v-align='top'] {
+  align-content: start;
+}
+
+.editastra-widget__content[data-v-align='middle'] {
+  align-content: center;
+}
+
+.editastra-widget__content[data-v-align='bottom'] {
+  align-content: end;
+}
+
+
