@@ -24,7 +24,7 @@ export class EditorShellComponent {
   protected readonly exportUi = inject(ExportUiStateService);
 
   // Computed signals to determine if toolbars should be shown
-  readonly showRichTextToolbar = computed(() => {
+  readonly showWidgetToolbar = computed(() => {
     const widget = this.editorState.activeWidget();
     return (
       widget?.type === 'text' ||

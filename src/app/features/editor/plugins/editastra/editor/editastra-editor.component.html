@@ -1,10 +1,18 @@
-<div class="editastra-editor" [class.editastra-editor--disabled]="disabled">
+<div
+  class="editastra-editor"
+  [class.editastra-editor--disabled]="disabled"
+  [class.editastra-editor--widget]="variant !== 'table'"
+  [class.editastra-editor--table]="variant === 'table'"
+>
   <div
     #editorEl
     class="editastra-editor__surface"
     [attr.contenteditable]="isEditable ? 'true' : 'false'"
     [attr.tabindex]="isEditable ? 0 : -1"
     [attr.data-placeholder]="placeholder"
+    [attr.data-leaf]="dataLeaf || null"
+    [ngClass]="editorClass"
+    [ngStyle]="editorStyles || null"
     [twSafeInnerHtml]="html | safeHtml"
     (focus)="onFocus()"
     (blur)="onBlur()"

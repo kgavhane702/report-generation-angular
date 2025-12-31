@@ -1,404 +1,498 @@
 <div class="table-toolbar editastra-toolbar" data-editastra-toolbar="1">
-  <div class="table-toolbar__group">
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isBold === 'on'"
-      [class.table-toolbar__button--mixed]="formattingState.isBold === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onBoldClick($event)"
-      title="Bold"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-        <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-        <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isItalic === 'on'"
-      [class.table-toolbar__button--mixed]="formattingState.isItalic === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onItalicClick($event)"
-      title="Italic"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="19" y1="4" x2="10" y2="4"></line>
-        <line x1="14" y1="20" x2="5" y2="20"></line>
-        <line x1="15" y1="4" x2="9" y2="20"></line>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isUnderline === 'on'"
-      [class.table-toolbar__button--mixed]="formattingState.isUnderline === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onUnderlineClick($event)"
-      title="Underline"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M6 4v7a6 6 0 0 0 12 0V4"></path>
-        <line x1="4" y1="20" x2="20" y2="20"></line>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.isStrikethrough === 'on'"
-      [class.table-toolbar__button--mixed]="formattingState.isStrikethrough === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onStrikethroughClick($event)"
-      title="Strikethrough"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M16 6a4 4 0 0 0-8 0c0 4 10 2 10 8a4 4 0 0 1-8 0"></path>
-        <line x1="4" y1="12" x2="20" y2="12"></line>
-      </svg>
-    </button>
-  </div>
-
-  <div class="table-toolbar__separator"></div>
-
-  <div class="table-toolbar__group">
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onSuperscriptClick($event)"
-      title="Superscript"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <text x="4" y="18" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
-        <text x="14" y="10" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onSubscriptClick($event)"
-      title="Subscript"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <text x="4" y="14" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
-        <text x="14" y="20" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
-      </svg>
-    </button>
-  </div>
-
-  <div class="table-toolbar__separator"></div>
-
-  <!-- Vertical alignment (PPT-like) -->
-  <div class="table-toolbar__group">
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.verticalAlign === 'top'"
-      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onVerticalAlignClick($event, 'top')"
-      title="Vertical Align Top"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="12" y1="3" x2="12" y2="15"></line>
-        <polyline points="18 9 12 3 6 9"></polyline>
-        <line x1="5" y1="21" x2="19" y2="21"></line>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.verticalAlign === 'middle'"
-      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onVerticalAlignClick($event, 'middle')"
-      title="Vertical Align Middle"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-        <polyline points="9 8 12 5 15 8"></polyline>
-        <polyline points="9 16 12 19 15 16"></polyline>
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="formattingState.verticalAlign === 'bottom'"
-      [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onVerticalAlignClick($event, 'bottom')"
-      title="Vertical Align Bottom"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="12" y1="21" x2="12" y2="9"></line>
-        <polyline points="18 15 12 21 6 15"></polyline>
-        <line x1="5" y1="3" x2="19" y2="3"></line>
-      </svg>
-    </button>
-  </div>
-
-  <div class="table-toolbar__separator"></div>
-
-  <div class="table-toolbar__group">
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onDecreaseIndentClick($event)" title="Decrease indent">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M9 8h12"></path>
-        <path d="M3 12h18"></path>
-        <path d="M9 16h12"></path>
-        <path d="M7 6l-4 4 4 4"></path>
-      </svg>
-    </button>
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onIncreaseIndentClick($event)" title="Increase indent">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M3 8h12"></path>
-        <path d="M3 12h18"></path>
-        <path d="M3 16h12"></path>
-        <path d="M17 6l4 4-4 4"></path>
-      </svg>
-    </button>
-    <div class="table-toolbar__mini-separator" aria-hidden="true"></div>
-    <!-- Bullet dropdown (same UX as table toolbar) -->
-    <div class="table-toolbar__combo-wrap" title="Bullet list style">
-      <button
-        #bulletStyleTrigger
-        type="button"
-        class="table-toolbar__button"
-        (mousedown)="onBulletListClick($event)"
-        [disabled]="!hasActiveEditor"
-        title="Bullet list"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
-          <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
-          <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
-          <path d="M9 6h12"></path>
-          <path d="M9 12h12"></path>
-          <path d="M9 18h12"></path>
-        </svg>
-        <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4 6l4 4 4-4z"/>
-        </svg>
-      </button>
-
-      <app-anchored-dropdown
-        [open]="bulletStyleDropdownOpen()"
-        [anchor]="bulletStyleTrigger"
-        (closed)="closeBulletStyleDropdown()"
-      >
-        <div class="table-toolbar__bullet-dropdown" data-editastra-dropdown="1">
+  <ng-container *ngFor="let g of pluginGroups; let gi = index">
+    <div class="table-toolbar__group">
+      <ng-container *ngFor="let p of g.items">
+        <ng-container [ngSwitch]="$any(p).kind">
+          <!-- Toggle formatting -->
           <button
-            *ngFor="let style of bulletStyles"
+            *ngSwitchCase="'toggle'"
             type="button"
-            class="table-toolbar__bullet-option"
-            (mousedown)="$event.preventDefault()"
-            (click)="onBulletStyleSelect(style.value)"
+            class="table-toolbar__button"
+            [class.table-toolbar__button--active]="formatTriState($any(p).stateKey) === 'on'"
+            [class.table-toolbar__button--mixed]="formatTriState($any(p).stateKey) === 'mixed'"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onFormatToggleClick($event, $any(p).command)"
+            [attr.title]="$any(p).title"
           >
-            <span class="table-toolbar__bullet-icon">{{ style.icon }}</span>
-            <span class="table-toolbar__bullet-label">{{ style.label }}</span>
+            <ng-container [ngSwitch]="$any(p).icon">
+              <svg
+                *ngSwitchCase="'bold'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                aria-hidden="true"
+              >
+                <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
+                <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
+              </svg>
+
+              <svg
+                *ngSwitchCase="'italic'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="19" y1="4" x2="10" y2="4"></line>
+                <line x1="14" y1="20" x2="5" y2="20"></line>
+                <line x1="15" y1="4" x2="9" y2="20"></line>
+              </svg>
+
+              <svg
+                *ngSwitchCase="'underline'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M6 4v7a6 6 0 0 0 12 0V4"></path>
+                <line x1="4" y1="20" x2="20" y2="20"></line>
+              </svg>
+
+              <svg
+                *ngSwitchCase="'strikethrough'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M16 6a4 4 0 0 0-8 0c0 4 10 2 10 8a4 4 0 0 1-8 0"></path>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+              </svg>
+
+              <svg
+                *ngSwitchCase="'superscript'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <text x="4" y="18" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
+                <text x="14" y="10" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
+              </svg>
+
+              <svg
+                *ngSwitchCase="'subscript'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <text x="4" y="14" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
+                <text x="14" y="20" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
+              </svg>
+            </ng-container>
           </button>
-        </div>
-      </app-anchored-dropdown>
-    </div>
 
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [disabled]="!hasActiveEditor"
-      (mousedown)="onNumberedListClick($event)"
-      title="Numbered list"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <text x="2" y="8" font-size="7" fill="currentColor" stroke="none">1</text>
-        <text x="2" y="14" font-size="7" fill="currentColor" stroke="none">2</text>
-        <text x="2" y="20" font-size="7" fill="currentColor" stroke="none">3</text>
-        <path d="M9 6h12"></path>
-        <path d="M9 12h12"></path>
-        <path d="M9 18h12"></path>
-      </svg>
-    </button>
-  </div>
+          <!-- Vertical align buttons -->
+          <button
+            *ngSwitchCase="'vAlign'"
+            type="button"
+            class="table-toolbar__button"
+            [class.table-toolbar__button--active]="formattingState.verticalAlign === $any(p).value"
+            [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onVerticalAlignClick($event, $any(p).value)"
+            [attr.title]="$any(p).title"
+          >
+            <ng-container [ngSwitch]="$any(p).icon">
+              <svg
+                *ngSwitchCase="'vAlignTop'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+                <polyline points="18 9 12 3 6 9"></polyline>
+                <line x1="5" y1="21" x2="19" y2="21"></line>
+              </svg>
+              <svg
+                *ngSwitchCase="'vAlignMiddle'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="9 8 12 5 15 8"></polyline>
+                <polyline points="9 16 12 19 15 16"></polyline>
+              </svg>
+              <svg
+                *ngSwitchCase="'vAlignBottom'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="12" y1="21" x2="12" y2="9"></line>
+                <polyline points="18 15 12 21 6 15"></polyline>
+                <line x1="5" y1="3" x2="19" y2="3"></line>
+              </svg>
+            </ng-container>
+          </button>
 
-  <div class="table-toolbar__separator"></div>
+          <!-- Indent buttons -->
+          <button
+            *ngSwitchCase="'indent'"
+            type="button"
+            class="table-toolbar__button"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onIndentClick($event, $any(p).command)"
+            [attr.title]="$any(p).title"
+          >
+            <ng-container [ngSwitch]="$any(p).icon">
+              <svg
+                *ngSwitchCase="'indentDecrease'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M9 8h12"></path>
+                <path d="M3 12h18"></path>
+                <path d="M9 16h12"></path>
+                <path d="M7 6l-4 4 4 4"></path>
+              </svg>
+              <svg
+                *ngSwitchCase="'indentIncrease'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M3 8h12"></path>
+                <path d="M3 12h18"></path>
+                <path d="M3 16h12"></path>
+                <path d="M17 6l4 4-4 4"></path>
+              </svg>
+            </ng-container>
+          </button>
 
-  <div class="table-toolbar__group">
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onAlignClick($event, 'left')" title="Align Left">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="17" y1="10" x2="3" y2="10"></line>
-        <line x1="21" y1="6" x2="3" y2="6"></line>
-        <line x1="21" y1="14" x2="3" y2="14"></line>
-        <line x1="17" y1="18" x2="3" y2="18"></line>
-      </svg>
-    </button>
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onAlignClick($event, 'center')" title="Align Center">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="18" y1="10" x2="6" y2="10"></line>
-        <line x1="21" y1="6" x2="3" y2="6"></line>
-        <line x1="21" y1="14" x2="3" y2="14"></line>
-        <line x1="18" y1="18" x2="6" y2="18"></line>
-      </svg>
-    </button>
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onAlignClick($event, 'right')" title="Align Right">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="21" y1="10" x2="7" y2="10"></line>
-        <line x1="21" y1="6" x2="3" y2="6"></line>
-        <line x1="21" y1="14" x2="3" y2="14"></line>
-        <line x1="21" y1="18" x2="7" y2="18"></line>
-      </svg>
-    </button>
-    <button type="button" class="table-toolbar__button" [disabled]="!hasActiveEditor" (mousedown)="onAlignClick($event, 'justify')" title="Justify">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <line x1="21" y1="10" x2="3" y2="10"></line>
-        <line x1="21" y1="6" x2="3" y2="6"></line>
-        <line x1="21" y1="14" x2="3" y2="14"></line>
-        <line x1="21" y1="18" x2="3" y2="18"></line>
-      </svg>
-    </button>
-  </div>
+          <!-- Mini separator inside a group -->
+          <div *ngSwitchCase="'mini-separator'" class="table-toolbar__mini-separator" aria-hidden="true"></div>
 
-  <div class="table-toolbar__separator"></div>
-
-  <div class="table-toolbar__group">
-    <!-- Font family dropdown (match table: label outside control) -->
-    <label class="table-toolbar__field" title="Font family">
-      <span class="table-toolbar__field-label">Font</span>
-      <div class="table-toolbar__combo-wrap">
-        <button
-          #fontFamilyTrigger
-          type="button"
-          class="table-toolbar__combo editastra-toolbar__combo"
-          [disabled]="!hasActiveEditor"
-          (mousedown)="openFontFamilyDropdown($event)"
-        >
-          <span class="editastra-toolbar__combo-value">{{ fontFamilyLabel }}</span>
-          <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M4 6l4 4 4-4z"/>
-          </svg>
-        </button>
-        <app-anchored-dropdown
-          [open]="fontFamilyDropdownOpen()"
-          (openChange)="fontFamilyDropdownOpen.set($event)"
-          [anchor]="fontFamilyTrigger"
-          align="auto"
-          [minWidthPx]="220"
-          [maxWidthPx]="360"
-        >
-          <div class="editastra-toolbar__dropdown-list" data-editastra-dropdown="1">
-            <button type="button" class="editastra-toolbar__dropdown-item" (mousedown)="$event.preventDefault(); onFontFamilyPick('')">Default</button>
+          <!-- Bullet style dropdown -->
+          <div *ngSwitchCase="'bullet-dropdown'" class="table-toolbar__combo-wrap" title="Bullet list style">
             <button
-              *ngFor="let f of fontFamilies"
+              #bulletStyleTrigger
               type="button"
-              class="editastra-toolbar__dropdown-item"
-              (mousedown)="$event.preventDefault(); onFontFamilyPick(f.value)"
-            >{{ f.label }}</button>
-          </div>
-        </app-anchored-dropdown>
-      </div>
-    </label>
-
-    <!-- Font size dropdown (match table: label outside control) -->
-    <label class="table-toolbar__field" title="Font size">
-      <span class="table-toolbar__field-label">Size</span>
-      <div class="table-toolbar__combo-wrap">
-        <button
-          #fontSizeTrigger
-          type="button"
-          class="table-toolbar__combo table-toolbar__combo--small editastra-toolbar__combo editastra-toolbar__combo--small"
-          [disabled]="!hasActiveEditor"
-          (mousedown)="openFontSizeDropdown($event)"
-        >
-          <span>{{ fontSizeLabel }}</span>
-          <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M4 6l4 4 4-4z"/>
-          </svg>
-        </button>
-        <app-anchored-dropdown
-          [open]="fontSizeDropdownOpen()"
-          (openChange)="fontSizeDropdownOpen.set($event)"
-          [anchor]="fontSizeTrigger"
-          align="auto"
-          [minWidthPx]="120"
-          [maxWidthPx]="200"
-        >
-          <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
-            <button type="button" class="table-toolbar__combo-item" (mousedown)="$event.preventDefault(); onFontSizePick(null)">Auto</button>
-            <button
-              *ngFor="let s of fontSizes"
-              type="button"
-              class="table-toolbar__combo-item"
-              (mousedown)="$event.preventDefault(); onFontSizePick(s)"
+              class="table-toolbar__button"
+              (mousedown)="onBulletListClick($event)"
+              [disabled]="!hasActiveEditor"
+              [attr.title]="$any(p).title"
             >
-              {{ s }}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="4" cy="6" r="1.5" fill="currentColor"></circle>
+                <circle cx="4" cy="12" r="1.5" fill="currentColor"></circle>
+                <circle cx="4" cy="18" r="1.5" fill="currentColor"></circle>
+                <path d="M9 6h12"></path>
+                <path d="M9 12h12"></path>
+                <path d="M9 18h12"></path>
+              </svg>
+              <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 6l4 4 4-4z" />
+              </svg>
             </button>
+
+            <app-anchored-dropdown [open]="bulletStyleDropdownOpen()" [anchor]="bulletStyleTrigger" (closed)="closeBulletStyleDropdown()">
+              <div class="table-toolbar__bullet-dropdown" data-editastra-dropdown="1">
+                <button
+                  *ngFor="let style of bulletStyles"
+                  type="button"
+                  class="table-toolbar__bullet-option"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="onBulletStyleSelect(style.value)"
+                >
+                  <span class="table-toolbar__bullet-icon">{{ style.icon }}</span>
+                  <span class="table-toolbar__bullet-label">{{ style.label }}</span>
+                </button>
+              </div>
+            </app-anchored-dropdown>
           </div>
-        </app-anchored-dropdown>
-      </div>
-    </label>
 
-    <!-- Line height dropdown (match table: icon button) -->
-    <div class="table-toolbar__combo-wrap" title="Line height">
-      <button
-        #lineHeightTrigger
-        type="button"
-        class="table-toolbar__combo table-toolbar__combo--icon"
-        [disabled]="!hasActiveEditor"
-        (mousedown)="openLineHeightDropdown($event)"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M8 6h13"></path>
-          <path d="M8 12h13"></path>
-          <path d="M8 18h13"></path>
-          <path d="M3 4v16"></path>
-          <path d="M1 6l2-2 2 2"></path>
-          <path d="M1 18l2 2 2-2"></path>
-        </svg>
-      </button>
-      <app-anchored-dropdown
-        [open]="lineHeightDropdownOpen()"
-        (openChange)="lineHeightDropdownOpen.set($event)"
-        [anchor]="lineHeightTrigger"
-        align="auto"
-        [minWidthPx]="120"
-        [maxWidthPx]="200"
-      >
-        <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
+          <!-- Numbered list -->
           <button
-            *ngFor="let lh of lineHeights"
+            *ngSwitchCase="'numbered-list'"
             type="button"
-            class="table-toolbar__combo-item"
-            (mousedown)="$event.preventDefault(); onLineHeightPick(lh)"
+            class="table-toolbar__button"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onNumberedListClick($event)"
+            [attr.title]="$any(p).title"
           >
-            {{ lh }}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <text x="2" y="8" font-size="7" fill="currentColor" stroke="none">1</text>
+              <text x="2" y="14" font-size="7" fill="currentColor" stroke="none">2</text>
+              <text x="2" y="20" font-size="7" fill="currentColor" stroke="none">3</text>
+              <path d="M9 6h12"></path>
+              <path d="M9 12h12"></path>
+              <path d="M9 18h12"></path>
+            </svg>
           </button>
-        </div>
-      </app-anchored-dropdown>
+
+          <!-- Text align buttons -->
+          <button
+            *ngSwitchCase="'align'"
+            type="button"
+            class="table-toolbar__button"
+            [class.table-toolbar__button--active]="formattingState.textAlign === $any(p).value"
+            [class.table-toolbar__button--mixed]="formattingState.textAlign === 'mixed'"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onAlignClick($event, $any(p).value)"
+            [attr.title]="$any(p).title"
+          >
+            <ng-container [ngSwitch]="$any(p).icon">
+              <svg
+                *ngSwitchCase="'alignLeft'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="17" y1="10" x2="3" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="17" y1="18" x2="3" y2="18"></line>
+              </svg>
+              <svg
+                *ngSwitchCase="'alignCenter'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="10" x2="6" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="18" y1="18" x2="6" y2="18"></line>
+              </svg>
+              <svg
+                *ngSwitchCase="'alignRight'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="21" y1="10" x2="7" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="21" y1="18" x2="7" y2="18"></line>
+              </svg>
+              <svg
+                *ngSwitchCase="'alignJustify'"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <line x1="21" y1="10" x2="3" y2="10"></line>
+                <line x1="21" y1="6" x2="3" y2="6"></line>
+                <line x1="21" y1="14" x2="3" y2="14"></line>
+                <line x1="21" y1="18" x2="3" y2="18"></line>
+              </svg>
+            </ng-container>
+          </button>
+
+          <!-- Font family -->
+          <label *ngSwitchCase="'font-family'" class="table-toolbar__field" [attr.title]="$any(p).title">
+            <span class="table-toolbar__field-label">{{ $any(p).label }}</span>
+            <div class="table-toolbar__combo-wrap">
+              <button
+                #fontFamilyTrigger
+                type="button"
+                class="table-toolbar__combo editastra-toolbar__combo"
+                [disabled]="!hasActiveEditor"
+                (mousedown)="openFontFamilyDropdown($event)"
+              >
+                <span class="editastra-toolbar__combo-value">{{ fontFamilyLabel }}</span>
+                <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M4 6l4 4 4-4z" />
+                </svg>
+              </button>
+              <app-anchored-dropdown
+                [open]="fontFamilyDropdownOpen()"
+                (openChange)="fontFamilyDropdownOpen.set($event)"
+                [anchor]="fontFamilyTrigger"
+                align="auto"
+                [minWidthPx]="220"
+                [maxWidthPx]="360"
+              >
+                <div class="editastra-toolbar__dropdown-list" data-editastra-dropdown="1">
+                  <button
+                    type="button"
+                    class="editastra-toolbar__dropdown-item"
+                    (mousedown)="$event.preventDefault(); onFontFamilyPick('')"
+                  >
+                    Default
+                  </button>
+                  <button
+                    *ngFor="let f of fontFamilies"
+                    type="button"
+                    class="editastra-toolbar__dropdown-item"
+                    (mousedown)="$event.preventDefault(); onFontFamilyPick(f.value)"
+                  >
+                    {{ f.label }}
+                  </button>
+                </div>
+              </app-anchored-dropdown>
+            </div>
+          </label>
+
+          <!-- Font size -->
+          <label *ngSwitchCase="'font-size'" class="table-toolbar__field" [attr.title]="$any(p).title">
+            <span class="table-toolbar__field-label">{{ $any(p).label }}</span>
+            <div class="table-toolbar__combo-wrap">
+              <button
+                #fontSizeTrigger
+                type="button"
+                class="table-toolbar__combo table-toolbar__combo--small editastra-toolbar__combo editastra-toolbar__combo--small"
+                [disabled]="!hasActiveEditor"
+                (mousedown)="openFontSizeDropdown($event)"
+              >
+                <span>{{ fontSizeLabel }}</span>
+                <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M4 6l4 4 4-4z" />
+                </svg>
+              </button>
+              <app-anchored-dropdown
+                [open]="fontSizeDropdownOpen()"
+                (openChange)="fontSizeDropdownOpen.set($event)"
+                [anchor]="fontSizeTrigger"
+                align="auto"
+                [minWidthPx]="120"
+                [maxWidthPx]="200"
+              >
+                <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
+                  <button type="button" class="table-toolbar__combo-item" (mousedown)="$event.preventDefault(); onFontSizePick(null)">
+                    Auto
+                  </button>
+                  <button
+                    *ngFor="let s of fontSizes"
+                    type="button"
+                    class="table-toolbar__combo-item"
+                    (mousedown)="$event.preventDefault(); onFontSizePick(s)"
+                  >
+                    {{ s }}
+                  </button>
+                </div>
+              </app-anchored-dropdown>
+            </div>
+          </label>
+
+          <!-- Line height -->
+          <div *ngSwitchCase="'line-height'" class="table-toolbar__combo-wrap" [attr.title]="$any(p).title">
+            <button
+              #lineHeightTrigger
+              type="button"
+              class="table-toolbar__combo table-toolbar__combo--icon"
+              [disabled]="!hasActiveEditor"
+              (mousedown)="openLineHeightDropdown($event)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M8 6h13"></path>
+                <path d="M8 12h13"></path>
+                <path d="M8 18h13"></path>
+                <path d="M3 4v16"></path>
+                <path d="M1 6l2-2 2 2"></path>
+                <path d="M1 18l2 2 2-2"></path>
+              </svg>
+            </button>
+            <app-anchored-dropdown
+              [open]="lineHeightDropdownOpen()"
+              (openChange)="lineHeightDropdownOpen.set($event)"
+              [anchor]="lineHeightTrigger"
+              align="auto"
+              [minWidthPx]="120"
+              [maxWidthPx]="200"
+            >
+              <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
+                <button
+                  *ngFor="let lh of lineHeights"
+                  type="button"
+                  class="table-toolbar__combo-item"
+                  (mousedown)="$event.preventDefault(); onLineHeightPick(lh)"
+                >
+                  {{ lh }}
+                </button>
+              </div>
+            </app-anchored-dropdown>
+          </div>
+
+          <!-- Color pickers -->
+          <ng-container *ngSwitchCase="'color'">
+            <app-color-picker
+              *ngIf="$any(p).colorKind === 'text'"
+              [currentColor]="textColor"
+              [colorPalette]="textColorPalette"
+              [disabled]="!hasActiveEditor"
+              [icon]="$any(p).icon"
+              [title]="$any(p).title"
+              dropdownId="editastra"
+              (colorSelected)="onTextColorSelected($event)"
+            ></app-color-picker>
+
+            <app-color-picker
+              *ngIf="$any(p).colorKind === 'highlight'"
+              [currentColor]="highlightColor"
+              [colorPalette]="highlightPalette"
+              [disabled]="!hasActiveEditor"
+              [icon]="$any(p).icon"
+              [title]="$any(p).title"
+              dropdownId="editastra"
+              (colorSelected)="onHighlightSelected($event)"
+            ></app-color-picker>
+          </ng-container>
+        </ng-container>
+      </ng-container>
     </div>
-  </div>
 
-  <div class="table-toolbar__separator"></div>
-
-  <div class="table-toolbar__group">
-    <app-color-picker
-      [currentColor]="''"
-      [colorPalette]="textColorPalette"
-      icon="format_color_text"
-      [disabled]="!hasActiveEditor"
-      title="Text color"
-      dropdownId="editastra"
-      (colorSelected)="onTextColorSelected($event)"
-    ></app-color-picker>
-
-    <app-color-picker
-      [currentColor]="''"
-      [colorPalette]="highlightPalette"
-      icon="format_ink_highlighter"
-      [disabled]="!hasActiveEditor"
-      title="Text highlight"
-      dropdownId="editastra"
-      (colorSelected)="onHighlightSelected($event)"
-    ></app-color-picker>
-  </div>
+    <div class="table-toolbar__separator" *ngIf="gi < pluginGroups.length - 1"></div>
+  </ng-container>
 </div>
 
 

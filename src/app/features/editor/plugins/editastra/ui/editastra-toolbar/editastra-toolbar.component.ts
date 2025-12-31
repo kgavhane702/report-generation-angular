@@ -6,6 +6,7 @@ import { TableToolbarService } from '../../../../../../core/services/table-toolb
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
 import { ColorPickerComponent, type ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
+import { EDITASTRA_TOOLBAR_GROUP_ORDER, EDITASTRA_TOOLBAR_PLUGINS, type EditastraToolbarPlugin } from './editastra-toolbar.plugins';
 
 @Component({
   selector: 'app-editastra-toolbar',
@@ -19,6 +20,11 @@ export class EditastraToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
   private readonly editorState = inject(EditorStateService);
 
+  /** Plugin-driven toolbar (each UI control is defined as a plugin entry). */
+  readonly pluginGroups: Array<{ group: string; items: EditastraToolbarPlugin[] }> = EDITASTRA_TOOLBAR_GROUP_ORDER
+    .map((g) => ({ group: g, items: EDITASTRA_TOOLBAR_PLUGINS.filter((p) => p.group === g) }))
+    .filter((x) => x.items.length > 0);
+
   /** Only consider the active cell "valid" when Editastra widget is selected. */
   readonly isEditastraWidgetActive = computed(() => this.editorState.activeWidget()?.type === 'editastra');
 
@@ -28,6 +34,15 @@ export class EditastraToolbarComponent {
 
   get hasActiveEditor(): boolean {
     return this.isEditastraWidgetActive() && this.toolbarService.activeCell !== null;
+  }
+
+  /**
+   * Template-friendly accessor for tri-state formatting values.
+   * Avoids TS7053 from dynamic indexing in Angular template type-checking.
+   */
+  formatTriState(key: any): 'on' | 'off' | 'mixed' {
+    const v = (this.toolbarService.formattingState() as any)?.[key];
+    return v === 'on' || v === 'off' || v === 'mixed' ? v : 'off';
   }
 
   // Palettes (same as table toolbar)
@@ -95,6 +110,10 @@ export class EditastraToolbarComponent {
   readonly fontSizeDropdownOpen = signal(false);
   readonly lineHeightDropdownOpen = signal(false);
   readonly bulletStyleDropdownOpen = signal(false);
+
+  // Keep the same UX as table: color pickers show last-picked values.
+  textColor = '#000000';
+  highlightColor = '#fff59d';
 
   openFontFamilyDropdown(event?: MouseEvent): void {
     if (event) {
@@ -168,61 +187,46 @@ export class EditastraToolbarComponent {
     return 'LH';
   }
 
-  // Actions (prevent blur just like table toolbar)
-  onBoldClick(event: MouseEvent): void {
+  // Plugin actions (prevent blur just like table toolbar)
+  onFormatToggleClick(
+    event: MouseEvent,
+    command: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'superscript' | 'subscript'
+  ): void {
     event.preventDefault();
     event.stopPropagation();
     if (!this.hasActiveEditor) return;
-    this.toolbarService.applyBold();
+
+    switch (command) {
+      case 'bold':
+        this.toolbarService.applyBold();
+        return;
+      case 'italic':
+        this.toolbarService.applyItalic();
+        return;
+      case 'underline':
+        this.toolbarService.applyUnderline();
+        return;
+      case 'strikethrough':
+        this.toolbarService.applyStrikethrough();
+        return;
+      case 'superscript':
+        this.toolbarService.applySuperscript();
+        return;
+      case 'subscript':
+        this.toolbarService.applySubscript();
+        return;
+    }
   }
 
-  onItalicClick(event: MouseEvent): void {
+  onIndentClick(event: MouseEvent, command: 'indentIncrease' | 'indentDecrease'): void {
     event.preventDefault();
     event.stopPropagation();
     if (!this.hasActiveEditor) return;
-    this.toolbarService.applyItalic();
-  }
-
-  onUnderlineClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.applyUnderline();
-  }
-
-  onStrikethroughClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.applyStrikethrough();
-  }
-
-  onSuperscriptClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.applySuperscript();
-  }
-
-  onSubscriptClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.applySubscript();
-  }
-
-  onIncreaseIndentClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.increaseIndent();
-  }
-
-  onDecreaseIndentClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-    this.toolbarService.decreaseIndent();
+    if (command === 'indentIncrease') {
+      this.toolbarService.increaseIndent();
+    } else {
+      this.toolbarService.decreaseIndent();
+    }
   }
 
   onBulletListClick(event: MouseEvent): void {
@@ -266,11 +270,13 @@ export class EditastraToolbarComponent {
 
   onTextColorSelected(color: string): void {
     if (!this.hasActiveEditor) return;
+    this.textColor = color;
     this.toolbarService.applyTextColor(color);
   }
 
   onHighlightSelected(color: string): void {
     if (!this.hasActiveEditor) return;
+    this.highlightColor = color;
     this.toolbarService.applyTextHighlight(color);
   }
 

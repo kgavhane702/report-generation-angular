@@ -8,16 +8,15 @@
   width: 100%;
   // Do not force 100% height, otherwise vertical-align can't work (it would always fill the box).
   max-height: 100%;
-  padding: 10px 12px;
+  box-sizing: border-box;
   outline: none;
   /* Match rich text widget: no internal scrollbars; widget should grow instead. */
   overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  background: transparent;
 
-  // Table-like defaults
-  font-size: 14px;
-  line-height: 1.35;
   color: #0f172a;
 
   // Subtle caret-friendly baseline blocks
@@ -86,6 +85,13 @@
   .custom-marker-check li::before {
     content: '✓';
   }
+}
+
+// Default "widget" density/typography.
+.editastra-editor--widget .editastra-editor__surface {
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 // Placeholder for empty contenteditable

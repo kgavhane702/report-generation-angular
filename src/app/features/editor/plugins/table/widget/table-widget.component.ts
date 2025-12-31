@@ -1689,8 +1689,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.selectedCells().has(this.composeLeafId(rowIndex, cellIndex, path));
   }
 
-  onCellFocus(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
-    const cell = event.target as HTMLElement;
+  onCellFocus(cell: HTMLElement | null, rowIndex: number, cellIndex: number, leafPath?: string): void {
+    if (!cell) return;
     this.activeCellElement = cell;
     this.activeCellId = leafPath ? this.composeLeafId(rowIndex, cellIndex, leafPath) : `${rowIndex}-${cellIndex}`;
 
@@ -1714,7 +1714,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.ensureCaretPlaceholderForEmptyEditor(cell);
   }
 
-  onCellBlur(event: FocusEvent, rowIndex: number, cellIndex: number, leafPath?: string): void {
+  onCellBlur(blurredEl: HTMLElement | null, rowIndex: number, cellIndex: number, leafPath?: string): void {
     if (!this.isActivelyEditing()) {
       return;
     }
@@ -1723,7 +1723,6 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // IMPORTANT:
     // When switching cells quickly, autosave/active cell tracking can move to the next cell before
     // we persist the previous cell's DOM. Always sync using the blur event's element + its leaf id.
-    const blurredEl = event.target as HTMLElement | null;
     const blurredLeafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
     if (blurredEl) {
       this.syncCellContentFromElement(blurredEl, blurredLeafId);
@@ -1765,11 +1764,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }, 150);
   }
 
-  onCellInput(event: Event, rowIndex: number, cellIndex: number, leafPath?: string): void {
+  onCellInput(el: HTMLElement | null, rowIndex: number, cellIndex: number, leafPath?: string): void {
     // Content is synced on blur to avoid frequent updates.
     // But we *do* auto-grow the table/widget when content needs more vertical space,
     // so the <td>/<tr> height expands with typing instead of the inner DIV overflowing.
-    const el = event.target as HTMLElement | null;
     if (el) {
       this.maybeAutoGrowToFit(el, rowIndex, cellIndex, leafPath);
       this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);

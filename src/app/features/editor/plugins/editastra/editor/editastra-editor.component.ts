@@ -37,6 +37,20 @@ export class EditastraEditorComponent {
   @Input() html = '';
   @Input() placeholder = 'Type here...';
   @Input() disabled = false;
+  /**
+   * Optional extra class(es) applied to the underlying contenteditable surface.
+   * Useful when embedding the editor inside other widgets (e.g. table cells) that rely on specific selectors.
+   */
+  @Input() editorClass: string | string[] | Set<string> | { [klass: string]: any } = '';
+
+  /** Optional data-leaf attribute (used by table widget to track leaf editors). */
+  @Input() dataLeaf: string | null = null;
+
+  /** Optional inline styles to apply to the underlying contenteditable surface. */
+  @Input() editorStyles: Record<string, string | null> | null = null;
+
+  /** Visual variant: default widget editor vs compact table-cell editor. */
+  @Input() variant: 'widget' | 'table' = 'widget';
 
   @Output() editorFocus = new EventEmitter<void>();
   @Output() editorBlur = new EventEmitter<void>();

@@ -85,22 +85,25 @@
         class="table-widget__cell-content"
         [attr.data-v-align]="cell.style?.verticalAlign || 'top'"
       >
-        <div
-          class="table-widget__cell-editor"
-          [class.table-widget__cell-editor--subcell]="path !== ''"
-          [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, path)"
-          [style.text-decoration]="cell.style?.textDecoration || null"
-          [style.color]="cell.style?.color || null"
-          [style.background-color]="cell.style?.textHighlightColor || null"
-          [style.line-height]="cell.style?.lineHeight || null"
-          [attr.contenteditable]="isLoading ? 'false' : 'true'"
-          [attr.tabindex]="isLoading ? -1 : 0"
-          [twSafeInnerHtml]="cell.contentHtml | safeHtml"
-          (focus)="onCellFocus($event, rowIndex, cellIndex, path)"
-          (blur)="onCellBlur($event, rowIndex, cellIndex, path)"
-          (input)="onCellInput($event, rowIndex, cellIndex, path)"
-          (keydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
-        ></div>
+        <app-editastra-editor
+          #cellEditor
+          [html]="cell.contentHtml"
+          [placeholder]="''"
+          [disabled]="isLoading"
+          variant="table"
+          [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
+          [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
+          [editorStyles]="{
+            'text-decoration': cell.style?.textDecoration || null,
+            'color': cell.style?.color || null,
+            'background-color': cell.style?.textHighlightColor || null,
+            'line-height': cell.style?.lineHeight || null
+          }"
+          (editorFocus)="onCellFocus(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+          (editorBlur)="onCellBlur(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+          (htmlInput)="onCellInput(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+          (editorKeydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+        ></app-editastra-editor>
       </div>
     </div>
   </ng-container>

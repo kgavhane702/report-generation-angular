@@ -384,8 +384,8 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
       const target = event.target as Node;
       const isInsideEditor = this.editorContainer.nativeElement.contains(target);
       
-      // Also check if click is on the rich text toolbar
-      const toolbarElement = document.querySelector('app-rich-text-toolbar');
+      // Also check if click is on the widget toolbar (hosts the CKEditor toolbar)
+      const toolbarElement = document.querySelector('app-widget-toolbar');
       const isInsideToolbar = toolbarElement?.contains(target) ?? false;
       
       this.isClickingInsideEditor = isInsideEditor || isInsideToolbar;
@@ -432,7 +432,7 @@ export class TextWidgetComponent implements OnInit, OnChanges, OnDestroy, AfterV
     this.blurTimeoutId = window.setTimeout(() => {
       // Check if the active element is still within the editor container or toolbar
       const activeElement = document.activeElement;
-      const toolbarElement = document.querySelector('app-rich-text-toolbar');
+      const toolbarElement = document.querySelector('app-widget-toolbar');
       const isStillInsideEditor = activeElement && 
         this.editorContainer?.nativeElement?.contains(activeElement);
       const isStillInsideToolbar = activeElement && 
