@@ -1,5 +1,5 @@
-<div class="table-toolbar editastra-toolbar" data-editastra-toolbar="1">
-  <ng-container *ngFor="let g of pluginGroups; let gi = index">
+<ng-template #content>
+  <ng-container *ngFor="let g of pluginGroups(); let gi = index">
     <div class="table-toolbar__group">
       <ng-container *ngFor="let p of g.items">
         <ng-container [ngSwitch]="$any(p).kind">
@@ -493,19 +493,48 @@
             <app-color-picker
               [currentColor]="currentBackgroundColor()"
               [colorPalette]="backgroundPalette"
-              [disabled]="!isEditastraWidgetActive()"
+              [disabled]="!isSupportedWidgetActive()"
               [icon]="$any(p).icon"
               [title]="$any(p).title"
               dropdownId="editastra"
               (colorSelected)="onBackgroundColorSelected($event)"
             ></app-color-picker>
           </ng-container>
+
+          <!-- Format painter (single click = one-shot, double click = pinned) -->
+          <button
+            *ngSwitchCase="'format-painter'"
+            type="button"
+            class="table-toolbar__button"
+            [class.table-toolbar__button--active]="isFormatPainterActive"
+            [class.table-toolbar__button--format-painter-active]="isFormatPainterActive"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onFormatPainterClick($event)"
+            (dblclick)="onFormatPainterDoubleClick($event)"
+            [attr.title]="isFormatPainterPinned ? 'Format painter (pinned)' : 'Format painter'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="4" y="3" width="10" height="6" rx="1"></rect>
+              <path d="M9 9v3"></path>
+              <path d="M6 12h6l-1 8h-4l-1-8z"></path>
+            </svg>
+          </button>
         </ng-container>
       </ng-container>
     </div>
 
-    <div class="table-toolbar__separator" *ngIf="gi < pluginGroups.length - 1"></div>
+    <div class="table-toolbar__separator" *ngIf="gi < pluginGroups().length - 1"></div>
   </ng-container>
-</div>
+</ng-template>
+
+<ng-container *ngIf="renderMode === 'standalone'; else embedded">
+  <div class="table-toolbar editastra-toolbar" data-editastra-toolbar="1">
+    <ng-container *ngTemplateOutlet="content"></ng-container>
+  </div>
+</ng-container>
+
+<ng-template #embedded>
+  <ng-container *ngTemplateOutlet="content"></ng-container>
+</ng-template>
 
 

@@ -125,6 +125,25 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     }
   }
 
+  @HostListener('document:pointerup', ['$event'])
+  onDocumentPointerUp(event: PointerEvent): void {
+    // Apply inline format painter on mouse/touch release inside the editor.
+    if (!this.tableToolbar.formatPainterActive()) return;
+    if (this.tableToolbar.activeTableWidgetId !== this.widget?.id) return;
+    if (!this.tableToolbar.getInlineFormatPainterStyle()) return;
+
+    const target = event.target as HTMLElement | null;
+    const editable = this.editorComp?.getEditableElement() ?? null;
+    if (!target || !editable) return;
+    if (!editable.contains(target)) return;
+
+    // Apply to current selection/caret.
+    this.tableToolbar.applyInlineFormatPainterNow();
+
+    // Keep editor focused (toolbar service may have moved selection).
+    requestAnimationFrame(() => this.editorComp?.focus());
+  }
+
   onEditorFocus(): void {
     if (this.isActivelyEditing) return;
     this.isActivelyEditing = true;
