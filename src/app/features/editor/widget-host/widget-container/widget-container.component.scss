@@ -20,9 +20,9 @@
   transition: background-color 120ms ease;
 }
 
-// Show background when widget is selected
+// Keep content transparent even when selected
 .widget-container--selected .widget-container__content {
-  background: rgba(99, 102, 241, 0.03);
+  background: transparent;
 }
 
 // Drag handles on the border - these are the only areas that allow dragging

@@ -1,22 +1,18 @@
 .image-widget {
   width: 100%;
   height: 100%;
-  border-radius: 1rem;
+  border-radius: 0;
   overflow: hidden;
-  background: #e2e8f0;
+  background: transparent;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: default;
   transition: background-color 0.2s ease;
 
-  &:hover:not(.image-widget--error) {
-    background: #cbd5e1;
-  }
-
   &--error {
-    background: #fee2e2;
+    background: rgba(254, 226, 226, 0.5);
   }
 }
 
@@ -40,6 +36,15 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
+  background: rgba(241, 245, 249, 0.8);
+  border: 2px dashed #cbd5e1;
+  border-radius: 0.5rem;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(226, 232, 240, 0.9);
+    border-color: #94a3b8;
+  }
 }
 
 .image-widget__placeholder-content {

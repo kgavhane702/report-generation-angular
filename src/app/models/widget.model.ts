@@ -86,6 +86,15 @@ export interface ImageWidgetProps {
   src: string;
   alt?: string;
   fit?: 'cover' | 'contain' | 'stretch';
+  // Transform properties
+  flipHorizontal?: boolean;
+  flipVertical?: boolean;
+  rotation?: number; // degrees: 0, 90, 180, 270
+  // Style properties
+  opacity?: number; // 0-100
+  borderWidth?: number; // px
+  borderColor?: string; // hex color
+  borderRadius?: number; // px
 }
 
 export interface ShapeWidgetProps {

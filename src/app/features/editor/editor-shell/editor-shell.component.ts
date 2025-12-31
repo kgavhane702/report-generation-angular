@@ -30,7 +30,8 @@ export class EditorShellComponent {
       widget?.type === 'text' ||
       widget?.type === 'table' ||
       widget?.type === 'chart' ||
-      widget?.type === 'editastra'
+      widget?.type === 'editastra' ||
+      widget?.type === 'image'
     );
   });
 

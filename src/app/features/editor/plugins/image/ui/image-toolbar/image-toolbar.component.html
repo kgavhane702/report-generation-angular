@@ -1,0 +1,147 @@
+<div class="image-toolbar" *ngIf="isActive">
+  <!-- Group: Replace Image -->
+  <div class="image-toolbar__group">
+    <button
+      type="button"
+      class="image-toolbar__button image-toolbar__button--wide"
+      (mousedown)="onReplaceImage($event)"
+      title="Replace image"
+    >
+      <app-icon name="upload_file" [size]="16"></app-icon>
+      <span class="image-toolbar__button-label">Replace</span>
+    </button>
+  </div>
+
+  <div class="image-toolbar__separator"></div>
+
+  <!-- Group: Fit Mode -->
+  <div class="image-toolbar__group">
+    <span class="image-toolbar__group-label">Fit:</span>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      [class.image-toolbar__button--active]="currentFit === 'contain'"
+      (mousedown)="onFitChange('contain', $event)"
+      title="Contain - fit entire image"
+    >
+      <app-icon name="fit_contain" [size]="16"></app-icon>
+    </button>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      [class.image-toolbar__button--active]="currentFit === 'cover'"
+      (mousedown)="onFitChange('cover', $event)"
+      title="Cover - fill bounds, crop if needed"
+    >
+      <app-icon name="fit_cover" [size]="16"></app-icon>
+    </button>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      [class.image-toolbar__button--active]="currentFit === 'stretch'"
+      (mousedown)="onFitChange('stretch', $event)"
+      title="Stretch - stretch to fill"
+    >
+      <app-icon name="fit_stretch" [size]="16"></app-icon>
+    </button>
+  </div>
+
+  <div class="image-toolbar__separator"></div>
+
+  <!-- Group: Flip & Rotate -->
+  <div class="image-toolbar__group">
+    <button
+      type="button"
+      class="image-toolbar__button"
+      [class.image-toolbar__button--active]="isFlippedHorizontal"
+      (mousedown)="onFlipHorizontal($event)"
+      title="Flip horizontal"
+    >
+      <app-icon name="flip_horizontal" [size]="16"></app-icon>
+    </button>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      [class.image-toolbar__button--active]="isFlippedVertical"
+      (mousedown)="onFlipVertical($event)"
+      title="Flip vertical"
+    >
+      <app-icon name="flip_vertical" [size]="16"></app-icon>
+    </button>
+    <div class="image-toolbar__mini-separator"></div>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      (mousedown)="onRotateLeft($event)"
+      title="Rotate left 90°"
+    >
+      <app-icon name="rotate_left" [size]="16"></app-icon>
+    </button>
+    <button
+      type="button"
+      class="image-toolbar__button"
+      (mousedown)="onRotateRight($event)"
+      title="Rotate right 90°"
+    >
+      <app-icon name="rotate_right" [size]="16"></app-icon>
+    </button>
+  </div>
+
+  <div class="image-toolbar__separator"></div>
+
+  <!-- Group: Opacity -->
+  <div class="image-toolbar__group">
+    <span class="image-toolbar__group-label">Opacity:</span>
+    <input
+      #opacityInput
+      type="range"
+      class="image-toolbar__slider"
+      [value]="opacity"
+      min="0"
+      max="100"
+      step="1"
+      (input)="onOpacityChange($event)"
+      title="Opacity"
+    />
+    <span class="image-toolbar__value">{{ opacity }}%</span>
+  </div>
+
+  <div class="image-toolbar__separator"></div>
+
+  <!-- Group: Border -->
+  <div class="image-toolbar__group">
+    <span class="image-toolbar__group-label">Border:</span>
+    <input
+      type="number"
+      class="image-toolbar__input image-toolbar__input--small"
+      [value]="borderWidth"
+      min="0"
+      max="20"
+      step="1"
+      (change)="onBorderWidthChange($event)"
+      title="Border width (px)"
+      placeholder="0"
+    />
+    <app-color-picker
+      [currentColor]="borderColor"
+      [colorPalette]="colorPalette"
+      icon="border_color"
+      title="Border color"
+      (colorSelected)="onBorderColorChange($event)"
+    ></app-color-picker>
+    <div class="image-toolbar__mini-separator"></div>
+    <span class="image-toolbar__group-label">Radius:</span>
+    <input
+      type="number"
+      class="image-toolbar__input image-toolbar__input--small"
+      [value]="borderRadius"
+      min="0"
+      max="100"
+      step="1"
+      (change)="onBorderRadiusChange($event)"
+      title="Border radius (px)"
+      placeholder="0"
+    />
+  </div>
+</div>
+
