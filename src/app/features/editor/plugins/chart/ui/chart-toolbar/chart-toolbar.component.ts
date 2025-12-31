@@ -6,11 +6,12 @@ import { DocumentService } from '../../../../../../core/services/document.servic
 import type { ChartWidgetProps } from '../../../../../../models/widget.model';
 import type { ChartData, ChartTextStyles } from '../../../../../../models/chart-data.model';
 import { ColorPickerComponent, type ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
+import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 
 @Component({
   selector: 'app-chart-toolbar',
   standalone: true,
-  imports: [CommonModule, ColorPickerComponent],
+  imports: [CommonModule, ColorPickerComponent, AppIconComponent],
   templateUrl: './chart-toolbar.component.html',
   styleUrls: ['./chart-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

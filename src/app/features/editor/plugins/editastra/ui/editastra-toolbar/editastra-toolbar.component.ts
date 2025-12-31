@@ -8,12 +8,13 @@ import { DocumentService } from '../../../../../../core/services/document.servic
 import type { EditastraWidgetProps, WidgetType } from '../../../../../../models/widget.model';
 import { ColorPickerComponent, type ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
+import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 import { EDITASTRA_TOOLBAR_GROUP_ORDER, EDITASTRA_TOOLBAR_PLUGINS, type EditastraToolbarPlugin } from './editastra-toolbar.plugins';
 
 @Component({
   selector: 'app-editastra-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, ColorPickerComponent, AnchoredDropdownComponent],
+  imports: [CommonModule, FormsModule, ColorPickerComponent, AnchoredDropdownComponent, AppIconComponent],
   templateUrl: './editastra-toolbar.component.html',
   styleUrls: ['./editastra-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

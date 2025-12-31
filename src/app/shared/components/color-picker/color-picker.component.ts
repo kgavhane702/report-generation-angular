@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AnchoredDropdownComponent } from '../dropdown/anchored-dropdown/anchored-dropdown.component';
+import { AppIconComponent } from '../icon/icon.component';
 
 export interface ColorOption {
   value: string;
@@ -17,7 +18,7 @@ export interface ColorOption {
 @Component({
   selector: 'app-color-picker',
   standalone: true,
-  imports: [CommonModule, AnchoredDropdownComponent],
+  imports: [CommonModule, AnchoredDropdownComponent, AppIconComponent],
   templateUrl: './color-picker.component.html',
   styleUrls: ['./color-picker.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,13 +39,6 @@ export class ColorPickerComponent {
 
   constructor() {}
 
-  isMaterialIcon(icon: string): boolean {
-    // Material Symbols icons typically start with specific prefixes
-    return icon.startsWith('format_') || 
-           icon.startsWith('palette') || 
-           icon.startsWith('color') ||
-           icon.includes('_');
-  }
 
   toggleDropdown(event?: MouseEvent): void {
     if (event) {

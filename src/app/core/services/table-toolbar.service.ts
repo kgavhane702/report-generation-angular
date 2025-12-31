@@ -75,7 +75,6 @@ export class TableToolbarService {
   private readonly selectedCellsSubject = new BehaviorSubject<Set<string>>(new Set());
   private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
   private readonly mergeCellsRequestedSubject = new Subject<void>();
-  private readonly unmergeRequestedSubject = new Subject<void>();
   private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right' | 'justify'>();
   private readonly verticalAlignRequestedSubject = new Subject<'top' | 'middle' | 'bottom'>();
   private readonly cellBackgroundColorRequestedSubject = new Subject<string>();
@@ -99,7 +98,6 @@ export class TableToolbarService {
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
   public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
   public readonly mergeCellsRequested$: Observable<void> = this.mergeCellsRequestedSubject.asObservable();
-  public readonly unmergeRequested$: Observable<void> = this.unmergeRequestedSubject.asObservable();
   public readonly textAlignRequested$: Observable<'left' | 'center' | 'right' | 'justify'> = this.textAlignRequestedSubject.asObservable();
   public readonly verticalAlignRequested$: Observable<'top' | 'middle' | 'bottom'> = this.verticalAlignRequestedSubject.asObservable();
   public readonly cellBackgroundColorRequested$: Observable<string> = this.cellBackgroundColorRequestedSubject.asObservable();
@@ -201,10 +199,6 @@ export class TableToolbarService {
 
   requestMergeCells(): void {
     this.mergeCellsRequestedSubject.next();
-  }
-
-  requestUnmerge(): void {
-    this.unmergeRequestedSubject.next();
   }
 
   requestInsert(request: TableInsertRequest): void {

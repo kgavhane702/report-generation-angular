@@ -5,11 +5,9 @@
     (click)="toggleDropdown()"
     title="Insert Chart"
   >
-    <span class="material-symbols-outlined">bar_chart</span>
+    <app-icon name="bar_chart" [size]="20"></app-icon>
     <span class="chart-widget-selector__label">Chart</span>
-    <svg class="chart-widget-selector__caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>
+    <app-icon name="caret_down_small" [size]="12"></app-icon>
   </button>
 
   <div class="chart-widget-selector__dropdown" *ngIf="isOpen()">

@@ -61,10 +61,6 @@
 }
 
 .editor-toolbar__save-indicator-icon {
-  font-size: 1.05rem;
-  line-height: 1;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-
   &--saved {
     color: #059669;
   }
@@ -125,7 +121,7 @@
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   border-radius: 0.25rem;
   cursor: pointer;
@@ -134,21 +130,9 @@
   flex-shrink: 0;
   margin: 0 0.0625rem;
 
-  .material-symbols-outlined {
-    font-size: 1.125rem;
-    line-height: 1;
-    color: #475569;
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  }
-
   &:hover {
     background-color: #f1f5f9;
-    border-color: #cbd5e1;
     color: #334155;
-
-    .material-symbols-outlined {
-      color: #334155;
-    }
   }
 }
 
@@ -192,31 +176,45 @@ app-undo-redo-controls {
   justify-content: center;
   padding: 0.375rem;
   border-radius: 0.25rem;
-  border: 1px solid transparent;
+  border: none;
   background: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
   min-width: 1.75rem;
   height: 1.75rem;
   margin: 0 0.0625rem;
-
-  .material-symbols-outlined {
-    font-size: 1.125rem;
-    color: #475569;
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  }
+  color: #475569;
 
   &:hover {
     background-color: #f1f5f9;
-    border-color: #cbd5e1;
-
-    .material-symbols-outlined {
-      color: #334155;
-    }
+    color: #334155;
   }
 
   &:active {
     background: #e2e8f0;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  // Export icon - green color
+  &--export {
+    color: #10b981;
+
+    &:hover {
+      color: #059669;
+    }
+  }
+
+  // Import icon - blue color
+  &--import {
+    color: #3b82f6;
+
+    &:hover {
+      color: #2563eb;
+    }
   }
 }
 
@@ -278,52 +276,27 @@ app-undo-redo-controls {
   height: 1.75rem;
   padding: 0.375rem !important;
   border-radius: 0.25rem !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.15s ease;
   margin: 0 0.0625rem;
-
-  .material-symbols-outlined {
-    font-size: 1.125rem;
-    color: inherit;
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  }
+  color: #475569;
 
   &:hover {
-    opacity: 0.9;
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155;
   }
 
   &:active {
-    opacity: 0.8;
+    background: #e2e8f0 !important;
   }
 
-  &--export {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-    color: #fff !important;
-    border: none !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
-    }
-  }
-
-  &--import {
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
-    color: #fff !important;
-    border: none !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-    }
-  }
-
-  &--pdf {
-    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-    color: #fff !important;
-    border: none !important;
-
-    &:hover {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
-    }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 

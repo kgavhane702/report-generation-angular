@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 
 export type ChartWidgetInsertAction = 'sample' | 'placeholder' | 'import';
 
 @Component({
   selector: 'app-chart-widget-selector',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AppIconComponent],
   templateUrl: './chart-widget-selector.component.html',
   styleUrls: ['./chart-widget-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

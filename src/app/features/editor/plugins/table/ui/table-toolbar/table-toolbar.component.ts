@@ -11,6 +11,7 @@ import { EDITASTRA_SHARED_FORMATTING_PLUGINS } from '../../../editastra/ui/edita
 
 import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
+import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 
 /**
  * TableToolbarComponent
@@ -23,7 +24,7 @@ import { BorderPickerComponent, BorderValue } from '../../../../../../shared/com
 @Component({
   selector: 'app-table-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, EditastraToolbarComponent, ColorPickerComponent, BorderPickerComponent],
+  imports: [CommonModule, FormsModule, EditastraToolbarComponent, ColorPickerComponent, BorderPickerComponent, AppIconComponent],
   templateUrl: './table-toolbar.component.html',
   styleUrls: ['./table-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -164,11 +165,6 @@ export class TableToolbarComponent {
   onMergeClick(event: MouseEvent): void {
     event.preventDefault();
     this.toolbarService.requestMergeCells();
-  }
-
-  onUnmergeClick(event: MouseEvent): void {
-    event.preventDefault();
-    this.toolbarService.requestUnmerge();
   }
 
   onCellFillSelected(color: string): void {

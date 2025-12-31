@@ -31,6 +31,7 @@ import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-html.directive';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
+import { AppIconComponent } from '../../shared/components/icon/icon.component';
 
 @NgModule({
   declarations: [
@@ -67,6 +68,7 @@ import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.
     EditastraEditorComponent,
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
+    AppIconComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],

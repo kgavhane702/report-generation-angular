@@ -15,90 +15,17 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <svg
-                *ngSwitchCase="'bold'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                aria-hidden="true"
-              >
-                <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-                <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-              </svg>
+              <app-icon *ngSwitchCase="'bold'" name="bold" [size]="16"></app-icon>
 
-              <svg
-                *ngSwitchCase="'italic'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="19" y1="4" x2="10" y2="4"></line>
-                <line x1="14" y1="20" x2="5" y2="20"></line>
-                <line x1="15" y1="4" x2="9" y2="20"></line>
-              </svg>
+              <app-icon *ngSwitchCase="'italic'" name="italic" [size]="16"></app-icon>
 
-              <svg
-                *ngSwitchCase="'underline'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="M6 4v7a6 6 0 0 0 12 0V4"></path>
-                <line x1="4" y1="20" x2="20" y2="20"></line>
-              </svg>
+              <app-icon *ngSwitchCase="'underline'" name="underline" [size]="16"></app-icon>
 
-              <svg
-                *ngSwitchCase="'strikethrough'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="M16 6a4 4 0 0 0-8 0c0 4 10 2 10 8a4 4 0 0 1-8 0"></path>
-                <line x1="4" y1="12" x2="20" y2="12"></line>
-              </svg>
+              <app-icon *ngSwitchCase="'strikethrough'" name="strikethrough" [size]="16"></app-icon>
 
-              <svg
-                *ngSwitchCase="'superscript'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <text x="4" y="18" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
-                <text x="14" y="10" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
-              </svg>
+              <app-icon *ngSwitchCase="'superscript'" name="superscript" [size]="16"></app-icon>
 
-              <svg
-                *ngSwitchCase="'subscript'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <text x="4" y="14" font-size="14" font-weight="bold" fill="currentColor" stroke="none">X</text>
-                <text x="14" y="20" font-size="9" font-weight="bold" fill="currentColor" stroke="none">2</text>
-              </svg>
+              <app-icon *ngSwitchCase="'subscript'" name="subscript" [size]="16"></app-icon>
             </ng-container>
           </button>
 
@@ -114,48 +41,9 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <svg
-                *ngSwitchCase="'vAlignTop'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-                <polyline points="18 9 12 3 6 9"></polyline>
-                <line x1="5" y1="21" x2="19" y2="21"></line>
-              </svg>
-              <svg
-                *ngSwitchCase="'vAlignMiddle'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-                <polyline points="9 8 12 5 15 8"></polyline>
-                <polyline points="9 16 12 19 15 16"></polyline>
-              </svg>
-              <svg
-                *ngSwitchCase="'vAlignBottom'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="12" y1="21" x2="12" y2="9"></line>
-                <polyline points="18 15 12 21 6 15"></polyline>
-                <line x1="5" y1="3" x2="19" y2="3"></line>
-              </svg>
+              <app-icon *ngSwitchCase="'vAlignTop'" name="vAlignTop" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'vAlignMiddle'" name="vAlignMiddle" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'vAlignBottom'" name="vAlignBottom" [size]="16"></app-icon>
             </ng-container>
           </button>
 
@@ -169,36 +57,8 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <svg
-                *ngSwitchCase="'indentDecrease'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="M9 8h12"></path>
-                <path d="M3 12h18"></path>
-                <path d="M9 16h12"></path>
-                <path d="M7 6l-4 4 4 4"></path>
-              </svg>
-              <svg
-                *ngSwitchCase="'indentIncrease'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="M3 8h12"></path>
-                <path d="M3 12h18"></path>
-                <path d="M3 16h12"></path>
-                <path d="M17 6l4 4-4 4"></path>
-              </svg>
+              <app-icon *ngSwitchCase="'indentDecrease'" name="indentDecrease" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'indentIncrease'" name="indentIncrease" [size]="16"></app-icon>
             </ng-container>
           </button>
 
@@ -223,9 +83,7 @@
                 <path d="M9 12h12"></path>
                 <path d="M9 18h12"></path>
               </svg>
-              <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M4 6l4 4 4-4z" />
-              </svg>
+              <app-icon class="table-toolbar__combo-arrow" name="caret_down_small" [size]="8"></app-icon>
             </button>
 
             <app-anchored-dropdown [open]="bulletStyleDropdownOpen()" [anchor]="bulletStyleTrigger" (closed)="closeBulletStyleDropdown()">
@@ -275,66 +133,10 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <svg
-                *ngSwitchCase="'alignLeft'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="17" y1="10" x2="3" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="17" y1="18" x2="3" y2="18"></line>
-              </svg>
-              <svg
-                *ngSwitchCase="'alignCenter'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="18" y1="10" x2="6" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="18" y1="18" x2="6" y2="18"></line>
-              </svg>
-              <svg
-                *ngSwitchCase="'alignRight'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="21" y1="10" x2="7" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="21" y1="18" x2="7" y2="18"></line>
-              </svg>
-              <svg
-                *ngSwitchCase="'alignJustify'"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <line x1="21" y1="10" x2="3" y2="10"></line>
-                <line x1="21" y1="6" x2="3" y2="6"></line>
-                <line x1="21" y1="14" x2="3" y2="14"></line>
-                <line x1="21" y1="18" x2="3" y2="18"></line>
-              </svg>
+              <app-icon *ngSwitchCase="'alignLeft'" name="alignLeft" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'alignCenter'" name="alignCenter" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'alignRight'" name="alignRight" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'alignJustify'" name="alignJustify" [size]="16"></app-icon>
             </ng-container>
           </button>
 
@@ -433,14 +235,7 @@
               [disabled]="!hasActiveEditor"
               (mousedown)="openLineHeightDropdown($event)"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M8 6h13"></path>
-                <path d="M8 12h13"></path>
-                <path d="M8 18h13"></path>
-                <path d="M3 4v16"></path>
-                <path d="M1 6l2-2 2 2"></path>
-                <path d="M1 18l2 2 2-2"></path>
-              </svg>
+              <app-icon name="lineHeight" [size]="16"></app-icon>
             </button>
             <app-anchored-dropdown
               [open]="lineHeightDropdownOpen()"

@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  EffectRef,
   EventEmitter,
   HostListener,
   Input,
@@ -69,8 +68,31 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   /** Content-aware minimum widget height (layout px) to avoid clipped text while resizing. */
   readonly minWidgetHeightPx = signal<number>(24);
   private computeMinHeightRaf: number | null = null;
-  private minHeightEffectRef?: EffectRef;
-  private autoFitEffectRef?: EffectRef;
+
+  // NOTE:
+  // `effect()` MUST be created inside an injection context.
+  // Creating it in ngOnInit causes NG0203 at runtime.
+  // Field initializers run in injection context for components, so this is safe.
+  private readonly minHeightEffectRef = effect(() => {
+    const activeId = this.uiState.activeWidgetId();
+    this.uiState.zoomLevel();
+    this.localHtml();
+
+    const myId = this.widget?.id;
+    if (!myId || activeId !== myId) return;
+    this.scheduleComputeContentMinHeight();
+  });
+
+  // Auto-fit scale for URL-based widgets (preserve-frame): if the loaded content overflows the fixed widget height,
+  // scale down padding/font-size at render-time (NOT persisted into contentHtml).
+  private readonly autoFitEffectRef = effect(() => {
+    this.uiState.zoomLevel();
+    this.localHtml();
+    this.widgetHeightPx();
+    this.widgetWidthPx();
+    this.scheduleComputeAutoFitScale();
+  });
+
   readonly autoFitTextScale = signal<number>(1);
   readonly widgetHeightPx = signal<number>(0);
   readonly widgetWidthPx = signal<number>(0);
@@ -95,28 +117,6 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
       // Keep editor focused while applying alignment.
       requestAnimationFrame(() => this.editorComp?.focus());
     });
-
-    // Compute and expose content-based min-height while this widget is active.
-    // Mirrors table's `data-tw-min-height` contract used by WidgetContainer for resize clamping.
-    this.minHeightEffectRef = effect(() => {
-      const activeId = this.uiState.activeWidgetId();
-      this.uiState.zoomLevel();
-      this.localHtml();
-
-      const myId = this.widget?.id;
-      if (!myId || activeId !== myId) return;
-      this.scheduleComputeContentMinHeight();
-    });
-
-    // Auto-fit scale for URL-based widgets (preserve-frame): if the loaded content overflows the fixed widget height,
-    // scale down padding/font-size at render-time (NOT persisted into contentHtml).
-    this.autoFitEffectRef = effect(() => {
-      this.uiState.zoomLevel();
-      this.localHtml();
-      this.widgetHeightPx();
-      this.widgetWidthPx();
-      this.scheduleComputeAutoFitScale();
-    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -132,14 +132,6 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
 
   ngOnDestroy(): void {
     this.verticalAlignSub?.unsubscribe();
-    if (this.minHeightEffectRef) {
-      this.minHeightEffectRef.destroy();
-      this.minHeightEffectRef = undefined;
-    }
-    if (this.autoFitEffectRef) {
-      this.autoFitEffectRef.destroy();
-      this.autoFitEffectRef = undefined;
-    }
     if (this.autoGrowRaf !== null) {
       cancelAnimationFrame(this.autoGrowRaf);
       this.autoGrowRaf = null;

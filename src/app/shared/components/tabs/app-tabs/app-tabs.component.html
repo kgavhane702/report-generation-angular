@@ -18,7 +18,7 @@
     [disabled]="tab.disabled"
     (click)="select(i)"
   >
-    <span *ngIf="tab.icon" class="app-tabs__icon" aria-hidden="true">{{ tab.icon }}</span>
+    <app-icon *ngIf="tab.icon" class="app-tabs__icon" [name]="tab.icon" [size]="16"></app-icon>
     <span class="app-tabs__label">{{ tab.label }}</span>
   </button>
 </div>

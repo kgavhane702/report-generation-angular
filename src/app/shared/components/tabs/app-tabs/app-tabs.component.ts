@@ -12,11 +12,12 @@ import {
 import { CommonModule } from '@angular/common';
 
 import { AppTabComponent } from '../app-tab/app-tab.component';
+import { AppIconComponent } from '../../icon/icon.component';
 
 @Component({
   selector: 'app-tabs',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AppIconComponent],
   templateUrl: './app-tabs.component.html',
   styleUrls: ['./app-tabs.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,

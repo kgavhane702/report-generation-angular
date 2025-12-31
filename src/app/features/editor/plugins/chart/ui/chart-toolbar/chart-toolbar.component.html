@@ -2,19 +2,19 @@
   <!-- Group: quick config tabs -->
   <div class="chart-toolbar__group">
     <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(0)" title="Open Chart tab">
-      <span class="material-symbols-outlined">insights</span>
+      <app-icon name="insights" [size]="20"></app-icon>
       <span class="chart-toolbar__button-label">Chart</span>
     </button>
     <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(1)" title="Open Data tab">
-      <span class="material-symbols-outlined">table_chart</span>
+      <app-icon name="table_chart" [size]="20"></app-icon>
       <span class="chart-toolbar__button-label">Data</span>
     </button>
     <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(2)" title="Open Axes tab">
-      <span class="material-symbols-outlined">tune</span>
+      <app-icon name="tune" [size]="20"></app-icon>
       <span class="chart-toolbar__button-label">Axes</span>
     </button>
     <button type="button" class="chart-toolbar__button chart-toolbar__button--wide" (mousedown)="$event.preventDefault()" (click)="openTab(3)" title="Open Legend & Labels tab">
-      <span class="material-symbols-outlined">label</span>
+      <app-icon name="label" [size]="20"></app-icon>
       <span class="chart-toolbar__button-label">Labels</span>
     </button>
   </div>
@@ -30,7 +30,7 @@
       (click)="openImport()"
       title="Import data"
     >
-      <span class="material-symbols-outlined">upload_file</span>
+      <app-icon name="upload_file" [size]="20"></app-icon>
       <span class="chart-toolbar__button-label">Import</span>
     </button>
   </div>
@@ -49,7 +49,7 @@
         (click)="toggleBold('title')"
         title="Title bold"
       >
-        <span class="material-symbols-outlined">format_bold</span>
+        <app-icon name="format_bold" [size]="20"></app-icon>
       </button>
       <app-color-picker
         [currentColor]="getStyle('title').color"
@@ -72,7 +72,7 @@
         (click)="toggleBold('legend')"
         title="Legend bold"
       >
-        <span class="material-symbols-outlined">format_bold</span>
+        <app-icon name="format_bold" [size]="20"></app-icon>
       </button>
       <app-color-picker
         [currentColor]="getStyle('legend').color"
@@ -95,7 +95,7 @@
         (click)="toggleBold('axis')"
         title="Axis bold"
       >
-        <span class="material-symbols-outlined">format_bold</span>
+        <app-icon name="format_bold" [size]="20"></app-icon>
       </button>
       <app-color-picker
         [currentColor]="getStyle('axis').color"
@@ -118,7 +118,7 @@
         (click)="toggleBold('valueLabel')"
         title="Value labels bold"
       >
-        <span class="material-symbols-outlined">format_bold</span>
+        <app-icon name="format_bold" [size]="20"></app-icon>
       </button>
       <app-color-picker
         [currentColor]="getStyle('valueLabel').color"

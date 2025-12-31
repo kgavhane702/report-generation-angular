@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppModalComponent } from '../../../../../../shared/components/modal/app-modal/app-modal.component';
+import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 import { HttpRequestBuilderComponent } from '../../../../../../shared/http-request/components/http-request-builder/http-request-builder.component';
 import type { HttpRequestSpec } from '../../../../../../shared/http-request/models/http-request.model';
 import type { TableHttpDataSourceConfig } from '../../../../../../shared/http-request/models/http-data-source.model';
@@ -31,7 +32,7 @@ export interface TableDimensions {
 @Component({
   selector: 'app-table-grid-selector',
   standalone: true,
-  imports: [CommonModule, AppModalComponent, HttpRequestBuilderComponent],
+  imports: [CommonModule, AppModalComponent, HttpRequestBuilderComponent, AppIconComponent],
   templateUrl: './table-grid-selector.component.html',
   styleUrls: ['./table-grid-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
