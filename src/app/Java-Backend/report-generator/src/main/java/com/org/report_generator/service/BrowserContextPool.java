@@ -76,9 +76,13 @@ public class BrowserContextPool {
             logger.warn("Interrupted while waiting for browser context", e);
         }
 
-        // Fallback: create temporary context if pool is exhausted
+        // Fallback: create temporary context if pool is exhausted.
+        // IMPORTANT: this context is still "active" and must be counted, otherwise `release()` can
+        // decrement the counter below zero.
         logger.warn("Pool exhausted, creating temporary context");
-        return createNewContext();
+        context = createNewContext();
+        activeContexts.incrementAndGet();
+        return context;
     }
 
     /**
