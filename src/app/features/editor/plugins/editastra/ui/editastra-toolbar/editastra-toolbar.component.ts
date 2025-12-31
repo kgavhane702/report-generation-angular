@@ -4,6 +4,8 @@ import { FormsModule } from '@angular/forms';
 
 import { TableToolbarService } from '../../../../../../core/services/table-toolbar.service';
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
+import { DocumentService } from '../../../../../../core/services/document.service';
+import type { EditastraWidgetProps } from '../../../../../../models/widget.model';
 import { ColorPickerComponent, type ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
 import { EDITASTRA_TOOLBAR_GROUP_ORDER, EDITASTRA_TOOLBAR_PLUGINS, type EditastraToolbarPlugin } from './editastra-toolbar.plugins';
@@ -19,6 +21,7 @@ import { EDITASTRA_TOOLBAR_GROUP_ORDER, EDITASTRA_TOOLBAR_PLUGINS, type Editastr
 export class EditastraToolbarComponent {
   private readonly toolbarService = inject(TableToolbarService);
   private readonly editorState = inject(EditorStateService);
+  private readonly documentService = inject(DocumentService);
 
   /** Plugin-driven toolbar (each UI control is defined as a plugin entry). */
   readonly pluginGroups: Array<{ group: string; items: EditastraToolbarPlugin[] }> = EDITASTRA_TOOLBAR_GROUP_ORDER
@@ -75,6 +78,35 @@ export class EditastraToolbarComponent {
     { value: '#1f2937', label: 'Dark Gray' },
     { value: '#000000', label: 'Black' },
   ];
+
+  /** Widget background palette (matches text widget background picker). */
+  readonly backgroundPalette: ColorOption[] = [
+    { value: '', label: 'Transparent' },
+    { value: '#ffffff', label: 'White' },
+    { value: '#ef4444', label: 'Red' },
+    { value: '#10b981', label: 'Green' },
+    { value: '#f59e0b', label: 'Orange' },
+    { value: '#8b5cf6', label: 'Purple' },
+    { value: '#ec4899', label: 'Pink' },
+    { value: '#06b6d4', label: 'Cyan' },
+    { value: '#84cc16', label: 'Lime' },
+    { value: '#f97316', label: 'Orange Red' },
+    { value: '#6366f1', label: 'Indigo' },
+    { value: '#14b8a6', label: 'Teal' },
+    { value: '#fbbf24', label: 'Amber' },
+    { value: '#f3f4f6', label: 'Light Gray' },
+    { value: '#9ca3af', label: 'Gray' },
+    { value: '#1f2937', label: 'Dark Gray' },
+    { value: '#000000', label: 'Black' },
+  ];
+
+  /** Current background color of the active Editastra widget. */
+  readonly currentBackgroundColor = computed(() => {
+    const ctx = this.editorState.activeWidgetContext();
+    if (!ctx || ctx.widget.type !== 'editastra') return '';
+    const props = ctx.widget.props as EditastraWidgetProps;
+    return props.backgroundColor || '';
+  });
 
   // Font controls (same as table toolbar) - "Default" is rendered separately in the dropdown
   readonly fontFamilies: Array<{ label: string; value: string }> = [
@@ -278,6 +310,20 @@ export class EditastraToolbarComponent {
     if (!this.hasActiveEditor) return;
     this.highlightColor = color;
     this.toolbarService.applyTextHighlight(color);
+  }
+
+  onBackgroundColorSelected(color: string): void {
+    // Background is widget-level styling; allow when widget is selected (even if not actively editing).
+    const ctx = this.editorState.activeWidgetContext();
+    if (!ctx || ctx.widget.type !== 'editastra') return;
+
+    const { pageId, widget } = ctx;
+    this.documentService.updateWidget(pageId, widget.id, {
+      props: {
+        ...widget.props,
+        backgroundColor: color,
+      } as EditastraWidgetProps,
+    });
   }
 
   onFontFamilyChange(value: string): void {

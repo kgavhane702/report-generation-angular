@@ -487,6 +487,19 @@
               (colorSelected)="onHighlightSelected($event)"
             ></app-color-picker>
           </ng-container>
+
+          <!-- Widget background color (Editastra widget) -->
+          <ng-container *ngSwitchCase="'widget-background'">
+            <app-color-picker
+              [currentColor]="currentBackgroundColor()"
+              [colorPalette]="backgroundPalette"
+              [disabled]="!isEditastraWidgetActive()"
+              [icon]="$any(p).icon"
+              [title]="$any(p).title"
+              dropdownId="editastra"
+              (colorSelected)="onBackgroundColorSelected($event)"
+            ></app-color-picker>
+          </ng-container>
         </ng-container>
       </ng-container>
     </div>

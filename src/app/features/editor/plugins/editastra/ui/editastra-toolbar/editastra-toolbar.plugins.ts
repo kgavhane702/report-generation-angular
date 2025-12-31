@@ -92,6 +92,14 @@ export type EditastraToolbarPlugin =
       title: string;
       colorKind: 'text' | 'highlight';
       icon: 'format_color_text' | 'format_ink_highlighter';
+    }
+  | {
+      /** Widget-level background fill (not text highlight). */
+      kind: 'widget-background';
+      id: string;
+      group: EditastraToolbarGroupId;
+      title: string;
+      icon: 'format_color_fill';
     };
 
 export const EDITASTRA_TOOLBAR_GROUP_ORDER: EditastraToolbarGroupId[] = [
@@ -186,6 +194,13 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
     title: 'Text highlight',
     colorKind: 'highlight',
     icon: 'format_ink_highlighter',
+  },
+  {
+    kind: 'widget-background',
+    id: 'backgroundColor',
+    group: 'colors',
+    title: 'Background color',
+    icon: 'format_color_fill',
   },
 ];
 
