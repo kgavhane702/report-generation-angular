@@ -5,6 +5,10 @@
   position: relative;
   // Auto-fit scaling (used by URL auto-load after JSON import). Defaults to 1 (no change).
   --tw-auto-fit-scale: 1;
+  // Stable default typography for cells that don't have explicit per-cell font size.
+  // Without this, the browser default (16px) leaks in and the toolbar "jumps" between cells after import.
+  font-size: 14px;
+  line-height: 1.5;
 
   &--active {
     outline: 2px solid rgba(25, 118, 210, 0.85);
@@ -21,16 +25,7 @@
     }
   }
 
-  // Format painter active - show brush cursor
-  &--format-painter {
-    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231976d2' stroke-width='2'%3E%3Crect x='4' y='3' width='10' height='6' rx='1'%3E%3C/rect%3E%3Cpath d='M9 9v3'%3E%3C/path%3E%3Cpath d='M6 12h6l-1 8h-4l-1-8z'%3E%3C/path%3E%3C/svg%3E") 0 24, copy;
-    
-    .table-widget__cell,
-    .table-widget__sub-cell,
-    .table-widget__cell-content {
-      cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231976d2' stroke-width='2'%3E%3Crect x='4' y='3' width='10' height='6' rx='1'%3E%3C/rect%3E%3Cpath d='M9 9v3'%3E%3C/path%3E%3Cpath d='M6 12h6l-1 8h-4l-1-8z'%3E%3C/path%3E%3C/svg%3E") 0 24, copy !important;
-    }
-  }
+  // (Format painter removed for now; will be reworked later)
 
   /* Top-level grid (replaces native <table> to prevent browser row reflow). */
   &__grid {
@@ -347,8 +342,14 @@
     // Default stays the same. When sub-cells get tiny, we scale down relative to the inherited font size,
     // but never below a minimum (prevents the tiny scrollbars without changing default look).
     --subcell-font-scale: 1;
-    font-size: clamp(10px, calc(1em * var(--subcell-font-scale)), 1em);
-    padding: 4px 6px;
+    // IMPORTANT:
+    // - `--tw-auto-fit-scale` is for preserved-frame URL tables (global shrink).
+    // - `--subcell-font-scale` is for container-query shrink (local tiny sub-cells).
+    // Multiply both so split cells match top-level cells during preserved-frame auto-fit.
+    font-size: clamp(8px, calc(1em * var(--tw-auto-fit-scale, 1) * var(--subcell-font-scale)), 1em);
+    padding:
+      clamp(0px, calc(4px * var(--tw-auto-fit-scale, 1)), 4px)
+      clamp(0px, calc(6px * var(--tw-auto-fit-scale, 1)), 6px);
     min-height: 0;
     overflow: hidden; // avoid tiny scrollbars; focus can still scroll if needed
     overflow-wrap: anywhere;

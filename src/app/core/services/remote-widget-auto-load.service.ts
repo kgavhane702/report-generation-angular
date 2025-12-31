@@ -5,7 +5,7 @@ import type { Dictionary } from '@ngrx/entity';
 import { finalize, take } from 'rxjs';
 
 import type { WidgetEntity } from '../../store/document/document.state';
-import type { ChartWidgetProps, TableWidgetProps } from '../../models/widget.model';
+import type { ChartWidgetProps, EditastraWidgetProps, TableWidgetProps } from '../../models/widget.model';
 import type { ChartHttpDataSourceConfig, TableHttpDataSourceConfig } from '../../shared/http-request/models/http-data-source.model';
 import type { AppState } from '../../store/app.state';
 import { DocumentSelectors } from '../../store/document/document.selectors';
@@ -14,6 +14,7 @@ import { ChartImportApi } from '../chart-import/api/chart-import.api';
 import { TableToolbarService } from './table-toolbar.service';
 import { DocumentService } from './document.service';
 import { RemoteWidgetLoadRegistryService } from './remote-widget-load-registry.service';
+import { EditastraImportService } from './editastra-import.service';
 
 /**
  * Auto-loads URL-based widgets (chart/table) when they appear in the UI (e.g. after importing a document).
@@ -23,6 +24,7 @@ export class RemoteWidgetAutoLoadService {
   private readonly store = inject(Store<AppState>);
   private readonly tableImport = inject(TableImportService);
   private readonly chartImport = inject(ChartImportApi);
+  private readonly editastraImport = inject(EditastraImportService);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly documentService = inject(DocumentService);
   private readonly registry = inject(RemoteWidgetLoadRegistryService);
@@ -84,6 +86,8 @@ export class RemoteWidgetAutoLoadService {
       this.loadTable(widget.id, pageId, props as TableWidgetProps, dataSource as TableHttpDataSourceConfig);
     } else if (type === 'chart') {
       this.loadChart(widget.id, pageId, props as ChartWidgetProps, dataSource as ChartHttpDataSourceConfig);
+    } else if (type === 'editastra') {
+      this.loadEditastra(widget.id, pageId, props as EditastraWidgetProps, dataSource as TableHttpDataSourceConfig);
     }
   }
 
@@ -206,6 +210,65 @@ export class RemoteWidgetAutoLoadService {
             err?.error?.message ||
             err?.message ||
             'URL chart load failed. Please verify the backend is running and the URL is accessible.';
+          alert(msg);
+          this.updateWidgetProps(pageId, widgetId, props, {
+            loading: false,
+            loadingMessage: undefined,
+          });
+        },
+      });
+  }
+
+  private loadEditastra(
+    widgetId: string,
+    pageId: string,
+    props: EditastraWidgetProps,
+    dataSource: TableHttpDataSourceConfig
+  ): void {
+    this.registry.start(widgetId);
+
+    this.updateWidgetProps(pageId, widgetId, props, {
+      loading: true,
+      loadingMessage: 'Loading text…',
+    });
+
+    this.editastraImport
+      .importFromUrl({
+        request: dataSource.request,
+        format: dataSource.format,
+        sheetIndex: dataSource.sheetIndex,
+        delimiter: dataSource.delimiter,
+      })
+      .pipe(
+        take(1),
+        finalize(() => this.registry.stop(widgetId))
+      )
+      .subscribe({
+        next: (resp) => {
+          if (!resp?.success || !resp.data) {
+            const msg = resp?.error?.message || 'URL text load failed';
+            alert(msg);
+            this.updateWidgetProps(pageId, widgetId, props, {
+              loading: false,
+              loadingMessage: undefined,
+            });
+            return;
+          }
+
+          this.updateWidgetProps(pageId, widgetId, props, {
+            contentHtml: resp.data.contentHtml ?? '',
+            loading: false,
+            loadingMessage: undefined,
+          });
+        },
+        error: (err) => {
+          // eslint-disable-next-line no-console
+          console.error('URL text load failed', err);
+          const msg =
+            err?.error?.error?.message ||
+            err?.error?.message ||
+            err?.message ||
+            'URL text load failed. Please verify the backend is running and the URL is accessible.';
           alert(msg);
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,

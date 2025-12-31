@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, HostBinding, Input, Vie
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { InlineTextFormatStyle, TableToolbarService } from '../../../../../../core/services/table-toolbar.service';
+import { TableToolbarService } from '../../../../../../core/services/table-toolbar.service';
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
 import { DocumentService } from '../../../../../../core/services/document.service';
 import type { EditastraWidgetProps, WidgetType } from '../../../../../../models/widget.model';
@@ -71,14 +71,6 @@ export class EditastraToolbarComponent {
 
   get hasActiveEditor(): boolean {
     return this.isSupportedWidgetActive() && this.toolbarService.activeCell !== null;
-  }
-
-  get isFormatPainterActive(): boolean {
-    return this.toolbarService.formatPainterActive();
-  }
-
-  get isFormatPainterPinned(): boolean {
-    return this.toolbarService.formatPainterPinned();
   }
 
   /**
@@ -368,97 +360,6 @@ export class EditastraToolbarComponent {
     });
   }
 
-  private captureInlineStyleForPainter(): InlineTextFormatStyle {
-    const cell = this.toolbarService.activeCell;
-    if (!cell) return {};
-
-    const selection = window.getSelection();
-    const focusNode = selection?.focusNode ?? null;
-    const el =
-      (focusNode instanceof Element ? focusNode : focusNode?.parentElement) ??
-      cell;
-
-    const inCell = el && cell.contains(el);
-    const target = inCell ? (el as HTMLElement) : cell;
-    const cs = window.getComputedStyle(target);
-
-    const fontSizePx = (() => {
-      const m = (cs.fontSize ?? '').match(/^(\d+(?:\.\d+)?)px$/);
-      if (!m) return null;
-      const v = Math.round(Number(m[1]));
-      return Number.isFinite(v) ? v : null;
-    })();
-
-    const fontWeight: 'normal' | 'bold' = (() => {
-      const w = (cs.fontWeight ?? '').toString();
-      return w === 'bold' || Number(w) >= 600 ? 'bold' : 'normal';
-    })();
-
-    const fontStyle: 'normal' | 'italic' = (cs.fontStyle ?? '') === 'italic' ? 'italic' : 'normal';
-
-    const textDecoration = (() => {
-      const td = (cs.textDecorationLine ?? cs.textDecoration ?? '').toString();
-      const hasU = td.includes('underline');
-      const hasS = td.includes('line-through');
-      if (hasU && hasS) return 'underline line-through';
-      if (hasU) return 'underline';
-      if (hasS) return 'line-through';
-      return 'none';
-    })();
-
-    const textAlign = (() => {
-      const a = (cs.textAlign ?? '').toString();
-      return a === 'center' || a === 'right' || a === 'justify' ? (a as any) : 'left';
-    })();
-
-    const backgroundColor = (() => {
-      const v = (cs.backgroundColor ?? '').toString();
-      // Treat transparent as empty highlight.
-      if (!v || v === 'transparent' || v === 'rgba(0, 0, 0, 0)') return '';
-      return v;
-    })();
-
-    return {
-      fontFamily: (cs.fontFamily ?? '').trim() || null,
-      fontSizePx,
-      fontWeight,
-      fontStyle,
-      textDecoration,
-      color: (cs.color ?? '').trim() || null,
-      backgroundColor,
-      lineHeight: (cs.lineHeight ?? '').trim() || null,
-      textAlign,
-    };
-  }
-
-  onFormatPainterClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-
-    // Toggle off if already on.
-    if (this.toolbarService.formatPainterActive()) {
-      this.toolbarService.clearFormatPainter();
-      return;
-    }
-
-    // Single-use: capture style then arm painter (not pinned).
-    const style = this.captureInlineStyleForPainter();
-    this.toolbarService.setInlineFormatPainterStyle(style);
-    this.toolbarService.formatPainterPinned.set(false);
-    this.toolbarService.requestFormatPainterToggle();
-  }
-
-  onFormatPainterDoubleClick(event: MouseEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.hasActiveEditor) return;
-
-    // Pinned mode: capture style then keep painter enabled until turned off.
-    const style = this.captureInlineStyleForPainter();
-    this.toolbarService.setInlineFormatPainterStyle(style);
-    this.toolbarService.enablePinnedFormatPainter();
-  }
 
   onFontFamilyChange(value: string): void {
     if (!this.hasActiveEditor) return;

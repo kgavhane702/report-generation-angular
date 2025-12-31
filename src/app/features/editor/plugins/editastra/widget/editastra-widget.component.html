@@ -1,4 +1,14 @@
-<div class="editastra-widget" [style.background]="props.backgroundColor || null">
+<div
+  class="editastra-widget"
+  [style.background]="props.backgroundColor || null"
+  [class.editastra-widget--loading]="props.loading === true"
+  [style.--ew-auto-fit-scale]="autoFitTextScale()"
+  [attr.data-ew-min-height]="minWidgetHeightPx()"
+>
+  <div *ngIf="props.loading" class="editastra-widget__loading-overlay" aria-live="polite" aria-busy="true">
+    <div class="editastra-widget__loading-spinner"></div>
+    <div class="editastra-widget__loading-text">{{ props.loadingMessage || 'Loading…' }}</div>
+  </div>
   <div
     class="editastra-widget__content"
     [attr.data-v-align]="props.verticalAlign || 'top'"
@@ -7,6 +17,7 @@
     <app-editastra-editor
       [html]="localHtml()"
       [placeholder]="placeholder()"
+      variant="table"
       (editorFocus)="onEditorFocus()"
       (editorBlur)="onEditorBlur()"
       (htmlInput)="onEditorInput($event)"

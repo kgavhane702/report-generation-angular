@@ -79,29 +79,8 @@
       }
     }
 
-    // Format painter active state - more prominent
-    &--format-painter-active {
-      background: rgba(25, 118, 210, 0.2);
-      color: #1976d2;
-      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.4);
-      animation: format-painter-pulse 1.5s ease-in-out infinite;
-
-      &:hover:not(:disabled) {
-        background: rgba(25, 118, 210, 0.3);
-      }
-    }
-
     svg {
       pointer-events: none;
-    }
-  }
-
-  @keyframes format-painter-pulse {
-    0%, 100% {
-      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.4);
-    }
-    50% {
-      box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.2);
     }
   }
 

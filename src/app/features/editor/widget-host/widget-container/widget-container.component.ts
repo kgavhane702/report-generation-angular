@@ -586,8 +586,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (!widget) return { minWidth: baseMinWidth, minHeight: baseMinHeight };
 
     if (widget.type === 'text' || widget.type === 'editastra') {
-      // Rich text widgets should not collapse to tiny sizes where editing becomes impossible.
-      return { minWidth: 80, minHeight: 50 };
+      // Text-like widgets should not collapse below a caret-friendly baseline.
+      // For editastra: additionally clamp to content-min-height from DOM (table-like behavior).
+      const baseMinH = widget.type === 'editastra' ? 24 : 50;
+      const domMinH = widget.type === 'editastra' ? this.readEditastraMinHeightPxFromDom() : null;
+      const contentMinH = domMinH ?? baseMinH;
+      return { minWidth: 80, minHeight: Math.max(baseMinH, contentMinH) };
     }
 
     if (widget.type === 'table') {
@@ -609,6 +613,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const root = this.hostRef.nativeElement;
     const tableEl = root.querySelector('.table-widget[data-tw-min-height]') as HTMLElement | null;
     const raw = tableEl?.getAttribute('data-tw-min-height') ?? '';
+    const v = Number(raw);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  private readEditastraMinHeightPxFromDom(): number | null {
+    const root = this.hostRef.nativeElement;
+    const el = root.querySelector('.editastra-widget[data-ew-min-height]') as HTMLElement | null;
+    const raw = el?.getAttribute('data-ew-min-height') ?? '';
     const v = Number(raw);
     return Number.isFinite(v) && v > 0 ? v : null;
   }

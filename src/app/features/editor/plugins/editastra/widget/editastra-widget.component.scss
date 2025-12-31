@@ -7,6 +7,9 @@
   overflow: hidden;
   border: none;
   cursor: text;
+  // Auto-fit scaling (used by URL auto-load after JSON import). Defaults to 1 (no change).
+  --ew-auto-fit-scale: 1;
+  position: relative;
 }
 
 .editastra-widget__content {
@@ -29,6 +32,43 @@
 
 .editastra-widget__content[data-v-align='bottom'] {
   align-content: end;
+}
+
+.editastra-widget__loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(2px);
+  z-index: 5;
+  pointer-events: none; // keep widget drag/resize working
+}
+
+.editastra-widget__loading-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.15);
+  border-top-color: rgba(25, 118, 210, 0.85);
+  animation: editastra-spin 0.9s linear infinite;
+}
+
+.editastra-widget__loading-text {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+@keyframes editastra-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 

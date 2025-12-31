@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  EffectRef,
   EventEmitter,
   HostListener,
   Input,
@@ -11,6 +12,7 @@ import {
   Output,
   SimpleChanges,
   ViewChild,
+  effect,
   inject,
   signal,
 } from '@angular/core';
@@ -22,6 +24,7 @@ import { EditastraEditorComponent } from '../editor/editastra-editor.component';
 import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
 import { Subscription } from 'rxjs';
 import { DraftStateService } from '../../../../../core/services/draft-state.service';
+import { UIStateService } from '../../../../../core/services/ui-state.service';
 
 /**
  * EditastraWidgetComponent
@@ -47,6 +50,7 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly draftState = inject(DraftStateService);
+  private readonly uiState = inject(UIStateService);
 
   @ViewChild(EditastraEditorComponent, { static: false }) editorComp?: EditastraEditorComponent;
   private verticalAlignSub?: Subscription;
@@ -62,6 +66,15 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   private suppressNextBlur = false;
   private autoGrowRaf: number | null = null;
 
+  /** Content-aware minimum widget height (layout px) to avoid clipped text while resizing. */
+  readonly minWidgetHeightPx = signal<number>(24);
+  private computeMinHeightRaf: number | null = null;
+  private minHeightEffectRef?: EffectRef;
+  private autoFitEffectRef?: EffectRef;
+  readonly autoFitTextScale = signal<number>(1);
+  readonly widgetHeightPx = signal<number>(0);
+  readonly widgetWidthPx = signal<number>(0);
+
   get props(): EditastraWidgetProps {
     return this.widget.props as EditastraWidgetProps;
   }
@@ -70,6 +83,8 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
 
   ngOnInit(): void {
     this.localHtml.set(this.props.contentHtml || '');
+    this.widgetHeightPx.set(this.widget?.size?.height ?? 0);
+    this.widgetWidthPx.set(this.widget?.size?.width ?? 0);
 
     // Listen for vertical-align requests coming from the Editastra toolbar (reuses TableToolbarService).
     // Apply ONLY when this widget is the active target in the toolbar service.
@@ -80,6 +95,28 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
       // Keep editor focused while applying alignment.
       requestAnimationFrame(() => this.editorComp?.focus());
     });
+
+    // Compute and expose content-based min-height while this widget is active.
+    // Mirrors table's `data-tw-min-height` contract used by WidgetContainer for resize clamping.
+    this.minHeightEffectRef = effect(() => {
+      const activeId = this.uiState.activeWidgetId();
+      this.uiState.zoomLevel();
+      this.localHtml();
+
+      const myId = this.widget?.id;
+      if (!myId || activeId !== myId) return;
+      this.scheduleComputeContentMinHeight();
+    });
+
+    // Auto-fit scale for URL-based widgets (preserve-frame): if the loaded content overflows the fixed widget height,
+    // scale down padding/font-size at render-time (NOT persisted into contentHtml).
+    this.autoFitEffectRef = effect(() => {
+      this.uiState.zoomLevel();
+      this.localHtml();
+      this.widgetHeightPx();
+      this.widgetWidthPx();
+      this.scheduleComputeAutoFitScale();
+    });
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -88,14 +125,32 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
       if (!this.isActivelyEditing) {
         this.localHtml.set(this.props.contentHtml || '');
       }
+      this.widgetHeightPx.set(this.widget?.size?.height ?? 0);
+      this.widgetWidthPx.set(this.widget?.size?.width ?? 0);
     }
   }
 
   ngOnDestroy(): void {
     this.verticalAlignSub?.unsubscribe();
+    if (this.minHeightEffectRef) {
+      this.minHeightEffectRef.destroy();
+      this.minHeightEffectRef = undefined;
+    }
+    if (this.autoFitEffectRef) {
+      this.autoFitEffectRef.destroy();
+      this.autoFitEffectRef = undefined;
+    }
     if (this.autoGrowRaf !== null) {
       cancelAnimationFrame(this.autoGrowRaf);
       this.autoGrowRaf = null;
+    }
+    if (this.autoFitScaleRaf !== null) {
+      cancelAnimationFrame(this.autoFitScaleRaf);
+      this.autoFitScaleRaf = null;
+    }
+    if (this.computeMinHeightRaf !== null) {
+      cancelAnimationFrame(this.computeMinHeightRaf);
+      this.computeMinHeightRaf = null;
     }
     // Ensure we don't leave a stale activeCell reference in the shared toolbar service.
     this.tableToolbar.setActiveCell(null, this.widget?.id ?? null);
@@ -123,25 +178,6 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
         this.suppressNextBlur = false;
       });
     }
-  }
-
-  @HostListener('document:pointerup', ['$event'])
-  onDocumentPointerUp(event: PointerEvent): void {
-    // Apply inline format painter on mouse/touch release inside the editor.
-    if (!this.tableToolbar.formatPainterActive()) return;
-    if (this.tableToolbar.activeTableWidgetId !== this.widget?.id) return;
-    if (!this.tableToolbar.getInlineFormatPainterStyle()) return;
-
-    const target = event.target as HTMLElement | null;
-    const editable = this.editorComp?.getEditableElement() ?? null;
-    if (!target || !editable) return;
-    if (!editable.contains(target)) return;
-
-    // Apply to current selection/caret.
-    this.tableToolbar.applyInlineFormatPainterNow();
-
-    // Keep editor focused (toolbar service may have moved selection).
-    requestAnimationFrame(() => this.editorComp?.focus());
   }
 
   onEditorFocus(): void {
@@ -233,7 +269,7 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     const contentH = Math.max(scrollH, renderH);
     if (!Number.isFinite(contentH) || contentH <= 0) return;
 
-    const minHeight = 50;
+    const minHeight = 24;
     const bufferPx = 8;
     const stepPx = 8;
 
@@ -270,6 +306,89 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     const s = Math.max(1, Math.floor(step));
     const n = Number.isFinite(v) ? v : 0;
     return Math.ceil(n / s) * s;
+  }
+
+  private scheduleComputeContentMinHeight(): void {
+    if (this.computeMinHeightRaf !== null) return;
+    this.computeMinHeightRaf = window.requestAnimationFrame(() => {
+      this.computeMinHeightRaf = null;
+      this.computeContentMinHeightPx();
+    });
+  }
+
+  private computeContentMinHeightPx(): void {
+    const editable = this.editorComp?.getEditableElement() ?? null;
+    if (!editable) return;
+
+    // scrollHeight is in layout px (not affected by zoom transform), which matches widget frame units.
+    const raw = Math.max(0, Math.ceil(editable.scrollHeight || 0));
+    const bufferPx = 2;
+    const next = Math.max(24, raw + bufferPx);
+    if (next !== this.minWidgetHeightPx()) {
+      this.minWidgetHeightPx.set(next);
+      // Ensure the DOM attribute updates under OnPush.
+      this.cdr.markForCheck();
+    }
+  }
+
+  private scheduleComputeAutoFitScale(): void {
+    // Reuse the same RAF slot as min-height compute; both are cheap and tied to layout.
+    this.scheduleComputeContentMinHeight();
+    this.scheduleAutoFitScaleRaf();
+  }
+
+  private autoFitScaleRaf: number | null = null;
+
+  private scheduleAutoFitScaleRaf(): void {
+    if (this.autoFitScaleRaf !== null) return;
+    this.autoFitScaleRaf = window.requestAnimationFrame(() => {
+      this.autoFitScaleRaf = null;
+      this.computeAutoFitScale();
+    });
+  }
+
+  private computeAutoFitScale(): void {
+    // Only apply preserved-frame auto-fit when widget is URL-backed.
+    if (!this.props.dataSource || this.props.loading) {
+      this.setAutoFitScale(1);
+      return;
+    }
+    if (this.isActivelyEditing) {
+      this.setAutoFitScale(1);
+      return;
+    }
+
+    const editable = this.editorComp?.getEditableElement() ?? null;
+    if (!editable) return;
+
+    const availableH = Math.max(1, Number.isFinite(this.widgetHeightPx()) ? this.widgetHeightPx() : 0);
+    const required = Math.max(20, Math.ceil(editable.scrollHeight || 0));
+    if (!Number.isFinite(required) || required <= 0) {
+      this.setAutoFitScale(1);
+      return;
+    }
+
+    if (required <= availableH + 1) {
+      this.setAutoFitScale(1);
+      return;
+    }
+
+    const bufferPx = 2;
+    const ratio = Math.max(0.1, (availableH - bufferPx) / required);
+    const next = this.clamp(ratio, 0.65, 1);
+    this.setAutoFitScale(next);
+  }
+
+  private setAutoFitScale(v: number): void {
+    const next = Number.isFinite(v) ? v : 1;
+    if (next === this.autoFitTextScale()) return;
+    this.autoFitTextScale.set(next);
+    this.cdr.markForCheck();
+  }
+
+  private clamp(v: number, min: number, max: number): number {
+    const n = Number.isFinite(v) ? v : 0;
+    return Math.max(min, Math.min(max, n));
   }
 }
 

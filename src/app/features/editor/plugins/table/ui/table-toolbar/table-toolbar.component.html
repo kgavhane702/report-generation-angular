@@ -193,24 +193,7 @@
     ></app-border-picker>
   </div>
 
-  <div class="table-toolbar__separator"></div>
-
-  <div class="table-toolbar__group">
-    <button
-      type="button"
-      class="table-toolbar__button"
-      [class.table-toolbar__button--active]="isFormatPainterActive"
-      [class.table-toolbar__button--format-painter-active]="isFormatPainterActive"
-      (mousedown)="onFormatPainterClick($event)"
-      title="Format painter (copy cell formatting)"
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="4" y="3" width="10" height="6" rx="1"></rect>
-        <path d="M9 9v3"></path>
-        <path d="M6 12h6l-1 8h-4l-1-8z"></path>
-      </svg>
-    </button>
-  </div>
+  <!-- (Format painter removed for now; will be reworked later) -->
 </div>
 
 <div

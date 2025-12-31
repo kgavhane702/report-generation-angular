@@ -501,24 +501,6 @@
             ></app-color-picker>
           </ng-container>
 
-          <!-- Format painter (single click = one-shot, double click = pinned) -->
-          <button
-            *ngSwitchCase="'format-painter'"
-            type="button"
-            class="table-toolbar__button"
-            [class.table-toolbar__button--active]="isFormatPainterActive"
-            [class.table-toolbar__button--format-painter-active]="isFormatPainterActive"
-            [disabled]="!hasActiveEditor"
-            (mousedown)="onFormatPainterClick($event)"
-            (dblclick)="onFormatPainterDoubleClick($event)"
-            [attr.title]="isFormatPainterPinned ? 'Format painter (pinned)' : 'Format painter'"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <rect x="4" y="3" width="10" height="6" rx="1"></rect>
-              <path d="M9 9v3"></path>
-              <path d="M6 12h6l-1 8h-4l-1-8z"></path>
-            </svg>
-          </button>
         </ng-container>
       </ng-container>
     </div>

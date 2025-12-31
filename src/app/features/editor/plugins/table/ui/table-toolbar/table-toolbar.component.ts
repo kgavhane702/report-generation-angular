@@ -87,7 +87,7 @@ export class TableToolbarComponent {
   }
 
   get isFormatPainterActive(): boolean {
-    return this.toolbarService.formatPainterActive();
+    return false;
   }
 
   get hasActiveCell(): boolean {
@@ -196,11 +196,7 @@ export class TableToolbarComponent {
     });
   }
 
-  onFormatPainterClick(event: MouseEvent): void {
-    event.preventDefault();
-    if (!this.hasActiveCell) return;
-    this.toolbarService.requestFormatPainterToggle();
-  }
+  // Format painter removed for now.
 
   onInsertRowAbove(event: MouseEvent): void {
     event.preventDefault();

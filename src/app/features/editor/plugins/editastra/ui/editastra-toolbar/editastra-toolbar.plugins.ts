@@ -100,12 +100,6 @@ export type EditastraToolbarPlugin =
       group: EditastraToolbarGroupId;
       title: string;
       icon: 'format_color_fill';
-    }
-  | {
-      kind: 'format-painter';
-      id: string;
-      group: EditastraToolbarGroupId;
-      title: string;
     };
 
 export const EDITASTRA_TOOLBAR_GROUP_ORDER: EditastraToolbarGroupId[] = [
@@ -208,12 +202,6 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
     title: 'Background color',
     icon: 'format_color_fill',
   },
-  {
-    kind: 'format-painter',
-    id: 'formatPainter',
-    group: 'colors',
-    title: 'Format painter',
-  },
 ];
 
 /**
@@ -225,7 +213,7 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
  * - table section styling
  */
 export const EDITASTRA_SHARED_FORMATTING_PLUGINS: EditastraToolbarPlugin[] = EDITASTRA_TOOLBAR_PLUGINS.filter(
-  (p) => p.kind !== 'widget-background' && p.kind !== 'format-painter'
+  (p) => p.kind !== 'widget-background'
 );
 
 

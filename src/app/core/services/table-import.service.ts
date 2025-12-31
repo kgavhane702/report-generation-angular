@@ -4,18 +4,7 @@ import { Observable } from 'rxjs';
 import { TableCellMerge, TableRow } from '../../models/widget.model';
 import type { ImportFormat } from '../tabular-import/enums/import-format.enum';
 import type { HttpRequestSpec } from '../../shared/http-request/models/http-request.model';
-
-export interface ApiErrorDto {
-  code?: string;
-  message: string;
-  details?: Record<string, any> | null;
-}
-
-export interface ApiResponseDto<T> {
-  success: boolean;
-  data: T | null;
-  error?: ApiErrorDto | null;
-}
+import type { ApiResponseDto } from './api-response.model';
 
 export interface TableImportResponseDto {
   rows: Array<{

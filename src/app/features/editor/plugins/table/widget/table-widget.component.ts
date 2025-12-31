@@ -116,31 +116,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    */
   private suppressWidgetSyncDuringAutoFit = false;
 
-  /** Throttle clipped-table logs to avoid spamming the console. */
-  private lastClippedLogTs = 0;
+  // (debug-only instrumentation removed)
 
-  /**
-   * Debug helper: log when the table is currently clipping content (any cell overflowing its visible height).
-   * Uses `findWorstLeafOverflow()` which scans rendered leaves and checks needed vs visible height.
-   */
-  private logIfTableIsClipped(context: string): void {
-    const now = Date.now();
-    if (now - this.lastClippedLogTs < 1500) return;
+  /** In preserved-frame URL-import mode: keep overlay until the first post-import fit completes (avoids visible font "pop"). */
+  private preservedImportFitInProgress = false;
 
-    const worst = this.findWorstLeafOverflow();
-    if (!worst || worst.overflowPx <= 1) return;
-
-    this.lastClippedLogTs = now;
-    // eslint-disable-next-line no-console
-    console.warn('[TableWidget] Table is clipping content', {
-      context,
-      widgetId: this.widget?.id,
-      overflowPx: Math.round(worst.overflowPx),
-      leafId: worst.leafId,
-      zoom: this.uiState.zoomLevel(),
-      widgetSize: this.widget?.size,
-    });
-  }
+  // (debug-only clipping logger removed)
 
   /**
    * When a URL-based table is exported, we replace rows with a 1x1 placeholder but we now preserve
@@ -189,17 +170,25 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private setContentMinHeights(requiredPx: number): void {
     const req = Math.max(20, Math.ceil(Number.isFinite(requiredPx) ? requiredPx : 20));
-    this.contentRequiredTableHeightPx = req;
+    // IMPORTANT for preserved-frame (URL) tables:
+    // `contentRequiredTableHeightPx` drives runtime-only `autoFitTextScale`.
+    // We must keep it stable across focus/selection changes, otherwise the scale (and thus font size)
+    // will "flip" when clicking different cells.
+    //
+    // In preserved mode we therefore keep the required height monotonic (never decrease within a session).
+    const effectiveReq =
+      this.sizingState === 'preserved' ? Math.max(this.contentRequiredTableHeightPx, req) : req;
+    this.contentRequiredTableHeightPx = effectiveReq;
 
     if (this.sizingState === 'preserved') {
       const currentWidgetHeight = this.widget?.size?.height ?? 0;
       if (Number.isFinite(currentWidgetHeight) && currentWidgetHeight > 0) {
-        this.contentMinTableHeightPx = Math.max(20, Math.min(req, Math.ceil(currentWidgetHeight)));
+        this.contentMinTableHeightPx = Math.max(20, Math.min(effectiveReq, Math.ceil(currentWidgetHeight)));
         return;
       }
     }
 
-    this.contentMinTableHeightPx = req;
+    this.contentMinTableHeightPx = effectiveReq;
   }
 
   @Input({ required: true }) widget!: WidgetModel;
@@ -360,14 +349,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private textColorSubscription?: Subscription;
   private textHighlightSubscription?: Subscription;
   private lineHeightSubscription?: Subscription;
-  private formatPainterSubscription?: Subscription;
+  // private formatPainterSubscription?: Subscription; // format painter removed
   private tableOptionsSubscription?: Subscription;
   private importSubscription?: Subscription;
 
-  /** One-shot format painter state (cell-level only) */
-  private formatPainterArmed = false;
-  private formatPainterBaselineSelection: Set<string> = new Set();
-  private formatPainterBaselineActiveCellId: string | null = null;
+  // One-shot format painter state removed
 
   /** Multi-cell selection state */
   private readonly selectedCells = signal<Set<string>>(new Set());
@@ -385,9 +371,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.isActivelyEditing();
   }
 
-  get isFormatPainterActive(): boolean {
-    return this.formatPainterArmed && this.toolbarService.formatPainterActive();
-  }
+  // isFormatPainterActive removed
 
   get tableProps(): TableWidgetProps {
     return this.widget.props as TableWidgetProps;
@@ -780,52 +764,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.applyStyleToSelection({ lineHeight: lineHeight || undefined });
     });
 
-    this.formatPainterSubscription = this.toolbarService.formatPainterRequested$.subscribe((enabled) => {
-      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
-        return;
-      }
-
-      if (!enabled) {
-        this.formatPainterArmed = false;
-        this.formatPainterBaselineSelection = new Set();
-        this.formatPainterBaselineActiveCellId = null;
-        return;
-      }
-
-      const sourceLeafId =
-        this.activeCellId ??
-        (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
-
-      const sourceCell = sourceLeafId ? this.getCellModelByLeafId(sourceLeafId) : null;
-      
-      // Capture ALL style properties for format painter
-      const capturedStyle: Partial<TableCellStyle> = {
-        textAlign: sourceCell?.style?.textAlign ?? 'left',
-        verticalAlign: sourceCell?.style?.verticalAlign ?? 'top',
-        fontWeight: sourceCell?.style?.fontWeight ?? 'normal',
-        fontStyle: sourceCell?.style?.fontStyle ?? 'normal',
-        fontFamily: sourceCell?.style?.fontFamily ?? '',
-        fontSizePx: sourceCell?.style?.fontSizePx ?? undefined,
-        backgroundColor: sourceCell?.style?.backgroundColor ?? '',
-        borderColor: sourceCell?.style?.borderColor,
-        borderWidth: sourceCell?.style?.borderWidth,
-        borderStyle: sourceCell?.style?.borderStyle,
-      };
-
-      this.toolbarService.setFormatPainterStyle(capturedStyle);
-      this.formatPainterArmed = true;
-      this.formatPainterBaselineSelection = new Set(this.selectedCells());
-      this.formatPainterBaselineActiveCellId = this.activeCellId;
-    });
+    // format painter subscription removed
 
     // Compute initial resize segments once the table is painted (RAF).
     this.scheduleRecomputeResizeSegments();
   }
 
   private applyExcelImport(req: TableImportFromExcelRequest): void {
+    const preserveWidgetFrame = req.preserveWidgetFrame === true;
+
     // Import is complete once we reach this point (backend response already received).
-    // Hide placeholder overlay immediately (don't wait for store update).
-    this.isLoadingSig.set(false);
+    // For preserved-frame (URL) imports, keep the overlay until the first fit pass completes,
+    // otherwise the user sees a "font compute" pop as auto-fit scale stabilizes.
+    if (preserveWidgetFrame) {
+      this.preservedImportFitInProgress = true;
+      this.isLoadingSig.set(true);
+    } else {
+      this.isLoadingSig.set(false);
+    }
 
     // Replace entire table content with imported data.
     const rows: TableRow[] = req.rows.map((r, rowIndex) => ({
@@ -854,7 +810,6 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const curW = this.widget?.size?.width ?? 0;
     const curH = this.widget?.size?.height ?? 0;
 
-    const preserveWidgetFrame = req.preserveWidgetFrame === true;
     this.autoFitTextToFrame = preserveWidgetFrame;
 
     // Set sizing state based on import mode:
@@ -1015,6 +970,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.emitPropsChange(this.localRows());
     this.scheduleRecomputeResizeSegments();
     this.cdr.markForCheck();
+
+    // Preserved-frame URL import: we intentionally kept the overlay up during the first fit pass.
+    // Now that the layout + required height are stable, reveal the table.
+    if (this.preservedImportFitInProgress) {
+      this.preservedImportFitInProgress = false;
+      this.isLoadingSig.set(false);
+    }
   }
 
   private fitTopLevelRowsToContentWithinHeight(
@@ -1434,7 +1396,6 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.setContentMinHeights(minSum);
 
     this.cdr.markForCheck();
-    this.logIfTableIsClipped('recomputeContentMinTableHeight');
   }
 
   ngOnDestroy(): void {
@@ -1495,9 +1456,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.lineHeightSubscription) {
       this.lineHeightSubscription.unsubscribe();
     }
-    if (this.formatPainterSubscription) {
-      this.formatPainterSubscription.unsubscribe();
-    }
+    // format painter subscription removed
 
     if (this.tableOptionsSubscription) {
       this.tableOptionsSubscription.unsubscribe();
@@ -1580,7 +1539,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const migrated = this.migrateLegacyMergedRegions(nextRows, this.tableProps.mergedRegions ?? []);
       this.localRows.set(migrated);
       this.initializeFractionsFromProps();
-      this.isLoadingSig.set(!!this.tableProps.loading);
+      if (!this.preservedImportFitInProgress) {
+        this.isLoadingSig.set(!!this.tableProps.loading);
+      }
       this.scheduleRecomputeResizeSegments();
 
       // Keep toolbar checkboxes aligned with persisted props.
@@ -2331,27 +2292,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.leafRectStart = null;
     this.tableRectStart = null;
 
-    if (this.formatPainterArmed && this.toolbarService.formatPainterActive() && this.toolbarService.activeTableWidgetId === this.widget.id) {
-      const captured = this.toolbarService.getFormatPainterStyle();
-      if (captured) {
-        const currentSelection = this.selectedCells();
-        const targetSelectionIsUsed = currentSelection.size > 0 || this.formatPainterBaselineSelection.size > 0;
-        const targetChanged = targetSelectionIsUsed
-          ? !this.setEquals(currentSelection, this.formatPainterBaselineSelection)
-          : (this.activeCellId !== this.formatPainterBaselineActiveCellId);
-
-        const hasTarget = currentSelection.size > 0 || !!this.activeCellId;
-
-        if (targetChanged && hasTarget) {
-          // Apply to current selection/cell and then auto-disable (one-shot).
-          this.applyStyleToSelection(captured);
-          this.formatPainterArmed = false;
-          this.formatPainterBaselineSelection = new Set();
-          this.formatPainterBaselineActiveCellId = null;
-          this.toolbarService.clearFormatPainter();
-        }
-      }
-    }
+    // format painter handling removed
 
     // Debug: log final selection on mouseup for active table widget
     if (this.toolbarService.activeTableWidgetId === this.widget.id) {

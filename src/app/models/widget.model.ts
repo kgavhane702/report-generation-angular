@@ -61,6 +61,11 @@ export interface EditastraWidgetProps {
   backgroundColor?: string;
   /** Vertical alignment of the text block inside the widget (PPT-like). */
   verticalAlign?: 'top' | 'middle' | 'bottom';
+  /** Optional persisted remote source (Postman-like request config). */
+  dataSource?: TableHttpDataSourceConfig | null;
+  /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
+  loading?: boolean;
+  loadingMessage?: string;
 }
 
 export interface ChartWidgetProps {

@@ -40,22 +40,6 @@ export interface TableDeleteRequest {
   axis: 'row' | 'col';
 }
 
-export interface InlineTextFormatStyle {
-  fontFamily?: string | null;
-  fontSizePx?: number | null;
-  fontWeight?: 'normal' | 'bold' | null;
-  fontStyle?: 'normal' | 'italic' | null;
-  textDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through' | null;
-  color?: string | null;
-  backgroundColor?: string | null;
-  lineHeight?: string | null;
-  textAlign?: 'left' | 'center' | 'right' | 'justify' | null;
-}
-
-type FormatPainterPayload =
-  | { kind: 'table-cell'; style: Partial<TableCellStyle> }
-  | { kind: 'inline-text'; style: InlineTextFormatStyle };
-
 export interface TableImportFromExcelRequest {
   widgetId: string;
   rows: Array<{
@@ -106,7 +90,7 @@ export class TableToolbarService {
   private readonly lineHeightRequestedSubject = new Subject<string>();
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
-  private readonly formatPainterRequestedSubject = new Subject<boolean>();
+  // format painter removed (will be reworked later)
   private readonly importFromExcelRequestedSubject = new Subject<TableImportFromExcelRequest>();
 
   private readonly tableOptionsRequestedSubject = new Subject<{ options: TableSectionOptions; widgetId: string }>();
@@ -131,7 +115,6 @@ export class TableToolbarService {
   public readonly lineHeightRequested$: Observable<string> = this.lineHeightRequestedSubject.asObservable();
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
-  public readonly formatPainterRequested$: Observable<boolean> = this.formatPainterRequestedSubject.asObservable();
   public readonly importFromExcelRequested$: Observable<TableImportFromExcelRequest> =
     this.importFromExcelRequestedSubject.asObservable();
   public readonly tableOptionsRequested$: Observable<{ options: TableSectionOptions; widgetId: string }> = this.tableOptionsRequestedSubject.asObservable();
@@ -150,10 +133,7 @@ export class TableToolbarService {
     fontSizePx: null,
   });
 
-  /** One-shot format painter state (cell-level only) */
-  readonly formatPainterActive = signal(false);
-  readonly formatPainterPinned = signal(false);
-  private formatPainterPayload: FormatPainterPayload | null = null;
+  // format painter removed
 
   /** Current table section options as seen by the toolbar */
   readonly tableOptions = signal<TableSectionOptions>({
@@ -239,133 +219,7 @@ export class TableToolbarService {
     this.importFromExcelRequestedSubject.next(request);
   }
 
-  requestFormatPainterToggle(): void {
-    const next = !this.formatPainterActive();
-    this.formatPainterActive.set(next);
-    if (!next) {
-      this.formatPainterPinned.set(false);
-      this.formatPainterPayload = null;
-    }
-    this.formatPainterRequestedSubject.next(next);
-  }
-
-  /** Enable a pinned format painter (Word/PowerPoint-like: stays on until turned off). */
-  enablePinnedFormatPainter(): void {
-    this.formatPainterActive.set(true);
-    this.formatPainterPinned.set(true);
-    this.formatPainterRequestedSubject.next(true);
-  }
-
-  clearFormatPainter(): void {
-    if (!this.formatPainterActive()) return;
-    this.formatPainterActive.set(false);
-    this.formatPainterPinned.set(false);
-    this.formatPainterPayload = null;
-    this.formatPainterRequestedSubject.next(false);
-  }
-
-  setFormatPainterStyle(style: Partial<TableCellStyle> | null): void {
-    this.formatPainterPayload = style ? { kind: 'table-cell', style } : null;
-  }
-
-  getFormatPainterStyle(): Partial<TableCellStyle> | null {
-    return this.formatPainterPayload?.kind === 'table-cell' ? this.formatPainterPayload.style : null;
-  }
-
-  setInlineFormatPainterStyle(style: InlineTextFormatStyle | null): void {
-    this.formatPainterPayload = style ? { kind: 'inline-text', style } : null;
-  }
-
-  getInlineFormatPainterStyle(): InlineTextFormatStyle | null {
-    return this.formatPainterPayload?.kind === 'inline-text' ? this.formatPainterPayload.style : null;
-  }
-
-  /**
-   * Apply the inline format painter payload to the current selection inside the activeCell.
-   * - If selection is collapsed: inserts a styled zero-width span so future typing uses that style.
-   * - If selection is a range: wraps the selected contents with a styled span.
-   *
-   * Auto-clears painter if not pinned.
-   */
-  applyInlineFormatPainterNow(): void {
-    const style = this.getInlineFormatPainterStyle();
-    const cell = this.activeCell;
-    if (!style || !cell) return;
-
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
-    const anchor = selection.anchorNode;
-    const focus = selection.focusNode;
-    if (!anchor || !focus) return;
-    if (!cell.contains(anchor) || !cell.contains(focus)) return;
-
-    const span = document.createElement('span');
-    if (style.fontFamily) span.style.fontFamily = style.fontFamily;
-    if (style.fontSizePx) span.style.fontSize = `${style.fontSizePx}px`;
-    if (style.fontWeight) span.style.fontWeight = style.fontWeight;
-    if (style.fontStyle) span.style.fontStyle = style.fontStyle;
-    if (style.textDecoration) span.style.textDecoration = style.textDecoration;
-    if (style.color) span.style.color = style.color;
-    if (style.backgroundColor !== null && style.backgroundColor !== undefined) span.style.backgroundColor = style.backgroundColor;
-    if (style.lineHeight) span.style.lineHeight = style.lineHeight;
-
-    // Apply textAlign at block level when possible (PPT-like).
-    if (style.textAlign) {
-      const el = (range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement) as Element | null;
-      const block = (el?.closest('p, div, li, blockquote') ?? el) as HTMLElement | null;
-      if (block && cell.contains(block)) {
-        block.style.textAlign = style.textAlign;
-      } else {
-        cell.style.textAlign = style.textAlign;
-      }
-    }
-
-    if (range.collapsed) {
-      // Insert a styled placeholder so subsequent typing inherits the style.
-      span.appendChild(document.createTextNode('\u200B'));
-      range.insertNode(span);
-      try {
-        const newRange = document.createRange();
-        newRange.selectNodeContents(span);
-        newRange.collapse(false);
-        selection.removeAllRanges();
-        selection.addRange(newRange);
-      } catch {
-        // ignore
-      }
-    } else {
-      try {
-        range.surroundContents(span);
-      } catch {
-        const frag = range.extractContents();
-        span.appendChild(frag);
-        range.insertNode(span);
-      }
-
-      try {
-        selection.removeAllRanges();
-        const nextRange = document.createRange();
-        nextRange.selectNodeContents(span);
-        selection.addRange(nextRange);
-      } catch {
-        // ignore
-      }
-    }
-
-    // Trigger input event so widget can persist HTML.
-    try {
-      cell.dispatchEvent(new Event('input', { bubbles: true }));
-    } catch {
-      // ignore
-    }
-
-    this.updateFormattingState();
-
-    if (!this.formatPainterPinned()) {
-      this.clearFormatPainter();
-    }
-  }
+  // format painter removed
 
   /**
    * Register callback to get selected cell elements

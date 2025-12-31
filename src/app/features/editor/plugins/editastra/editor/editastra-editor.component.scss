@@ -94,6 +94,26 @@
   line-height: 1.35;
 }
 
+// Table-like density (used by table cells and by Editastra widget for consistent 24px minimum baseline).
+.editastra-editor--table .editastra-editor__surface {
+  min-height: 24px;
+}
+
+// NOTE:
+// In table widget, the surface gets `editorClass="table-widget__cell-editor..."` which carries
+// the authoritative sizing rules (incl. `--tw-auto-fit-scale` and container-query subcell logic).
+// We must not override those here, otherwise fonts can "jump" between cells.
+//
+// For standalone Editastra widgets (which use variant="table" but do NOT have the table-widget classes),
+// apply the compact padding + URL auto-fit scaling via `--ew-auto-fit-scale`.
+.editastra-editor--table .editastra-editor__surface:not(.table-widget__cell-editor):not(.table-widget__cell-editor--subcell) {
+  padding:
+    clamp(0px, calc(4px * var(--ew-auto-fit-scale, 1)), 4px)
+    clamp(0px, calc(8px * var(--ew-auto-fit-scale, 1)), 8px);
+  font-size: clamp(8px, calc(1em * var(--ew-auto-fit-scale, 1)), 1em);
+  line-height: clamp(1.0, calc(1.35 * var(--ew-auto-fit-scale, 1)), 1.35);
+}
+
 // Placeholder for empty contenteditable
 .editastra-editor__surface:empty::before {
   content: attr(data-placeholder);
