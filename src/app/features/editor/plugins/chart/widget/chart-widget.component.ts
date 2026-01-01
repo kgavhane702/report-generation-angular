@@ -375,7 +375,7 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Mark chart as successfully rendered
       this.isChartRendered = true;
       this.logger.debug('[ChartWidget] Chart rendered, marking as rendered:', this.widget.id);
-
+      
       // Centralized: ensures export marks rendered only when truly stable.
       this.exportRenderCoordinator.markRenderedWhenStable(this.widget.id, this.instance);
     } catch (error) {

@@ -15,17 +15,17 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <app-icon *ngSwitchCase="'bold'" name="bold" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'bold'" name="bold"></app-icon>
 
-              <app-icon *ngSwitchCase="'italic'" name="italic" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'italic'" name="italic"></app-icon>
 
-              <app-icon *ngSwitchCase="'underline'" name="underline" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'underline'" name="underline"></app-icon>
 
-              <app-icon *ngSwitchCase="'strikethrough'" name="strikethrough" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'strikethrough'" name="strikethrough"></app-icon>
 
-              <app-icon *ngSwitchCase="'superscript'" name="superscript" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'superscript'" name="superscript"></app-icon>
 
-              <app-icon *ngSwitchCase="'subscript'" name="subscript" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'subscript'" name="subscript"></app-icon>
             </ng-container>
           </button>
 
@@ -41,9 +41,9 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <app-icon *ngSwitchCase="'vAlignTop'" name="vAlignTop" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'vAlignMiddle'" name="vAlignMiddle" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'vAlignBottom'" name="vAlignBottom" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'vAlignTop'" name="vAlignTop"></app-icon>
+              <app-icon *ngSwitchCase="'vAlignMiddle'" name="vAlignMiddle"></app-icon>
+              <app-icon *ngSwitchCase="'vAlignBottom'" name="vAlignBottom"></app-icon>
             </ng-container>
           </button>
 
@@ -57,8 +57,8 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <app-icon *ngSwitchCase="'indentDecrease'" name="indentDecrease" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'indentIncrease'" name="indentIncrease" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'indentDecrease'" name="indentDecrease"></app-icon>
+              <app-icon *ngSwitchCase="'indentIncrease'" name="indentIncrease"></app-icon>
             </ng-container>
           </button>
 
@@ -83,7 +83,7 @@
                 <path d="M9 12h12"></path>
                 <path d="M9 18h12"></path>
               </svg>
-              <app-icon class="table-toolbar__combo-arrow" name="caret_down_small" [size]="8"></app-icon>
+              <app-icon class="table-toolbar__combo-arrow" name="caret_down_small"></app-icon>
             </button>
 
             <app-anchored-dropdown [open]="bulletStyleDropdownOpen()" [anchor]="bulletStyleTrigger" (closed)="closeBulletStyleDropdown()">
@@ -133,10 +133,10 @@
             [attr.title]="$any(p).title"
           >
             <ng-container [ngSwitch]="$any(p).icon">
-              <app-icon *ngSwitchCase="'alignLeft'" name="alignLeft" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'alignCenter'" name="alignCenter" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'alignRight'" name="alignRight" [size]="16"></app-icon>
-              <app-icon *ngSwitchCase="'alignJustify'" name="alignJustify" [size]="16"></app-icon>
+              <app-icon *ngSwitchCase="'alignLeft'" name="alignLeft"></app-icon>
+              <app-icon *ngSwitchCase="'alignCenter'" name="alignCenter"></app-icon>
+              <app-icon *ngSwitchCase="'alignRight'" name="alignRight"></app-icon>
+              <app-icon *ngSwitchCase="'alignJustify'" name="alignJustify"></app-icon>
             </ng-container>
           </button>
 
@@ -235,7 +235,7 @@
               [disabled]="!hasActiveEditor"
               (mousedown)="openLineHeightDropdown($event)"
             >
-              <app-icon name="lineHeight" [size]="16"></app-icon>
+              <app-icon name="lineHeight"></app-icon>
             </button>
             <app-anchored-dropdown
               [open]="lineHeightDropdownOpen()"

@@ -7,7 +7,7 @@
     [class.color-picker__trigger--icon]="!!icon"
     #trigger
   >
-    <app-icon *ngIf="icon" [name]="icon" [size]="20" class="color-picker__icon"></app-icon>
+    <app-icon *ngIf="icon" [name]="icon" class="color-picker__icon"></app-icon>
     <span *ngIf="label && !icon" class="color-picker__label">{{ label }}</span>
     <div
       class="color-picker__preview"

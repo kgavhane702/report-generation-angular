@@ -41,7 +41,9 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   private boundOnWheel = this.onRootWheel.bind(this);
   private isPaging = false;
   private lastFlipAt = 0;
-  private didAutoFitZoom = false;
+  // We no longer auto-fit on startup; default zoom is a fixed 55% (UIStateService).
+  // Keep this flag only to avoid reintroducing auto-fit behavior accidentally.
+  private didAutoFitZoom = true;
   private lastSubsectionId: string | null = null;
   private lastActivePageId: string | null = null;
 
@@ -83,36 +85,7 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
 
     this.initObserverRoot();
 
-    // Auto "fit to window" on startup once the page + canvas dimensions are ready.
-    // Run only once so we don't override user-selected zoom later.
-    runInInjectionContext(this.injector, () => {
-      effect(() => {
-        if (this.didAutoFitZoom) return;
-
-        const pages = this.editorState.activeSubsectionPages();
-        const activePageId = this.editorState.activePageId();
-        this.pageSize();
-
-        if (!activePageId || pages.length === 0) return;
-
-        const canvasElement = (this.elementRef.nativeElement as HTMLElement).closest('.editor-shell__canvas') as HTMLElement | null;
-        if (!canvasElement) return;
-        if (canvasElement.clientWidth <= 0 || canvasElement.clientHeight <= 0) return;
-
-        queueMicrotask(() => {
-          if (this.didAutoFitZoom) return;
-          this.uiState.setZoom(this.calculateFitZoom());
-          this.didAutoFitZoom = true;
-
-          // After zoom changes, layout (wrapper width/height) shifts. Re-center once.
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              this.scrollActivePageIntoView('center');
-            });
-          });
-        });
-      }, { allowSignalWrites: true });
-    });
+    // Startup zoom is fixed (55%) via UIStateService.
 
     // Keep scroll stable:
     // - Do NOT scroll when pages list changes (e.g. adding a new page) if the active page is unchanged.

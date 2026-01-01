@@ -67,7 +67,8 @@ export class AppIconComponent implements OnInit, OnChanges {
   private readonly document = inject(DOCUMENT);
 
   @Input({ required: true }) name!: string;
-  @Input() size: number = 24;
+  // Default icon size for toolbars is 13px. Individual callsites can still override.
+  @Input() size: number = 14;
   @Input() ariaHidden: boolean = true;
 
   iconSvg = signal<SafeHtml>('');
