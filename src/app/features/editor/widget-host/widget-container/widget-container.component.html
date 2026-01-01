@@ -5,6 +5,7 @@
     [class.widget-container--selected]="isSelected"
     [attr.data-widget-id]="widgetId"
     cdkDrag
+    [cdkDragConstrainPosition]="constrainDragPosition"
     [cdkDragDisabled]="isEditing || isResizing"
     (cdkDragStarted)="onDragStarted($event)"
     (cdkDragMoved)="onDragMoved($event)"

@@ -236,6 +236,7 @@ export class UIStateService {
   /**
    * Current zoom level (percentage, e.g., 100 = 100%)
    */
+  // Default zoom is immediately overridden by PageCanvas auto-fit once the canvas is measured.
   private readonly _zoomLevel = signal<number>(100);
   readonly zoomLevel = this._zoomLevel.asReadonly();
   

@@ -41,6 +41,7 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   private boundOnWheel = this.onRootWheel.bind(this);
   private isPaging = false;
   private lastFlipAt = 0;
+  private didAutoFitZoom = false;
 
   /**
    * Zoom level from UIStateService
@@ -79,6 +80,30 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
     (this.editorState as any).calculateFitZoom = () => this.calculateFitZoom();
 
     this.initObserverRoot();
+
+    // Auto "fit to window" on startup once the page + canvas dimensions are ready.
+    // Run only once so we don't override user-selected zoom later.
+    runInInjectionContext(this.injector, () => {
+      effect(() => {
+        if (this.didAutoFitZoom) return;
+
+        const pages = this.editorState.activeSubsectionPages();
+        const activePageId = this.editorState.activePageId();
+        this.pageSize();
+
+        if (!activePageId || pages.length === 0) return;
+
+        const canvasElement = (this.elementRef.nativeElement as HTMLElement).closest('.editor-shell__canvas') as HTMLElement | null;
+        if (!canvasElement) return;
+        if (canvasElement.clientWidth <= 0 || canvasElement.clientHeight <= 0) return;
+
+        queueMicrotask(() => {
+          if (this.didAutoFitZoom) return;
+          this.uiState.setZoom(this.calculateFitZoom());
+          this.didAutoFitZoom = true;
+        });
+      }, { allowSignalWrites: true });
+    });
 
     // When subsection/pages change, reset scroll position to top of the active page
     runInInjectionContext(this.injector, () => {

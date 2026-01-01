@@ -83,6 +83,8 @@
 .widget-container.cdk-drag-dragging {
   z-index: 9999 !important;
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.25);
+  // Drag should feel crisp; avoid transitions during the gesture.
+  transition: none !important;
 }
 
 .widget-container__placeholder {

@@ -125,6 +125,40 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   private activeHandle: ResizeHandle | null = null;
   private dragStartFrame: WidgetFrame | null = null;
+
+  /**
+   * CDK Drag works in screen px, but our canvas is zoomed via CSS `transform: scale(...)`.
+   * Without compensating, drag will feel "too slow" when zoomed out and "too fast" when zoomed in.
+   *
+   * CDK 16 doesn't support `cdkDragScale`, so we constrain the computed transform position instead.
+   */
+  readonly constrainDragPosition = (
+    userPointerPosition: { x: number; y: number },
+    _dragRef: unknown,
+    initialClientRect: ClientRect,
+    pickupPositionInElement: { x: number; y: number }
+  ): { x: number; y: number } => {
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+
+    // CDK expects that when `constrainPosition` is provided, we return the *desired top/left*
+    // (page coords) for the draggable preview/root element.
+    //
+    // We want the visual movement (after parent scale) to match the mouse delta.
+    // Because parent scaling multiplies the drag transform by `zoomScale`, we must divide the
+    // pointer delta by `zoomScale` before CDK converts it into a transform.
+    const startPointer = {
+      x: initialClientRect.left + pickupPositionInElement.x,
+      y: initialClientRect.top + pickupPositionInElement.y,
+    };
+
+    const dx = userPointerPosition.x - startPointer.x;
+    const dy = userPointerPosition.y - startPointer.y;
+
+    return {
+      x: initialClientRect.left + dx / zoomScale,
+      y: initialClientRect.top + dy / zoomScale,
+    };
+  };
   private resizeStart?: {
     width: number;
     height: number;
@@ -309,12 +343,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   onDragMoved(event: CdkDragMove): void {
     if (!this.dragStartFrame) return;
 
-    const dx = event.distance?.x ?? 0;
-    const dy = event.distance?.y ?? 0;
-
+    // Use the *actual* transform CDK applied (already constrained for zoom)
+    // rather than `event.distance`, which is in screen px and doesn't know about our CSS scale.
+    const p = event.source.getFreeDragPosition();
     const rawFrame: WidgetFrame = {
-      x: this.dragStartFrame.x + dx,
-      y: this.dragStartFrame.y + dy,
+      x: this.dragStartFrame.x + (p?.x ?? 0),
+      y: this.dragStartFrame.y + (p?.y ?? 0),
       width: this.dragStartFrame.width,
       height: this.dragStartFrame.height,
     };
@@ -325,13 +359,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   }
   
   onDragEnded(event: CdkDragEnd): void {
+    const start = this.dragStartFrame ?? this.frame;
     const position = event.source.getFreeDragPosition();
 
     const rawFrame: WidgetFrame = {
-      x: this.frame.x + position.x,
-      y: this.frame.y + position.y,
-      width: this.frame.width,
-      height: this.frame.height,
+      x: start.x + (position?.x ?? 0),
+      y: start.y + (position?.y ?? 0),
+      width: start.width,
+      height: start.height,
     };
 
     // If snapping is enabled, apply it at the end only (no mid-gesture interference).
