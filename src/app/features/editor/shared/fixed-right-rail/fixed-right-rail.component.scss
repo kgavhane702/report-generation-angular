@@ -1,0 +1,11 @@
+:host {
+  display: block;
+  position: fixed;
+  right: 0;
+  top: calc(var(--editor-toolbar-height, 64px) + var(--editor-widget-toolbar-height, 0px));
+  height: calc(100vh - (var(--editor-toolbar-height, 64px) + var(--editor-widget-toolbar-height, 0px)));
+  width: var(--editor-rail-width, 22px);
+  pointer-events: auto;
+}
+
+

@@ -4,11 +4,9 @@ import {
   inject,
   HostListener,
   computed,
-  signal,
   effect,
   AfterViewInit,
   OnDestroy,
-  ElementRef,
   ViewChild,
   Injector,
   runInInjectionContext,
@@ -19,6 +17,7 @@ import { DocumentService } from '../../../core/services/document.service';
 import { ChartRegistryInitializer } from '../plugins/chart/engine/runtime';
 import { ExportUiStateService } from '../../../core/services/export-ui-state.service';
 import { ScrollToRequest } from '../slide-navigator/slide-navigator.component';
+import { ScrollMetricsDirective } from '../shared/scroll-metrics.directive';
 
 @Component({
   selector: 'app-editor-shell',
@@ -33,15 +32,7 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   protected readonly exportUi = inject(ExportUiStateService);
   private readonly injector = inject(Injector);
 
-  @ViewChild('scrollBody', { static: true }) private scrollBodyRef!: ElementRef<HTMLElement>;
-
-  private readonly _scrollTop = signal(0);
-  private readonly _scrollHeight = signal(0);
-  private readonly _clientHeight = signal(0);
-
-  readonly scrollTop = this._scrollTop.asReadonly();
-  readonly scrollHeight = this._scrollHeight.asReadonly();
-  readonly clientHeight = this._clientHeight.asReadonly();
+  @ViewChild('scrollMetrics', { static: true }) private scrollMetrics!: ScrollMetricsDirective;
 
   // Slide navigator state (pinned to editor-shell__canvas)
   readonly pageIds = this.editorState.activeSubsectionPageIds;
@@ -78,8 +69,6 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   });
 
   readonly showExportOverlay = computed(() => this.exportUi.active());
-
-  private resizeObserver?: ResizeObserver;
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
@@ -148,55 +137,23 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    // Keep navigator thumb synced with real scroll position
-    this.updateScrollMetrics();
-    this.scrollBodyRef.nativeElement.addEventListener('scroll', this.onBodyScroll, { passive: true });
-
-    this.resizeObserver = new ResizeObserver(() => this.updateScrollMetrics());
-    this.resizeObserver.observe(this.scrollBodyRef.nativeElement);
-
-    // Zoom affects layout via wrapperHeight; update metrics when zoom changes
+    // Zoom affects layout via wrapperHeight; refresh scroll metrics when zoom changes
     runInInjectionContext(this.injector, () => {
       effect(() => {
         this.editorState.zoom();
-        queueMicrotask(() => this.updateScrollMetrics());
+        queueMicrotask(() => this.scrollMetrics.refresh());
       });
     });
   }
 
   ngOnDestroy(): void {
-    this.scrollBodyRef?.nativeElement.removeEventListener('scroll', this.onBodyScroll as any);
-    this.resizeObserver?.disconnect();
-  }
-
-  private onBodyScroll = (): void => {
-    this.updateScrollMetrics();
-  };
-
-  private updateScrollMetrics(): void {
-    const el = this.scrollBodyRef?.nativeElement;
-    if (!el) return;
-
-    this._scrollTop.set(el.scrollTop);
-    this._scrollHeight.set(el.scrollHeight);
-    this._clientHeight.set(el.clientHeight);
   }
 
   onNavigatorScrollTo(req: ScrollToRequest): void {
-    const el = this.scrollBodyRef?.nativeElement;
-    if (!el) return;
-
-    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-    const top = Math.max(0, Math.min(maxTop, req.top));
-    el.scrollTo({ top, behavior: req.behavior });
+    this.scrollMetrics?.scrollTo(req);
   }
 
   onNavigatorScrollBy(deltaY: number): void {
-    const el = this.scrollBodyRef?.nativeElement;
-    if (!el) return;
-
-    const maxTop = Math.max(0, el.scrollHeight - el.clientHeight);
-    const top = Math.max(0, Math.min(maxTop, el.scrollTop + deltaY));
-    el.scrollTo({ top, behavior: 'auto' });
+    this.scrollMetrics?.scrollBy(deltaY, 'auto');
   }
 }

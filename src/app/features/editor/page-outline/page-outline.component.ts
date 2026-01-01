@@ -37,8 +37,12 @@ export class PageOutlineComponent {
     if (!subsectionId) {
       return;
     }
+
+    // Keep the current page active when adding a new page.
+    // Only fall back to the new page if nothing is currently active (edge case).
+    const currentActivePageId = this.activePageId();
     const pageId = this.documentService.addPage(subsectionId);
-    if (pageId) {
+    if (!currentActivePageId && pageId) {
       this.editorState.setActivePage(pageId);
     }
   }

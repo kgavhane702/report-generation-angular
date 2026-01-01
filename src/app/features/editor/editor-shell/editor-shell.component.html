@@ -2,6 +2,7 @@
   class="editor-shell"
   [style.--editor-toolbar-height.px]="64"
   [style.--editor-widget-toolbar-height.px]="showWidgetToolbar() ? 52 : 0"
+  [style.--editor-rail-width.px]="22"
 >
   <div class="editor-shell__export-overlay" *ngIf="showExportOverlay()">
     <div class="editor-shell__export-card" role="status" aria-live="polite">
@@ -21,7 +22,7 @@
     <app-widget-toolbar></app-widget-toolbar>
   </div>
   
-  <div class="editor-shell__body" #scrollBody>
+  <div class="editor-shell__body" appScrollMetrics #scrollMetrics="scrollMetrics">
     <aside class="editor-shell__sidebar">
       <app-editor-breadcrumb></app-editor-breadcrumb>
       <app-page-outline></app-page-outline>
@@ -31,18 +32,18 @@
       <app-page-canvas></app-page-canvas>
 
       <!-- Pinned PPT-style slide navigator (not affected by zoom) -->
-      <div class="editor-shell__canvas-navigator" *ngIf="pageIds().length > 1">
+      <app-fixed-right-rail *ngIf="pageIds().length > 1">
         <app-slide-navigator
           [totalPages]="pageIds().length"
           [currentIndex]="currentPageIndex()"
-          [scrollTop]="scrollTop()"
-          [scrollHeight]="scrollHeight()"
-          [clientHeight]="clientHeight()"
+          [scrollTop]="scrollMetrics.scrollTop()"
+          [scrollHeight]="scrollMetrics.scrollHeight()"
+          [clientHeight]="scrollMetrics.clientHeight()"
           (pageChange)="onCanvasPageChange($event)"
           (scrollTo)="onNavigatorScrollTo($event)"
           (scrollBy)="onNavigatorScrollBy($event)"
         ></app-slide-navigator>
-      </div>
+      </app-fixed-right-rail>
     </main>
   </div>
 </div>
