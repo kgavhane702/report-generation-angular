@@ -79,6 +79,17 @@ export class EditorToolbarComponent implements AfterViewInit {
   // File input reference for import
   private fileInput?: HTMLInputElement;
 
+  /** Image insert dialog (UI-only, similar to table import style) */
+  imageInsertDialogOpen = false;
+  imageInsertFile: File | null = null;
+  imageInsertFileName: string | null = null;
+  imageInsertInProgress = false;
+  imageInsertError: string | null = null;
+
+  // Image constraints
+  private readonly IMAGE_MAX_FILE_SIZE = 10 * 1024 * 1024;
+  private readonly IMAGE_ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+
   // Document name editing
   isEditingDocumentName = false;
   documentNameValue = '';
@@ -96,6 +107,99 @@ export class EditorToolbarComponent implements AfterViewInit {
     
     // Set the newly added widget as active
     this.editorState.setActiveWidget(widget.id);
+  }
+
+  openImageInsertDialog(): void {
+    if (this.imageInsertInProgress) return;
+    this.imageInsertDialogOpen = true;
+    this.imageInsertFile = null;
+    this.imageInsertFileName = null;
+    this.imageInsertError = null;
+  }
+
+  cancelImageInsert(): void {
+    if (this.imageInsertInProgress) return;
+    this.imageInsertDialogOpen = false;
+    this.imageInsertFile = null;
+    this.imageInsertFileName = null;
+    this.imageInsertError = null;
+  }
+
+  onImageInsertFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    // reset immediately so selecting same file again triggers change
+    input.value = '';
+
+    if (this.imageInsertInProgress) return;
+    if (!file) return;
+
+    this.imageInsertFile = file;
+    this.imageInsertFileName = file.name;
+    this.imageInsertError = null;
+  }
+
+  async confirmImageInsert(): Promise<void> {
+    const file = this.imageInsertFile;
+    if (!file || this.imageInsertInProgress) return;
+
+    const validationError = this.validateImageFile(file);
+    if (validationError) {
+      this.imageInsertError = validationError;
+      return;
+    }
+
+    this.imageInsertInProgress = true;
+    this.imageInsertError = null;
+
+    try {
+      const src = await this.convertFileToBase64(file);
+      this.insertImageWidget({ src, alt: file.name });
+      // Close dialog and reset state immediately on success
+      this.imageInsertDialogOpen = false;
+      this.imageInsertFile = null;
+      this.imageInsertFileName = null;
+      this.imageInsertError = null;
+    } catch {
+      this.imageInsertError = 'Failed to read image. Please try another file.';
+    } finally {
+      this.imageInsertInProgress = false;
+    }
+  }
+
+  private insertImageWidget(payload: { src: string; alt: string }): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+
+    const widget = this.widgetFactory.createWidget('image') as any;
+    widget.props = {
+      ...(widget.props ?? {}),
+      src: payload.src,
+      alt: payload.alt,
+      fit: widget.props?.fit ?? 'contain',
+    };
+
+    this.documentService.addWidget(pageId, widget);
+    this.editorState.setActiveWidget(widget.id);
+  }
+
+  private validateImageFile(file: File): string | null {
+    if (!this.IMAGE_ACCEPTED_TYPES.includes(file.type)) {
+      return 'Please select a valid image file (JPEG, PNG, GIF, WebP, or SVG).';
+    }
+    if (file.size > this.IMAGE_MAX_FILE_SIZE) {
+      return `Image size must be less than ${this.IMAGE_MAX_FILE_SIZE / (1024 * 1024)}MB.`;
+    }
+    return null;
+  }
+
+  private convertFileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
   }
 
   onChartWidgetAction(action: ChartWidgetInsertAction): void {

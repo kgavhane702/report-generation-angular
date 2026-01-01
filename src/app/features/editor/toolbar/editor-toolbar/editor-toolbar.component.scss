@@ -100,6 +100,140 @@
   }
 }
 
+.editor-toolbar__image-insert-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.editor-toolbar__image-insert-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.editor-toolbar__image-insert-hint {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.editor-toolbar__image-insert-error {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.editor-toolbar__image-insert-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.editor-toolbar__image-insert-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #1976d2;
+  border-radius: 50%;
+  animation: editor-toolbar-spin 900ms linear infinite;
+  flex: 0 0 auto;
+}
+
+.editor-toolbar__image-insert-file-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-toolbar__image-insert-file-input {
+  display: none;
+}
+
+.editor-toolbar__image-insert-file-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.24);
+  }
+}
+
+.editor-toolbar__image-insert-file-label--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.editor-toolbar__image-insert-file-button {
+  font-weight: 700;
+  color: #0b3d7a;
+}
+
+.editor-toolbar__image-insert-file-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.editor-toolbar__image-insert-file-name {
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.editor-toolbar__image-insert-btn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.editor-toolbar__image-insert-btn--primary {
+  border-color: rgba(25, 118, 210, 0.55);
+  background: rgba(25, 118, 210, 0.10);
+  color: #0b3d7a;
+
+  &:hover {
+    background: rgba(25, 118, 210, 0.16);
+  }
+}
+
+.editor-toolbar__image-insert-btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-top-color: #0b3d7a;
+  border-radius: 50%;
+  animation: editor-toolbar-spin 900ms linear infinite;
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
 .editor-toolbar__document-name-label {
   font-size: 0.9rem;
   font-weight: 600;

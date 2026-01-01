@@ -94,10 +94,6 @@
   }
 }
 
-.image-widget__file-input {
-  display: none;
-}
-
 .image-widget__loading-spinner {
   width: 32px;
   height: 32px;
@@ -105,6 +101,136 @@
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+.image-widget__loading-spinner--small {
+  width: 22px;
+  height: 22px;
+  border-width: 3px;
+}
+
+.image-widget__upload-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.image-widget__upload-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.image-widget__upload-hint {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.image-widget__upload-error {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.image-widget__upload-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.image-widget__file-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.image-widget__file-input {
+  display: none;
+}
+
+.image-widget__file-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.24);
+  }
+}
+
+.image-widget__file-label--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.image-widget__file-button {
+  font-weight: 700;
+  color: #0b3d7a;
+}
+
+.image-widget__file-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.image-widget__file-name {
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.image-widget__upload-btn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.image-widget__upload-btn--primary {
+  border-color: rgba(25, 118, 210, 0.55);
+  background: rgba(25, 118, 210, 0.10);
+  color: #0b3d7a;
+
+  &:hover {
+    background: rgba(25, 118, 210, 0.16);
+  }
+}
+
+.image-widget__btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-top-color: #0b3d7a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex: 0 0 auto;
+  margin-right: 6px;
 }
 
 @keyframes spin {

@@ -17,7 +17,7 @@
 
   <!-- Upload/Placeholder Mode -->
   <ng-container *ngIf="!hasImage || imageError">
-    <div class="image-widget__placeholder">
+    <div class="image-widget__placeholder" (click)="openUploadDialog()">
       <div class="image-widget__placeholder-content">
         <app-icon
           *ngIf="!isUploading"
@@ -32,23 +32,85 @@
         <button
           type="button"
           class="image-widget__browse-button"
-          (click)="onBrowseClick()"
+          (click)="$event.stopPropagation(); openUploadDialog()"
           [disabled]="isUploading"
         >
-          {{ imageError ? 'Try Again' : 'Browse' }}
+          {{ imageError ? 'Try Again…' : 'Browse…' }}
         </button>
       </div>
     </div>
   </ng-container>
-
-  <!-- Hidden File Input -->
-  <input
-    #fileInput
-    type="file"
-    accept="image/*"
-    (change)="onFileSelected($event)"
-    class="image-widget__file-input"
-    aria-label="Select image file"
-  />
 </div>
+
+<app-modal
+  [(open)]="uploadDialogOpen"
+  size="md"
+  [closeOnBackdrop]="!isUploading"
+  [closeOnEsc]="!isUploading"
+  [showCloseButton]="!isUploading"
+  (closed)="cancelUpload()"
+>
+  <ng-container appModalHeader>
+    <h2 class="image-widget__upload-title">Upload Image</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <div class="image-widget__upload-dialog">
+      <div class="image-widget__upload-hint">
+        Choose an image file. The image will be applied when you click “Upload”.
+      </div>
+
+      <div *ngIf="uploadError" class="image-widget__upload-error">
+        {{ uploadError }}
+      </div>
+
+      <div *ngIf="isUploading" class="image-widget__upload-loading" aria-live="polite" aria-busy="true">
+        <div class="image-widget__loading-spinner image-widget__loading-spinner--small"></div>
+        Reading image…
+      </div>
+
+      <div class="image-widget__file-upload">
+        <input
+          type="file"
+          accept="image/*"
+          (change)="onDialogFileSelected($event)"
+          class="image-widget__file-input"
+          id="imageWidgetFileInput"
+        />
+        <label
+          for="imageWidgetFileInput"
+          class="image-widget__file-label"
+          [class.image-widget__file-label--disabled]="isUploading"
+        >
+          <span class="image-widget__file-button">Browse Files</span>
+          <span class="image-widget__file-hint">JPG, PNG, GIF, WebP, or SVG</span>
+        </label>
+
+        <div *ngIf="uploadFileName" class="image-widget__file-name">
+          Selected: {{ uploadFileName }}
+        </div>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-container appModalFooter>
+    <button
+      type="button"
+      class="image-widget__upload-btn image-widget__upload-btn--secondary"
+      (click)="cancelUpload()"
+      [disabled]="isUploading"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="image-widget__upload-btn image-widget__upload-btn--primary"
+      (click)="confirmUpload()"
+      [disabled]="!uploadFile || isUploading"
+    >
+      <span *ngIf="isUploading" class="image-widget__btn-spinner" aria-hidden="true"></span>
+      {{ isUploading ? 'Uploading…' : 'Upload' }}
+    </button>
+  </ng-container>
+</app-modal>
 

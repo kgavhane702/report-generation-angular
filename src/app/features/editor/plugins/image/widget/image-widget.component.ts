@@ -2,11 +2,9 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
-  ElementRef,
   EventEmitter,
   Input,
   Output,
-  ViewChild,
   inject,
   OnInit,
   OnDestroy,
@@ -30,8 +28,6 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
   @Input({ required: true }) widget!: WidgetModel;
   @Output() propsChange = new EventEmitter<Partial<ImageWidgetProps>>();
 
-  @ViewChild('fileInput', { static: false }) fileInputRef?: ElementRef<HTMLInputElement>;
-
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly toolbarService = inject(ImageToolbarService);
   private readonly uiState = inject(UIStateService);
@@ -40,6 +36,11 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
 
   isUploading = false;
   imageError = false;
+
+  uploadDialogOpen = false;
+  uploadFile: File | null = null;
+  uploadFileName: string | null = null;
+  uploadError: string | null = null;
 
   // Effect to activate/deactivate toolbar when this widget is selected/deselected
   private readonly selectionEffect = effect(() => {
@@ -122,7 +123,7 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
     this.subscriptions.push(
       this.toolbarService.replaceRequest$.subscribe((widgetId) => {
         if (widgetId === this.widget.id) {
-          this.onBrowseClick();
+          this.openUploadDialog();
         }
       })
     );
@@ -152,60 +153,76 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
     }
   }
 
-  onBrowseClick(): void {
-    if (this.isUploading) {
-      return;
-    }
-    this.fileInputRef?.nativeElement?.click();
+  openUploadDialog(): void {
+    if (this.isUploading) return;
+    this.uploadDialogOpen = true;
+    this.uploadFile = null;
+    this.uploadFileName = null;
+    this.uploadError = null;
+    this.cdr.markForCheck();
   }
 
-  onFileSelected(event: Event): void {
+  cancelUpload(): void {
+    if (this.isUploading) return;
+    this.uploadDialogOpen = false;
+    this.uploadFile = null;
+    this.uploadFileName = null;
+    this.uploadError = null;
+    this.cdr.markForCheck();
+  }
+
+  onDialogFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const file = input.files?.[0] ?? null;
+    // reset immediately so selecting same file again triggers change
+    input.value = '';
 
-    if (!file) {
-      return;
-    }
+    if (this.isUploading) return;
+    if (!file) return;
 
-    // Validate file type
-    if (!this.ACCEPTED_TYPES.includes(file.type)) {
-      alert('Please select a valid image file (JPEG, PNG, GIF, WebP, or SVG)');
-      this.resetFileInput();
-      return;
-    }
+    this.uploadFile = file;
+    this.uploadFileName = file.name;
+    this.uploadError = null;
+    this.cdr.markForCheck();
+  }
 
-    // Validate file size
-    if (file.size > this.MAX_FILE_SIZE) {
-      alert(`Image size must be less than ${this.MAX_FILE_SIZE / (1024 * 1024)}MB`);
-      this.resetFileInput();
+  async confirmUpload(): Promise<void> {
+    const file = this.uploadFile;
+    if (!file || this.isUploading) return;
+
+    const validationError = this.validateFile(file);
+    if (validationError) {
+      this.uploadError = validationError;
+      this.cdr.markForCheck();
       return;
     }
 
     this.isUploading = true;
     this.imageError = false;
+    this.uploadError = null;
     this.cdr.markForCheck();
 
-    this.convertFileToBase64(file)
-      .then((base64String) => {
-        if (base64String) {
-          this.propsChange.emit({
-            src: base64String,
-            alt: file.name,
-            fit: this.imageProps?.fit || 'contain',
-          });
-        } else {
-          this.imageError = true;
-        }
-        this.isUploading = false;
-        this.resetFileInput();
-        this.cdr.markForCheck();
-      })
-      .catch(() => {
-        this.imageError = true;
-        this.isUploading = false;
-        this.resetFileInput();
-        this.cdr.markForCheck();
-      });
+    try {
+      const base64String = await this.convertFileToBase64(file);
+      if (base64String) {
+        this.propsChange.emit({
+          src: base64String,
+          alt: file.name,
+          fit: this.imageProps?.fit || 'contain',
+        });
+        this.uploadDialogOpen = false;
+        this.uploadFile = null;
+        this.uploadFileName = null;
+        this.uploadError = null;
+      } else {
+        this.uploadError = 'Failed to read image. Please try another file.';
+      }
+    } catch {
+      this.uploadError = 'Failed to read image. Please try another file.';
+    } finally {
+      this.isUploading = false;
+      this.cdr.markForCheck();
+    }
   }
 
   handleImageError(): void {
@@ -214,11 +231,8 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   onImageClick(): void {
-    // Optional: Allow clicking on image to replace it
-    // For now, we'll only allow browsing when there's no image
-    if (!this.hasImage || this.imageError) {
-      this.onBrowseClick();
-    }
+    // Clicking the image should always open the upload/replace dialog (as requested).
+    this.openUploadDialog();
   }
 
   private convertFileToBase64(file: File): Promise<string> {
@@ -235,10 +249,16 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
     });
   }
 
-  private resetFileInput(): void {
-    if (this.fileInputRef?.nativeElement) {
-      this.fileInputRef.nativeElement.value = '';
+  private validateFile(file: File): string | null {
+    if (!this.ACCEPTED_TYPES.includes(file.type)) {
+      return 'Please select a valid image file (JPEG, PNG, GIF, WebP, or SVG).';
     }
+
+    if (file.size > this.MAX_FILE_SIZE) {
+      return `Image size must be less than ${this.MAX_FILE_SIZE / (1024 * 1024)}MB.`;
+    }
+
+    return null;
   }
 }
 
