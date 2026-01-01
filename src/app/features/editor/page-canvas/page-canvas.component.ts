@@ -42,6 +42,8 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   private isPaging = false;
   private lastFlipAt = 0;
   private didAutoFitZoom = false;
+  private lastSubsectionId: string | null = null;
+  private lastActivePageId: string | null = null;
 
   /**
    * Zoom level from UIStateService
@@ -101,15 +103,42 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
           if (this.didAutoFitZoom) return;
           this.uiState.setZoom(this.calculateFitZoom());
           this.didAutoFitZoom = true;
+
+          // After zoom changes, layout (wrapper width/height) shifts. Re-center once.
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              this.scrollActivePageIntoView('center');
+            });
+          });
         });
       }, { allowSignalWrites: true });
     });
 
-    // When subsection/pages change, reset scroll position to top of the active page
+    // Keep scroll stable:
+    // - Do NOT scroll when pages list changes (e.g. adding a new page) if the active page is unchanged.
+    // - DO scroll to top when switching subsections.
+    // - DO scroll to top when active page changes via sidebar selection (but not during paging gestures).
     runInInjectionContext(this.injector, () => {
       effect(() => {
-        this.pageIds();
-        queueMicrotask(() => this.scrollActivePageIntoView('start'));
+        const subsectionId = this.activeSubsectionId();
+        const activePageId = this.editorState.activePageId();
+
+        const subsectionChanged = subsectionId !== this.lastSubsectionId;
+        const pageChanged = activePageId !== this.lastActivePageId;
+
+        this.lastSubsectionId = subsectionId;
+        this.lastActivePageId = activePageId;
+
+        if (subsectionChanged) {
+          queueMicrotask(() => this.scrollActivePageIntoView('center'));
+          return;
+        }
+
+        // If user explicitly changed the active page (e.g. sidebar), snap to top.
+        // Avoid interfering with wheel paging (flipToPage manages scroll alignment itself).
+        if (pageChanged && !this.isPaging) {
+          queueMicrotask(() => this.scrollActivePageIntoView('center'));
+        }
       }, { allowSignalWrites: true });
     });
   }
@@ -333,6 +362,46 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
     const pageId = this.editorState.activePageId();
     if (!pageId) return;
     const surface = document.getElementById(`page-surface-${pageId}`);
-    surface?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: align });
+    if (!surface) return;
+
+    // Centering using `scrollIntoView` can be inconsistent on refresh because the page is inside
+    // a transformed (zoomed) subtree and layout shifts after zoom is applied. Instead, compute
+    // the exact scroll offsets on the actual scroll container.
+    const root = this.observerRoot;
+    if (!root) {
+      surface.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: align, inline: 'center' });
+      return;
+    }
+
+    const rootRect = root.getBoundingClientRect();
+    const rect = surface.getBoundingClientRect();
+
+    const surfaceCenterX = rect.left + rect.width / 2;
+    const rootCenterX = rootRect.left + rootRect.width / 2;
+    const deltaX = surfaceCenterX - rootCenterX;
+
+    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
+
+    // Vertical alignment.
+    let targetTop = root.scrollTop;
+    if (align === 'center') {
+      const surfaceCenterY = rect.top + rect.height / 2;
+      const rootCenterY = rootRect.top + rootRect.height / 2;
+      targetTop = root.scrollTop + (surfaceCenterY - rootCenterY);
+    } else if (align === 'end') {
+      targetTop = root.scrollTop + (rect.bottom - rootRect.bottom);
+    } else {
+      // 'start' or 'nearest' -> treat as start alignment.
+      targetTop = root.scrollTop + (rect.top - rootRect.top);
+    }
+
+    const targetLeft = root.scrollLeft + deltaX;
+
+    const maxTop = Math.max(0, root.scrollHeight - root.clientHeight);
+    const maxLeft = Math.max(0, root.scrollWidth - root.clientWidth);
+    const top = Math.max(0, Math.min(maxTop, targetTop));
+    const left = Math.max(0, Math.min(maxLeft, targetLeft));
+
+    root.scrollTo({ top, left, behavior });
   }
 }

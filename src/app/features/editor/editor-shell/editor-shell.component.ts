@@ -52,7 +52,7 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
       // Scroll to that page (continuous scroll mode)
       const surface = document.getElementById(`page-surface-${pageId}`);
-      surface?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      surface?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     }
   }
 

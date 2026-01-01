@@ -15,7 +15,7 @@
           (click)="startEditingDocumentName()"
           title="Edit document name"
         >
-          <app-icon name="edit" [size]="20"></app-icon>
+          <app-icon name="edit" [size]="18"></app-icon>
         </button>
       </ng-container>
       <ng-template #documentNameInput>
@@ -40,7 +40,7 @@
           title="Saving..."
           aria-label="Saving"
         >
-          <app-icon name="sync" [size]="20" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--spinning"></app-icon>
+          <app-icon name="sync" [size]="18" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--spinning"></app-icon>
           <span class="editor-toolbar__save-indicator-text">Saving</span>
         </span>
         <span
@@ -53,7 +53,7 @@
           role="button"
           tabindex="0"
         >
-          <app-icon name="check_circle" [size]="20" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--saved"></app-icon>
+          <app-icon name="check_circle" [size]="18" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--saved"></app-icon>
           <span class="editor-toolbar__save-indicator-text">Saved</span>
         </span>
         <span
@@ -66,7 +66,7 @@
           role="button"
           tabindex="0"
         >
-          <app-icon name="cloud_done" [size]="20" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--idle"></app-icon>
+          <app-icon name="cloud_done" [size]="18" class="editor-toolbar__save-indicator-icon editor-toolbar__save-indicator-icon--idle"></app-icon>
           <span class="editor-toolbar__save-indicator-text">Saved</span>
         </span>
       </ng-container>
@@ -80,7 +80,7 @@
       (click)="addWidget('text')"
       title="Add Text Widget"
     >
-      <app-icon name="text_fields" [size]="24"></app-icon>
+      <app-icon name="text_fields" [size]="20"></app-icon>
     </button>
     <button
       type="button"
@@ -88,7 +88,7 @@
       (click)="addWidget('editastra')"
       title="Add Editastra Widget (temporary)"
     >
-      <app-icon name="edit_note" [size]="24"></app-icon>
+      <app-icon name="edit_note" [size]="20"></app-icon>
     </button>
     <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     <button 
@@ -97,7 +97,7 @@
       (click)="addWidget('image')"
       title="Add Image Widget"
     >
-      <app-icon name="image" [size]="24"></app-icon>
+      <app-icon name="image" [size]="20"></app-icon>
     </button>
     <app-table-grid-selector
       (tableInsert)="onTableInsert($event)"
@@ -122,7 +122,7 @@
       title="Export document as JSON file"
       [disabled]="remoteLoadCount() > 0"
     >
-      <app-icon name="download" [size]="24"></app-icon>
+      <app-icon name="download" [size]="20"></app-icon>
     </button>
     <button
       type="button"
@@ -130,7 +130,7 @@
       (click)="triggerImport()"
       title="Import document from JSON file"
     >
-      <app-icon name="upload" [size]="24"></app-icon>
+      <app-icon name="upload" [size]="20"></app-icon>
     </button>
     <button
       type="button"
@@ -139,7 +139,7 @@
       title="Download document as PDF"
       [disabled]="remoteLoadCount() > 0"
     >
-      <app-icon name="picture_as_pdf" [size]="24"></app-icon>
+      <app-icon name="picture_as_pdf" [size]="20"></app-icon>
     </button>
   </div>
 </div>

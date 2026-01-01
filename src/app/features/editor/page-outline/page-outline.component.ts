@@ -29,7 +29,7 @@ export class PageOutlineComponent {
   selectPage(pageId: string): void {
     this.editorState.setActivePage(pageId);
     const surface = document.getElementById(`page-surface-${pageId}`);
-    surface?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    surface?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
   }
 
   addPage(): void {
