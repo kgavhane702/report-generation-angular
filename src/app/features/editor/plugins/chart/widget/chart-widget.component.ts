@@ -27,6 +27,8 @@ import { ChartRenderRegistry } from '../../../../../core/services/chart-render-r
 import { ChartToolbarService } from '../../../../../core/services/chart-toolbar.service';
 import { LoggerService } from '../../../../../core/services/logger.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
+import { ChartExportRenderCoordinatorService } from './chart-export-render-coordinator.service';
+import { ChartDialogCoordinatorService } from './chart-dialog-coordinator.service';
 import { Subject, filter, takeUntil } from 'rxjs';
 
 @Component({
@@ -46,6 +48,8 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private instance?: ChartInstance;
   private readonly registry = inject(ChartRegistryService);
   private readonly renderRegistry = inject(ChartRenderRegistry);
+  private readonly exportRenderCoordinator = inject(ChartExportRenderCoordinatorService);
+  private readonly chartDialog = inject(ChartDialogCoordinatorService);
   private readonly chartToolbar = inject(ChartToolbarService);
   private readonly uiState = inject(UIStateService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -265,28 +269,12 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   openConfigDialog(opts?: { openImportOnOpen?: boolean; initialTabIndex?: number }): void {
-    const openImportOnOpen = opts?.openImportOnOpen === true;
-    const initialTabIndex = Number.isFinite(opts?.initialTabIndex as any) ? Number(opts?.initialTabIndex) : undefined;
-
-    // Use pendingChartData if available (most recent unsaved changes), otherwise use widget data
-    const sourceChartData = this.pendingChartData || (this.chartProps.data as ChartData);
-    
-    const chartData = sourceChartData || {
-      chartType: 'column',
-      labels: [],
-      series: [],
-    };
-
-    // Create a deep copy to ensure Angular detects changes and dialog always gets fresh data
-    const clonedChartData = this.deepCloneChartData(chartData);
-
-    this.dialogData = {
-      chartData: clonedChartData,
+    this.dialogData = this.chartDialog.buildDialogData({
       widgetId: this.widget.id,
-      initialTabIndex,
-      openImportOnOpen,
-      dataSource: this.chartProps.dataSource ?? null,
-    };
+      chartProps: this.chartProps,
+      pendingChartData: this.pendingChartData,
+      opts,
+    });
     this.showDialog = true;
     this.cdr.markForCheck();
   }
@@ -297,34 +285,21 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.dialogData = undefined;
     this.cdr.markForCheck();
   }
-  
-  private deepCloneChartData(data: ChartData): ChartData {
-    return {
-      ...data,
-      labels: data.labels ? [...data.labels] : [],
-      labelVisibility: data.labelVisibility ? [...data.labelVisibility] : undefined,
-      series: data.series ? data.series.map(series => ({
-        ...series,
-        data: series.data ? [...series.data] : [],
-      })) : [],
-    };
-  }
 
   closeConfigDialog(result: ChartConfigFormResult): void {
     this.showDialog = false;
     this.dialogData = undefined;
 
-    if (!result.cancelled) {
-      // Store pending changes immediately so they're available when dialog reopens
-      this.pendingChartData = result.chartData;
-      // Emit chart props change event
-      const patch: Partial<ChartWidgetProps> = {
-        chartType: result.chartData.chartType,
-        data: result.chartData,
-      };
-      if (result.dataSource !== undefined) {
-        patch.dataSource = result.dataSource;
-      }
+    const { pendingChartData, patch } = this.chartDialog.applyDialogResult({
+      result,
+      currentProps: this.chartProps,
+    });
+
+    if (pendingChartData) {
+      this.pendingChartData = pendingChartData;
+    }
+
+    if (patch) {
       this.chartPropsChange.emit(patch);
     }
 
@@ -400,43 +375,9 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Mark chart as successfully rendered
       this.isChartRendered = true;
       this.logger.debug('[ChartWidget] Chart rendered, marking as rendered:', this.widget.id);
-      
-      // IMPORTANT:
-      // "axes only" export happens when we mark rendered too early (series animations still running).
-      // In export mode, wait for the underlying chart engine to finish drawing.
-      if (exporting) {
-        const chartInstance: any = (this.instance as any)?.chartInstance;
-        let done = false;
 
-        const markDone = () => {
-          if (done) return;
-          done = true;
-          this.renderRegistry.markRendered(this.widget.id);
-          this.logger.debug('[ChartWidget] Marked as rendered (export):', this.widget.id);
-        };
-
-        // ECharts: wait for 'finished'
-        if (chartInstance?.on && chartInstance?.off) {
-          const handler = () => {
-            chartInstance.off('finished', handler);
-            // One more RAF to ensure DOM/SVG is settled.
-            requestAnimationFrame(() => markDone());
-          };
-          chartInstance.on('finished', handler);
-
-          // Fallback: don't hang forever
-          window.setTimeout(() => markDone(), 1500);
-        } else {
-          // Chart.js (or unknown): animations disabled in adapter; wait a couple frames.
-          requestAnimationFrame(() => requestAnimationFrame(() => markDone()));
-        }
-      } else {
-        // Normal UI: microtask is fine
-        queueMicrotask(() => {
-          this.renderRegistry.markRendered(this.widget.id);
-          this.logger.debug('[ChartWidget] Marked as rendered:', this.widget.id);
-        });
-      }
+      // Centralized: ensures export marks rendered only when truly stable.
+      this.exportRenderCoordinator.markRenderedWhenStable(this.widget.id, this.instance);
     } catch (error) {
       console.error('[ChartWidget] Render error:', this.widget.id, error);
       this.containerRef.nativeElement.innerHTML = `

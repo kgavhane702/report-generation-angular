@@ -5,6 +5,7 @@ import { EditorStateService } from './editor-state.service';
 import { ChartRenderRegistry } from './chart-render-registry.service';
 import { ExportUiStateService } from './export-ui-state.service';
 import { LoggerService } from './logger.service';
+import { ChartCaptureService } from './chart-capture.service';
 
 /**
  * Chart location info for export
@@ -37,94 +38,17 @@ export class ChartExportService {
   private readonly ngZone = inject(NgZone);
   private readonly exportUi = inject(ExportUiStateService);
   private readonly logger = inject(LoggerService);
+  private readonly chartCapture = inject(ChartCaptureService);
 
   /**
    * Export a single chart widget to base64 image
    */
   async exportChartToBase64(widget: WidgetModel): Promise<string | null> {
     try {
-      return await this.captureChartImage(widget);
+      return await this.chartCapture.captureChartForWidget(widget);
     } catch (error) {
       console.error(`Failed to export chart ${widget.id}:`, error);
       return null;
-    }
-  }
-
-  /**
-   * Capture chart as base64 image from DOM
-   */
-  private async captureChartImage(widget: WidgetModel): Promise<string | null> {
-    const widgetElement = document.querySelector(`[data-widget-id="${widget.id}"]`);
-    if (!widgetElement) {
-      console.warn(`Widget element not found for ${widget.id}`);
-      return null;
-    }
-
-    const chartContainer = widgetElement.querySelector('.chart-widget__container') as HTMLElement;
-    if (!chartContainer) {
-      console.warn(`Chart container not found for ${widget.id}`);
-      return null;
-    }
-
-    // Try SVG first (ECharts renders to SVG by default for better quality)
-    const svgElement = chartContainer.querySelector('svg');
-    if (svgElement) {
-      const svgString = new XMLSerializer().serializeToString(svgElement);
-      return await this.svgToBase64(svgString, widget.size.width, widget.size.height);
-    }
-
-    // Fallback to canvas (Chart.js)
-    const canvas = chartContainer.querySelector('canvas');
-    if (canvas) {
-      return canvas.toDataURL('image/png');
-    }
-
-    console.warn(`No SVG or canvas found for chart ${widget.id}`);
-    return null;
-  }
-
-  /**
-   * Convert SVG string to base64 PNG
-   */
-  private async svgToBase64(svgString: string, width: number, height: number): Promise<string> {
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        throw new Error('Could not get canvas context');
-      }
-
-      const img = new Image();
-      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
-
-      return new Promise<string>((resolve, reject) => {
-        img.onload = () => {
-          ctx.clearRect(0, 0, width, height);
-          ctx.drawImage(img, 0, 0, width, height);
-          URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL('image/png'));
-        };
-
-        img.onerror = () => {
-          URL.revokeObjectURL(url);
-          reject(new Error('Failed to load SVG image'));
-        };
-
-        img.src = url;
-      }).catch(() => {
-        // Fallback: return SVG as data URL directly
-        const base64Svg = btoa(unescape(encodeURIComponent(svgString)));
-        return `data:image/svg+xml;base64,${base64Svg}`;
-      });
-    } catch (error) {
-      console.error('Error converting SVG to base64:', error);
-      // Fallback: return SVG as data URL directly
-      const base64Svg = btoa(unescape(encodeURIComponent(svgString)));
-      return `data:image/svg+xml;base64,${base64Svg}`;
     }
   }
 
@@ -212,7 +136,7 @@ export class ChartExportService {
           // Capture each chart on this page
           for (const chartLocation of pageCharts) {
             this.logger.debug('[ChartExport] Capturing chart:', chartLocation.widget.id);
-            const base64Image = await this.captureChartImage(chartLocation.widget);
+            const base64Image = await this.chartCapture.captureChartForWidget(chartLocation.widget);
 
             if (base64Image) {
               this.logger.debug('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
