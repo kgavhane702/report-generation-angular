@@ -1,21 +1,18 @@
 <!-- Only render when we have an active subsection -->
 <ng-container *ngIf="activeSubsectionId() as subsectionId">
-  <div class="page-canvas__wrapper" [style.width]="wrapperWidth">
+  <div class="page-canvas__wrapper" [style.width]="wrapperWidth" [style.min-height]="wrapperHeight">
     <section
       class="page-canvas__viewport"
       [style.transform]="zoomTransform()"
       [style.transform-origin]="zoomOrigin"
     >
-      <!-- 
-        Uses reactive pageIds signal from EditorStateService.
-        Automatically updates when subsection changes.
-      -->
+      <!-- Render ONLY the active page; scrolling will auto-flip pages -->
       <app-page
-        *ngFor="let pageId of pageIds(); trackBy: trackByPageId"
-        [pageId]="pageId"
+        *ngIf="editorState.activePageId() as activePageId"
+        [pageId]="activePageId"
         [pageSize]="pageSize()"
         [subsectionId]="subsectionId"
-        [isActive]="editorState.activePageId() === pageId"
+        [isActive]="true"
       ></app-page>
     </section>
   </div>

@@ -5,6 +5,8 @@ import {
   Input,
   OnInit,
   OnDestroy,
+  OnChanges,
+  SimpleChanges,
   inject,
   signal,
 } from '@angular/core';
@@ -29,7 +31,7 @@ import { PageEntity } from '../../../store/document/document.state';
   styleUrls: ['./page.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PageComponent implements OnInit, OnDestroy {
+export class PageComponent implements OnInit, OnDestroy, OnChanges {
   // ============================================
   // INPUTS
   // ============================================
@@ -123,19 +125,25 @@ export class PageComponent implements OnInit, OnDestroy {
   // ============================================
   
   ngOnInit(): void {
-    // Subscribe to widget IDs using granular selector
-    this.widgetIdsSubscription = this.store
-      .select(DocumentSelectors.selectWidgetIdsForPage(this.pageId))
-      .subscribe(ids => {
-        this._widgetIds.set(ids);
-      });
-      
-    // Subscribe to page data using granular selector
-    this.pageDataSubscription = this.store
-      .select(DocumentSelectors.selectPageById(this.pageId))
-      .subscribe(pageData => {
-        this._pageData.set(pageData);
-      });
+    this.subscribeToPage(this.pageId);
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    const pageIdChange = changes['pageId'];
+    if (!pageIdChange) return;
+
+    // When the canvas switches the active page, the same PageComponent instance
+    // is reused with a different pageId input. We must resubscribe selectors
+    // so the component reads the correct page + widget IDs.
+    const newPageId = pageIdChange.currentValue as string | undefined;
+    if (!newPageId) return;
+
+    // Avoid doing work on the initial binding (ngOnInit handles that)
+    if (pageIdChange.firstChange) return;
+
+    this._widgetIds.set([]);
+    this._pageData.set(null);
+    this.subscribeToPage(newPageId);
   }
   
   ngOnDestroy(): void {
@@ -154,6 +162,25 @@ export class PageComponent implements OnInit, OnDestroy {
   // ============================================
   // HELPERS
   // ============================================
+
+  private subscribeToPage(pageId: string): void {
+    this.widgetIdsSubscription?.unsubscribe();
+    this.pageDataSubscription?.unsubscribe();
+
+    // Subscribe to widget IDs using granular selector
+    this.widgetIdsSubscription = this.store
+      .select(DocumentSelectors.selectWidgetIdsForPage(pageId))
+      .subscribe((ids) => {
+        this._widgetIds.set(ids);
+      });
+
+    // Subscribe to page data using granular selector
+    this.pageDataSubscription = this.store
+      .select(DocumentSelectors.selectPageById(pageId))
+      .subscribe((pageData) => {
+        this._pageData.set(pageData);
+      });
+  }
   
   private convertMmToPx(mm: number): number {
     const dpi = this.pageSize.dpi ?? 96;

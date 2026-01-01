@@ -1,0 +1,130 @@
+.slide-navigator {
+  display: block;
+  height: 100%;
+}
+
+.slide-navigator__container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 22px;
+  // Match old WebKit scrollbar theme
+  background: rgba(241, 245, 249, 0.8);
+  border-left: 0;
+  box-shadow: none;
+}
+
+// ============================================
+// PREV / NEXT BUTTONS
+// ============================================
+
+.slide-navigator__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.65);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(148, 163, 184, 0.25);
+    color: rgba(15, 23, 42, 0.85);
+  }
+
+  &:active:not(:disabled) {
+    background: rgba(148, 163, 184, 0.35);
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  svg {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.slide-navigator__btn--prev {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.slide-navigator__btn--next {
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+// ============================================
+// RAIL (TRACK)
+// ============================================
+
+.slide-navigator__rail {
+  flex: 1;
+  position: relative;
+  background: transparent;
+  cursor: pointer;
+  min-height: 100px;
+}
+
+// ============================================
+// THUMB (DRAGGABLE)
+// ============================================
+
+.slide-navigator__thumb {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  min-height: 24px;
+  // Match old WebKit scrollbar thumb
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 6px;
+  cursor: grab;
+  transition: top 60ms linear, height 120ms ease, background 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  box-shadow: none;
+
+  &:hover {
+    background: rgba(148, 163, 184, 0.7);
+    background-clip: padding-box;
+  }
+
+  &:active {
+    cursor: grabbing;
+    background: rgba(148, 163, 184, 0.85);
+    background-clip: padding-box;
+  }
+}
+
+.slide-navigator__thumb--dragging {
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.slide-navigator__thumb-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+
+  span {
+    display: block;
+    width: 12px;
+    height: 2px;
+    background: rgba(15, 23, 42, 0.35);
+    border-radius: 1px;
+  }
+}
+
+// (Page indicator removed)
+

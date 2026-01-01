@@ -1,4 +1,8 @@
-<div class="editor-shell">
+<div
+  class="editor-shell"
+  [style.--editor-toolbar-height.px]="64"
+  [style.--editor-widget-toolbar-height.px]="showWidgetToolbar() ? 52 : 0"
+>
   <div class="editor-shell__export-overlay" *ngIf="showExportOverlay()">
     <div class="editor-shell__export-card" role="status" aria-live="polite">
       <div class="editor-shell__spinner" aria-hidden="true"></div>
@@ -17,7 +21,7 @@
     <app-widget-toolbar></app-widget-toolbar>
   </div>
   
-  <div class="editor-shell__body">
+  <div class="editor-shell__body" #scrollBody>
     <aside class="editor-shell__sidebar">
       <app-editor-breadcrumb></app-editor-breadcrumb>
       <app-page-outline></app-page-outline>
@@ -25,6 +29,20 @@
 
     <main class="editor-shell__canvas">
       <app-page-canvas></app-page-canvas>
+
+      <!-- Pinned PPT-style slide navigator (not affected by zoom) -->
+      <div class="editor-shell__canvas-navigator" *ngIf="pageIds().length > 1">
+        <app-slide-navigator
+          [totalPages]="pageIds().length"
+          [currentIndex]="currentPageIndex()"
+          [scrollTop]="scrollTop()"
+          [scrollHeight]="scrollHeight()"
+          [clientHeight]="clientHeight()"
+          (pageChange)="onCanvasPageChange($event)"
+          (scrollTo)="onNavigatorScrollTo($event)"
+          (scrollBy)="onNavigatorScrollBy($event)"
+        ></app-slide-navigator>
+      </div>
     </main>
   </div>
 </div>

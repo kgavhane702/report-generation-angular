@@ -27,6 +27,7 @@ import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-to
 import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableResizeOverlayComponent } from './plugins/table/widget/resize/table-resize-overlay.component';
 import { GuidesOverlayComponent } from './guides/guides-overlay.component';
+import { SlideNavigatorComponent } from './slide-navigator/slide-navigator.component';
 import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-html.directive';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
@@ -48,6 +49,7 @@ import { AppIconComponent } from '../../shared/components/icon/icon.component';
     TableWidgetComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
+    SlideNavigatorComponent,
   ],
   imports: [
     CommonModule,

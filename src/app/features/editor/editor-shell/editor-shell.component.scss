@@ -102,14 +102,30 @@
   display: flex;
   // Both scrollbars at body level - spans full browser width
   // Only show scrollbars when needed
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   gap: 0;
   // Same background as canvas for consistency
   background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
   
   // Scrollbar styling (full width for horizontal, fixed position for vertical)
+  // Hide the VERTICAL scrollbar completely (we use the PPT navigator instead)
+  // Note: Firefox can't hide per-axis; we keep scrollbars enabled there
+  // to preserve the horizontal scrollbar.
+  scrollbar-width: auto; // Firefox
+  -ms-overflow-style: auto; // Legacy IE/Edge
+
   &::-webkit-scrollbar {
     width: 14px;
+    height: 12px;
+  }
+
+  // Hide vertical scrollbar in Chromium/WebKit while keeping horizontal visible
+  &::-webkit-scrollbar:vertical {
+    width: 0px;
+  }
+
+  &::-webkit-scrollbar:horizontal {
     height: 12px;
   }
   
@@ -127,6 +143,13 @@
       background: rgba(148, 163, 184, 0.7);
       background-clip: padding-box;
     }
+  }
+
+  // Extra safety: some WebKit variants still render a track unless hidden
+  &::-webkit-scrollbar-track:vertical,
+  &::-webkit-scrollbar-thumb:vertical {
+    background: transparent;
+    border: 0;
   }
 }
 
@@ -182,9 +205,22 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 2rem;
+  // Reserve space on the right for the pinned slide navigator
+  padding: 2rem calc(2rem + 22px) 2rem 2rem;
   box-sizing: border-box;
   // Background inherited from body - no need to set here
+}
+
+// Pinned to the right edge of the visible canvas area (scroll parent is editor-shell__body)
+.editor-shell__canvas-navigator {
+  // FIXED: stays attached to the right edge of the window, not affected by
+  // horizontal scroll/zoom/content width.
+  position: fixed;
+  right: 0;
+  top: calc(var(--editor-toolbar-height, 64px) + var(--editor-widget-toolbar-height, 0px));
+  height: calc(100vh - (var(--editor-toolbar-height, 64px) + var(--editor-widget-toolbar-height, 0px)));
+  width: 22px;
+  z-index: 150; // above canvas content, below toolbar (200)
 }
 
 

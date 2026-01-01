@@ -8,6 +8,7 @@ import {
   AfterViewInit,
   computed,
   effect,
+  OnDestroy,
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
@@ -18,6 +19,7 @@ import { UIStateService } from '../../../core/services/ui-state.service';
  * 
  * Uses EditorStateService's reactive signals for page rendering.
  * Automatically reacts to subsection changes via computed signals.
+ * Shows only the active page at a time with navigation controls.
  */
 @Component({
   selector: 'app-page-canvas',
@@ -25,12 +27,17 @@ import { UIStateService } from '../../../core/services/ui-state.service';
   styleUrls: ['./page-canvas.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PageCanvasComponent implements AfterViewInit {
+export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   protected readonly editorState = inject(EditorStateService);
   protected readonly uiState = inject(UIStateService);
   private readonly elementRef = inject(ElementRef);
 
   @ViewChild('viewport', { static: false }) viewportRef?: ElementRef<HTMLElement>;
+
+  private observerRoot?: HTMLElement;
+  private boundOnWheel = this.onRootWheel.bind(this);
+  private isPaging = false;
+  private lastFlipAt = 0;
 
   /**
    * Zoom level from UIStateService
@@ -67,6 +74,18 @@ export class PageCanvasComponent implements AfterViewInit {
 
   ngAfterViewInit(): void {
     (this.editorState as any).calculateFitZoom = () => this.calculateFitZoom();
+
+    this.initObserverRoot();
+
+    // When subsection/pages change, reset scroll position to top of the active page
+    effect(() => {
+      this.pageIds();
+      queueMicrotask(() => this.scrollActivePageIntoView('start'));
+    }, { allowSignalWrites: true });
+  }
+
+  ngOnDestroy(): void {
+    this.detachRootWheelListener();
   }
 
   /**
@@ -87,6 +106,33 @@ export class PageCanvasComponent implements AfterViewInit {
   }
 
   /**
+   * Get the base page height in pixels (depends on active page orientation)
+   *
+   * IMPORTANT: CSS transforms (scale) don't affect layout, so we must expand
+   * wrapper height manually to make scrolling reach the visually scaled bottom.
+   */
+  get basePageHeightPx(): number {
+    const size = this.pageSize();
+    const dpi = size.dpi ?? 96;
+
+    const activePage = this.editorState.activePage();
+    const orientation = activePage?.orientation || 'landscape';
+
+    const { widthMm, heightMm } = size;
+    let pageHeightMm = heightMm;
+
+    // Normalize to actual oriented height (same logic as PageComponent)
+    if (orientation === 'portrait') {
+      pageHeightMm = widthMm > heightMm ? widthMm : heightMm;
+    } else {
+      // landscape
+      pageHeightMm = widthMm > heightMm ? heightMm : widthMm;
+    }
+
+    return Math.round((pageHeightMm / 25.4) * dpi);
+  }
+
+  /**
    * Calculate wrapper width based on zoom level
    */
   get wrapperWidth(): string {
@@ -94,6 +140,17 @@ export class PageCanvasComponent implements AfterViewInit {
     const baseWidth = this.basePageWidthPx;
     const totalWidth = (baseWidth + 128) * zoomValue;
     return `${Math.max(totalWidth, 100)}px`;
+  }
+
+  /**
+   * Calculate wrapper height based on zoom level.
+   * This ensures vertical scrolling works correctly under transform scaling.
+   */
+  get wrapperHeight(): string {
+    const zoomValue = this.zoom() / 100;
+    const baseHeight = this.basePageHeightPx;
+    const totalHeight = (baseHeight + 128) * zoomValue;
+    return `${Math.max(totalHeight, 100)}px`;
   }
 
   /**
@@ -157,5 +214,95 @@ export class PageCanvasComponent implements AfterViewInit {
     const fitZoom = Math.min(widthRatio, heightRatio);
 
     return Math.max(10, Math.min(400, Math.floor(fitZoom)));
+  }
+
+  private initObserverRoot(): void {
+    // The scroll container in this app is `.editor-shell__body`
+    // (it owns both vertical + horizontal scrolling)
+    this.observerRoot =
+      (this.elementRef.nativeElement as HTMLElement).closest('.editor-shell__body') ??
+      undefined;
+
+    this.attachRootWheelListener();
+  }
+
+  private attachRootWheelListener(): void {
+    if (!this.observerRoot) return;
+    // We only preventDefault when we actually flip pages at boundaries.
+    this.observerRoot.addEventListener('wheel', this.boundOnWheel, { passive: false });
+  }
+
+  private detachRootWheelListener(): void {
+    if (!this.observerRoot) return;
+    this.observerRoot.removeEventListener('wheel', this.boundOnWheel as any);
+  }
+
+  /**
+   * PowerPoint/PDF-style paging using wheel intent at boundaries:
+   * - Page does NOT change just by reaching the end
+   * - Page changes only when user is at the end AND tries to scroll further
+   * This respects oversized content because the "end" moves with page height.
+   */
+  private onRootWheel(event: WheelEvent): void {
+    const root = this.observerRoot;
+    if (!root || this.isPaging) return;
+
+    // ignore tiny deltas (trackpads can generate lots of noise)
+    if (Math.abs(event.deltaY) < 1) return;
+
+    const activePageId = this.editorState.activePageId();
+    if (!activePageId) return;
+
+    const ids = this.pageIds();
+    const idx = ids.indexOf(activePageId);
+    if (idx < 0) return;
+
+    const margin = 8;
+    const atTop = root.scrollTop <= margin;
+    const atBottom = root.scrollTop + root.clientHeight >= root.scrollHeight - margin;
+
+    const now = Date.now();
+    if (now - this.lastFlipAt < 250) return; // cooldown
+
+    if (event.deltaY > 0 && atBottom && idx < ids.length - 1) {
+      event.preventDefault();
+      this.lastFlipAt = now;
+      this.flipToPage(ids[idx + 1], 'start');
+      return;
+    }
+
+    if (event.deltaY < 0 && atTop && idx > 0) {
+      event.preventDefault();
+      this.lastFlipAt = now;
+      this.flipToPage(ids[idx - 1], 'end');
+      return;
+    }
+  }
+
+  private flipToPage(pageId: string, align: ScrollLogicalPosition): void {
+    this.isPaging = true;
+    this.editorState.setActivePage(pageId);
+
+    // Wait for Angular to render the new page surface then snap into view
+    queueMicrotask(() => {
+      // allow layout to settle
+      requestAnimationFrame(() => {
+        this.scrollActivePageIntoView(align, true);
+      });
+      // small cooldown to avoid bouncing at boundaries
+      window.setTimeout(() => {
+        this.isPaging = false;
+      }, 150);
+    });
+  }
+
+  private scrollActivePageIntoView(
+    align: ScrollLogicalPosition,
+    smooth = false
+  ): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+    const surface = document.getElementById(`page-surface-${pageId}`);
+    surface?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: align });
   }
 }

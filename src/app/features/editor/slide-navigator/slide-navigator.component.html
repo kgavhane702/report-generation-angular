@@ -1,0 +1,52 @@
+<div class="slide-navigator__container">
+  <!-- Previous Button (Top) -->
+  <button
+    class="slide-navigator__btn slide-navigator__btn--prev"
+    [disabled]="!canGoPrevious"
+    (click)="goToPrevious()"
+    aria-label="Previous page"
+    title="Previous page"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
+
+  <!-- Rail (Middle) -->
+  <div
+    #rail
+    class="slide-navigator__rail"
+    (click)="onRailClick($event)"
+    (wheel)="onWheel($event)"
+  >
+    <!-- Thumb -->
+    <div
+      #thumb
+      class="slide-navigator__thumb"
+      [class.slide-navigator__thumb--dragging]="dragging"
+      [style.height.%]="thumbHeightPercent"
+      [style.top.%]="thumbTopPercent"
+      (mousedown)="onThumbMouseDown($event)"
+    >
+      <div class="slide-navigator__thumb-grip">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Next Button (Bottom) -->
+  <button
+    class="slide-navigator__btn slide-navigator__btn--next"
+    [disabled]="!canGoNext"
+    (click)="goToNext()"
+    aria-label="Next page"
+    title="Next page"
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+</div>
+

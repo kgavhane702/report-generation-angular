@@ -1,20 +1,17 @@
 .page-canvas {
-  // Let content determine size for proper scrolling
-  display: inline-block;
-  min-width: 100%;
+  // Parent (`.editor-shell__body`) owns scrolling
+  display: block;
+  width: 100%;
   padding: 0;
   background: transparent;
   box-sizing: border-box;
 }
 
-// Wrapper holds the zoomed content - its width determines scroll area
+// Wrapper holds the zoomed content
 .page-canvas__wrapper {
   display: inline-flex;
-  // Center the viewport horizontally within the wrapper
-  justify-content: center;
-  align-items: flex-start;
-  // Width will be set dynamically based on zoom
-  min-width: 100%;
+  flex-direction: column;
+  align-items: center;
   box-sizing: border-box;
   padding: 2rem;
 }
@@ -31,4 +28,3 @@
   transform-origin: top center;
   will-change: transform;
 }
-
