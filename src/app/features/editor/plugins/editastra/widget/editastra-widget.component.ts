@@ -61,9 +61,15 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
 
   readonly localHtml = signal<string>('');
   private isActivelyEditing = false;
+  /** Baseline of last committed HTML (normalized) to prevent duplicate emits during autosave. */
   private htmlAtEditStart = '';
   private suppressNextBlur = false;
   private autoGrowRaf: number | null = null;
+  private autosaveTimeoutId: number | null = null;
+  private readonly autosaveDelayMs = 650;
+
+  private resumeEditingAfterDocHistorySync = false;
+  private resumeWasFocused = false;
 
   /** Content-aware minimum widget height (layout px) to avoid clipped text while resizing. */
   readonly minWidgetHeightPx = signal<number>(24);
@@ -123,7 +129,27 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     if (changes['widget']) {
       // Ignore external updates while actively editing (same principle as table/text widgets).
       if (!this.isActivelyEditing) {
-        this.localHtml.set(this.props.contentHtml || '');
+        const newContent = this.props.contentHtml || '';
+        this.localHtml.set(newContent);
+
+        // If a document-level undo/redo happened while the editor was focused, we temporarily disabled
+        // local "actively editing" gating to allow the store update to apply. Now restore edit mode + focus.
+        if (this.resumeEditingAfterDocHistorySync) {
+          this.resumeEditingAfterDocHistorySync = false;
+          this.isActivelyEditing = true;
+
+          // Reset baseline to the new store-driven state so autosave/blur don't re-emit it.
+          this.htmlAtEditStart = normalizeEditorHtmlForModel(newContent);
+
+          const editableEl = this.editorComp?.getEditableElement() ?? null;
+          if (editableEl) {
+            // Ensure the focused surface reflects the new model immediately (twSafeInnerHtml defers while focused).
+            editableEl.innerHTML = newContent;
+            if (this.resumeWasFocused) {
+              requestAnimationFrame(() => editableEl.focus());
+            }
+          }
+        }
       }
       this.widgetHeightPx.set(this.widget?.size?.height ?? 0);
       this.widgetWidthPx.set(this.widget?.size?.width ?? 0);
@@ -132,6 +158,10 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
 
   ngOnDestroy(): void {
     this.verticalAlignSub?.unsubscribe();
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
     if (this.autoGrowRaf !== null) {
       cancelAnimationFrame(this.autoGrowRaf);
       this.autoGrowRaf = null;
@@ -146,9 +176,42 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     }
     // Ensure we don't leave a stale activeCell reference in the shared toolbar service.
     this.tableToolbar.setActiveCell(null, this.widget?.id ?? null);
+
+    // Best-effort: if the widget is being destroyed while editing, flush to avoid losing typed content.
+    if (this.isActivelyEditing) {
+      this.commitContentChange('destroy');
+    }
     if (this.widget?.id) {
       this.pending.unregister(this.widget.id);
     }
+  }
+
+  @HostListener('document:tw-table-pre-doc-undo', ['$event'])
+  onPreDocUndo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.editorComp) return;
+
+    // Keep focus in the editor but allow the next store-driven widget update to apply by temporarily
+    // disabling the "actively editing" gate. We'll restore edit mode after ngOnChanges applies it.
+    const editableEl = this.editorComp.getEditableElement();
+    this.resumeWasFocused = !!(editableEl && (editableEl === document.activeElement || editableEl.contains(document.activeElement as Node)));
+    this.resumeEditingAfterDocHistorySync = true;
+    this.isActivelyEditing = false;
+  }
+
+  @HostListener('document:tw-table-pre-doc-redo', ['$event'])
+  onPreDocRedo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.editorComp) return;
+
+    const editableEl = this.editorComp.getEditableElement();
+    this.resumeWasFocused = !!(editableEl && (editableEl === document.activeElement || editableEl.contains(document.activeElement as Node)));
+    this.resumeEditingAfterDocHistorySync = true;
+    this.isActivelyEditing = false;
   }
 
   @HostListener('document:pointerdown', ['$event'])
@@ -175,7 +238,7 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   onEditorFocus(): void {
     if (this.isActivelyEditing) return;
     this.isActivelyEditing = true;
-    this.htmlAtEditStart = this.props.contentHtml || '';
+    this.htmlAtEditStart = normalizeEditorHtmlForModel(this.props.contentHtml || '');
     this.pending.register(this);
     this.editingChange.emit(true);
 
@@ -187,6 +250,7 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   onEditorInput(html: string): void {
     this.localHtml.set(html ?? '');
     this.scheduleAutoGrow();
+    this.scheduleAutosaveCommit();
   }
 
   onEditorBlur(): void {
@@ -201,7 +265,12 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
       return;
     }
 
-    this.flush();
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
+
+    this.commitContentChange('blur');
     this.isActivelyEditing = false;
     this.editingChange.emit(false);
     this.tableToolbar.setActiveCell(null, this.widget?.id ?? null);
@@ -219,25 +288,61 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   }
 
   hasPendingChanges(): boolean {
+    if (!this.isActivelyEditing) {
+      return false;
+    }
     const next = normalizeEditorHtmlForModel(this.localHtml());
-    return next !== (this.props.contentHtml || '');
+    return next !== this.htmlAtEditStart;
   }
 
   flush(): void {
-    const next = normalizeEditorHtmlForModel(this.localHtml());
-    const prev = this.props.contentHtml || '';
-    if (next !== prev) {
-      this.propsChange.emit({ contentHtml: next });
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
     }
+
+    this.commitContentChange('flush');
 
     // Persist any auto-grown size (kept in draft while typing for smoothness).
     if (this.widget?.id && this.draftState.hasDraft(this.widget.id)) {
       this.draftState.commitDraft(this.widget.id);
     }
 
-    if (this.widget?.id) {
+    if (this.widget?.id && !this.isActivelyEditing) {
       this.pending.unregister(this.widget.id);
     }
+  }
+
+  private commitContentChange(reason: 'blur' | 'flush' | 'destroy' | 'autosave'): void {
+    const next = normalizeEditorHtmlForModel(this.localHtml());
+    const baseline = this.htmlAtEditStart;
+
+    if (next !== baseline) {
+      this.propsChange.emit({ contentHtml: next });
+      // Advance baseline so subsequent autosaves/blur don't emit the same change again.
+      this.htmlAtEditStart = next;
+    }
+
+    // Persist any auto-grown size on terminal commit moments.
+    if ((reason === 'blur' || reason === 'flush' || reason === 'destroy') && this.widget?.id) {
+      if (this.draftState.hasDraft(this.widget.id)) {
+        this.draftState.commitDraft(this.widget.id);
+      }
+    }
+  }
+
+  private scheduleAutosaveCommit(): void {
+    if (!this.isActivelyEditing) return;
+
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
+
+    this.autosaveTimeoutId = window.setTimeout(() => {
+      this.autosaveTimeoutId = null;
+      this.commitContentChange('autosave');
+    }, this.autosaveDelayMs);
   }
 
   private scheduleAutoGrow(): void {
