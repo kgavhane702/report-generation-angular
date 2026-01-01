@@ -10,6 +10,8 @@ import {
   OnDestroy,
   ElementRef,
   ViewChild,
+  Injector,
+  runInInjectionContext,
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
@@ -29,6 +31,7 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   private readonly documentService = inject(DocumentService);
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
   protected readonly exportUi = inject(ExportUiStateService);
+  private readonly injector = inject(Injector);
 
   @ViewChild('scrollBody', { static: true }) private scrollBodyRef!: ElementRef<HTMLElement>;
 
@@ -153,9 +156,11 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     this.resizeObserver.observe(this.scrollBodyRef.nativeElement);
 
     // Zoom affects layout via wrapperHeight; update metrics when zoom changes
-    effect(() => {
-      this.editorState.zoom();
-      queueMicrotask(() => this.updateScrollMetrics());
+    runInInjectionContext(this.injector, () => {
+      effect(() => {
+        this.editorState.zoom();
+        queueMicrotask(() => this.updateScrollMetrics());
+      });
     });
   }
 

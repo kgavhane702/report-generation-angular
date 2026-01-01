@@ -142,6 +142,7 @@ export class ChartExportService {
   async exportAllCharts(document: DocumentModel): Promise<DocumentModel> {
     const updatedDocument = this.deepClone(document);
     const currentSubsectionId = this.editorState.activeSubsectionId();
+    const currentPageId = this.editorState.activePageId();
 
     this.logger.debug('[ChartExport] Starting export. Current subsection:', currentSubsectionId);
     
@@ -180,38 +181,52 @@ export class ChartExportService {
         // Navigate to subsection to make charts visible
         await this.navigateToSubsection(subsectionId);
         this.logger.debug('[ChartExport] Navigated to subsection:', subsectionId);
-        
-        // Check registry state
-        this.logger.debug('[ChartExport] Registry state after navigation:', 
-          this.renderRegistry.registeredWidgetIds(),
-          'Pending:', this.renderRegistry.pendingCount()
-        );
-        
-        // Wait for all charts in this subsection to render
-        const chartWidgetIds = charts.map(c => c.widget.id);
-        this.logger.debug('[ChartExport] Waiting for charts to render:', chartWidgetIds);
-        
-        await this.waitForChartsToRender(chartWidgetIds);
-        this.logger.debug('[ChartExport] Charts rendered for subsection:', subsectionId);
-        
-        // Capture each chart
-        for (const chartLocation of charts) {
-          this.logger.debug('[ChartExport] Capturing chart:', chartLocation.widget.id);
-          const base64Image = await this.captureChartImage(chartLocation.widget);
-          
-          if (base64Image) {
-            this.logger.debug('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
-            // Update the document model with the captured image
-            this.updateChartInDocument(
-              updatedDocument,
-              chartLocation.sectionId,
-              chartLocation.subsectionId,
-              chartLocation.pageId,
-              chartLocation.widget.id,
-              base64Image
-            );
-          } else {
-            console.warn('[ChartExport] Failed to capture chart:', chartLocation.widget.id);
+
+        // IMPORTANT:
+        // The editor now renders ONLY the active page at a time.
+        // So charts on non-active pages will not exist in the DOM unless we navigate to that page.
+        const chartsByPage = this.groupByPage(charts);
+        const pageEntries = Array.from(chartsByPage.entries());
+
+        for (let p = 0; p < pageEntries.length; p++) {
+          const [pageId, pageCharts] = pageEntries[p];
+          this.logger.debug('[ChartExport] Processing page:', pageId, 'charts:', pageCharts.map(c => c.widget.id));
+
+          this.exportUi.updateMessage(`Exporting charts… (${i + 1}/${entries.length})`);
+
+          // Navigate to the specific page so its chart widgets are created + registered
+          await this.navigateToPage(pageId);
+
+          // Check registry state
+          this.logger.debug('[ChartExport] Registry state after page nav:', 
+            this.renderRegistry.registeredWidgetIds(),
+            'Pending:', this.renderRegistry.pendingCount()
+          );
+
+          // Wait for charts on THIS page to render
+          const chartWidgetIds = pageCharts.map(c => c.widget.id);
+          this.logger.debug('[ChartExport] Waiting for charts to render (page):', chartWidgetIds);
+          await this.waitForChartsToRender(chartWidgetIds);
+          this.logger.debug('[ChartExport] Charts rendered for page:', pageId);
+
+          // Capture each chart on this page
+          for (const chartLocation of pageCharts) {
+            this.logger.debug('[ChartExport] Capturing chart:', chartLocation.widget.id);
+            const base64Image = await this.captureChartImage(chartLocation.widget);
+
+            if (base64Image) {
+              this.logger.debug('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
+              this.updateChartInDocument(
+                updatedDocument,
+                chartLocation.sectionId,
+                chartLocation.subsectionId,
+                chartLocation.pageId,
+                chartLocation.widget.id,
+                base64Image
+              );
+            } else {
+              console.warn('[ChartExport] Failed to capture chart:', chartLocation.widget.id);
+            }
           }
         }
       }
@@ -225,6 +240,11 @@ export class ChartExportService {
       if (currentSubsectionId) {
         await this.navigateToSubsection(currentSubsectionId);
         this.logger.debug('[ChartExport] Restored to subsection:', currentSubsectionId);
+      }
+      if (currentPageId) {
+        // Ensure we restore the exact page too
+        await this.navigateToPage(currentPageId);
+        this.logger.debug('[ChartExport] Restored to page:', currentPageId);
       }
     }
 
@@ -284,6 +304,21 @@ export class ChartExportService {
   }
 
   /**
+   * Group chart locations by page ID (within a subsection)
+   */
+  private groupByPage(locations: ChartLocation[]): Map<string, ChartLocation[]> {
+    const grouped = new Map<string, ChartLocation[]>();
+
+    for (const location of locations) {
+      const existing = grouped.get(location.pageId) || [];
+      existing.push(location);
+      grouped.set(location.pageId, existing);
+    }
+
+    return grouped;
+  }
+
+  /**
    * Navigate to a subsection and wait for Angular to update
    * Uses multiple stabilization techniques to ensure DOM is ready
    */
@@ -328,6 +363,43 @@ export class ChartExportService {
                 this.appRef.tick();
                 this.logger.debug('[ChartExport] After fifth tick - navigation complete');
                 this.logger.debug('[ChartExport] Registry state:', this.renderRegistry.registeredWidgetIds());
+                resolve();
+              });
+            });
+          });
+        });
+      });
+    });
+  }
+
+  /**
+   * Navigate to a page (required now that only active page is rendered)
+   */
+  private navigateToPage(pageId: string): Promise<void> {
+    this.logger.debug('[ChartExport] navigateToPage:', pageId);
+    this.logger.debug('[ChartExport] Current activePageId before:', this.editorState.activePageId());
+
+    return new Promise(resolve => {
+      this.ngZone.run(() => {
+        this.editorState.setActivePage(pageId);
+        this.logger.debug('[ChartExport] Called setActivePage, now:', this.editorState.activePageId());
+
+        // Similar stabilization strategy as subsection navigation
+        this.appRef.tick();
+        queueMicrotask(() => {
+          this.appRef.tick();
+
+          requestAnimationFrame(() => {
+            this.appRef.tick();
+
+            requestAnimationFrame(() => {
+              this.appRef.tick();
+
+              // Try to bring the page surface into view (for libraries that require visibility)
+              queueMicrotask(() => {
+                const el = document.getElementById(`page-surface-${pageId}`);
+                el?.scrollIntoView({ block: 'start' });
+                this.appRef.tick();
                 resolve();
               });
             });

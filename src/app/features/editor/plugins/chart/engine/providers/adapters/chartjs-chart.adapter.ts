@@ -17,6 +17,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
   render(container: HTMLElement, props: unknown): ChartInstance {
     const chartProps = props as ChartWidgetProps;
+    const exporting = (props as any)?.__exporting === true;
     const chartData = chartProps.data as ChartData | undefined;
     
     if (!chartData) {
@@ -43,6 +44,14 @@ export class ChartJsChartAdapter implements ChartAdapter {
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
     const config = this.convertToChartJsConfig(filteredData, width, height);
+
+    // Export mode: disable animation so we capture fully drawn charts (not axes only).
+    if (exporting) {
+      config.options = config.options ?? {};
+      (config.options as any).animation = false;
+      (config.options as any).animations = false;
+      (config.options as any).responsiveAnimationDuration = 0;
+    }
 
     // Compensate for editor zoom (canvas is scaled via CSS transform on the viewport).
     // Oversample the backing store so text/lines remain crisp under scaling.

@@ -9,6 +9,8 @@ import {
   computed,
   effect,
   OnDestroy,
+  Injector,
+  runInInjectionContext,
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
@@ -31,6 +33,7 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   protected readonly editorState = inject(EditorStateService);
   protected readonly uiState = inject(UIStateService);
   private readonly elementRef = inject(ElementRef);
+  private readonly injector = inject(Injector);
 
   @ViewChild('viewport', { static: false }) viewportRef?: ElementRef<HTMLElement>;
 
@@ -78,10 +81,12 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
     this.initObserverRoot();
 
     // When subsection/pages change, reset scroll position to top of the active page
-    effect(() => {
-      this.pageIds();
-      queueMicrotask(() => this.scrollActivePageIntoView('start'));
-    }, { allowSignalWrites: true });
+    runInInjectionContext(this.injector, () => {
+      effect(() => {
+        this.pageIds();
+        queueMicrotask(() => this.scrollActivePageIntoView('start'));
+      }, { allowSignalWrites: true });
+    });
   }
 
   ngOnDestroy(): void {

@@ -387,20 +387,56 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     try {
       this.logger.debug('[ChartWidget] Calling adapter.render:', this.widget.id);
-      this.instance = adapter.render(
-        this.containerRef.nativeElement,
-        this.chartProps
-      ) as ChartInstance;
+      const exporting = this.renderRegistry.exportMode();
+      const propsForRender: any = {
+        ...(this.chartProps as any),
+        // Force SVG during export for stable capture + single surface.
+        renderMode: exporting ? 'svg' : this.chartProps.renderMode,
+        __exporting: exporting,
+      };
+
+      this.instance = adapter.render(this.containerRef.nativeElement, propsForRender) as ChartInstance;
       
       // Mark chart as successfully rendered
       this.isChartRendered = true;
       this.logger.debug('[ChartWidget] Chart rendered, marking as rendered:', this.widget.id);
       
-      // Use microtask to ensure ECharts has finished initial render
-      queueMicrotask(() => {
-        this.renderRegistry.markRendered(this.widget.id);
-        this.logger.debug('[ChartWidget] Marked as rendered:', this.widget.id);
-      });
+      // IMPORTANT:
+      // "axes only" export happens when we mark rendered too early (series animations still running).
+      // In export mode, wait for the underlying chart engine to finish drawing.
+      if (exporting) {
+        const chartInstance: any = (this.instance as any)?.chartInstance;
+        let done = false;
+
+        const markDone = () => {
+          if (done) return;
+          done = true;
+          this.renderRegistry.markRendered(this.widget.id);
+          this.logger.debug('[ChartWidget] Marked as rendered (export):', this.widget.id);
+        };
+
+        // ECharts: wait for 'finished'
+        if (chartInstance?.on && chartInstance?.off) {
+          const handler = () => {
+            chartInstance.off('finished', handler);
+            // One more RAF to ensure DOM/SVG is settled.
+            requestAnimationFrame(() => markDone());
+          };
+          chartInstance.on('finished', handler);
+
+          // Fallback: don't hang forever
+          window.setTimeout(() => markDone(), 1500);
+        } else {
+          // Chart.js (or unknown): animations disabled in adapter; wait a couple frames.
+          requestAnimationFrame(() => requestAnimationFrame(() => markDone()));
+        }
+      } else {
+        // Normal UI: microtask is fine
+        queueMicrotask(() => {
+          this.renderRegistry.markRendered(this.widget.id);
+          this.logger.debug('[ChartWidget] Marked as rendered:', this.widget.id);
+        });
+      }
     } catch (error) {
       console.error('[ChartWidget] Render error:', this.widget.id, error);
       this.containerRef.nativeElement.innerHTML = `

@@ -14,6 +14,7 @@ export class EChartsChartAdapter implements ChartAdapter {
 
   render(container: HTMLElement, props: unknown): ChartInstance {
     const chartProps = props as ChartWidgetProps;
+    const exporting = (props as any)?.__exporting === true;
     const chartData = chartProps.data as ChartData | undefined;
     
     if (!chartData) {
@@ -41,6 +42,14 @@ export class EChartsChartAdapter implements ChartAdapter {
     const devicePixelRatio = computeEffectiveDevicePixelRatio(container);
     const chart = echarts.init(container, undefined, { renderer, devicePixelRatio });
     const option = this.convertToEChartsOption(filteredData, width, height);
+
+    // Export mode: disable animation so series render is complete/stable immediately,
+    // avoiding "axes only" captures.
+    if (exporting) {
+      (option as any).animation = false;
+      (option as any).animationDuration = 0;
+      (option as any).animationDurationUpdate = 0;
+    }
     chart.setOption(option);
 
     // Apply presentation (fonts/wrapping/formatting) once we have a base option.
