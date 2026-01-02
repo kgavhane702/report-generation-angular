@@ -13,6 +13,7 @@ import {
 import { CommonModule, DOCUMENT } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { IconPreloaderService } from './icon-preloader.service';
 
 /**
  * AppIconComponent
@@ -74,7 +75,10 @@ export class AppIconComponent implements OnInit, OnChanges {
   iconSvg = signal<SafeHtml>('');
   iconUrl = signal<string>('');
 
-  private static readonly svgCache = new Map<string, SafeHtml>();
+  /** Use shared cache from preloader service for instant icon display */
+  private static get svgCache(): Map<string, SafeHtml> {
+    return IconPreloaderService.getCache();
+  }
 
   ngOnInit(): void {
     if (!this.name) {
