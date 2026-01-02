@@ -1042,6 +1042,15 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         this.computeMinTopLevelRowHeightPx(r, heights, safeScale, 'autoFit')
       );
 
+      // Respect manual row-resize minimums (in-memory). This prevents auto-fit / auto-shrink
+      // from undoing a user's explicit row sizing during later column-resizes.
+      const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+      for (let r = 0; r < rowCount; r++) {
+        const contentMin = minHeights[r] ?? this.minRowPx;
+        const manualMin = manualMins[r] ?? 0;
+        minHeights[r] = Math.max(this.minRowPx, contentMin, manualMin);
+      }
+
       const minSum = minHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
       this.setContentMinHeights(minSum);
 
@@ -5475,6 +5484,83 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   /**
+   * After a column resize (especially when widening text-heavy columns), wrapped text can unwrap
+   * and the table may have excess vertical slack. This auto-shrinks the widget height (like backspace/delete),
+   * while respecting content-min-height and manual row-resize minimums.
+   *
+   * Returns true if it changed the widget size (draft-only).
+   */
+  private tryAutoShrinkWidgetAfterTopColResize(): boolean {
+    if (!this.widget?.id) return false;
+    if (this.sizingState === 'preserved') return false; // preserved mode intentionally locks the frame
+    if (this.uiState.isResizing(this.widget.id)) return false; // don't fight the OUTER widget resizer
+    if (this.isResizingGrid || this.isResizingSplitGrid) return false;
+
+    const rect = this.getTableRect();
+    if (!rect) return false;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return false;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const currentTableHeightPx = Math.max(1, rect.height / zoomScale);
+    if (!Number.isFinite(currentTableHeightPx) || currentTableHeightPx <= 20) return false;
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const currentRowHeightsPx = baseFractions.map((f) => f * currentTableHeightPx);
+
+    const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+    const minHeightsPx = Array.from({ length: rowCount }, (_, r) => {
+      const contentMin = this.computeMinTopLevelRowHeightPx(r, currentRowHeightsPx, zoomScale, 'autoFit');
+      const manualMin = manualMins[r] ?? 0;
+      return Math.max(this.minRowPx, contentMin, manualMin);
+    });
+
+    const minSumPx = minHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+    if (!Number.isFinite(minSumPx) || minSumPx <= 0) return false;
+
+    // Keep the min-height attribute in sync so the outer resizer clamp is correct.
+    this.setContentMinHeights(minSumPx);
+
+    const bufferPx = 4;
+    const stepPx = 8;
+    const targetHeightPx = Math.max(20, this.roundUpPx(minSumPx + bufferPx, stepPx));
+    const slackPx = currentTableHeightPx - targetHeightPx;
+
+    // Only shrink when there is meaningful slack; avoid jitter on tiny changes.
+    if (!Number.isFinite(slackPx) || slackPx <= stepPx) return false;
+
+    const maxPerTickPx = 600;
+    const desiredShrinkPx = Math.min(maxPerTickPx, Math.floor(slackPx / stepPx) * stepPx);
+    const maxByWidgetMin = Math.max(0, currentTableHeightPx - 20);
+    const shrinkPx = Math.min(desiredShrinkPx, maxByWidgetMin);
+    if (!Number.isFinite(shrinkPx) || shrinkPx <= 0) return false;
+
+    const shrinkRes = this.growWidgetSizeBy(0, -shrinkPx, { commit: false });
+    const appliedDeltaPx = shrinkRes?.appliedHeightPx ?? 0; // negative
+    const appliedShrinkPx = -appliedDeltaPx;
+    if (!Number.isFinite(appliedShrinkPx) || appliedShrinkPx <= 0.5) return false;
+
+    const newHeightPx = Math.max(20, currentTableHeightPx - appliedShrinkPx);
+    if (!Number.isFinite(newHeightPx) || newHeightPx <= 0) return false;
+
+    // Build row heights that are "as tight as possible":
+    // - Start from the content+manual minimums
+    // - Put any rounding remainder on the last row (keeps other rows tight)
+    const extraPx = Math.max(0, newHeightPx - minSumPx);
+    const targetHeightsPx = [...minHeightsPx];
+    if (targetHeightsPx.length > 0) {
+      targetHeightsPx[targetHeightsPx.length - 1] = (targetHeightsPx[targetHeightsPx.length - 1] ?? 0) + extraPx;
+    }
+
+    const nextFractions = targetHeightsPx.map((px) => px / newHeightPx);
+    this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+    this.previewRowFractions.set(null);
+    return true;
+  }
+
+  /**
    * Single-pass auto-fit for use after widget resize ('fitted' state).
    * 
    * This approach:
@@ -5562,6 +5648,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // No growth needed - just apply the redistributed fractions
       this.rowFractions.set(this.normalizeFractions(fitResult.nextFractions, rowCount));
       this.setContentMinHeights(fitResult.minTableHeightPx);
+
+      // If widening columns reduced wrapping, reclaim slack by auto-shrinking the widget.
+      if (this.tryAutoShrinkWidgetAfterTopColResize()) {
+        this.draftState.commitDraft(this.widget.id);
+      }
     }
 
     this.suppressWidgetSyncDuringAutoFit = false;
@@ -5574,6 +5665,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const maxIterations = 12;
     const worst = this.findWorstLeafOverflow();
     if (!worst || worst.overflowPx <= 1 || this.autoFitAfterColResizeIteration >= maxIterations) {
+      // When there is no overflow left, we may still have slack (e.g. after widening a column).
+      // Reclaim it so rows/widget "tighten" automatically like backspace/delete.
+      if (this.tryAutoShrinkWidgetAfterTopColResize()) {
+        this.autoFitAfterColResizeDidResizeWidget = true;
+      }
       if (this.autoFitAfterColResizeDidResizeWidget) {
         this.draftState.commitDraft(this.widget.id);
       }
