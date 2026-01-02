@@ -152,18 +152,23 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.imageInsertInProgress = true;
     this.imageInsertError = null;
 
+    let success = false;
     try {
       const src = await this.convertFileToBase64(file);
       this.insertImageWidget({ src, alt: file.name });
-      // Close dialog and reset state immediately on success
-      this.imageInsertDialogOpen = false;
+      // Reset state and close dialog after successful insertion
       this.imageInsertFile = null;
       this.imageInsertFileName = null;
       this.imageInsertError = null;
+      success = true;
     } catch {
       this.imageInsertError = 'Failed to read image. Please try another file.';
     } finally {
+      // Always stop spinner; close dialog only on success.
       this.imageInsertInProgress = false;
+      if (success) {
+        this.imageInsertDialogOpen = false;
+      }
     }
   }
 
@@ -196,8 +201,13 @@ export class EditorToolbarComponent implements AfterViewInit {
   private convertFileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error('Failed to read file'));
+      // Ensure callbacks run inside Angular zone so OnPush views update without manual CD APIs.
+      reader.onloadend = () => {
+        this.ngZone.run(() => resolve(reader.result as string));
+      };
+      reader.onerror = () => {
+        this.ngZone.run(() => reject(new Error('Failed to read file')));
+      };
       reader.readAsDataURL(file);
     });
   }
