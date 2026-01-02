@@ -942,15 +942,51 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     });
   }
 
+  /**
+   * URL auto-load flow: we temporarily enter a special "preserved frame" mode so the widget does not
+   * unexpectedly grow while data is loading. Once the first post-import fit stabilizes the layout,
+   * we MUST return to normal behavior so the table behaves like any manually created/imported table.
+   */
+  private finalizePreservedImport(): void {
+    if (!this.preservedImportFitInProgress) return;
+
+    this.preservedImportFitInProgress = false;
+    this.isLoadingSig.set(false);
+
+    // Stop runtime-only shrink-to-fit. After initial render, URL tables should behave normally.
+    this.autoFitTextToFrame = false;
+
+    // Exit preserved sizing mode so widget/row/col resizing behaves like a normal table.
+    if (this.sizingState === 'preserved') {
+      this.sizingState = 'auto';
+    }
+
+    // Ensure the overlay + CSS scale update immediately under OnPush.
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
   private runPostImportFitHeaderRow(): void {
-    if (!this.autoFitTextToFrame) return;
+    // If something disabled preserved mode before the RAF runs, still finalize and unlock normal behavior.
+    if (!this.autoFitTextToFrame) {
+      this.finalizePreservedImport();
+      return;
+    }
 
     const rowsModel = this.localRows();
     const rowCount = this.getTopLevelRowCount(rowsModel);
-    if (rowCount <= 1) return;
+    if (rowCount <= 1) {
+      // Nothing meaningful to fit; still finalize so the table doesn't remain "special" forever.
+      this.finalizePreservedImport();
+      return;
+    }
 
     const rect = this.getTableRect();
-    if (!rect) return;
+    if (!rect) {
+      // Can't measure right now; don't keep the table locked in preserved mode.
+      this.finalizePreservedImport();
+      return;
+    }
 
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
     const tableHeightPx = Math.max(1, rect.height / zoomScale);
@@ -960,7 +996,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Fit ALL rows: compute each row's content-min and redistribute within the fixed height.
     const fit = this.fitTopLevelRowsToContentWithinHeight(heightsPx, tableHeightPx, zoomScale);
-    if (!fit) return;
+    if (!fit) {
+      this.finalizePreservedImport();
+      return;
+    }
 
     // Update layout immediately.
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
@@ -973,10 +1012,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Preserved-frame URL import: we intentionally kept the overlay up during the first fit pass.
     // Now that the layout + required height are stable, reveal the table.
-    if (this.preservedImportFitInProgress) {
-      this.preservedImportFitInProgress = false;
-      this.isLoadingSig.set(false);
-    }
+    this.finalizePreservedImport();
   }
 
   private fitTopLevelRowsToContentWithinHeight(
@@ -1267,10 +1303,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   }
 
   private runOuterResizeFit(persist: boolean): void {
-    // Skip row redistribution for 'preserved' mode (URL tables with fixed size)
-    if (this.sizingState === 'preserved') {
-      return;
-    }
+    // IMPORTANT: Widget resizing should work even for 'preserved' (URL-imported) tables.
+    // The 'preserved' state only prevents automatic auto-fit during column resize, not manual widget resize.
+    // When the user manually resizes the widget, we allow it and transition to 'fitted' state.
 
     const rect = this.getTableRect();
     if (!rect) return;
@@ -1350,8 +1385,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.emitPropsChange(this.localRows());
 
       // Mark that rows are now tightly fitted after widget resize.
-      // Next column resize will use single-pass auto-fit for smoother behavior.
-      if (this.sizingState === 'auto') {
+      // Transition from 'preserved' to 'fitted' when user manually resizes the widget.
+      // This allows future widget resizing and column resizing to work normally.
+      if (this.sizingState === 'preserved' || this.sizingState === 'auto') {
         this.sizingState = 'fitted';
       }
     }
