@@ -297,22 +297,9 @@ public class XmlTabularParser implements TabularParser {
 
         ArrayNode out = objectMapper.createArrayNode();
         for (Element rowEl : rowElements) {
-            ObjectNode obj = objectMapper.createObjectNode();
+            ObjectNode obj = elementToNestedJson(rowEl, objectMapper);
             if (includeTag) {
                 obj.put("_tag", localName(rowEl));
-            }
-
-            // Flatten values into a stable key -> list of strings, then join repeated values with newlines.
-            var flat = new java.util.LinkedHashMap<String, List<String>>();
-            flattenElement(rowEl, "", flat);
-
-            for (var e : flat.entrySet()) {
-                String key = e.getKey();
-                if (key == null || key.isBlank()) continue;
-                List<String> vals = e.getValue();
-                if (vals == null || vals.isEmpty()) continue;
-                String joined = String.join("\n", vals.stream().map(v -> v == null ? "" : v).toList()).trim();
-                obj.put(key, joined);
             }
 
             // If we ended up with no fields, at least show the element text.
@@ -659,6 +646,120 @@ public class XmlTabularParser implements TabularParser {
         return List.of(root);
     }
 
+    /**
+     * Convert an XML element to a nested JsonNode object, preserving the hierarchical structure.
+     * This allows the JSON parser's hierarchical header logic to work correctly with XML imports.
+     * 
+     * Example:
+     * <person>
+     *   <name>John</name>
+     *   <address>
+     *     <street>Main St</street>
+     *     <geo>
+     *       <lat>1.0</lat>
+     *     </geo>
+     *   </address>
+     * </person>
+     * 
+     * Becomes:
+     * {
+     *   "name": "John",
+     *   "address": {
+     *     "street": "Main St",
+     *     "geo": {
+     *       "lat": "1.0"
+     *     }
+     *   }
+     * }
+     */
+    private ObjectNode elementToNestedJson(Element el, ObjectMapper mapper) {
+        ObjectNode obj = mapper.createObjectNode();
+        if (el == null) return obj;
+
+        // Add attributes as fields (prefixed with @)
+        var attrs = el.getAttributes();
+        if (attrs != null) {
+            for (int i = 0; i < attrs.getLength(); i++) {
+                Node a = attrs.item(i);
+                if (a == null) continue;
+                String name = a.getNodeName();
+                if (name == null || name.isBlank()) continue;
+                int idx = name.indexOf(':');
+                String nn = idx >= 0 ? name.substring(idx + 1) : name;
+                if (nn.isBlank()) continue;
+                String v = a.getNodeValue();
+                if (v != null && !v.isBlank()) {
+                    obj.put("@" + nn, v.trim());
+                }
+            }
+        }
+
+        List<Element> children = allChildElements(el);
+        if (children.isEmpty()) {
+            // Leaf element: use its text content
+            String t = directText(el);
+            if (t != null && !t.isBlank()) {
+                // If this element has a name, use it as the key, otherwise use the text as value
+                String name = localName(el);
+                if (name != null && !name.isBlank()) {
+                    obj.put(name, t.trim());
+                } else {
+                    obj.put("value", t.trim());
+                }
+            }
+            return obj;
+        }
+
+        // Group children by name to handle repeated elements
+        java.util.LinkedHashMap<String, java.util.List<Element>> grouped = new java.util.LinkedHashMap<>();
+        for (Element ch : children) {
+            String name = localName(ch);
+            if (name == null || name.isBlank()) continue;
+            grouped.computeIfAbsent(name, k -> new ArrayList<>()).add(ch);
+        }
+
+        // Process each group
+        for (var entry : grouped.entrySet()) {
+            String name = entry.getKey();
+            java.util.List<Element> elements = entry.getValue();
+            
+            if (elements.size() == 1) {
+                // Single element: create nested object or value
+                Element child = elements.get(0);
+                List<Element> grandChildren = allChildElements(child);
+                if (grandChildren.isEmpty()) {
+                    // Leaf: use text content
+                    String text = directText(child);
+                    obj.put(name, text == null ? "" : text.trim());
+                } else {
+                    // Has children: recurse to create nested object
+                    ObjectNode nested = elementToNestedJson(child, mapper);
+                    obj.set(name, nested);
+                }
+            } else {
+                // Multiple elements with same name: create array
+                ArrayNode arr = mapper.createArrayNode();
+                for (Element child : elements) {
+                    List<Element> grandChildren = allChildElements(child);
+                    if (grandChildren.isEmpty()) {
+                        String text = directText(child);
+                        arr.add(text == null ? "" : text.trim());
+                    } else {
+                        ObjectNode nested = elementToNestedJson(child, mapper);
+                        arr.add(nested);
+                    }
+                }
+                obj.set(name, arr);
+            }
+        }
+
+        return obj;
+    }
+
+    /**
+     * @deprecated Use elementToNestedJson instead. Kept for backward compatibility if needed elsewhere.
+     */
+    @Deprecated
     private void flattenElement(Element el, String prefix, java.util.LinkedHashMap<String, List<String>> out) {
         if (el == null) return;
 
