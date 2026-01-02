@@ -100,6 +100,13 @@ export type EditastraToolbarPlugin =
       group: EditastraToolbarGroupId;
       title: string;
       icon: 'format_color_fill';
+    }
+  | {
+      /** Heading/paragraph style dropdown */
+      kind: 'heading';
+      id: string;
+      group: EditastraToolbarGroupId;
+      title: string;
     };
 
 export const EDITASTRA_TOOLBAR_GROUP_ORDER: EditastraToolbarGroupId[] = [
@@ -181,6 +188,7 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
   { kind: 'align', id: 'alignJustify', group: 'align', title: 'Justify', value: 'justify', icon: 'alignJustify' },
 
   // Typography
+  { kind: 'heading', id: 'heading', group: 'typography', title: 'Heading style' },
   { kind: 'font-family', id: 'fontFamily', group: 'typography', label: 'Font', title: 'Font family' },
   { kind: 'font-size', id: 'fontSize', group: 'typography', label: 'Size', title: 'Font size' },
   { kind: 'line-height', id: 'lineHeight', group: 'typography', title: 'Line height', icon: 'lineHeight' },

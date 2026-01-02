@@ -157,6 +157,17 @@ export class EditastraToolbarComponent {
   readonly fontSizes: Array<number> = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
   readonly lineHeights: Array<string> = ['1', '1.15', '1.3', '1.4', '1.5', '1.75', '2'];
 
+  // Heading styles
+  readonly headingStyles: Array<{ tag: string; label: string; previewSize: string }> = [
+    { tag: 'p', label: 'Normal', previewSize: '13px' },
+    { tag: 'h1', label: 'Heading 1', previewSize: '20px' },
+    { tag: 'h2', label: 'Heading 2', previewSize: '18px' },
+    { tag: 'h3', label: 'Heading 3', previewSize: '16px' },
+    { tag: 'h4', label: 'Heading 4', previewSize: '14px' },
+    { tag: 'h5', label: 'Heading 5', previewSize: '13px' },
+    { tag: 'h6', label: 'Heading 6', previewSize: '12px' },
+  ];
+
   // Bullet styles (same as table toolbar)
   readonly bulletStyles: Array<{ value: string; label: string; icon: string }> = [
     { value: 'disc', label: 'Filled Circle', icon: '●' },
@@ -173,14 +184,43 @@ export class EditastraToolbarComponent {
   @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
   @ViewChild('bulletStyleTrigger', { static: false }) bulletStyleTrigger?: ElementRef<HTMLElement>;
 
+  readonly headingDropdownOpen = signal(false);
   readonly fontFamilyDropdownOpen = signal(false);
   readonly fontSizeDropdownOpen = signal(false);
   readonly lineHeightDropdownOpen = signal(false);
   readonly bulletStyleDropdownOpen = signal(false);
 
+  /** Current heading tag (p, h1-h6) based on formatting state */
+  get currentHeadingTag(): string {
+    const state = this.formattingState;
+    return (state as any)?.blockTag || 'p';
+  }
+
+  /** Display label for heading dropdown */
+  get headingLabel(): string {
+    const tag = this.currentHeadingTag;
+    const style = this.headingStyles.find((h) => h.tag === tag);
+    return style?.label || 'Normal';
+  }
+
   // Keep the same UX as table: color pickers show last-picked values.
   textColor = '#000000';
   highlightColor = '#fff59d';
+
+  openHeadingDropdown(event?: MouseEvent): void {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!this.hasActiveEditor) return;
+    this.headingDropdownOpen.set(true);
+  }
+
+  onHeadingPick(tag: string): void {
+    this.headingDropdownOpen.set(false);
+    if (!this.hasActiveEditor) return;
+    this.toolbarService.applyBlockTag(tag);
+  }
 
   openFontFamilyDropdown(event?: MouseEvent): void {
     if (event) {
@@ -200,13 +240,45 @@ export class EditastraToolbarComponent {
     this.fontFamilyDropdownOpen.set(false);
   }
 
+  /** Saved selection range for restoring after custom font size input */
+  private savedSelectionRange: Range | null = null;
+  /** Saved active cell element for custom font size input */
+  private savedActiveCell: HTMLElement | null = null;
+
   openFontSizeDropdown(event?: MouseEvent): void {
     if (event) {
       event.preventDefault();
       event.stopPropagation();
     }
     if (!this.hasActiveEditor) return;
+    // Save current selection and active cell before dropdown opens
+    this.saveCurrentSelection();
+    this.savedActiveCell = this.toolbarService.activeCell;
     this.fontSizeDropdownOpen.set(true);
+  }
+
+  private saveCurrentSelection(): void {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      this.savedSelectionRange = sel.getRangeAt(0).cloneRange();
+    } else {
+      this.savedSelectionRange = null;
+    }
+  }
+
+  private restoreSelectionAndFocus(): void {
+    // First restore focus to the saved cell
+    if (this.savedActiveCell) {
+      this.savedActiveCell.focus();
+    }
+    // Then restore the selection range
+    if (this.savedSelectionRange) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(this.savedSelectionRange);
+      }
+    }
   }
 
   closeFontSizeDropdown(): void {
@@ -216,6 +288,22 @@ export class EditastraToolbarComponent {
   onFontSizePick(size: number | null): void {
     this.onFontSizeChange(size);
     this.fontSizeDropdownOpen.set(false);
+  }
+
+  onCustomFontSize(value: string): void {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return;
+    const parsed = parseInt(trimmed, 10);
+    if (Number.isFinite(parsed) && parsed > 0 && parsed <= 400) {
+      // Restore focus and selection before applying (input stole focus)
+      this.restoreSelectionAndFocus();
+      // Small delay to ensure focus/selection is restored before applying
+      requestAnimationFrame(() => {
+        const px = Math.max(6, Math.min(400, parsed));
+        this.toolbarService.applyFontSizePx(px);
+      });
+      this.fontSizeDropdownOpen.set(false);
+    }
   }
 
   openLineHeightDropdown(event?: MouseEvent): void {

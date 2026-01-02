@@ -1,31 +1,156 @@
 // Reuse the Table toolbar visual system for Editastra (same look, different feature set).
 @import '../../../table/ui/table-toolbar/table-toolbar.component.scss';
 
-// Font dropdown: table's combo dropdown content is a grid (good for numbers),
-// but font names need a clean single-column list with consistent background.
+// ─────────────────────────────────────────────────────────────────
+// Cleaner combo button styling (remove "stuck on" appearance)
+// ─────────────────────────────────────────────────────────────────
+.editastra-toolbar__combo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.06);
+    color: #1e293b;
+  }
+
+  &:active:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .table-toolbar__combo-arrow,
+  svg {
+    opacity: 0.6;
+  }
+}
+
+.editastra-toolbar__combo--small {
+  width: auto;
+  min-width: 52px;
+  padding: 0 6px;
+  justify-content: center;
+  gap: 4px;
+}
+
+.editastra-toolbar__combo--icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.editastra-toolbar__combo-value {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Dropdown list styling
+// ─────────────────────────────────────────────────────────────────
 .editastra-toolbar__dropdown-list {
-  min-width: 220px;
+  min-width: 200px;
+  max-height: 280px;
+  overflow-y: auto;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 8px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
-  padding: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editastra-toolbar__dropdown-item {
+  height: 32px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: #1e293b;
+  font-size: 13px;
+  padding: 0 10px;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s ease;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  &:active {
+    background: rgba(59, 130, 246, 0.18);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Font size dropdown with custom input
+// ─────────────────────────────────────────────────────────────────
+.editastra-toolbar__size-dropdown {
+  min-width: 120px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.editastra-toolbar__dropdown-item {
-  height: 30px; // match table combo items
-  border-radius: 6px;
+.editastra-toolbar__size-input {
+  width: 100%;
+  height: 26px;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  background: #fff;
-  color: #0f172a;
-  font-size: 12px; // match table combo items
-  padding: 0 10px;
-  text-align: left;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: #1e293b;
+  outline: none;
+  box-sizing: border-box;
+  text-align: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus {
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  }
+
+  &::placeholder {
+    color: #94a3b8;
+    font-size: 11px;
+  }
+}
+
+.editastra-toolbar__size-presets {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+}
+
+.editastra-toolbar__size-preset {
+  height: 26px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 11px;
   cursor: pointer;
-  user-select: none;
+  transition: background-color 0.12s ease;
 
   &:hover {
     background: rgba(0, 0, 0, 0.06);
@@ -36,24 +161,141 @@
   }
 }
 
-.editastra-toolbar__combo-value {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+// ─────────────────────────────────────────────────────────────────
+// Line height dropdown styling
+// ─────────────────────────────────────────────────────────────────
+.editastra-toolbar__line-height-dropdown {
+  min-width: 90px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-// Ensure our combo buttons lay out value + arrow like table selects.
-.editastra-toolbar__combo {
-  display: inline-flex;
+.editastra-toolbar__line-height-item {
+  height: 30px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font-size: 12px;
+  padding: 0 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  &:active {
+    background: rgba(59, 130, 246, 0.18);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Bullet style dropdown
+// ─────────────────────────────────────────────────────────────────
+.editastra-toolbar__dropdown-caret {
+  opacity: 0.5;
+  margin-left: 2px;
+}
+
+.editastra-toolbar__bullet-dropdown {
+  min-width: 130px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editastra-toolbar__bullet-option {
+  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: #1e293b;
+  transition: background-color 0.12s ease;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  &:active {
+    background: rgba(59, 130, 246, 0.18);
+  }
 }
 
-.editastra-toolbar__combo--small {
-  justify-content: center;
-  gap: 6px;
+.editastra-toolbar__bullet-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.editastra-toolbar__bullet-label {
+  flex: 1;
+  font-size: 12px;
+  color: #334155;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Heading style dropdown
+// ─────────────────────────────────────────────────────────────────
+.editastra-toolbar__heading-dropdown {
+  min-width: 130px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.editastra-toolbar__heading-option {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.12s ease;
+
+  &:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
+
+  &:active {
+    background: rgba(59, 130, 246, 0.18);
+  }
+
+  &--active {
+    background: rgba(59, 130, 246, 0.12);
+    
+    .editastra-toolbar__heading-preview {
+      color: #2563eb;
+    }
+  }
+}
+
+.editastra-toolbar__heading-preview {
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.2;
 }
 
 

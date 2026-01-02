@@ -18,6 +18,7 @@ export interface TableFormattingState {
   verticalAlign: 'top' | 'middle' | 'bottom' | 'mixed';
   fontFamily: string;
   fontSizePx: number | null;
+  blockTag: string;
 }
 
 export interface SplitCellRequest {
@@ -135,6 +136,7 @@ export class TableToolbarService {
     verticalAlign: 'top',
     fontFamily: '',
     fontSizePx: null,
+    blockTag: 'p',
   });
 
   // format painter removed
@@ -874,6 +876,28 @@ export class TableToolbarService {
   }
 
   /**
+   * Apply a block-level tag (p, h1-h6) to the current selection or block.
+   * Uses execCommand formatBlock for broad browser support.
+   */
+  applyBlockTag(tag: string): void {
+    const normalizedTag = (tag || 'p').toLowerCase();
+    const validTags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
+    if (!validTags.includes(normalizedTag)) return;
+
+    const cell = this.activeCell;
+    if (!cell) return;
+
+    // Ensure focus is in the cell
+    cell.focus();
+
+    // Use formatBlock command
+    document.execCommand('formatBlock', false, `<${normalizedTag}>`);
+
+    // Update formatting state
+    this.formattingState.update(state => ({ ...state, blockTag: normalizedTag }));
+  }
+
+  /**
    * Update formatting state based on current selection
    */
   updateFormattingState(): void {
@@ -940,6 +964,7 @@ export class TableToolbarService {
         verticalAlign: vAlignState.all === null ? 'mixed' : vAlignState.all,
         fontFamily: ffState.all === null ? '' : ffState.all,
         fontSizePx,
+        blockTag: 'p', // Multi-cell: default to paragraph
       });
       return;
     }
@@ -981,6 +1006,9 @@ export class TableToolbarService {
       return Number.isFinite(v) ? v : null;
     })();
 
+    // Detect current block tag (h1-h6 or p)
+    const blockTag = this.detectCurrentBlockTag();
+
     this.formattingState.set({
       isBold: isBold ? 'on' : 'off',
       isItalic: isItalic ? 'on' : 'off',
@@ -992,7 +1020,25 @@ export class TableToolbarService {
       verticalAlign,
       fontFamily,
       fontSizePx,
+      blockTag,
     });
+  }
+
+  private detectCurrentBlockTag(): string {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return 'p';
+
+    let node: Node | null = sel.anchorNode;
+    while (node && node !== this.activeCell) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tagName = (node as Element).tagName?.toLowerCase();
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p'].includes(tagName)) {
+          return tagName;
+        }
+      }
+      node = node.parentNode;
+    }
+    return 'p';
   }
 
   private normalizeLineHeight(input: string): string | null {

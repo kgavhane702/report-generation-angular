@@ -83,20 +83,22 @@
                 <path d="M9 12h12"></path>
                 <path d="M9 18h12"></path>
               </svg>
-              <app-icon class="table-toolbar__combo-arrow" name="caret_down_small"></app-icon>
+              <svg class="editastra-toolbar__dropdown-caret" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 6l4 4 4-4z" />
+              </svg>
             </button>
 
             <app-anchored-dropdown [open]="bulletStyleDropdownOpen()" [anchor]="bulletStyleTrigger" (closed)="closeBulletStyleDropdown()">
-              <div class="table-toolbar__bullet-dropdown" data-editastra-dropdown="1">
+              <div class="editastra-toolbar__bullet-dropdown" data-editastra-dropdown="1">
                 <button
                   *ngFor="let style of bulletStyles"
                   type="button"
-                  class="table-toolbar__bullet-option"
+                  class="editastra-toolbar__bullet-option"
                   (mousedown)="$event.preventDefault()"
                   (click)="onBulletStyleSelect(style.value)"
                 >
-                  <span class="table-toolbar__bullet-icon">{{ style.icon }}</span>
-                  <span class="table-toolbar__bullet-label">{{ style.label }}</span>
+                  <span class="editastra-toolbar__bullet-icon">{{ style.icon }}</span>
+                  <span class="editastra-toolbar__bullet-label">{{ style.label }}</span>
                 </button>
               </div>
             </app-anchored-dropdown>
@@ -140,98 +142,140 @@
             </ng-container>
           </button>
 
+          <!-- Heading style -->
+          <div *ngSwitchCase="'heading'" class="table-toolbar__combo-wrap" [attr.title]="$any(p).title">
+            <button
+              #headingTrigger
+              type="button"
+              class="editastra-toolbar__combo"
+              [disabled]="!hasActiveEditor"
+              (mousedown)="openHeadingDropdown($event)"
+            >
+              <span class="editastra-toolbar__combo-value">{{ headingLabel }}</span>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 6l4 4 4-4z" />
+              </svg>
+            </button>
+            <app-anchored-dropdown
+              [open]="headingDropdownOpen()"
+              (openChange)="headingDropdownOpen.set($event)"
+              [anchor]="headingTrigger"
+              align="auto"
+              [minWidthPx]="140"
+              [maxWidthPx]="200"
+            >
+              <div class="editastra-toolbar__heading-dropdown" data-editastra-dropdown="1">
+                <button
+                  *ngFor="let h of headingStyles"
+                  type="button"
+                  class="editastra-toolbar__heading-option"
+                  [class.editastra-toolbar__heading-option--active]="currentHeadingTag === h.tag"
+                  (mousedown)="$event.preventDefault(); onHeadingPick(h.tag)"
+                >
+                  <span class="editastra-toolbar__heading-preview" [style.fontSize]="h.previewSize">{{ h.label }}</span>
+                </button>
+              </div>
+            </app-anchored-dropdown>
+          </div>
+
           <!-- Font family -->
-          <label *ngSwitchCase="'font-family'" class="table-toolbar__field" [attr.title]="$any(p).title">
-            <span class="table-toolbar__field-label">{{ $any(p).label }}</span>
-            <div class="table-toolbar__combo-wrap">
-              <button
-                #fontFamilyTrigger
-                type="button"
-                class="table-toolbar__combo editastra-toolbar__combo"
-                [disabled]="!hasActiveEditor"
-                (mousedown)="openFontFamilyDropdown($event)"
-              >
-                <span class="editastra-toolbar__combo-value">{{ fontFamilyLabel }}</span>
-                <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path d="M4 6l4 4 4-4z" />
-                </svg>
-              </button>
-              <app-anchored-dropdown
-                [open]="fontFamilyDropdownOpen()"
-                (openChange)="fontFamilyDropdownOpen.set($event)"
-                [anchor]="fontFamilyTrigger"
-                align="auto"
-                [minWidthPx]="220"
-                [maxWidthPx]="360"
-              >
-                <div class="editastra-toolbar__dropdown-list" data-editastra-dropdown="1">
-                  <button
-                    type="button"
-                    class="editastra-toolbar__dropdown-item"
-                    (mousedown)="$event.preventDefault(); onFontFamilyPick('')"
-                  >
-                    Default
-                  </button>
-                  <button
-                    *ngFor="let f of fontFamilies"
-                    type="button"
-                    class="editastra-toolbar__dropdown-item"
-                    (mousedown)="$event.preventDefault(); onFontFamilyPick(f.value)"
-                  >
-                    {{ f.label }}
-                  </button>
-                </div>
-              </app-anchored-dropdown>
-            </div>
-          </label>
+          <div *ngSwitchCase="'font-family'" class="table-toolbar__combo-wrap" [attr.title]="$any(p).title">
+            <button
+              #fontFamilyTrigger
+              type="button"
+              class="editastra-toolbar__combo"
+              [disabled]="!hasActiveEditor"
+              (mousedown)="openFontFamilyDropdown($event)"
+            >
+              <span class="editastra-toolbar__combo-value">{{ fontFamilyLabel }}</span>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 6l4 4 4-4z" />
+              </svg>
+            </button>
+            <app-anchored-dropdown
+              [open]="fontFamilyDropdownOpen()"
+              (openChange)="fontFamilyDropdownOpen.set($event)"
+              [anchor]="fontFamilyTrigger"
+              align="auto"
+              [minWidthPx]="200"
+              [maxWidthPx]="300"
+            >
+              <div class="editastra-toolbar__dropdown-list" data-editastra-dropdown="1">
+                <button
+                  type="button"
+                  class="editastra-toolbar__dropdown-item"
+                  (mousedown)="$event.preventDefault(); onFontFamilyPick('')"
+                >
+                  Default
+                </button>
+                <button
+                  *ngFor="let f of fontFamilies"
+                  type="button"
+                  class="editastra-toolbar__dropdown-item"
+                  [style.fontFamily]="f.value"
+                  (mousedown)="$event.preventDefault(); onFontFamilyPick(f.value)"
+                >
+                  {{ f.label }}
+                </button>
+              </div>
+            </app-anchored-dropdown>
+          </div>
 
           <!-- Font size -->
-          <label *ngSwitchCase="'font-size'" class="table-toolbar__field" [attr.title]="$any(p).title">
-            <span class="table-toolbar__field-label">{{ $any(p).label }}</span>
-            <div class="table-toolbar__combo-wrap">
-              <button
-                #fontSizeTrigger
-                type="button"
-                class="table-toolbar__combo table-toolbar__combo--small editastra-toolbar__combo editastra-toolbar__combo--small"
-                [disabled]="!hasActiveEditor"
-                (mousedown)="openFontSizeDropdown($event)"
-              >
-                <span>{{ fontSizeLabel }}</span>
-                <svg class="table-toolbar__combo-arrow" width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path d="M4 6l4 4 4-4z" />
-                </svg>
-              </button>
-              <app-anchored-dropdown
-                [open]="fontSizeDropdownOpen()"
-                (openChange)="fontSizeDropdownOpen.set($event)"
-                [anchor]="fontSizeTrigger"
-                align="auto"
-                [minWidthPx]="120"
-                [maxWidthPx]="200"
-              >
-                <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
-                  <button type="button" class="table-toolbar__combo-item" (mousedown)="$event.preventDefault(); onFontSizePick(null)">
+          <div *ngSwitchCase="'font-size'" class="table-toolbar__combo-wrap" [attr.title]="$any(p).title">
+            <button
+              #fontSizeTrigger
+              type="button"
+              class="editastra-toolbar__combo editastra-toolbar__combo--small"
+              [disabled]="!hasActiveEditor"
+              (mousedown)="openFontSizeDropdown($event)"
+            >
+              <span>{{ fontSizeLabel }}</span>
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 6l4 4 4-4z" />
+              </svg>
+            </button>
+            <app-anchored-dropdown
+              [open]="fontSizeDropdownOpen()"
+              (openChange)="fontSizeDropdownOpen.set($event)"
+              [anchor]="fontSizeTrigger"
+              align="auto"
+              [minWidthPx]="140"
+              [maxWidthPx]="180"
+            >
+              <div class="editastra-toolbar__size-dropdown" data-editastra-dropdown="1">
+                <input
+                  #customSizeInput
+                  type="text"
+                  class="editastra-toolbar__size-input"
+                  placeholder="Size"
+                  (mousedown)="$event.stopPropagation()"
+                  (focus)="$event.stopPropagation()"
+                  (keydown.enter)="onCustomFontSize(customSizeInput.value); customSizeInput.value = ''"
+                />
+                <div class="editastra-toolbar__size-presets">
+                  <button type="button" class="editastra-toolbar__size-preset" (mousedown)="$event.preventDefault(); onFontSizePick(null)">
                     Auto
                   </button>
                   <button
                     *ngFor="let s of fontSizes"
                     type="button"
-                    class="table-toolbar__combo-item"
+                    class="editastra-toolbar__size-preset"
                     (mousedown)="$event.preventDefault(); onFontSizePick(s)"
                   >
                     {{ s }}
                   </button>
                 </div>
-              </app-anchored-dropdown>
-            </div>
-          </label>
+              </div>
+            </app-anchored-dropdown>
+          </div>
 
           <!-- Line height -->
           <div *ngSwitchCase="'line-height'" class="table-toolbar__combo-wrap" [attr.title]="$any(p).title">
             <button
               #lineHeightTrigger
               type="button"
-              class="table-toolbar__combo table-toolbar__combo--icon"
+              class="editastra-toolbar__combo editastra-toolbar__combo--icon"
               [disabled]="!hasActiveEditor"
               (mousedown)="openLineHeightDropdown($event)"
             >
@@ -242,14 +286,14 @@
               (openChange)="lineHeightDropdownOpen.set($event)"
               [anchor]="lineHeightTrigger"
               align="auto"
-              [minWidthPx]="120"
-              [maxWidthPx]="200"
+              [minWidthPx]="90"
+              [maxWidthPx]="120"
             >
-              <div class="table-toolbar__combo-dropdown-content" data-editastra-dropdown="1">
+              <div class="editastra-toolbar__line-height-dropdown" data-editastra-dropdown="1">
                 <button
                   *ngFor="let lh of lineHeights"
                   type="button"
-                  class="table-toolbar__combo-item"
+                  class="editastra-toolbar__line-height-item"
                   (mousedown)="$event.preventDefault(); onLineHeightPick(lh)"
                 >
                   {{ lh }}
