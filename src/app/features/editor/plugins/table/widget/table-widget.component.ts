@@ -1005,6 +1005,62 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
     this.setContentMinHeights(fit.minTableHeightPx);
 
+    // If the imported URL data cannot fit within the current widget height, auto-grow once so content isn't clipped.
+    // This addresses the "text is clipped until click/resize" issue for exported→reopened URL tables where the user
+    // previously resized the widget smaller than the content requires.
+    if (fit.minTableHeightPx > tableHeightPx + 1) {
+      const bufferPx = 4;
+      const stepPx = 8;
+      const deficitPx = Math.max(0, fit.minTableHeightPx - tableHeightPx);
+      const growPx = Math.min(1600, this.roundUpPx(deficitPx + bufferPx, stepPx));
+
+      if (Number.isFinite(growPx) && growPx > 0.5) {
+        const growRes = this.growWidgetSizeBy(0, growPx, { commit: true });
+        const appliedGrowPx = growRes?.appliedHeightPx ?? 0;
+        if (Number.isFinite(appliedGrowPx) && appliedGrowPx > 0.5) {
+          const newTotalH = tableHeightPx + appliedGrowPx;
+
+          // Grow only deficit rows (keep other rows' pixel heights stable) to minimize layout jump.
+          const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+          const minHeightsPx = Array.from({ length: rowCount }, (_, r) => {
+            const contentMin = this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit');
+            const manualMin = manualMins[r] ?? 0;
+            return Math.max(this.minRowPx, contentMin, manualMin);
+          });
+
+          const deficitRows: Array<{ r: number; deficitPx: number }> = [];
+          let deficitSumPx = 0;
+          for (let r = 0; r < rowCount; r++) {
+            const cur = heightsPx[r] ?? 0;
+            const min = minHeightsPx[r] ?? this.minRowPx;
+            const d = Math.max(0, min - cur);
+            if (d > 0.5) {
+              deficitRows.push({ r, deficitPx: d });
+              deficitSumPx += d;
+            }
+          }
+
+          const nextHeights = [...heightsPx];
+          if (deficitRows.length > 0) {
+            const extraPx = Math.max(0, appliedGrowPx - deficitSumPx);
+            for (const { r, deficitPx } of deficitRows) {
+              const extraShare = deficitSumPx > 0 ? extraPx * (deficitPx / deficitSumPx) : 0;
+              nextHeights[r] = (nextHeights[r] ?? 0) + deficitPx + extraShare;
+            }
+          } else {
+            // If we couldn't detect a specific deficit row (edge cases), distribute extra to the last row.
+            if (rowCount > 0) {
+              nextHeights[rowCount - 1] = (nextHeights[rowCount - 1] ?? 0) + appliedGrowPx;
+            }
+          }
+
+          const nextFractions = nextHeights.map((px) => px / newTotalH);
+          this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+          this.setContentMinHeights(fit.minTableHeightPx);
+        }
+      }
+    }
+
     // Persist immediately so the user sees a stable, correct result without manual clicking.
     this.emitPropsChange(this.localRows());
     this.scheduleRecomputeResizeSegments();
