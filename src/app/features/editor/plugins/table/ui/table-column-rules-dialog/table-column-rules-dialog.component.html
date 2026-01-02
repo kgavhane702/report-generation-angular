@@ -1,0 +1,129 @@
+<app-modal [(open)]="open" size="lg" (openChange)="onOpenChange($event)">
+  <ng-container appModalHeader>
+    <h2 class="tcrd__title">Column rules</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <div class="tcrd">
+      <div class="tcrd__row">
+        <label class="tcrd__label">
+          Column
+          <select class="tcrd__select" [ngModel]="selectedColumnKey" (ngModelChange)="onColumnKeyChange($event)">
+            <option *ngFor="let c of columns()" [ngValue]="c.key">{{ c.name }}</option>
+          </select>
+        </label>
+
+        <label class="tcrd__check">
+          <input type="checkbox" [(ngModel)]="rulesEnabled" />
+          <span>Enabled</span>
+        </label>
+      </div>
+
+      <div class="tcrd__rules">
+        <div *ngFor="let r of rulesDraft; let i = index" class="tcrd__rule">
+          <div class="tcrd__rule-top">
+            <label class="tcrd__check">
+              <input type="checkbox" [(ngModel)]="r.enabled" />
+              <span>Rule</span>
+            </label>
+
+            <label class="tcrd__label">
+              When
+              <select class="tcrd__select" [(ngModel)]="r.when.op">
+                <option *ngFor="let op of ruleOperators" [ngValue]="op.value">{{ op.label }}</option>
+              </select>
+            </label>
+
+            <label
+              class="tcrd__label"
+              *ngIf="r.when.op !== 'isEmpty' && r.when.op !== 'isNotEmpty' && r.when.op !== 'between' && r.when.op !== 'notBetween' && r.when.op !== 'betweenDates'"
+            >
+              Value
+              <input class="tcrd__input" type="text" [(ngModel)]="r.when.value" placeholder="Value" />
+            </label>
+
+            <ng-container *ngIf="r.when.op === 'between' || r.when.op === 'notBetween' || r.when.op === 'betweenDates'">
+              <label class="tcrd__label">
+                Min
+                <input class="tcrd__input" type="text" [(ngModel)]="r.when.min" placeholder="Min" />
+              </label>
+              <label class="tcrd__label">
+                Max
+                <input class="tcrd__input" type="text" [(ngModel)]="r.when.max" placeholder="Max" />
+              </label>
+            </ng-container>
+
+            <label class="tcrd__check">
+              <input type="checkbox" [(ngModel)]="r.stopIfTrue" />
+              <span>Stop</span>
+            </label>
+
+            <button type="button" class="tcrd__btn tcrd__btn--danger" (click)="removeRule(i)">Remove</button>
+          </div>
+
+          <div class="tcrd__rule-bottom">
+            <label class="tcrd__label">
+              Bg
+              <input type="color" [(ngModel)]="r.then.backgroundColor" />
+            </label>
+            <label class="tcrd__label">
+              Text
+              <input type="color" [(ngModel)]="r.then.textColor" />
+            </label>
+
+            <label class="tcrd__check">
+              <input
+                type="checkbox"
+                [checked]="r.then.fontWeight === 'bold'"
+                (change)="r.then.fontWeight = $any($event.target).checked ? 'bold' : undefined"
+              />
+              <span>Bold</span>
+            </label>
+            <label class="tcrd__check">
+              <input
+                type="checkbox"
+                [checked]="r.then.fontStyle === 'italic'"
+                (change)="r.then.fontStyle = $any($event.target).checked ? 'italic' : undefined"
+              />
+              <span>Italic</span>
+            </label>
+            <label class="tcrd__check">
+              <input
+                type="checkbox"
+                [checked]="r.then.textDecoration === 'underline'"
+                (change)="r.then.textDecoration = $any($event.target).checked ? 'underline' : undefined"
+              />
+              <span>Underline</span>
+            </label>
+            <label class="tcrd__check">
+              <input
+                type="checkbox"
+                [checked]="r.then.textDecoration === 'line-through'"
+                (change)="r.then.textDecoration = $any($event.target).checked ? 'line-through' : undefined"
+              />
+              <span>Strike</span>
+            </label>
+
+            <label class="tcrd__label tcrd__label--wide">
+              Class
+              <input class="tcrd__input" type="text" [(ngModel)]="r.then.cellClass" placeholder="Optional CSS class" />
+            </label>
+            <label class="tcrd__label tcrd__label--wide">
+              Tooltip
+              <input class="tcrd__input" type="text" [(ngModel)]="r.then.tooltip" placeholder="Optional tooltip" />
+            </label>
+          </div>
+        </div>
+
+        <button type="button" class="tcrd__btn tcrd__btn--primary" (click)="addRule()">Add rule</button>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-container appModalFooter>
+    <button type="button" class="tcrd__btn" (click)="onOpenChange(false)">Cancel</button>
+    <button type="button" class="tcrd__btn tcrd__btn--primary" (click)="onSave()">Save</button>
+  </ng-container>
+</app-modal>
+
+

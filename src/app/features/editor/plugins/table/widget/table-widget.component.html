@@ -71,40 +71,81 @@
 
 <ng-template #cellRenderer let-cell="cell" let-rowIndex="rowIndex" let-cellIndex="cellIndex" let-path="path">
   <ng-container *ngIf="!cell.split; else splitRenderer">
-    <div
-      class="table-widget__cell-surface"
-      [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
-      [style.background-color]="cell.style?.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
-      [style.font-family]="cell.style?.fontFamily || null"
-      [style.font-size.px]="cell.style?.fontSizePx ?? null"
-      [style.font-weight]="cell.style?.fontWeight || getSectionStyle(rowIndex, cellIndex).fontWeight || null"
-      [style.font-style]="cell.style?.fontStyle || null"
-    >
+    <!-- Column conditional formatting is applied at render-time via helper methods. -->
+    <ng-container *ngIf="getConditionalCellSurfaceStyle(rowIndex, cellIndex, path, cell) as condStyle; else noCondStyle">
       <div
-        class="table-widget__cell-content"
-        [attr.data-v-align]="cell.style?.verticalAlign || 'top'"
+        class="table-widget__cell-surface"
+        [ngClass]="getConditionalCellSurfaceClass(rowIndex, cellIndex, path, cell) || null"
+        [attr.title]="getConditionalTooltip(rowIndex, cellIndex, path, cell) || null"
+        [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
+        [style.background-color]="cell.style?.backgroundColor || condStyle.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
+        [style.font-family]="cell.style?.fontFamily || null"
+        [style.font-size.px]="cell.style?.fontSizePx ?? null"
+        [style.font-weight]="cell.style?.fontWeight || condStyle.fontWeight || getSectionStyle(rowIndex, cellIndex).fontWeight || null"
+        [style.font-style]="cell.style?.fontStyle || condStyle.fontStyle || null"
+        [style.text-decoration]="cell.style?.textDecoration || condStyle.textDecoration || null"
+        [style.color]="cell.style?.color || condStyle.color || null"
       >
-        <app-editastra-editor
-          #cellEditor
-          [html]="cell.contentHtml"
-          [placeholder]="''"
-          [disabled]="isLoading"
-          variant="table"
-          [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
-          [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
-          [editorStyles]="{
-            'text-decoration': cell.style?.textDecoration || null,
-            'color': cell.style?.color || null,
-            'background-color': cell.style?.textHighlightColor || null,
-            'line-height': cell.style?.lineHeight || null
-          }"
-          (editorFocus)="onCellFocus(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
-          (editorBlur)="onCellBlur(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
-          (htmlInput)="onCellInput(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
-          (editorKeydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
-        ></app-editastra-editor>
+        <div class="table-widget__cell-content" [attr.data-v-align]="cell.style?.verticalAlign || 'top'">
+          <app-editastra-editor
+            #cellEditor
+            [html]="cell.contentHtml"
+            [placeholder]="''"
+            [disabled]="isLoading"
+            variant="table"
+            [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
+            [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
+            [editorStyles]="{
+              'text-decoration': cell.style?.textDecoration || condStyle.textDecoration || null,
+              'color': cell.style?.color || condStyle.color || null,
+              'background-color': cell.style?.textHighlightColor || null,
+              'line-height': cell.style?.lineHeight || null
+            }"
+            (editorFocus)="onCellFocus(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (editorBlur)="onCellBlur(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (htmlInput)="onCellInput(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (editorKeydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+          ></app-editastra-editor>
+        </div>
       </div>
-    </div>
+    </ng-container>
+    <ng-template #noCondStyle>
+      <div
+        class="table-widget__cell-surface"
+        [ngClass]="getConditionalCellSurfaceClass(rowIndex, cellIndex, path, cell) || null"
+        [attr.title]="getConditionalTooltip(rowIndex, cellIndex, path, cell) || null"
+        [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
+        [style.background-color]="cell.style?.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
+        [style.font-family]="cell.style?.fontFamily || null"
+        [style.font-size.px]="cell.style?.fontSizePx ?? null"
+        [style.font-weight]="cell.style?.fontWeight || getSectionStyle(rowIndex, cellIndex).fontWeight || null"
+        [style.font-style]="cell.style?.fontStyle || null"
+        [style.text-decoration]="cell.style?.textDecoration || null"
+        [style.color]="cell.style?.color || null"
+      >
+        <div class="table-widget__cell-content" [attr.data-v-align]="cell.style?.verticalAlign || 'top'">
+          <app-editastra-editor
+            #cellEditor
+            [html]="cell.contentHtml"
+            [placeholder]="''"
+            [disabled]="isLoading"
+            variant="table"
+            [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
+            [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
+            [editorStyles]="{
+              'text-decoration': cell.style?.textDecoration || null,
+              'color': cell.style?.color || null,
+              'background-color': cell.style?.textHighlightColor || null,
+              'line-height': cell.style?.lineHeight || null
+            }"
+            (editorFocus)="onCellFocus(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (editorBlur)="onCellBlur(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (htmlInput)="onCellInput(cellEditor.getEditableElement(), rowIndex, cellIndex, path)"
+            (editorKeydown)="onCellKeydown($event, rowIndex, cellIndex, path)"
+          ></app-editastra-editor>
+        </div>
+      </div>
+    </ng-template>
   </ng-container>
 
   <ng-template #splitRenderer>

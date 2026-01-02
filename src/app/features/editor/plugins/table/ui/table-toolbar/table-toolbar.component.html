@@ -1,9 +1,12 @@
 <div class="table-toolbar">
-    <div class="table-toolbar__group table-toolbar__group--table-options"
-      *ngIf="hasActiveTable">
+  <div class="table-toolbar__group table-toolbar__group--table-options" *ngIf="hasActiveTable">
     <label class="table-toolbar__check">
       <input type="checkbox" [checked]="tableOptions.headerRow" (change)="onToggleHeaderRow($event)" />
       <span>Header Row</span>
+    </label>
+    <label class="table-toolbar__check" *ngIf="isUrlTableActive()">
+      <input type="checkbox" [checked]="preserveHeaderOnUrlLoad" (change)="onTogglePreserveHeaderOnUrlLoad($event)" />
+      <span>Preserve Header (URL)</span>
     </label>
     <label class="table-toolbar__check">
       <input type="checkbox" [checked]="tableOptions.firstColumn" (change)="onToggleFirstColumn($event)" />
@@ -22,6 +25,17 @@
   <div class="table-toolbar__separator" *ngIf="hasActiveTable"></div>
 
   <div class="table-toolbar__group">
+    <button
+      *ngIf="hasActiveTable"
+      type="button"
+      class="table-toolbar__button table-toolbar__button--wide"
+      (mousedown)="openColumnRulesDialog($event)"
+      title="Column conditional rules"
+    >
+      <app-icon name="tune"></app-icon>
+      <span class="table-toolbar__button-label">Rules</span>
+    </button>
+
     <button
       type="button"
       class="table-toolbar__button table-toolbar__button--wide"
@@ -143,6 +157,13 @@
 
   <!-- (Format painter removed for now; will be reworked later) -->
 </div>
+
+<app-table-column-rules-dialog
+  [(open)]="columnRulesDialogOpen"
+  [props]="activeTableProps()"
+  [columnRules]="activeTableProps()?.columnRules || []"
+  (save)="onColumnRulesSave($event)"
+></app-table-column-rules-dialog>
 
 <div
   *ngIf="splitDialogOpen"

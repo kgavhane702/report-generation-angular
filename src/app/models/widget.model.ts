@@ -127,6 +127,25 @@ export interface TableWidgetProps {
   totalRow?: boolean;
   lastColumn?: boolean;
   /**
+   * Optional header row count for multi-row headers.
+   * - When `headerRow` is true and this is missing, assume 1.
+   * - When `headerRow` is false, treat as 0.
+   */
+  headerRowCount?: number;
+  /**
+   * URL tables: when enabled, preserve the existing header row(s) (including split header cells)
+   * across export/import and URL auto-load. Remote data replaces only the body.
+   *
+   * Default: false (current behavior).
+   */
+  preserveHeaderOnUrlLoad?: boolean;
+  /**
+   * Column-level conditional formatting rules (header-defined).
+   * These are persisted in the document JSON and applied at render time (does not mutate rows),
+   * so they continue to work for URL tables when data reloads.
+   */
+  columnRules?: TableColumnRuleSet[];
+  /**
    * Column sizing as fractions (sum to 1). Length should equal the top-level column count.
    * Used by the table widget for resizable columns and by PDF export for consistent layout.
    */
@@ -149,6 +168,94 @@ export interface TableWidgetProps {
   /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
   loading?: boolean;
   loadingMessage?: string;
+}
+
+export type TableRuleValueType = 'auto' | 'text' | 'number' | 'date';
+
+export type TableConditionOperator =
+  | 'isEmpty'
+  | 'isNotEmpty'
+  | 'equals'
+  | 'notEquals'
+  | 'equalsIgnoreCase'
+  | 'contains'
+  | 'notContains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'inList'
+  | 'notInList'
+  | 'greaterThan'
+  | 'greaterThanOrEqual'
+  | 'lessThan'
+  | 'lessThanOrEqual'
+  | 'between'
+  | 'notBetween'
+  | 'before'
+  | 'after'
+  | 'on'
+  | 'betweenDates';
+
+export interface TableConditionWhen {
+  op: TableConditionOperator;
+  /** Optional hint for how to interpret the operands. */
+  valueType?: TableRuleValueType;
+  /** Single operand (text/number/date as string). */
+  value?: string;
+  /** Range operands (numbers/dates as strings). */
+  min?: string;
+  max?: string;
+  /** List operands (used by inList/notInList). */
+  values?: string[];
+  /** Text operators: case sensitivity. */
+  ignoreCase?: boolean;
+}
+
+export interface TableConditionThen {
+  /** Optional CSS class name to apply to the cell surface. */
+  cellClass?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
+  textDecoration?: 'none' | 'underline' | 'line-through' | 'underline line-through';
+  /** Optional tooltip text. */
+  tooltip?: string;
+}
+
+export interface TableConditionRule {
+  id: string;
+  enabled?: boolean;
+  /** Lower numbers run first (default 0). */
+  priority?: number;
+  when: TableConditionWhen;
+  then: TableConditionThen;
+  /** If true and matched, stop evaluating further rules for this column. */
+  stopIfTrue?: boolean;
+}
+
+export interface TableColumnRuleSet {
+  /**
+   * Stable identifier for the column.
+   * v2: prefer a key derived from the header name (normalized), so rules can follow columns by name.
+   * Fallback: `col:{index}` when header name is empty.
+   */
+  columnKey: string;
+  /** Optional display name captured when the rule set is saved. */
+  columnName?: string;
+  /**
+   * Optional fallback 0-based index used when the column key/name cannot be resolved.
+   * Useful for URL schema drift or duplicate header names.
+   */
+  fallbackColIndex?: number;
+  /**
+   * Backwards compatibility: older saved documents may store `colIndex` directly.
+   * Newer saves should rely on `columnKey` + `fallbackColIndex`.
+   */
+  colIndex?: number;
+  enabled?: boolean;
+  /** Future: allow rule-group semantics. v1 evaluator still applies rules by priority/order. */
+  matchMode?: 'all' | 'any';
+  rules: TableConditionRule[];
 }
 
 export interface TableMergedRegion {

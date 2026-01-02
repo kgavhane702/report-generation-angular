@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 
 import { TableToolbarService, TableSectionOptions } from '../../../../../../core/services/table-toolbar.service';
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
-import { TableWidgetProps } from '../../../../../../models/widget.model';
+import { TableWidgetProps, TableColumnRuleSet } from '../../../../../../models/widget.model';
 
 import { EditastraToolbarComponent } from '../../../editastra/ui/editastra-toolbar/editastra-toolbar.component';
 import { EDITASTRA_SHARED_FORMATTING_PLUGINS } from '../../../editastra/ui/editastra-toolbar/editastra-toolbar.plugins';
@@ -12,6 +12,7 @@ import { EDITASTRA_SHARED_FORMATTING_PLUGINS } from '../../../editastra/ui/edita
 import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
 import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
+import { TableColumnRulesDialogComponent } from '../table-column-rules-dialog/table-column-rules-dialog.component';
 
 /**
  * TableToolbarComponent
@@ -24,7 +25,15 @@ import { AppIconComponent } from '../../../../../../shared/components/icon/icon.
 @Component({
   selector: 'app-table-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, EditastraToolbarComponent, ColorPickerComponent, BorderPickerComponent, AppIconComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    EditastraToolbarComponent,
+    ColorPickerComponent,
+    BorderPickerComponent,
+    AppIconComponent,
+    TableColumnRulesDialogComponent,
+  ],
   templateUrl: './table-toolbar.component.html',
   styleUrls: ['./table-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,6 +54,12 @@ export class TableToolbarComponent {
     return w?.type === 'table' ? (w.props as TableWidgetProps) : null;
   });
 
+  /** Computed: is the active table a URL (http) table? */
+  readonly isUrlTableActive = computed(() => {
+    const props = this.activeTableProps();
+    return !!props?.dataSource && (props.dataSource as any).kind === 'http';
+  });
+
   /** Computed: table options from the active widget props */
   readonly tableOptionsFromWidget = computed(() => {
     const props = this.activeTableProps();
@@ -60,6 +75,9 @@ export class TableToolbarComponent {
   splitRows = 2;
   splitCols = 2;
   splitMax = 20;
+
+  // Column rules dialog (global modal)
+  columnRulesDialogOpen = false;
 
   // Highlight and fill palette (includes transparent)
   readonly highlightFillPalette: ColorOption[] = [
@@ -98,6 +116,11 @@ export class TableToolbarComponent {
   /** Table is active if the selected widget is a table (from EditorStateService) */
   get hasActiveTable(): boolean {
     return this.isTableWidgetActive();
+  }
+
+  get preserveHeaderOnUrlLoad(): boolean {
+    const props = this.activeTableProps();
+    return !!props?.preserveHeaderOnUrlLoad;
   }
 
   /** Get the active table widget id from EditorStateService */
@@ -140,6 +163,25 @@ export class TableToolbarComponent {
   onToggleLastColumn(event: Event): void {
     const checked = (event.target as HTMLInputElement).checked;
     this.emitTableOptionsPatch({ lastColumn: checked });
+  }
+
+  onTogglePreserveHeaderOnUrlLoad(event: Event): void {
+    const widgetId = this.activeTableWidgetId;
+    if (!widgetId) return;
+    const checked = (event.target as HTMLInputElement).checked;
+    this.toolbarService.setPreserveHeaderOnUrlLoad(checked, widgetId);
+  }
+
+  openColumnRulesDialog(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveTable) return;
+    this.columnRulesDialogOpen = true;
+  }
+
+  onColumnRulesSave(next: TableColumnRuleSet[]): void {
+    const widgetId = this.activeTableWidgetId;
+    if (!widgetId) return;
+    this.toolbarService.setColumnRules(next, widgetId);
   }
 
   openSplitDialog(event: MouseEvent): void {

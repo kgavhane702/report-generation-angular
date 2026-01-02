@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Subject } from 'rxjs';
-import { TableCellStyle, TableWidgetProps } from '../../models/widget.model';
+import { TableCellStyle, TableWidgetProps, TableColumnRuleSet } from '../../models/widget.model';
 
 export type TableSectionOptions = Pick<TableWidgetProps, 'headerRow' | 'firstColumn' | 'totalRow' | 'lastColumn'>;
 
@@ -93,6 +93,8 @@ export class TableToolbarService {
   private readonly importFromExcelRequestedSubject = new Subject<TableImportFromExcelRequest>();
 
   private readonly tableOptionsRequestedSubject = new Subject<{ options: TableSectionOptions; widgetId: string }>();
+  private readonly preserveHeaderOnUrlLoadRequestedSubject = new Subject<{ widgetId: string; enabled: boolean }>();
+  private readonly columnRulesRequestedSubject = new Subject<{ widgetId: string; columnRules: TableColumnRuleSet[] }>();
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
@@ -116,6 +118,10 @@ export class TableToolbarService {
   public readonly importFromExcelRequested$: Observable<TableImportFromExcelRequest> =
     this.importFromExcelRequestedSubject.asObservable();
   public readonly tableOptionsRequested$: Observable<{ options: TableSectionOptions; widgetId: string }> = this.tableOptionsRequestedSubject.asObservable();
+  public readonly preserveHeaderOnUrlLoadRequested$: Observable<{ widgetId: string; enabled: boolean }> =
+    this.preserveHeaderOnUrlLoadRequestedSubject.asObservable();
+  public readonly columnRulesRequested$: Observable<{ widgetId: string; columnRules: TableColumnRuleSet[] }> =
+    this.columnRulesRequestedSubject.asObservable();
   
   /** Signal for current formatting state */
   readonly formattingState = signal<TableFormattingState>({
@@ -211,6 +217,16 @@ export class TableToolbarService {
 
   requestImportTableFromExcel(request: TableImportFromExcelRequest): void {
     this.importFromExcelRequestedSubject.next(request);
+  }
+
+  /** URL tables: preserve existing header row(s) on auto-load/export (remote data replaces only body). */
+  setPreserveHeaderOnUrlLoad(enabled: boolean, widgetId: string): void {
+    this.preserveHeaderOnUrlLoadRequestedSubject.next({ widgetId, enabled: !!enabled });
+  }
+
+  /** Persist column conditional rules for a table widget. */
+  setColumnRules(columnRules: TableColumnRuleSet[], widgetId: string): void {
+    this.columnRulesRequestedSubject.next({ widgetId, columnRules: Array.isArray(columnRules) ? columnRules : [] });
   }
 
   // format painter removed

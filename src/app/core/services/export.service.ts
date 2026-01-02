@@ -79,12 +79,38 @@ export class ExportService {
               props.exportedImage = undefined;
             } else if (widget.type === 'table') {
               // Replace with a minimal empty grid; keep styling flags + dataSource.
-              props.rows = [
-                {
-                  id: 'row-0',
-                  cells: [{ id: 'cell-0-0', contentHtml: '' }],
-                },
-              ];
+              // Optional: preserve existing header row(s) for URL tables, so users can keep custom headers/conditions
+              // while still stripping remote (fetched) body data from exports.
+              const preserveHeader = props.preserveHeaderOnUrlLoad === true;
+              const hasHeaderFlag = props.headerRow === true;
+              const headerRowCount =
+                typeof props.headerRowCount === 'number' && Number.isFinite(props.headerRowCount)
+                  ? Math.max(0, Math.trunc(props.headerRowCount))
+                  : hasHeaderFlag
+                    ? 1
+                    : 0;
+
+              const existingRows: any[] = Array.isArray(props.rows) ? props.rows : [];
+              const headerRows = preserveHeader && headerRowCount > 0 ? existingRows.slice(0, headerRowCount) : [];
+
+              // Create an empty placeholder body row that matches the header's column count (best-effort),
+              // otherwise fall back to 1x1.
+              const headerColCount =
+                headerRows.length > 0
+                  ? Math.max(
+                      1,
+                      ...headerRows.map((r) => (Array.isArray(r?.cells) ? r.cells.length : 0))
+                    )
+                  : 1;
+              const emptyBodyRow = {
+                id: 'row-0-body',
+                cells: Array.from({ length: headerColCount }, (_, i) => ({
+                  id: `cell-0-${i}`,
+                  contentHtml: '',
+                })),
+              };
+
+              props.rows = headerRows.length > 0 ? [...headerRows, emptyBodyRow] : [emptyBodyRow];
               // IMPORTANT: Preserve existing sizing fractions (if present) so exported+reimported URL tables
               // retain the user's column/row sizing after the remote data loads again.
               // These arrays may not match the 1x1 placeholder grid, but the table widget normalizes them safely.

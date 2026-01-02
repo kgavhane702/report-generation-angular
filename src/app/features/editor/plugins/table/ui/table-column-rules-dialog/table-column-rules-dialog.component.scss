@@ -1,0 +1,109 @@
+.tcrd {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tcrd__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tcrd__row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.tcrd__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #111827;
+  min-width: 200px;
+}
+
+.tcrd__label--wide {
+  min-width: 260px;
+  flex: 1;
+}
+
+.tcrd__select,
+.tcrd__input {
+  height: 34px;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
+  padding: 0 10px;
+  outline: none;
+  background: #fff;
+}
+
+.tcrd__select:focus,
+.tcrd__input:focus {
+  border-color: rgba(25, 118, 210, 0.6);
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
+}
+
+.tcrd__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #111827;
+  user-select: none;
+  height: 34px;
+}
+
+.tcrd__rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tcrd__rule {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.tcrd__rule-top,
+.tcrd__rule-bottom {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.tcrd__rule-bottom {
+  margin-top: 10px;
+  align-items: center;
+}
+
+.tcrd__btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  cursor: pointer;
+}
+
+.tcrd__btn--primary {
+  border-color: rgba(25, 118, 210, 0.6);
+  background: rgba(25, 118, 210, 0.12);
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.tcrd__btn--danger {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+
