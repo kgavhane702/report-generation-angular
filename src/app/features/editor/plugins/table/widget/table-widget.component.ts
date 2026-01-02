@@ -1391,6 +1391,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         }
       }
 
+      // If the user widened the widget (less wrapping), reclaim vertical slack after the resize gesture ends.
+      // This matches the post-column-resize behavior (tighten like backspace/delete), but runs only on release.
+      this.tryAutoShrinkWidgetToContentMin({ commit: true });
+
       this.emitPropsChange(this.localRows());
 
       // Mark that rows are now tightly fitted after widget resize.
@@ -5490,7 +5494,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    *
    * Returns true if it changed the widget size (draft-only).
    */
-  private tryAutoShrinkWidgetAfterTopColResize(): boolean {
+  private tryAutoShrinkWidgetToContentMin(options?: { commit?: boolean }): boolean {
     if (!this.widget?.id) return false;
     if (this.sizingState === 'preserved') return false; // preserved mode intentionally locks the frame
     if (this.uiState.isResizing(this.widget.id)) return false; // don't fight the OUTER widget resizer
@@ -5537,7 +5541,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const shrinkPx = Math.min(desiredShrinkPx, maxByWidgetMin);
     if (!Number.isFinite(shrinkPx) || shrinkPx <= 0) return false;
 
-    const shrinkRes = this.growWidgetSizeBy(0, -shrinkPx, { commit: false });
+    const commit = options?.commit ?? false;
+    const shrinkRes = this.growWidgetSizeBy(0, -shrinkPx, { commit });
     const appliedDeltaPx = shrinkRes?.appliedHeightPx ?? 0; // negative
     const appliedShrinkPx = -appliedDeltaPx;
     if (!Number.isFinite(appliedShrinkPx) || appliedShrinkPx <= 0.5) return false;
@@ -5650,7 +5655,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.setContentMinHeights(fitResult.minTableHeightPx);
 
       // If widening columns reduced wrapping, reclaim slack by auto-shrinking the widget.
-      if (this.tryAutoShrinkWidgetAfterTopColResize()) {
+      if (this.tryAutoShrinkWidgetToContentMin()) {
         this.draftState.commitDraft(this.widget.id);
       }
     }
@@ -5667,7 +5672,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!worst || worst.overflowPx <= 1 || this.autoFitAfterColResizeIteration >= maxIterations) {
       // When there is no overflow left, we may still have slack (e.g. after widening a column).
       // Reclaim it so rows/widget "tighten" automatically like backspace/delete.
-      if (this.tryAutoShrinkWidgetAfterTopColResize()) {
+      if (this.tryAutoShrinkWidgetToContentMin()) {
         this.autoFitAfterColResizeDidResizeWidget = true;
       }
       if (this.autoFitAfterColResizeDidResizeWidget) {
