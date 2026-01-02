@@ -32,6 +32,7 @@ import java.util.*;
  *
  * 3) Array of objects:
  *    [ { "A": 1, "B": 2 }, { "A": 3, "B": 4 } ]   -> header row is created from keys
+ *    - Nested objects are flattened into dotted keys (e.g. address.street, address.geo.lat) so they become split columns.
  *
  * 4) Object with columns+rows:
  *    { "columns": ["A","B"], "rows": [[1,2],[3,4]] }
@@ -201,9 +202,22 @@ public class JsonTabularParser implements TabularParser {
             if (rows != null && rows.isArray()) {
                 return parseTableObject(node);
             }
+
+            // Fallback: single JSON object -> treat as a 1-row dataset (header from keys).
+            // This is common for REST endpoints like `/todos/1` that return an object instead of an array.
+            return parseSingleObjectAsRow(node);
         }
 
         throw new IllegalArgumentException("Unsupported JSON shape for table import");
+    }
+
+    private Grid parseSingleObjectAsRow(JsonNode obj) {
+        if (obj == null || !obj.isObject()) {
+            throw new IllegalArgumentException("Invalid JSON: expected object");
+        }
+        // Reuse the array-of-objects logic by wrapping the object in an array.
+        JsonNode arr = objectMapper.createArrayNode().add(obj);
+        return parseArrayOfObjects(arr);
     }
 
     private JsonNode extractXAxisData(JsonNode xAxis) {
@@ -491,41 +505,220 @@ public class JsonTabularParser implements TabularParser {
     }
 
     private Grid parseArrayOfObjects(JsonNode arr) {
-        // Build stable key order: first object's keys, then any new keys encountered.
-        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        // Build a hierarchical header tree from all objects in the array.
+        // This creates multi-row headers with merged parent cells.
+        HeaderNode rootHeader = new HeaderNode("", null);
+        List<LinkedHashMap<String, String>> flattenedRows = new ArrayList<>();
+
         for (JsonNode item : arr) {
-            if (item == null || !item.isObject()) continue;
-            item.fieldNames().forEachRemaining(keys::add);
+            if (item == null || !item.isObject()) {
+                flattenedRows.add(new LinkedHashMap<>());
+                continue;
+            }
+            LinkedHashMap<String, String> flat = new LinkedHashMap<>();
+            buildHeaderTreeAndFlatten(item, "", 0, 10, rootHeader, flat);
+            flattenedRows.add(flat);
         }
 
-        List<String> columns = new ArrayList<>(keys);
+        // Get all leaf columns in order (these are the actual data columns)
+        List<HeaderNode> leafColumns = new ArrayList<>();
+        rootHeader.collectLeaves(leafColumns);
+
+        // Calculate header depth (number of header rows)
+        int headerDepth = rootHeader.getMaxDepth();
+        if (headerDepth == 0) headerDepth = 1; // At least one header row
+
         int dataRows = arr.size();
-        int rows = Math.max(1, dataRows + 1); // + header row
-        int cols = Math.max(1, columns.size());
+        int totalRows = Math.max(1, headerDepth + dataRows);
+        int cols = Math.max(1, leafColumns.size());
 
-        validateDimensions(rows, cols);
+        validateDimensions(totalRows, cols);
 
-        TabularCell[][] cells = new TabularCell[rows][cols];
+        TabularCell[][] cells = new TabularCell[totalRows][cols];
 
-        // Header row
-        for (int c = 0; c < cols; c++) {
-            String k = c < columns.size() ? columns.get(c) : "";
-            cells[0][c] = new TabularCell("0-" + c, escapeToHtml(k), null, null);
-        }
-
-        // Data rows
-        for (int r = 0; r < dataRows; r++) {
-            JsonNode obj = arr.get(r);
+        // Initialize all header cells as empty first
+        for (int r = 0; r < headerDepth; r++) {
             for (int c = 0; c < cols; c++) {
-                String k = c < columns.size() ? columns.get(c) : null;
-                JsonNode v = (obj != null && obj.isObject() && k != null) ? obj.get(k) : null;
-                String text = valueToString(v);
-                String html = escapeToHtml(text).replace("\n", "<br>");
-                cells[r + 1][c] = new TabularCell((r + 1) + "-" + c, html, null, null);
+                cells[r][c] = new TabularCell(r + "-" + c, "", null, null);
             }
         }
 
-        return new Grid(rows, cols, cells, null, null);
+        // Place header cells with proper merges
+        placeHeaderCells(rootHeader, cells, 0, headerDepth, new int[]{0});
+
+        // Data rows
+        for (int r = 0; r < dataRows; r++) {
+            LinkedHashMap<String, String> flat = r < flattenedRows.size() ? flattenedRows.get(r) : null;
+            for (int c = 0; c < cols; c++) {
+                HeaderNode leafNode = c < leafColumns.size() ? leafColumns.get(c) : null;
+                String fullKey = leafNode != null ? leafNode.getFullPath() : null;
+                String text = (flat != null && fullKey != null) ? flat.getOrDefault(fullKey, "") : "";
+                String html = escapeToHtml(text).replace("\n", "<br>");
+                int cellRow = headerDepth + r;
+                cells[cellRow][c] = new TabularCell(cellRow + "-" + c, html, null, null);
+            }
+        }
+
+        return new Grid(totalRows, cols, cells, null, null);
+    }
+
+    /**
+     * Build header tree and flatten values simultaneously.
+     * Creates a hierarchical structure where parent nodes (objects) contain child nodes.
+     */
+    private void buildHeaderTreeAndFlatten(JsonNode obj, String prefix, int depth, int maxDepth,
+                                           HeaderNode parentHeader, LinkedHashMap<String, String> flatOut) {
+        if (obj == null || !obj.isObject()) return;
+        if (depth >= maxDepth) {
+            if (prefix != null && !prefix.isBlank()) {
+                flatOut.putIfAbsent(prefix, safeCompactJson(obj));
+            }
+            return;
+        }
+
+        Iterator<String> fieldNames = obj.fieldNames();
+        while (fieldNames.hasNext()) {
+            String key = fieldNames.next();
+            if (key == null || key.isBlank()) continue;
+            JsonNode v = obj.get(key);
+
+            String fullPath = (prefix == null || prefix.isBlank()) ? key : (prefix + "." + key);
+
+            // Find or create child header node
+            HeaderNode childHeader = parentHeader.getOrCreateChild(key);
+
+            if (v == null || v.isNull()) {
+                childHeader.markAsLeaf();
+                flatOut.putIfAbsent(fullPath, "");
+            } else if (v.isTextual() || v.isNumber() || v.isBoolean()) {
+                childHeader.markAsLeaf();
+                flatOut.putIfAbsent(fullPath, v.asText());
+            } else if (v.isObject()) {
+                // Recurse into nested object
+                buildHeaderTreeAndFlatten(v, fullPath, depth + 1, maxDepth, childHeader, flatOut);
+            } else if (v.isArray()) {
+                // Arrays become a single leaf cell
+                childHeader.markAsLeaf();
+                if (isScalarArray(v)) {
+                    flatOut.putIfAbsent(fullPath, joinScalarArray(v, 200));
+                } else {
+                    flatOut.putIfAbsent(fullPath, safeCompactJson(v));
+                }
+            } else {
+                childHeader.markAsLeaf();
+                flatOut.putIfAbsent(fullPath, v.asText(""));
+            }
+        }
+    }
+
+    /**
+     * Place header cells into the grid with proper rowspan/colspan merges.
+     */
+    private void placeHeaderCells(HeaderNode node, TabularCell[][] cells, int startRow, int totalHeaderRows, int[] colIndex) {
+        if (node.children.isEmpty()) {
+            // This shouldn't happen for root, but handle gracefully
+            return;
+        }
+
+        for (HeaderNode child : node.children.values()) {
+            int col = colIndex[0];
+            int leafCount = child.getLeafCount();
+            int nodeDepth = child.getMaxDepth();
+
+            if (child.isLeafNode()) {
+                // Leaf node: spans all remaining header rows (rowspan), no colspan
+                int rowSpan = totalHeaderRows - startRow;
+                TabularMerge merge = rowSpan > 1 ? new TabularMerge(rowSpan, 1) : null;
+                cells[startRow][col] = new TabularCell(startRow + "-" + col, escapeToHtml(child.key), merge, null);
+
+                // Mark covered cells
+                for (int r = startRow + 1; r < totalHeaderRows; r++) {
+                    cells[r][col] = new TabularCell(r + "-" + col, "", null, new CoveredBy(startRow, col));
+                }
+                colIndex[0]++;
+            } else {
+                // Parent node: spans multiple columns (colspan = leaf count), occupies 1 row
+                int colSpan = leafCount;
+                TabularMerge merge = colSpan > 1 ? new TabularMerge(1, colSpan) : null;
+                cells[startRow][col] = new TabularCell(startRow + "-" + col, escapeToHtml(child.key), merge, null);
+
+                // Mark horizontally covered cells
+                for (int c = col + 1; c < col + colSpan; c++) {
+                    cells[startRow][c] = new TabularCell(startRow + "-" + c, "", null, new CoveredBy(startRow, col));
+                }
+
+                // Recurse to place children in next row
+                placeHeaderCells(child, cells, startRow + 1, totalHeaderRows, colIndex);
+            }
+        }
+    }
+
+    /**
+     * Header tree node for building hierarchical headers.
+     */
+    private static class HeaderNode {
+        final String key;
+        final HeaderNode parent;
+        final LinkedHashMap<String, HeaderNode> children = new LinkedHashMap<>();
+        private boolean isLeaf = false;
+
+        HeaderNode(String key, HeaderNode parent) {
+            this.key = key;
+            this.parent = parent;
+        }
+
+        HeaderNode getOrCreateChild(String childKey) {
+            return children.computeIfAbsent(childKey, k -> new HeaderNode(k, this));
+        }
+
+        void markAsLeaf() {
+            this.isLeaf = true;
+        }
+
+        boolean isLeafNode() {
+            return children.isEmpty() || isLeaf;
+        }
+
+        String getFullPath() {
+            if (parent == null || parent.key.isEmpty()) {
+                return key;
+            }
+            return parent.getFullPath() + "." + key;
+        }
+
+        int getMaxDepth() {
+            if (children.isEmpty()) {
+                return key.isEmpty() ? 0 : 1;
+            }
+            int maxChildDepth = 0;
+            for (HeaderNode child : children.values()) {
+                maxChildDepth = Math.max(maxChildDepth, child.getMaxDepth());
+            }
+            return (key.isEmpty() ? 0 : 1) + maxChildDepth;
+        }
+
+        int getLeafCount() {
+            if (children.isEmpty()) {
+                return 1;
+            }
+            int count = 0;
+            for (HeaderNode child : children.values()) {
+                count += child.getLeafCount();
+            }
+            return Math.max(1, count);
+        }
+
+        void collectLeaves(List<HeaderNode> out) {
+            if (children.isEmpty()) {
+                if (!key.isEmpty()) {
+                    out.add(this);
+                }
+                return;
+            }
+            for (HeaderNode child : children.values()) {
+                child.collectLeaves(out);
+            }
+        }
     }
 
     private Grid parseColumnsAndRows(JsonNode columnsNode, JsonNode rowsNode) {
@@ -1106,11 +1299,187 @@ public class JsonTabularParser implements TabularParser {
         if (node == null || node.isNull()) return "";
         if (node.isTextual()) return node.asText("");
         if (node.isNumber() || node.isBoolean()) return node.asText();
-        // object/array -> stringify
+        // object/array -> flatten into multi-line key-path text so nested structures are readable inside a single cell.
+        // This helps with APIs like JSONPlaceholder users (address/geo/company objects) where nested fields should
+        // appear as "split lines" within one table cell.
+        try {
+            return flattenJsonForCell(node);
+        } catch (Exception e) {
+            // Fallback: stringify
+            try {
+                return objectMapper.writeValueAsString(node);
+            } catch (Exception ignored) {
+                return node.toString();
+            }
+        }
+    }
+
+    // =========================
+    // Nested value flattening
+    // =========================
+
+    private String flattenJsonForCell(JsonNode node) throws Exception {
+        // Safety limits to avoid massive cells from deeply nested JSON.
+        final int maxDepth = 6;
+        final int maxLines = 120;
+        final int maxChars = 8000;
+        final int maxArrayItems = 50;
+
+        List<String> lines = new ArrayList<>();
+        FlattenBudget budget = new FlattenBudget(maxLines, maxChars, maxArrayItems);
+
+        if (node.isObject()) {
+            // Object at cell root: show its keys as lines.
+            flattenObject(node, "", 0, maxDepth, lines, budget);
+        } else if (node.isArray()) {
+            // Array at cell root: try to render compact if scalar, else index each item.
+            if (isScalarArray(node)) {
+                lines.add(joinScalarArray(node, maxArrayItems));
+            } else {
+                flattenArray(node, "", 0, maxDepth, lines, budget);
+            }
+        } else {
+            lines.add(node.asText(""));
+        }
+
+        String out = String.join("\n", lines).trim();
+        if (out.length() > maxChars) {
+            out = out.substring(0, maxChars) + "\n…";
+        }
+        return out;
+    }
+
+    private void flattenObject(JsonNode obj, String prefix, int depth, int maxDepth, List<String> out, FlattenBudget budget) {
+        if (obj == null || !obj.isObject()) return;
+        if (depth >= maxDepth) {
+            // Stop recursion: stringify remaining subtree
+            addLine(out, budget, prefix, safeCompactJson(obj));
+            return;
+        }
+
+        Iterator<String> fieldNames = obj.fieldNames();
+        while (fieldNames.hasNext() && budget.canAddMore()) {
+            String key = fieldNames.next();
+            if (key == null || key.isBlank()) continue;
+            JsonNode v = obj.get(key);
+
+            String nextPrefix = prefix == null || prefix.isBlank() ? key : (prefix + "." + key);
+
+            if (v == null || v.isNull()) {
+                addLine(out, budget, nextPrefix, "");
+            } else if (v.isTextual() || v.isNumber() || v.isBoolean()) {
+                addLine(out, budget, nextPrefix, v.asText());
+            } else if (v.isArray()) {
+                if (isScalarArray(v)) {
+                    addLine(out, budget, nextPrefix, joinScalarArray(v, budget.maxArrayItems));
+                } else {
+                    flattenArray(v, nextPrefix, depth + 1, maxDepth, out, budget);
+                }
+            } else if (v.isObject()) {
+                flattenObject(v, nextPrefix, depth + 1, maxDepth, out, budget);
+            } else {
+                addLine(out, budget, nextPrefix, v.asText(""));
+            }
+        }
+    }
+
+    private void flattenArray(JsonNode arr, String prefix, int depth, int maxDepth, List<String> out, FlattenBudget budget) {
+        if (arr == null || !arr.isArray()) return;
+        if (depth >= maxDepth) {
+            addLine(out, budget, prefix, safeCompactJson(arr));
+            return;
+        }
+
+        int n = Math.min(arr.size(), budget.maxArrayItems);
+        for (int i = 0; i < n && budget.canAddMore(); i++) {
+            JsonNode v = arr.get(i);
+            String idxPrefix = (prefix == null || prefix.isBlank()) ? ("[" + i + "]") : (prefix + "[" + i + "]");
+
+            if (v == null || v.isNull()) {
+                addLine(out, budget, idxPrefix, "");
+            } else if (v.isTextual() || v.isNumber() || v.isBoolean()) {
+                addLine(out, budget, idxPrefix, v.asText());
+            } else if (v.isObject()) {
+                flattenObject(v, idxPrefix, depth + 1, maxDepth, out, budget);
+            } else if (v.isArray()) {
+                if (isScalarArray(v)) {
+                    addLine(out, budget, idxPrefix, joinScalarArray(v, budget.maxArrayItems));
+                } else {
+                    flattenArray(v, idxPrefix, depth + 1, maxDepth, out, budget);
+                }
+            } else {
+                addLine(out, budget, idxPrefix, v.asText(""));
+            }
+        }
+
+        if (arr.size() > n && budget.canAddMore()) {
+            out.add("… (" + (arr.size() - n) + " more)");
+        }
+    }
+
+    private boolean isScalarArray(JsonNode arr) {
+        if (arr == null || !arr.isArray()) return false;
+        for (JsonNode n : arr) {
+            if (n == null || n.isNull()) continue;
+            if (!(n.isTextual() || n.isNumber() || n.isBoolean())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String joinScalarArray(JsonNode arr, int maxItems) {
+        if (arr == null || !arr.isArray()) return "";
+        int n = Math.min(arr.size(), Math.max(0, maxItems));
+        List<String> vals = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            JsonNode v = arr.get(i);
+            vals.add(v == null || v.isNull() ? "" : v.asText());
+        }
+        String joined = String.join(", ", vals);
+        if (arr.size() > n) {
+            joined = joined + ", …";
+        }
+        return joined;
+    }
+
+    private void addLine(List<String> out, FlattenBudget budget, String key, String value) {
+        if (!budget.canAddMore()) return;
+        String k = key == null ? "" : key.trim();
+        String v = value == null ? "" : value;
+        String line = k.isBlank() ? v : (k + ": " + v);
+        budget.consume(line);
+        out.add(line);
+    }
+
+    private String safeCompactJson(JsonNode node) {
         try {
             return objectMapper.writeValueAsString(node);
         } catch (Exception e) {
-            return node.toString();
+            return node == null ? "" : node.toString();
+        }
+    }
+
+    private static final class FlattenBudget {
+        final int maxLines;
+        final int maxChars;
+        final int maxArrayItems;
+        int lines = 0;
+        int chars = 0;
+
+        FlattenBudget(int maxLines, int maxChars, int maxArrayItems) {
+            this.maxLines = Math.max(1, maxLines);
+            this.maxChars = Math.max(200, maxChars);
+            this.maxArrayItems = Math.max(1, maxArrayItems);
+        }
+
+        boolean canAddMore() {
+            return lines < maxLines && chars < maxChars;
+        }
+
+        void consume(String line) {
+            lines++;
+            chars += (line == null ? 0 : line.length()) + 1;
         }
     }
 
