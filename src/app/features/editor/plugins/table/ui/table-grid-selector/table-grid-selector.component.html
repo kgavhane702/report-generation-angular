@@ -41,11 +41,11 @@
         (mouseleave)="onGridLeave()"
       >
         <div 
-          *ngFor="let rowIndex of gridRows"
+          *ngFor="let rowIndex of gridRows; trackBy: trackByIndex"
           class="table-grid-selector__row"
         >
           <div
-            *ngFor="let colIndex of gridColumns"
+            *ngFor="let colIndex of gridColumns; trackBy: trackByIndex"
             class="table-grid-selector__cell"
             [class.table-grid-selector__cell--selected]="isCellSelected(rowIndex, colIndex)"
             (mouseenter)="onCellHover(rowIndex, colIndex)"

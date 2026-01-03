@@ -7,6 +7,15 @@
 >
   <app-guides-overlay [pageId]="pageId" [widthPx]="widthPx" [heightPx]="heightPx"></app-guides-overlay>
 
+  <!-- Visual safe areas (non-breaking). Helps avoid placing widgets under header/footer/logo. -->
+  <div
+    class="page__safe-zone page__safe-zone--top"
+    *ngIf="headerLeftText || headerCenterText || headerRightText || headerLeftImage || headerCenterImage || headerRightImage || headerShowPageNumber || (logoUrl && (logoPosition === 'top-left' || logoPosition === 'top-right'))"
+    aria-hidden="true"
+  >
+    <span class="page__safe-zone-label">Header area</span>
+  </div>
+
   <!-- Fixed Header Elements at Top -->
   <div class="page__header" *ngIf="headerLeftText || headerCenterText || headerRightText || headerLeftImage || headerCenterImage || headerRightImage || headerShowPageNumber || (logoUrl && (logoPosition === 'top-left' || logoPosition === 'top-right'))">
     <!-- Top Left -->
@@ -74,5 +83,13 @@
       <img *ngIf="footerRightImage" [src]="footerRightImage" alt="Footer right" class="page__footer-image" />
       <span *ngIf="showPageNumber" [style.color]="footerTextColor">{{ formattedPageNumber }}</span>
     </div>
+  </div>
+
+  <div
+    class="page__safe-zone page__safe-zone--bottom"
+    *ngIf="footerLeftText || footerCenterText || footerCenterSubText || footerLeftImage || footerCenterImage || footerRightImage || showPageNumber || (logoUrl && (logoPosition === 'bottom-left' || logoPosition === 'bottom-right'))"
+    aria-hidden="true"
+  >
+    <span class="page__safe-zone-label">Footer area</span>
   </div>
 </div>

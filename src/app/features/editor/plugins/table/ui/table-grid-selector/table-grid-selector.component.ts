@@ -54,6 +54,8 @@ export class TableGridSelectorComponent implements OnChanges {
   readonly gridRows = Array.from({ length: this.maxRows }, (_, i) => i);
   readonly gridColumns = Array.from({ length: this.maxColumns }, (_, i) => i);
 
+  readonly trackByIndex = (index: number): number => index;
+
   /** Current hover selection */
   readonly hoverRows = signal<number>(0);
   readonly hoverColumns = signal<number>(0);

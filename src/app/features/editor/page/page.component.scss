@@ -124,7 +124,6 @@
 
 .page__footer-left {
   font-size: 12px;
-  color: #1e40af; // Blue color
   font-weight: 500;
   flex: 1;
   text-align: left;
@@ -138,7 +137,6 @@
 
 .page__footer-center {
   font-size: 12px;
-  color: #374151;
   font-weight: 500;
   flex: 1;
   text-align: center;
@@ -163,7 +161,6 @@
 
 .page__footer-right {
   font-size: 12px;
-  color: #374151;
   font-weight: 500;
   flex: 1;
   text-align: right;
@@ -174,5 +171,38 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+// Non-breaking "safe area" guides (visual only) so users don't accidentally place widgets under header/footer.
+.page__safe-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  pointer-events: none;
+  z-index: 900; // below header/footer (1000), above widgets
+  border-top: 1px dashed rgba(148, 163, 184, 0.55);
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.55);
+  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.08), rgba(148, 163, 184, 0.02));
+}
+
+.page__safe-zone--top {
+  top: 0;
+}
+
+.page__safe-zone--bottom {
+  bottom: 0;
+}
+
+.page__safe-zone-label {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  font-size: 10px;
+  color: rgba(71, 85, 105, 0.8);
+  background: rgba(255, 255, 255, 0.75);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
 }
 

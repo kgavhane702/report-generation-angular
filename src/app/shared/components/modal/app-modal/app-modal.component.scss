@@ -116,6 +116,8 @@
     overflow: auto;
     padding: 24px;
     background: #ffffff;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 
     &::-webkit-scrollbar {
       width: 8px;

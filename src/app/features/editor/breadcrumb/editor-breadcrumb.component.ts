@@ -120,6 +120,57 @@ export class EditorBreadcrumbComponent {
     }, { allowSignalWrites: true });
   }
 
+  onTreeRowKeydown(type: 'section' | 'subsection' | 'page', id: string, event: KeyboardEvent): void {
+    const key = event.key;
+
+    // Activate on Enter/Space like a button.
+    if (key === 'Enter' || key === ' ') {
+      event.preventDefault();
+      if (type === 'section') this.selectSection(id);
+      else if (type === 'subsection') this.selectSubsection(id);
+      else this.selectPage(id);
+      return;
+    }
+
+    // Expand/collapse with arrows for better tree UX.
+    if (type === 'section') {
+      if (key === 'ArrowRight' && !this.isSectionExpanded(id)) {
+        event.preventDefault();
+        // Create a synthetic MouseEvent is unnecessary; toggle methods only use stopPropagation.
+        this.expandedSectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+      } else if (key === 'ArrowLeft' && this.isSectionExpanded(id)) {
+        event.preventDefault();
+        this.expandedSectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    }
+
+    if (type === 'subsection') {
+      if (key === 'ArrowRight' && !this.isSubsectionExpanded(id)) {
+        event.preventDefault();
+        this.expandedSubsectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.add(id);
+          return next;
+        });
+      } else if (key === 'ArrowLeft' && this.isSubsectionExpanded(id)) {
+        event.preventDefault();
+        this.expandedSubsectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    }
+  }
+
   /** Get active section */
   get activeSection(): SectionEntity | null {
     const activeId = this.activeSectionId();

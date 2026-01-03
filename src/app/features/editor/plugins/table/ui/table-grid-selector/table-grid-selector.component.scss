@@ -173,24 +173,27 @@
   }
 
   &__import-button {
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid rgba(148, 163, 184, 0.45);
-    border-radius: 6px;
-    background: rgba(148, 163, 184, 0.14);
+    height: 30px;
+    padding: 0 10px;
+    border: 0.5px solid rgba(15, 23, 42, 0.14);
+    border-radius: 3px;
+    background: rgba(148, 163, 184, 0.10);
     color: #0f172a;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 12px;
     cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      background: rgba(148, 163, 184, 0.22);
+      background: rgba(148, 163, 184, 0.16);
+      border-color: rgba(15, 23, 42, 0.22);
     }
   }
 
   // Import modal styles (kept local to this component)
   &__import-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
     color: #0f172a;
   }
@@ -198,59 +201,69 @@
   &__import-dialog {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   &__import-dialog-hint {
-    font-size: 13px;
-    color: #475569;
+    font-size: 12px;
+    color: #64748b;
     line-height: 1.4;
   }
 
   &__import-mode {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 4px;
+    padding: 3px;
+    background: rgba(15, 23, 42, 0.03);
+    border-radius: 3px;
   }
 
   &__import-mode-btn {
-    height: 34px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 8px;
+    height: 28px;
+    border: none;
+    border-radius: 3px;
     background: #fff;
-    font-weight: 800;
+    font-weight: 600;
+    font-size: 12px;
+    color: #0f172a;
     cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
 
     &:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
+
+    &:hover:not(:disabled) {
+      background: rgba(148, 163, 184, 0.12);
+    }
   }
 
   &__import-mode-btn--active {
-    border-color: rgba(25, 118, 210, 0.55);
-    background: rgba(25, 118, 210, 0.10);
-    color: #0b3d7a;
+    background: rgba(148, 163, 184, 0.22);
+    color: #0f172a;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
   }
 
   &__import-error {
-    padding: 10px 12px;
-    border: 1px solid #fecaca;
-    background: #fef2f2;
+    padding: 8px 10px;
+    border: 0.5px solid rgba(220, 38, 38, 0.25);
+    background: rgba(220, 38, 38, 0.06);
     color: #991b1b;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 3px;
+    font-size: 12px;
   }
 
   &__import-loading {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: rgba(0, 0, 0, 0.02);
-    border-radius: 8px;
-    font-size: 13px;
+    padding: 8px 10px;
+    border: 0.5px solid rgba(15, 23, 42, 0.12);
+    background: rgba(15, 23, 42, 0.03);
+    border-radius: 3px;
+    font-size: 12px;
     color: #475569;
   }
 
@@ -263,13 +276,17 @@
   &__url-import {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   &__url-options {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+
+    @media (max-width: 720px) {
+      grid-template-columns: 1fr;
+    }
   }
 
   &__url-option {
@@ -279,18 +296,26 @@
   }
 
   &__url-label {
-    font-size: 12px;
-    font-weight: 800;
+    font-size: 11px;
+    font-weight: 600;
     color: #475569;
   }
 
   &__url-select,
   &__url-input {
-    height: 34px;
-    padding: 6px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 8px;
-    font-size: 13px;
+    height: 28px;
+    padding: 0 10px;
+    border: 0.5px solid rgba(15, 23, 42, 0.15);
+    border-radius: 3px;
+    font-size: 12px;
+    color: #0f172a;
+    background: #fff;
+
+    &:focus {
+      outline: none;
+      border-color: rgba(15, 23, 42, 0.35);
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.10);
+    }
   }
 
   &__file-input {
@@ -301,15 +326,16 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 8px;
+    padding: 8px 10px;
+    border: 0.5px solid rgba(15, 23, 42, 0.15);
+    border-radius: 3px;
     cursor: pointer;
     background: #fff;
+    transition: background 0.15s ease, border-color 0.15s ease;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.04);
-      border-color: rgba(0, 0, 0, 0.24);
+      background: rgba(148, 163, 184, 0.08);
+      border-color: rgba(15, 23, 42, 0.22);
     }
   }
 
@@ -320,8 +346,12 @@
   }
 
   &__file-button {
-    font-weight: 700;
-    color: #0b3d7a;
+    font-weight: 600;
+    color: #0f172a;
+    padding: 3px 8px;
+    border: 0.5px solid rgba(15, 23, 42, 0.18);
+    border-radius: 3px;
+    background: rgba(148, 163, 184, 0.10);
   }
 
   &__file-hint {
@@ -336,12 +366,13 @@
   }
 
   &__import-dialog-btn {
-    height: 36px;
+    height: 32px;
     padding: 0 12px;
-    border-radius: 8px;
-    font-weight: 700;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 12px;
     cursor: pointer;
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 0.5px solid rgba(15, 23, 42, 0.15);
     background: #fff;
 
     &:disabled {
@@ -355,12 +386,12 @@
   }
 
   &__import-dialog-btn--primary {
-    border-color: rgba(25, 118, 210, 0.55);
-    background: rgba(25, 118, 210, 0.10);
-    color: #0b3d7a;
+    border-color: rgba(15, 23, 42, 0.22);
+    background: rgba(148, 163, 184, 0.16);
+    color: #0f172a;
 
     &:hover {
-      background: rgba(25, 118, 210, 0.16);
+      background: rgba(148, 163, 184, 0.22);
     }
   }
 
@@ -368,7 +399,7 @@
     width: 22px;
     height: 22px;
     border: 3px solid #e2e8f0;
-    border-top-color: #1976d2;
+    border-top-color: #64748b;
     border-radius: 50%;
     animation: tableGridSpin 0.8s linear infinite;
     flex: 0 0 auto;
@@ -378,7 +409,7 @@
     width: 14px;
     height: 14px;
     border: 2px solid rgba(255, 255, 255, 0.55);
-    border-top-color: #0b3d7a;
+    border-top-color: rgba(15, 23, 42, 0.75);
     border-radius: 50%;
     animation: tableGridSpin 0.8s linear infinite;
     flex: 0 0 auto;

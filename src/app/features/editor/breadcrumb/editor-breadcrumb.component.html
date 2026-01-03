@@ -10,11 +10,13 @@
       <div
         class="breadcrumb__row breadcrumb__row--section"
         role="treeitem"
+        tabindex="0"
         [attr.aria-expanded]="isSectionExpanded(section.id)"
         [class.breadcrumb__row--active]="activeSectionId() === section.id"
         [class.breadcrumb__row--path]="activeSectionId() === section.id && !!activePageId()"
         [class.breadcrumb__row--open]="isSectionExpanded(section.id)"
         (click)="selectSection(section.id)"
+        (keydown)="onTreeRowKeydown('section', section.id, $event)"
       >
         <button
           type="button"
@@ -64,11 +66,13 @@
           <div
             class="breadcrumb__row breadcrumb__row--subsection"
             role="treeitem"
+            tabindex="0"
             [attr.aria-expanded]="isSubsectionExpanded(subsection.id)"
             [class.breadcrumb__row--active]="activeSubsectionId() === subsection.id"
             [class.breadcrumb__row--path]="activeSubsectionId() === subsection.id && !!activePageId()"
             [class.breadcrumb__row--open]="isSubsectionExpanded(subsection.id)"
             (click)="selectSubsection(subsection.id)"
+            (keydown)="onTreeRowKeydown('subsection', subsection.id, $event)"
           >
             <button
               type="button"
@@ -117,9 +121,11 @@
             <div
               class="breadcrumb__row breadcrumb__row--page"
               *ngFor="let page of pagesForSubsection(subsection.id); trackBy: trackByPageId"
+              tabindex="0"
               [class.breadcrumb__row--active]="activePageId() === page.id"
               [class.breadcrumb__row--current]="activePageId() === page.id"
               (click)="selectPage(page.id)"
+              (keydown)="onTreeRowKeydown('page', page.id, $event)"
             >
               <span class="breadcrumb__bullet" aria-hidden="true">•</span>
 

@@ -1,7 +1,7 @@
 <ng-template #content>
-  <ng-container *ngFor="let g of pluginGroups(); let gi = index">
+  <ng-container *ngFor="let g of pluginGroups(); trackBy: trackByGroup; let isLast = last">
     <div class="table-toolbar__group">
-      <ng-container *ngFor="let p of g.items">
+      <ng-container *ngFor="let p of g.items; trackBy: trackByPlugin">
         <ng-container [ngSwitch]="$any(p).kind">
           <!-- Toggle formatting -->
           <button
@@ -344,7 +344,7 @@
       </ng-container>
     </div>
 
-    <div class="table-toolbar__separator" *ngIf="gi < pluginGroups().length - 1"></div>
+    <div class="table-toolbar__separator" *ngIf="!isLast"></div>
   </ng-container>
 </ng-template>
 

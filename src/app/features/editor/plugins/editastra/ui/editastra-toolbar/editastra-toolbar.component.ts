@@ -60,6 +60,9 @@ export class EditastraToolbarComponent {
       .filter((x) => x.items.length > 0);
   });
 
+  readonly trackByGroup = (_: number, g: { group: string }): string => g.group;
+  readonly trackByPlugin = (_: number, p: EditastraToolbarPlugin): string => p.id;
+
   /** Is the active widget one of the widget types this toolbar instance supports? */
   readonly isSupportedWidgetActive = computed(() => {
     const t = this.editorState.activeWidget()?.type;

@@ -96,6 +96,11 @@
   &:hover {
     background: var(--nav-bg-hover);
   }
+
+  &:focus-visible {
+    outline: 2px solid rgba(0, 58, 155, 0.35);
+    outline-offset: 2px;
+  }
 }
 
 .breadcrumb__row--section {
@@ -212,6 +217,12 @@
   opacity: 0;
   transition: opacity 120ms ease;
   align-items: center;
+}
+
+.breadcrumb__row:hover .breadcrumb__actions,
+.breadcrumb__row:focus-within .breadcrumb__actions,
+.breadcrumb__row:focus-visible .breadcrumb__actions {
+  opacity: 1;
 }
 
 // Keep +Sub and +Page aligned in the same visual column (section/subsection rows)

@@ -136,7 +136,12 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
     this.renderer.setStyle(this.portalHost, 'left', '0');
     this.renderer.setStyle(this.portalHost, 'width', '100%');
     this.renderer.setStyle(this.portalHost, 'height', '100%');
-    this.renderer.setStyle(this.portalHost, 'z-index', '999999');
+
+    // Layering:
+    // - Outside modals: keep dropdowns above editor UI overlays.
+    // - Inside modals: keep dropdowns above the modal (modal z-index is 999999).
+    const isInsideModal = !!this.anchor?.closest?.('.app-modal__dialog');
+    this.renderer.setStyle(this.portalHost, 'z-index', isInsideModal ? '1000000' : '5000');
     this.renderer.setStyle(this.portalHost, 'pointer-events', 'none');
     this.renderer.appendChild(this.document.body, this.portalHost);
 

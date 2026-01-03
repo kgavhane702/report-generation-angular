@@ -86,10 +86,12 @@ export class AppModalComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  @HostListener('document:keydown.escape', ['$event'])
-  onEscape(event: KeyboardEvent): void {
+  @HostListener('document:keydown', ['$event'])
+  onDocumentKeydown(event: Event): void {
+    const ke = event as KeyboardEvent;
+    if (ke.key !== 'Escape') return;
     if (!this.open || !this.closeOnEsc) return;
-    event.preventDefault();
+    ke.preventDefault();
     this.close('esc');
   }
 
