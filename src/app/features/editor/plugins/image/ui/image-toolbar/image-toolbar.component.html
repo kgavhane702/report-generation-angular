@@ -16,7 +16,7 @@
 
   <!-- Group: Fit Mode -->
   <div class="image-toolbar__group">
-    <span class="image-toolbar__group-label">Fit:</span>
+    <span class="image-toolbar__field-label">Fit:</span>
     <button
       type="button"
       class="image-toolbar__button"
@@ -91,7 +91,7 @@
 
   <!-- Group: Opacity -->
   <div class="image-toolbar__group">
-    <span class="image-toolbar__group-label">Opacity:</span>
+    <span class="image-toolbar__field-label">Opacity:</span>
     <input
       #opacityInput
       type="range"
@@ -110,38 +110,11 @@
 
   <!-- Group: Border -->
   <div class="image-toolbar__group">
-    <span class="image-toolbar__group-label">Border:</span>
-    <input
-      type="number"
-      class="image-toolbar__input image-toolbar__input--small"
-      [value]="borderWidth"
-      min="0"
-      max="20"
-      step="1"
-      (change)="onBorderWidthChange($event)"
-      title="Border width (px)"
-      placeholder="0"
-    />
-    <app-color-picker
-      [currentColor]="borderColor"
+    <app-border-picker
+      title="Border"
       [colorPalette]="colorPalette"
-      icon="border_color"
-      title="Border color"
-      (colorSelected)="onBorderColorChange($event)"
-    ></app-color-picker>
-    <div class="image-toolbar__mini-separator"></div>
-    <span class="image-toolbar__group-label">Radius:</span>
-    <input
-      type="number"
-      class="image-toolbar__input image-toolbar__input--small"
-      [value]="borderRadius"
-      min="0"
-      max="100"
-      step="1"
-      (change)="onBorderRadiusChange($event)"
-      title="Border radius (px)"
-      placeholder="0"
-    />
+      [value]="borderValue"
+      (valueChange)="onBorderValueChange($event)"
+    ></app-border-picker>
   </div>
 </div>
-

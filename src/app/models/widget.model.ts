@@ -94,6 +94,7 @@ export interface ImageWidgetProps {
   opacity?: number; // 0-100
   borderWidth?: number; // px
   borderColor?: string; // hex color
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none'; // border style
   borderRadius?: number; // px
 }
 

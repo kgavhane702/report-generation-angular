@@ -19,9 +19,10 @@
     (openChange)="showDropdown.set($event)"
     [anchor]="trigger"
     align="auto"
-    [minWidthPx]="280"
-    [maxWidthPx]="420"
+    [minWidthPx]="240"
+    [maxWidthPx]="300"
   >
+    <div class="border-picker__content">
     <div class="border-picker__header">
       <div class="border-picker__header-title">Border</div>
       <div class="border-picker__header-preview">
@@ -31,11 +32,11 @@
     </div>
 
     <div class="border-picker__row">
-      <label class="border-picker__label" title="Border width">
-        <span>Width</span>
+      <label class="border-picker__label border-picker__label--column" title="Border width">
+        <span class="border-picker__label-text">Width</span>
         <input
           type="number"
-          class="border-picker__input"
+          class="border-picker__input border-picker__input--small"
           min="1"
           max="20"
           [ngModel]="value.width"
@@ -43,13 +44,25 @@
         />
       </label>
 
-      <label class="border-picker__label" title="Custom color">
-        <span>Color</span>
+      <label class="border-picker__label border-picker__label--column" title="Custom color">
+        <span class="border-picker__label-text">Color</span>
         <input
           type="color"
-          class="border-picker__color-input"
+          class="border-picker__color-input border-picker__color-input--small"
           [value]="value.color || '#cbd5e1'"
           (change)="onCustomColorChange($event)"
+        />
+      </label>
+
+      <label class="border-picker__label border-picker__label--column" title="Border radius">
+        <span class="border-picker__label-text">Radius</span>
+        <input
+          type="number"
+          class="border-picker__input border-picker__input--small"
+          min="0"
+          max="100"
+          [ngModel]="value.borderRadius || 0"
+          (ngModelChange)="setBorderRadius($event)"
         />
       </label>
     </div>
@@ -117,8 +130,10 @@
         </button>
       </div>
       <div class="border-picker__hint">
-        Pick <b>Transparent</b> to clear the custom border and use the table’s default borders.
+        Pick <b>Transparent</b> to clear the custom border and use default borders.
       </div>
+    </div>
+
     </div>
   </app-anchored-dropdown>
 </div>

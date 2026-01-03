@@ -58,57 +58,69 @@
     top: calc(100% + 4px);
     left: 0;
     z-index: 1000;
-    background: #fff;
-    border-radius: 0;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 10px;
-    animation: dropdownFadeIn 0.15s ease-out;
+    background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
+    border: 0.5px solid rgba(15, 23, 42, 0.08);
+    border-radius: 3px;
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.08),
+      0 2px 8px rgba(0, 0, 0, 0.04),
+      0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    padding: 8px 6px;
+    animation: dropdownFadeIn 0.2s ease-out;
   }
 
   &__header {
     text-align: center;
     font-size: 12px;
-    font-weight: 500;
-    color: #666;
+    font-weight: 600;
+    color: #475569;
     margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid rgba(15, 23, 42, 0.06);
     min-height: 18px;
   }
 
   &__tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 3px;
+    background: rgba(15, 23, 42, 0.02);
+    border-radius: 2px;
   }
 
   &__tab {
-    height: 28px;
+    height: 26px;
     border: none;
-    border-radius: 0;
+    border-radius: 2px;
     background: transparent;
     color: #0f172a;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    transition: all 0.15s ease;
 
     &:hover {
-      background: rgba(148, 163, 184, 0.12);
+      background: rgba(148, 163, 184, 0.1);
     }
   }
 
   &__tab--active {
-    background: rgba(148, 163, 184, 0.18);
+    background: linear-gradient(to bottom, rgba(148, 163, 184, 0.2), rgba(148, 163, 184, 0.14));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
+    color: #0f172a;
   }
 
   &__grid {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1.5px;
   }
 
   &__row {
     display: flex;
-    gap: 2px;
+    gap: 1.5px;
   }
 
   &__cell {
@@ -118,16 +130,29 @@
     border-radius: 2px;
     background: #fff;
     cursor: pointer;
-    transition: all 0.1s ease;
+    transition: all 0.15s ease;
+    box-shadow: 
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 0 0 0.5px rgba(255, 255, 255, 0.4) inset;
 
     &:hover {
       border-color: #1976d2;
+      box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 0 0 0.5px rgba(255, 255, 255, 0.5) inset;
+      transform: scale(1.05);
+      z-index: 1;
+      position: relative;
     }
 
     &--selected {
       background: rgba(25, 118, 210, 0.2);
       border-color: #1976d2;
-      animation: cellPulse 0.15s ease-out;
+      box-shadow: 
+        0 2px 6px rgba(25, 118, 210, 0.2),
+        0 0 0 1px rgba(25, 118, 210, 0.3),
+        0 0 0 0.5px rgba(255, 255, 255, 0.5) inset;
+      animation: cellPulse 0.2s ease-out;
     }
   }
 
@@ -364,11 +389,11 @@
 @keyframes dropdownFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 

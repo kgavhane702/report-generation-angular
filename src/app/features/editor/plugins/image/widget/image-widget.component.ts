@@ -99,8 +99,10 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
   /** Compute border style */
   get imageBorderStyle(): string {
     const width = this.imageProps?.borderWidth ?? 0;
-    const color = this.imageProps?.borderColor ?? '#000000';
-    return width > 0 ? `${width}px solid ${color}` : 'none';
+    if (width === 0) return 'none';
+    const color = this.imageProps?.borderColor || '#000000';
+    const style = (this.imageProps as any)?.borderStyle || 'solid';
+    return `${width}px ${style} ${color}`;
   }
 
   /** Compute border radius */

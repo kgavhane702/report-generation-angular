@@ -15,14 +15,15 @@ import { Subscription } from 'rxjs';
 import { ImageToolbarService } from '../../../../../../core/services/image-toolbar.service';
 import { ImageWidgetProps } from '../../../../../../models/widget.model';
 import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
-import { ColorPickerComponent, ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
+import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
+import { ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 
 type FitMode = 'contain' | 'cover' | 'stretch';
 
 @Component({
   selector: 'app-image-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, AppIconComponent, ColorPickerComponent],
+  imports: [CommonModule, FormsModule, AppIconComponent, BorderPickerComponent],
   templateUrl: './image-toolbar.component.html',
   styleUrls: ['./image-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -37,23 +38,20 @@ export class ImageToolbarComponent implements OnInit, OnDestroy {
   widgetId: string | null = null;
   props: ImageWidgetProps | null = null;
 
-  // Color palette for border
+  // Color palette for border (matching table toolbar)
   readonly colorPalette: ColorOption[] = [
-    { value: '#000000', label: 'Black' },
+    { value: '', label: 'Transparent' },
+    { value: '#fff59d', label: 'Yellow' },
+    { value: '#ffccbc', label: 'Orange' },
+    { value: '#c5e1a5', label: 'Green' },
+    { value: '#b3e5fc', label: 'Light Blue' },
+    { value: '#ce93d8', label: 'Purple' },
+    { value: '#f8bbd0', label: 'Pink' },
     { value: '#ffffff', label: 'White' },
-    { value: '#374151', label: 'Gray 700' },
-    { value: '#6b7280', label: 'Gray 500' },
-    { value: '#9ca3af', label: 'Gray 400' },
-    { value: '#ef4444', label: 'Red' },
-    { value: '#f97316', label: 'Orange' },
-    { value: '#eab308', label: 'Yellow' },
-    { value: '#22c55e', label: 'Green' },
-    { value: '#14b8a6', label: 'Teal' },
-    { value: '#3b82f6', label: 'Blue' },
-    { value: '#6366f1', label: 'Indigo' },
-    { value: '#8b5cf6', label: 'Purple' },
-    { value: '#ec4899', label: 'Pink' },
-    { value: '#f43f5e', label: 'Rose' },
+    { value: '#f3f4f6', label: 'Light Gray' },
+    { value: '#9ca3af', label: 'Gray' },
+    { value: '#1f2937', label: 'Dark Gray' },
+    { value: '#000000', label: 'Black' },
   ];
 
   ngOnInit(): void {
@@ -80,16 +78,13 @@ export class ImageToolbarComponent implements OnInit, OnDestroy {
     return this.props?.opacity ?? 100;
   }
 
-  get borderWidth(): number {
-    return this.props?.borderWidth ?? 0;
-  }
-
-  get borderColor(): string {
-    return this.props?.borderColor ?? '#000000';
-  }
-
-  get borderRadius(): number {
-    return this.props?.borderRadius ?? 0;
+  get borderValue(): BorderValue {
+    return {
+      color: this.props?.borderColor || '',
+      width: this.props?.borderWidth || 0,
+      style: (this.props as any)?.borderStyle || 'solid',
+      borderRadius: this.props?.borderRadius || 0,
+    };
   }
 
   get isFlippedHorizontal(): boolean {
@@ -146,20 +141,13 @@ export class ImageToolbarComponent implements OnInit, OnDestroy {
     this.emitChange({ opacity: value });
   }
 
-  onBorderWidthChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const value = Math.max(0, parseInt(input.value, 10) || 0);
-    this.emitChange({ borderWidth: value });
-  }
-
-  onBorderColorChange(color: string): void {
-    this.emitChange({ borderColor: color });
-  }
-
-  onBorderRadiusChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const value = Math.max(0, parseInt(input.value, 10) || 0);
-    this.emitChange({ borderRadius: value });
+  onBorderValueChange(value: BorderValue): void {
+    this.emitChange({
+      borderWidth: value.width,
+      borderColor: value.color,
+      borderStyle: value.style as any,
+      borderRadius: value.borderRadius || 0,
+    });
   }
 
   private emitChange(changes: Partial<ImageWidgetProps>): void {

@@ -58,15 +58,19 @@
     top: calc(100% + 4px);
     left: 0;
     z-index: 1000;
-    background: #fff;
-    border-radius: 0;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    padding: 10px;
-    min-width: 220px;
-    animation: dropdownFadeIn 0.15s ease-out;
+    background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
+    border: 0.5px solid rgba(15, 23, 42, 0.08);
+    border-radius: 3px;
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.08),
+      0 2px 8px rgba(0, 0, 0, 0.04),
+      0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    padding: 8px 6px;
+    min-width: 200px;
+    animation: dropdownFadeIn 0.2s ease-out;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
   }
 
   &__header {
@@ -74,32 +78,44 @@
     font-size: 12px;
     font-weight: 600;
     color: #475569;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid rgba(15, 23, 42, 0.06);
   }
 
   &__item {
-    height: 34px;
-    padding: 0 10px;
+    height: 30px;
+    padding: 0 8px;
     border: none;
-    border-radius: 0;
+    border-radius: 2px;
     background: transparent;
     color: #0f172a;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     text-align: left;
+    transition: all 0.15s ease;
+    position: relative;
 
     &:hover {
-      background: rgba(148, 163, 184, 0.12);
+      background: linear-gradient(to right, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.08));
+      color: #0f172a;
+      transform: translateX(2px);
+    }
+
+    &:active {
+      transform: translateX(1px);
     }
   }
 
   &__item--primary {
-    background: rgba(148, 163, 184, 0.18);
+    background: linear-gradient(to right, rgba(148, 163, 184, 0.16), rgba(148, 163, 184, 0.12));
     color: #0f172a;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) inset;
 
     &:hover {
-      background: rgba(148, 163, 184, 0.24);
+      background: linear-gradient(to right, rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.16));
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) inset;
     }
   }
 
@@ -116,11 +132,11 @@
 @keyframes dropdownFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 

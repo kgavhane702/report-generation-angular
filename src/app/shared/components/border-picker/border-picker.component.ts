@@ -17,6 +17,7 @@ export interface BorderValue {
   color: string; // '' = transparent / clear
   width: number; // px
   style: BorderStyle;
+  borderRadius?: number; // px
 }
 
 @Component({
@@ -32,7 +33,7 @@ export class BorderPickerComponent {
   @Input() title?: string;
   @Input() colorPalette: ColorOption[] = [];
 
-  @Input() value: BorderValue = { color: '', width: 1, style: 'solid' };
+  @Input() value: BorderValue = { color: '', width: 1, style: 'solid', borderRadius: 0 };
 
   @Output() valueChange = new EventEmitter<BorderValue>();
 
@@ -67,6 +68,11 @@ export class BorderPickerComponent {
   setWidth(width: number): void {
     const w = Math.max(1, Math.min(20, Math.trunc(Number(width) || 1)));
     this.emit({ ...this.value, width: w });
+  }
+
+  setBorderRadius(radius: number): void {
+    const r = Math.max(0, Math.min(100, Math.trunc(Number(radius) || 0)));
+    this.emit({ ...this.value, borderRadius: r });
   }
 
   onCustomColorChange(event: Event): void {
