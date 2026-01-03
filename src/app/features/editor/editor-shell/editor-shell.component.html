@@ -24,8 +24,25 @@
   
   <div class="editor-shell__body" appScrollMetrics #scrollMetrics="scrollMetrics">
     <aside class="editor-shell__sidebar">
-      <app-editor-breadcrumb></app-editor-breadcrumb>
-      <app-page-outline></app-page-outline>
+      <div class="editor-shell__sidebar-location" role="status" aria-live="polite">
+        <div class="editor-shell__sidebar-location-label">You are here</div>
+        <div class="editor-shell__sidebar-location-path" [title]="locationText()">
+          <span class="editor-shell__sidebar-location-part">{{ location().sectionTitle }}</span>
+          <span class="editor-shell__sidebar-location-sep" aria-hidden="true">›</span>
+          <span class="editor-shell__sidebar-location-part">{{ location().subsectionTitle }}</span>
+          <ng-container *ngIf="location().pageTitle">
+            <span class="editor-shell__sidebar-location-sep" aria-hidden="true">›</span>
+            <span class="editor-shell__sidebar-location-part editor-shell__sidebar-location-part--current">
+              {{ location().pageTitle }}
+            </span>
+          </ng-container>
+        </div>
+      </div>
+
+      <div class="editor-shell__sidebar-content">
+        <app-editor-breadcrumb></app-editor-breadcrumb>
+        <app-page-outline></app-page-outline>
+      </div>
     </aside>
 
     <main class="editor-shell__canvas">

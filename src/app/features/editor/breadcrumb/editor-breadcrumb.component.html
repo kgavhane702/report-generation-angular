@@ -4,11 +4,12 @@
       <span>Sections</span>
       <button type="button" (click)="addSection()">+ Section</button>
     </div>
-    <div class="breadcrumb__list">
+
+    <div class="breadcrumb__list" role="list">
       <div
-        class="breadcrumb__chip"
+        class="breadcrumb__row breadcrumb__row--section"
         *ngFor="let section of sections; trackBy: trackBySectionId"
-        [class.breadcrumb__chip--active]="activeSectionId() === section.id"
+        [class.breadcrumb__row--active]="activeSectionId() === section.id"
         (click)="selectSection(section.id)"
       >
         <ng-container *ngIf="editingSectionId === section.id; else sectionLabel">
@@ -23,13 +24,14 @@
           />
         </ng-container>
         <ng-template #sectionLabel>
-          <span class="breadcrumb__label">{{ section.title }}</span>
+          <span class="breadcrumb__label" [title]="section.title">{{ section.title }}</span>
           <span class="breadcrumb__actions">
-            <button type="button" (click)="startSectionEdit(section, $event)">✎</button>
+            <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section">✎</button>
             <button
               type="button"
               (click)="deleteSection(section.id, $event)"
               [disabled]="sections.length <= 1"
+              title="Delete section"
             >
               ✕
             </button>
@@ -42,19 +44,14 @@
   <div class="breadcrumb__group">
     <div class="breadcrumb__header">
       <span>Subsections</span>
-      <button
-        type="button"
-        (click)="addSubsection()"
-        [disabled]="!activeSectionId()"
-      >
-        + Subsection
-      </button>
+      <button type="button" (click)="addSubsection()" [disabled]="!activeSectionId()">+ Subsection</button>
     </div>
-    <div class="breadcrumb__list">
+
+    <div class="breadcrumb__list" role="list">
       <div
-        class="breadcrumb__chip"
+        class="breadcrumb__row breadcrumb__row--subsection"
         *ngFor="let subsection of subsections(); trackBy: trackBySubsectionId"
-        [class.breadcrumb__chip--active]="activeSubsectionId() === subsection.id"
+        [class.breadcrumb__row--active]="activeSubsectionId() === subsection.id"
         (click)="selectSubsection(subsection.id)"
       >
         <ng-container *ngIf="editingSubsectionId === subsection.id; else subsectionLabel">
@@ -69,13 +66,14 @@
           />
         </ng-container>
         <ng-template #subsectionLabel>
-          <span class="breadcrumb__label">{{ subsection.title }}</span>
+          <span class="breadcrumb__label" [title]="subsection.title">{{ subsection.title }}</span>
           <span class="breadcrumb__actions">
-            <button type="button" (click)="startSubsectionEdit(subsection, $event)">✎</button>
+            <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">✎</button>
             <button
               type="button"
               (click)="deleteSubsection(subsection.id, $event)"
               [disabled]="subsections().length <= 1"
+              title="Delete subsection"
             >
               ✕
             </button>

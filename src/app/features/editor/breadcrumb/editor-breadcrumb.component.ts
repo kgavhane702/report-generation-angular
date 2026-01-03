@@ -77,9 +77,18 @@ export class EditorBreadcrumbComponent {
 
   addSection(): void {
     const ids = this.documentService.addSection();
-    this.editorState.setActiveSection(ids.sectionId!);
-    this.editorState.setActiveSubsection(ids.subsectionId!);
-    this.editorState.setActivePage(ids.pageId!);
+
+    // Do not change current active selection when adding a new section.
+    // Only initialize navigation if nothing is active yet (edge case).
+    if (!this.activeSectionId() && ids.sectionId) {
+      this.editorState.setActiveSection(ids.sectionId);
+    }
+    if (!this.activeSubsectionId() && ids.subsectionId) {
+      this.editorState.setActiveSubsection(ids.subsectionId);
+    }
+    if (!this.editorState.activePageId() && ids.pageId) {
+      this.editorState.setActivePage(ids.pageId);
+    }
   }
 
   addSubsection(): void {
@@ -91,9 +100,14 @@ export class EditorBreadcrumbComponent {
     if (!ids?.subsectionId) {
       return;
     }
-    this.editorState.setActiveSubsection(ids.subsectionId);
-    if (ids.pageId) {
-      this.editorState.setActivePage(ids.pageId);
+
+    // Do not change current active selection when adding a new subsection.
+    // Only set active if nothing is currently active (edge case).
+    if (!this.activeSubsectionId()) {
+      this.editorState.setActiveSubsection(ids.subsectionId);
+      if (ids.pageId && !this.editorState.activePageId()) {
+        this.editorState.setActivePage(ids.pageId);
+      }
     }
   }
 

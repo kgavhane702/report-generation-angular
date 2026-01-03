@@ -170,8 +170,7 @@
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
   // STICKY: Sidebar stays fixed when body scrolls (both horizontally AND vertically)
   position: sticky;
@@ -179,18 +178,68 @@
   top: 0;
   z-index: 100;
   
+}
+
+.editor-shell__sidebar-location {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(248, 250, 252, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+.editor-shell__sidebar-location-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.editor-shell__sidebar-location-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.editor-shell__sidebar-location-part {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-shell__sidebar-location-part--current {
+  color: #0f172a;
+}
+
+.editor-shell__sidebar-location-sep {
+  color: rgba(100, 116, 139, 0.7);
+  flex: 0 0 auto;
+}
+
+.editor-shell__sidebar-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+
   &::-webkit-scrollbar {
     width: 8px;
   }
-  
+
   &::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   &::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.3);
     border-radius: 4px;
-    
+
     &:hover {
       background: rgba(148, 163, 184, 0.5);
     }

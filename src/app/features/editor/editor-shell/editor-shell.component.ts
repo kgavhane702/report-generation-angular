@@ -34,6 +34,24 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('scrollMetrics', { static: true }) private scrollMetrics!: ScrollMetricsDirective;
 
+  // Left sidebar "You are here" path
+  readonly location = computed(() => {
+    const section = this.editorState.activeSection();
+    const subsection = this.editorState.activeSubsection();
+    const page = this.editorState.activePage();
+
+    const sectionTitle = section?.title || 'Section';
+    const subsectionTitle = subsection?.title || 'Subsection';
+    const pageTitle = page ? (page.title ?? `Page ${page.number}`) : '';
+
+    return { sectionTitle, subsectionTitle, pageTitle };
+  });
+
+  readonly locationText = computed(() => {
+    const loc = this.location();
+    return [loc.sectionTitle, loc.subsectionTitle, loc.pageTitle].filter(Boolean).join(' › ');
+  });
+
   // Slide navigator state (pinned to editor-shell__canvas)
   readonly pageIds = this.editorState.activeSubsectionPageIds;
   readonly currentPageIndex = computed(() => {
