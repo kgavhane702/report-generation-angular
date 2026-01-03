@@ -214,10 +214,18 @@
   align-items: center;
 }
 
+// Keep +Sub and +Page aligned in the same visual column (section/subsection rows)
+.breadcrumb__row--section .breadcrumb__actions,
+.breadcrumb__row--subsection .breadcrumb__actions {
+  min-width: 96px;
+  justify-content: flex-end;
+}
+
 .breadcrumb__btn {
   // compact "chip" button for +Sub / +Page
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(148, 163, 184, 0.10);
+  width: 44px;
   padding: 0 6px;
   height: 18px;
   line-height: 18px;
@@ -227,6 +235,7 @@
   color: var(--nav-muted);
   cursor: pointer;
   border-radius: 999px;
+  text-align: center;
 
   &:hover {
     background: rgba(148, 163, 184, 0.16);

@@ -2,10 +2,10 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08);
+  padding: 4px 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
   flex-wrap: wrap;
   row-gap: 6px;
   max-width: 100%;
@@ -31,18 +31,27 @@
   }
 
   &__button {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 32px;
     height: 32px;
     padding: 0;
     border: none;
-    border-radius: 6px;
+    border-radius: 0;
     background: transparent;
     color: #475569;
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+    line-height: 1;
+
+    // Prevent baseline/line-box quirks from inline content
+    app-icon,
+    .app-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     &:hover:not(:disabled) {
       background: rgba(0, 0, 0, 0.06);
@@ -82,6 +91,11 @@
     svg {
       pointer-events: none;
     }
+  }
+
+  // Icon-only buttons: remove text line-box spacing (fixes vertical misalignment)
+  &__button:not(&__button--wide) {
+    line-height: 0;
   }
 
   &__button--wide {

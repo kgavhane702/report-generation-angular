@@ -15,7 +15,7 @@
           (click)="startEditingDocumentName()"
           title="Edit document name"
         >
-          <app-icon name="edit" [size]="18"></app-icon>
+          <app-icon name="edit" [size]="16"></app-icon>
         </button>
       </ng-container>
       <ng-template #documentNameInput>
@@ -80,7 +80,7 @@
       (click)="addWidget('text')"
       title="Add Text Widget"
     >
-      <app-icon name="text_fields" [size]="20"></app-icon>
+      <app-icon name="text_fields" [size]="18"></app-icon>
     </button>
     <button
       type="button"
@@ -88,17 +88,17 @@
       (click)="addWidget('editastra')"
       title="Add Editastra Widget (temporary)"
     >
-      <app-icon name="edit_note" [size]="20"></app-icon>
+      <app-icon name="edit_note" [size]="18"></app-icon>
     </button>
-    <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     <button 
       type="button" 
       class="editor-toolbar__icon-button"
       (click)="openImageInsertDialog()"
       title="Add Image"
     >
-      <app-icon name="image" [size]="20"></app-icon>
+      <app-icon name="image" [size]="18"></app-icon>
     </button>
+    <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     <app-table-grid-selector
       (tableInsert)="onTableInsert($event)"
       (excelImport)="onTableImportExcel($event)"
@@ -122,7 +122,7 @@
       title="Export document as JSON file"
       [disabled]="remoteLoadCount() > 0"
     >
-      <app-icon name="download" [size]="20"></app-icon>
+      <app-icon name="download" [size]="18"></app-icon>
     </button>
     <button
       type="button"
@@ -130,7 +130,7 @@
       (click)="triggerImport()"
       title="Import document from JSON file"
     >
-      <app-icon name="upload" [size]="20"></app-icon>
+      <app-icon name="upload" [size]="18"></app-icon>
     </button>
     <button
       type="button"
@@ -139,7 +139,7 @@
       title="Download document as PDF"
       [disabled]="remoteLoadCount() > 0"
     >
-      <app-icon name="picture_as_pdf" [size]="20"></app-icon>
+      <app-icon name="picture_as_pdf" [size]="18"></app-icon>
     </button>
   </div>
 </div>

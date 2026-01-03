@@ -43,7 +43,9 @@
             <button type="button" class="breadcrumb__btn" (click)="addSubsectionFor(section.id, $event)" title="Add subsection">
               +Sub
             </button>
-            <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section">✎</button>
+            <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section">
+              <app-icon name="edit" [size]="14"></app-icon>
+            </button>
             <button
               type="button"
               (click)="deleteSection(section.id, $event)"
@@ -95,7 +97,9 @@
                 <button type="button" class="breadcrumb__btn" (click)="addPageFor(subsection.id, $event)" title="Add page">
                   +Page
                 </button>
-                <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">✎</button>
+                <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">
+                  <app-icon name="edit" [size]="14"></app-icon>
+                </button>
                 <button
                   type="button"
                   (click)="deleteSubsection(section.id, subsection.id, $event)"
@@ -160,7 +164,9 @@
                       ⬍
                     </button>
                   </span>
-                  <button type="button" (click)="startPageEdit(page, $event)" title="Rename page">✎</button>
+                  <button type="button" (click)="startPageEdit(page, $event)" title="Rename page">
+                    <app-icon name="edit" [size]="14"></app-icon>
+                  </button>
                   <button
                     type="button"
                     (click)="deletePage(subsection.id, page.id, $event)"

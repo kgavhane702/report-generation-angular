@@ -34,7 +34,7 @@
   height: 32px;
   padding: 0;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 .color-picker__icon {
@@ -47,7 +47,7 @@
 .color-picker__label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #334155;
+  color: #475569;
   user-select: none;
 }
 
@@ -106,15 +106,16 @@
 
 .color-picker__swatches {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 0.35rem;
+  grid-template-columns: repeat(10, 18px);
+  gap: 6px;
+  justify-content: start;
 }
 
 .color-picker__swatch {
-  width: 100%;
-  aspect-ratio: 1;
-  border: 2px solid rgba(15, 23, 42, 0.15);
-  border-radius: 0.35rem;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 0;
   cursor: pointer;
   padding: 0;
   transition: all 0.2s ease;
@@ -126,15 +127,14 @@
 }
 
 .color-picker__swatch:hover {
-  transform: scale(1.1);
+  transform: scale(1.08);
   border-color: rgba(15, 23, 42, 0.3);
   z-index: 1;
 }
 
 .color-picker__swatch--active {
-  border-color: #3b82f6;
-  border-width: 3px;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: rgba(0, 58, 155, 0.8);
+  box-shadow: 0 0 0 2px rgba(0, 58, 155, 0.18);
 }
 
 .color-picker__swatch--transparent {
@@ -145,6 +145,6 @@
     linear-gradient(-45deg, transparent 75%, #ccc 75%);
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-  border: 2px solid rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(15, 23, 42, 0.22);
 }
 

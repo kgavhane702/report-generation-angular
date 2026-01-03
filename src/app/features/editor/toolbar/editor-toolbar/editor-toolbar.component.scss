@@ -2,6 +2,8 @@
   display: flex;
   gap: 0;
   align-items: center;
+  // Make typography consistent across the toolbar (document title, dropdown labels, etc.)
+  font-size: 0.75rem; // 12px
   // Keep toolbar stable: never wrap onto a second line.
   // If space is tight, title truncates and the header can scroll horizontally.
   flex-wrap: nowrap;
@@ -15,7 +17,7 @@
   align-items: center;
   flex: 0 0 auto;
   min-width: 0;
-  border-left: 1px solid #d1d5db;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
   margin-left: 0.25rem;
   padding-left: 0.25rem;
 
@@ -47,7 +49,7 @@
   align-items: center;
   margin-left: 0.25rem;
   padding-left: 0.25rem;
-  border-left: 1px solid rgba(209, 213, 219, 0.8);
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 .editor-toolbar__save-indicator-inner {
@@ -57,7 +59,7 @@
   padding: 0.1875rem 0.3125rem;
   border-radius: 0.375rem;
   color: #475569;
-  font-size: 0.75rem;
+  font-size: 0.6875rem; // ~11px
   user-select: none;
 }
 
@@ -235,7 +237,7 @@
 }
 
 .editor-toolbar__document-name-label {
-  font-size: 0.9rem;
+  font-size: inherit;
   font-weight: 600;
   color: #0f172a;
   cursor: pointer;
@@ -257,12 +259,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 0.25rem;
+  border-radius: 0;
   cursor: pointer;
   color: #475569;
   transition: all 0.15s ease;
@@ -270,7 +272,7 @@
   margin: 0 0.0625rem;
 
   &:hover {
-    background-color: #f1f5f9;
+    background-color: transparent;
     color: #334155;
   }
 }
@@ -280,7 +282,7 @@
   padding: 0.25rem 0.375rem;
   border: 1px solid rgba(99, 102, 241, 0.3);
   border-radius: 0.375rem;
-  font-size: 0.9rem;
+  font-size: inherit;
   font-weight: 600;
   color: #0f172a;
   background: #ffffff;
@@ -297,7 +299,7 @@
 // Spacing between toolbar groups
 app-undo-redo-controls {
   margin-left: 0.25rem;
-  border-left: 1px solid #d1d5db;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
   padding-left: 0.25rem;
 }
 
@@ -314,19 +316,25 @@ app-undo-redo-controls {
   align-items: center;
   justify-content: center;
   padding: 0.25rem;
-  border-radius: 0.25rem;
+  border-radius: 0;
   border: none;
   background: transparent;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-width: 1.5rem;
-  height: 1.5rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
   margin: 0 0.0625rem;
   color: #475569;
 
   &:hover {
     background-color: #f1f5f9;
     color: #334155;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 58, 155, 0.28);
+    background-color: rgba(148, 163, 184, 0.12);
   }
 
   &:active {
@@ -357,24 +365,9 @@ app-undo-redo-controls {
   }
 }
 
-.editor-toolbar button:not(.editor-toolbar__button):not(.editor-toolbar__icon-button) {
-  padding: 0.5rem 1rem;
-  border-radius: 0.625rem;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: #ffffff;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.editor-toolbar button:not(.editor-toolbar__button):not(.editor-toolbar__icon-button):hover {
-  background: #f8fafc;
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
-}
+// Removed fallback "boxed button" styling inside the toolbar.
+// All toolbar buttons should use explicit classes (.editor-toolbar__icon-button / .editor-toolbar__button)
+// or their component-specific styles (zoom/undo etc.).
 
 .editor-toolbar__toggle {
   display: inline-flex;
@@ -400,7 +393,7 @@ app-undo-redo-controls {
 
 .editor-toolbar__group--export {
   margin-left: auto;
-  border-left: 1px solid #d1d5db;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
   padding-left: 0.25rem;
   margin-left: auto;
 }
@@ -414,7 +407,7 @@ app-undo-redo-controls {
   min-width: 1.5rem;
   height: 1.5rem;
   padding: 0.25rem !important;
-  border-radius: 0.25rem !important;
+  border-radius: 0 !important;
   border: 1px solid transparent !important;
   background: transparent !important;
   font-weight: 500;

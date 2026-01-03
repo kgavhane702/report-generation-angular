@@ -23,6 +23,14 @@ body {
   line-height: 1.6;
 }
 
+// Ensure form controls inherit the same typography everywhere (professional consistency)
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
 app-root {
   display: block;
   min-height: 100%;
