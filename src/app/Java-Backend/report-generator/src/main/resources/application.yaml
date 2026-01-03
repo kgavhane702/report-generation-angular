@@ -22,3 +22,5 @@ export:
     parallelThresholdPages: 6
     # Bounded threads for HTML render. Increase only if the machine has enough CPU headroom.
     htmlRenderThreads: 4
+    # Disable if you prefer speed over perfect URL-table autofit (can reduce pdf time).
+    urlTableAutoFitEnabled: true

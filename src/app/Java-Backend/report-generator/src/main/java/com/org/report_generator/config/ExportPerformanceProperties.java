@@ -22,6 +22,12 @@ public class ExportPerformanceProperties {
      */
     private int parallelThresholdPages = 12;
 
+    /**
+     * URL table auto-fit scaling runs an expensive DOM measurement pass inside Chromium before printing.
+     * This improves correctness (less clipped text) but can slow down very large documents.
+     */
+    private boolean urlTableAutoFitEnabled = true;
+
     public int getHtmlRenderThreads() {
         return htmlRenderThreads;
     }
@@ -36,6 +42,14 @@ public class ExportPerformanceProperties {
 
     public void setParallelThresholdPages(int parallelThresholdPages) {
         this.parallelThresholdPages = parallelThresholdPages;
+    }
+
+    public boolean isUrlTableAutoFitEnabled() {
+        return urlTableAutoFitEnabled;
+    }
+
+    public void setUrlTableAutoFitEnabled(boolean urlTableAutoFitEnabled) {
+        this.urlTableAutoFitEnabled = urlTableAutoFitEnabled;
     }
 }
 

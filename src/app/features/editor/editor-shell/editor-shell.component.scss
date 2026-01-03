@@ -12,7 +12,9 @@
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(15, 23, 42, 0.35);
+  // Make export feel smooth: hide any background navigation/rerender while charts are captured.
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;

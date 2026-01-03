@@ -340,10 +340,10 @@ export class ChartExportService {
             requestAnimationFrame(() => {
               this.appRef.tick();
 
-              // Try to bring the page surface into view (for libraries that require visibility)
+              // IMPORTANT:
+              // Do NOT scroll/jump the UI during export. Charts only need to exist in the DOM with a real size;
+              // they do not need to be visible in the viewport.
               queueMicrotask(() => {
-                const el = document.getElementById(`page-surface-${pageId}`);
-                el?.scrollIntoView({ block: 'start' });
                 this.appRef.tick();
                 resolve();
               });

@@ -74,6 +74,16 @@ export class EditorToolbarComponent implements AfterViewInit {
   /** URL-based widgets loading state (auto-fetch after import/open) */
   readonly remoteLoadCount = this.remoteLoads.pendingCount;
 
+  /** Document import (JSON) state */
+  private readonly documentImportInProgress = signal(false);
+
+  /** Export/Download should be disabled while any import/auto-load is running */
+  readonly exportDisabled = computed(() =>
+    this.documentImportInProgress() ||
+    this.tableImportInProgress() ||
+    this.remoteLoadCount() > 0
+  );
+
   /** Saving indicator state (UI-only) */
   readonly saveState = this.saveIndicator.state;
   private readonly manualSaveInProgress = signal(false);
@@ -296,9 +306,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportDocument(): Promise<void> {
-    if (this.remoteLoadCount() > 0) {
+    if (this.exportDisabled()) {
       this.notify.warning(
-        'Please wait: remote (URL-based) widgets are still loading.',
+        'Please wait: import/remote loading is still in progress.',
         'Export disabled'
       );
       return;
@@ -319,9 +329,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportToClipboard(): Promise<void> {
-    if (this.remoteLoadCount() > 0) {
+    if (this.exportDisabled()) {
       this.notify.warning(
-        'Please wait: remote (URL-based) widgets are still loading.',
+        'Please wait: import/remote loading is still in progress.',
         'Export disabled'
       );
       return;
@@ -373,7 +383,14 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async importDocument(file: File): Promise<void> {
-    const result = await this.importService.importFromFile(file);
+    if (this.documentImportInProgress()) return;
+    this.documentImportInProgress.set(true);
+    let result: any;
+    try {
+      result = await this.importService.importFromFile(file);
+    } finally {
+      // keep `documentImportInProgress` true until we've completed replace + stabilization below
+    }
     
     if (result.success && result.document) {
       const confirmed = confirm(
@@ -406,6 +423,9 @@ export class EditorToolbarComponent implements AfterViewInit {
         }, 100);
 
         await this.forceChartsReRender();
+        // Give URL auto-load a chance to start (it may kick in right after store replace),
+        // so export buttons don't briefly re-enable between import and remote load start.
+        await this.waitForPostImportStabilization();
         
         this.notify.success('Document imported successfully!', 'Imported');
 
@@ -422,6 +442,9 @@ export class EditorToolbarComponent implements AfterViewInit {
     } else {
       this.notify.error(result.error || 'Unknown error', 'Import failed');
     }
+
+    // Release import lock after handling result.
+    this.documentImportInProgress.set(false);
   }
 
   openHeaderFooterDialog(): void {
@@ -429,9 +452,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async downloadPDF(): Promise<void> {
-    if (this.remoteLoadCount() > 0) {
+    if (this.exportDisabled()) {
       this.notify.warning(
-        'Please wait: remote (URL-based) widgets are still loading.',
+        'Please wait: import/remote loading is still in progress.',
         'PDF download disabled'
       );
       return;
@@ -458,6 +481,17 @@ export class EditorToolbarComponent implements AfterViewInit {
         'PDF failed'
       );
     }
+  }
+
+  private waitForPostImportStabilization(): Promise<void> {
+    // Small, bounded stabilization window to avoid brief "export enabled" flicker after import.
+    return new Promise((resolve) => {
+      queueMicrotask(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      });
+    });
   }
 
   ngAfterViewInit(): void {

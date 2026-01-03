@@ -128,7 +128,7 @@
       class="editor-toolbar__icon-button editor-toolbar__icon-button--export"
       (click)="exportDocument()"
       title="Export document as JSON file"
-      [disabled]="remoteLoadCount() > 0"
+      [disabled]="exportDisabled()"
     >
       <app-icon name="download" [size]="18"></app-icon>
     </button>
@@ -145,7 +145,7 @@
       class="editor-toolbar__icon-button"
       (click)="downloadPDF()"
       title="Download document as PDF"
-      [disabled]="remoteLoadCount() > 0"
+      [disabled]="exportDisabled()"
     >
       <app-icon name="picture_as_pdf" [size]="18"></app-icon>
     </button>

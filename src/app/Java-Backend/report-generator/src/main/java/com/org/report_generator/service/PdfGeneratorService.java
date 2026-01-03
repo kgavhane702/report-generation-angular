@@ -6,6 +6,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Page.PdfOptions;
 import com.microsoft.playwright.options.Margin;
 import com.microsoft.playwright.options.WaitUntilState;
+import com.org.report_generator.config.ExportPerformanceProperties;
 import com.org.report_generator.exception.PdfGenerationException;
 import com.org.report_generator.exception.PdfGenerationTimeoutException;
 import com.org.report_generator.model.document.DocumentModel;
@@ -33,14 +34,16 @@ public class PdfGeneratorService {
 
     private final Browser browser;
     private final BrowserContextPool contextPool;
+    private final ExportPerformanceProperties perf;
     
     // Cache for mmToPx calculations to avoid repeated computations
     // Key format: "mm_dpi" (e.g., "254.0_96")
     private static final ConcurrentMap<String, Double> mmToPxCache = new ConcurrentHashMap<>(256);
 
-    public PdfGeneratorService(Browser browser, BrowserContextPool contextPool) {
+    public PdfGeneratorService(Browser browser, BrowserContextPool contextPool, ExportPerformanceProperties perf) {
         this.browser = browser;
         this.contextPool = contextPool;
+        this.perf = perf;
     }
 
     public byte[] generatePdf(String html, DocumentModel document) {
@@ -86,7 +89,9 @@ public class PdfGeneratorService {
             // In the editor UI, URL tables can preserve a fixed widget frame and use runtime scaling to prevent clipped text.
             // The PDF pipeline renders HTML directly (no Angular runtime), so we replicate the same idea here by computing
             // a safe `--tw-auto-fit-scale` per URL table before printing.
-            applyUrlTableAutoFitScale(page);
+            if (perf == null || perf.isUrlTableAutoFitEnabled()) {
+                applyUrlTableAutoFitScale(page);
+            }
             long tAutoFit = System.nanoTime();
 
             PdfOptions options = new PdfOptions()

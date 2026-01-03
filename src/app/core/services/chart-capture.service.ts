@@ -14,6 +14,10 @@ import { WidgetModel } from '../../models/widget.model';
   providedIn: 'root',
 })
 export class ChartCaptureService {
+  // Cap raster chart exports (Chart.js canvas) to reduce payload size and speed up PDF printing.
+  // SVG charts stay vector and are not affected by this.
+  private readonly MAX_RASTER_PX = 1200;
+
   async captureChartForWidget(widget: WidgetModel): Promise<string | null> {
     return this.captureChart(widget.id, widget.size.width, widget.size.height);
   }
@@ -43,7 +47,7 @@ export class ChartCaptureService {
     // Fallback: canvas (Chart.js)
     const canvas = chartContainer.querySelector('canvas') as HTMLCanvasElement | null;
     if (canvas) {
-      return canvas.toDataURL('image/png');
+      return this.canvasToPngDataUrlCapped(canvas);
     }
 
     console.warn(`[ChartCapture] No SVG or canvas found for chart ${widgetId}`);
@@ -97,6 +101,37 @@ export class ChartCaptureService {
     // Encode as URI component to keep payload compact and safe for <img src="...">.
     // Note: using utf-8 comma format avoids base64 bloat.
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+  }
+
+  private canvasToPngDataUrlCapped(canvas: HTMLCanvasElement): string {
+    const w = canvas.width || canvas.clientWidth || 0;
+    const h = canvas.height || canvas.clientHeight || 0;
+    if (!(w > 0 && h > 0)) {
+      return canvas.toDataURL('image/png');
+    }
+
+    const maxDim = Math.max(w, h);
+    if (maxDim <= this.MAX_RASTER_PX) {
+      return canvas.toDataURL('image/png');
+    }
+
+    const scale = this.MAX_RASTER_PX / maxDim;
+    const outW = Math.max(1, Math.round(w * scale));
+    const outH = Math.max(1, Math.round(h * scale));
+
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const ctx = out.getContext('2d');
+    if (!ctx) {
+      return canvas.toDataURL('image/png');
+    }
+
+    // Better downscale quality for charts (text/lines).
+    (ctx as any).imageSmoothingEnabled = true;
+    (ctx as any).imageSmoothingQuality = 'high';
+    ctx.drawImage(canvas, 0, 0, outW, outH);
+    return out.toDataURL('image/png');
   }
 }
 

@@ -16,6 +16,7 @@ import { DocumentService } from './document.service';
 import { RemoteWidgetLoadRegistryService } from './remote-widget-load-registry.service';
 import { EditastraImportService } from './editastra-import.service';
 import { NotificationService } from './notification.service';
+import { ExportUiStateService } from './export-ui-state.service';
 
 /**
  * Auto-loads URL-based widgets (chart/table) when they appear in the UI (e.g. after importing a document).
@@ -30,6 +31,7 @@ export class RemoteWidgetAutoLoadService {
   private readonly documentService = inject(DocumentService);
   private readonly registry = inject(RemoteWidgetLoadRegistryService);
   private readonly notify = inject(NotificationService);
+  private readonly exportUi = inject(ExportUiStateService);
   private readonly widgetEntities = toSignal(
     this.store.select(DocumentSelectors.selectWidgetEntities),
     { initialValue: {} as Dictionary<WidgetEntity> }
@@ -72,6 +74,10 @@ export class RemoteWidgetAutoLoadService {
 
   maybeAutoLoad(widget: WidgetEntity | null, pageId: string): void {
     if (!widget || !pageId) return;
+
+    // Avoid starting background URL loads while an export is running.
+    // Export uses a separate preload pipeline and we want exports to be deterministic + fast.
+    if (this.exportUi.active()) return;
 
     const type = widget.type;
     const props: any = widget.props || {};
