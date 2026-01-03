@@ -44,7 +44,8 @@ public class PdfGeneratorService {
     }
 
     public byte[] generatePdf(String html, DocumentModel document) {
-        long startTime = System.currentTimeMillis();
+        long startTimeMs = System.currentTimeMillis();
+        long t0 = System.nanoTime();
         BrowserContext context = null;
         Page page = null;
         
@@ -62,10 +63,12 @@ public class PdfGeneratorService {
                 viewport.width(), viewport.height());
 
             page = context.newPage();
+            long tPageCreated = System.nanoTime();
             page.setContent(html, new Page.SetContentOptions()
                     // Faster than NETWORKIDLE; we explicitly wait for fonts/images below for layout stability.
                     .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
                     .setTimeout(30_000));
+            long tSetContent = System.nanoTime();
             
             // Combined wait for fonts and images to reduce total wait time
             try {
@@ -77,12 +80,14 @@ public class PdfGeneratorService {
             } catch (com.microsoft.playwright.TimeoutError e) {
                 throw new PdfGenerationTimeoutException("PDF generation timed out waiting for fonts/images to load", e);
             }
+            long tFontsImages = System.nanoTime();
 
             // Runtime auto-fit for URL-based tables:
             // In the editor UI, URL tables can preserve a fixed widget frame and use runtime scaling to prevent clipped text.
             // The PDF pipeline renders HTML directly (no Angular runtime), so we replicate the same idea here by computing
             // a safe `--tw-auto-fit-scale` per URL table before printing.
             applyUrlTableAutoFitScale(page);
+            long tAutoFit = System.nanoTime();
 
             PdfOptions options = new PdfOptions()
                     .setFormat("A4")
@@ -91,11 +96,19 @@ public class PdfGeneratorService {
                     .setMargin(new Margin().setTop("0mm").setRight("0mm").setBottom("0mm").setLeft("0mm"));
 
             byte[] pdfBytes = page.pdf(options);
-            long duration = System.currentTimeMillis() - startTime;
-            logger.info("PDF generated successfully in {}ms", duration);
+            long tPdf = System.nanoTime();
+
+            long durationMs = System.currentTimeMillis() - startTimeMs;
+            logger.info("PDF generated successfully in {}ms (pageCreate={}ms, setContent={}ms, waitFontsImages={}ms, urlTableAutoFit={}ms, pdfPrint={}ms)",
+                    durationMs,
+                    toMs(tPageCreated - t0),
+                    toMs(tSetContent - tPageCreated),
+                    toMs(tFontsImages - tSetContent),
+                    toMs(tAutoFit - tFontsImages),
+                    toMs(tPdf - tAutoFit));
             return pdfBytes;
         } catch (RuntimeException ex) {
-            long duration = System.currentTimeMillis() - startTime;
+            long duration = System.currentTimeMillis() - startTimeMs;
             logger.error("Failed to generate PDF after {}ms", duration, ex);
             throw new PdfGenerationException("Failed to generate PDF", ex);
         } finally {
@@ -111,6 +124,10 @@ public class PdfGeneratorService {
                 contextPool.release(context);
             }
         }
+    }
+
+    private static long toMs(long nanos) {
+        return Math.round(nanos / 1_000_000d);
     }
 
     private Viewport calculateViewport(DocumentModel document) {

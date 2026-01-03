@@ -35,7 +35,9 @@ export class ChartCaptureService {
     const svgElement = chartContainer.querySelector('svg');
     if (svgElement) {
       const svgString = new XMLSerializer().serializeToString(svgElement);
-      return await this.svgToPngDataUrl(svgString, width, height);
+      // Faster path: keep SVG as SVG data URL (no SVG->PNG rasterization step).
+      // This is typically faster and smaller than PNG for complex charts, and prints crisply.
+      return this.svgToSvgDataUrl(svgString);
     }
 
     // Fallback: canvas (Chart.js)
@@ -89,6 +91,12 @@ export class ChartCaptureService {
       const base64Svg = btoa(unescape(encodeURIComponent(svgString)));
       return `data:image/svg+xml;base64,${base64Svg}`;
     }
+  }
+
+  private svgToSvgDataUrl(svgString: string): string {
+    // Encode as URI component to keep payload compact and safe for <img src="...">.
+    // Note: using utf-8 comma format avoids base64 bloat.
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
   }
 }
 

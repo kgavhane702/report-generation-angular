@@ -15,3 +15,10 @@ export:
       - "--disable-dev-shm-usage"
       - "--disable-accelerated-2d-canvas"
       - "--disable-gpu"
+  performance:
+    # Parallel HTML page rendering (bounded). Keep threshold above current typical docs (3-6 pages)
+    # so small docs stay fast, but large docs scale.
+    # Enable parallel rendering sooner so 6+ page exports benefit immediately.
+    parallelThresholdPages: 6
+    # Bounded threads for HTML render. Increase only if the machine has enough CPU headroom.
+    htmlRenderThreads: 4

@@ -41,6 +41,16 @@ export class ChartExportService {
   private readonly chartCapture = inject(ChartCaptureService);
 
   /**
+   * In-memory cache for exported chart images (session-only).
+   *
+   * Keyed by a stable signature of the chart's props + size so we can reuse images
+   * when the chart didn't change between exports.
+   */
+  private readonly exportedImageCache = new Map<string, string>();
+  private readonly MAX_CACHE_ENTRIES = 100;
+  private readonly CAPTURE_CONCURRENCY = 2;
+
+  /**
    * Export a single chart widget to base64 image
    */
   async exportChartToBase64(widget: WidgetModel): Promise<string | null> {
@@ -133,10 +143,21 @@ export class ChartExportService {
           await this.waitForChartsToRender(chartWidgetIds);
           this.logger.debug('[ChartExport] Charts rendered for page:', pageId);
 
-          // Capture each chart on this page
-          for (const chartLocation of pageCharts) {
+          // Capture charts on this page in parallel (bounded) to improve export time without freezing UI.
+          // NOTE: We still navigate page-by-page (only active page is rendered), but within a page we can overlap captures.
+          await runWithConcurrencyLimit(this.CAPTURE_CONCURRENCY, pageCharts, async (chartLocation) => {
             this.logger.debug('[ChartExport] Capturing chart:', chartLocation.widget.id);
-            const base64Image = await this.chartCapture.captureChartForWidget(chartLocation.widget);
+
+            const cacheKey = this.getChartCacheKey(chartLocation.widget);
+            const cached = cacheKey ? this.exportedImageCache.get(cacheKey) : undefined;
+            const base64Image = cached ?? (await this.chartCapture.captureChartForWidget(chartLocation.widget));
+
+            if (!cached && base64Image && cacheKey) {
+              this.setCache(cacheKey, base64Image);
+              this.logger.debug('[ChartExport] Cached exported image for:', chartLocation.widget.id);
+            } else if (cached) {
+              this.logger.debug('[ChartExport] Reused cached exported image for:', chartLocation.widget.id);
+            }
 
             if (base64Image) {
               this.logger.debug('[ChartExport] Chart captured successfully:', chartLocation.widget.id, 'length:', base64Image.length);
@@ -151,7 +172,7 @@ export class ChartExportService {
             } else {
               console.warn('[ChartExport] Failed to capture chart:', chartLocation.widget.id);
             }
-          }
+          });
         }
       }
     } finally {
@@ -439,4 +460,70 @@ export class ChartExportService {
   private deepClone<T>(obj: T): T {
     return JSON.parse(JSON.stringify(obj));
   }
+
+  private setCache(key: string, value: string): void {
+    // Simple FIFO eviction (Map preserves insertion order).
+    if (this.exportedImageCache.size >= this.MAX_CACHE_ENTRIES) {
+      const oldestKey = this.exportedImageCache.keys().next().value as string | undefined;
+      if (oldestKey) this.exportedImageCache.delete(oldestKey);
+    }
+    this.exportedImageCache.set(key, value);
+  }
+
+  /**
+   * Build a stable cache key for a chart widget based on its data/props and target export size.
+   * We explicitly exclude `exportedImage` to avoid self-referential cache churn.
+   */
+  private getChartCacheKey(widget: WidgetModel): string | null {
+    try {
+      const props: any = widget.props || {};
+      const { exportedImage, loading, loadingMessage, ...rest } = props;
+      const signature = {
+        type: widget.type,
+        width: widget.size?.width,
+        height: widget.size?.height,
+        props: rest,
+      };
+      return stableHash(stableStringify(signature));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function stableStringify(value: any): string {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((k) => JSON.stringify(k) + ':' + stableStringify(value[k])).join(',')}}`;
+}
+
+function stableHash(input: string): string {
+  // Fast non-crypto hash (FNV-1a 32-bit), returned as hex string.
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+async function runWithConcurrencyLimit<T>(
+  concurrency: number,
+  items: readonly T[],
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  const limit = Math.max(1, Math.floor(concurrency || 1));
+  let idx = 0;
+
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const current = idx++;
+      if (current >= items.length) return;
+      await worker(items[current]);
+    }
+  });
+
+  await Promise.all(runners);
 }

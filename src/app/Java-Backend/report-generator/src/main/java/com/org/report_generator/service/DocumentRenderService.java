@@ -21,6 +21,7 @@ import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import com.org.report_generator.service.renderer.TableWidgetRenderer;
 import com.org.report_generator.service.renderer.EditastraWidgetRenderer;
+import com.org.report_generator.config.ExportPerformanceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,9 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Service
 public class DocumentRenderService {
@@ -43,9 +47,17 @@ public class DocumentRenderService {
     private static final int DEFAULT_DPI = 96;
     
     private final WidgetRendererRegistry widgetRenderers;
+    private final ExportPerformanceProperties perf;
+    private final ExecutorService htmlRenderExecutor;
 
-    public DocumentRenderService(WidgetRendererRegistry widgetRenderers) {
+    public DocumentRenderService(
+            WidgetRendererRegistry widgetRenderers,
+            ExportPerformanceProperties perf,
+            ExecutorService htmlRenderExecutor
+    ) {
         this.widgetRenderers = widgetRenderers;
+        this.perf = perf;
+        this.htmlRenderExecutor = htmlRenderExecutor;
     }
     
     // Cache for mmToPx calculations to avoid repeated computations
@@ -73,8 +85,29 @@ public class DocumentRenderService {
                 .append(PageStylesRenderer.getCss(pages, document))
                 .append("</style></head><body><div class=\"document-container\">");
 
-        for (Page page : pages) {
-            html.append(renderPage(page, document));
+        if (pages.size() >= Math.max(1, perf.getParallelThresholdPages())) {
+            // Parallel page rendering (bounded executor) to speed up huge docs (e.g., 500 pages)
+            // while preserving output order deterministically.
+            long t0 = System.nanoTime();
+            @SuppressWarnings("unchecked")
+            CompletableFuture<String>[] futures = new CompletableFuture[pages.size()];
+            for (int i = 0; i < pages.size(); i++) {
+                final int idx = i;
+                futures[i] = CompletableFuture.supplyAsync(() -> renderPage(pages.get(idx), document), htmlRenderExecutor);
+            }
+            for (CompletableFuture<String> f : futures) {
+                html.append(f.join());
+            }
+            long t1 = System.nanoTime();
+            logger.info("Rendered {} pages in parallel (threshold={}, threads={}), pageHtml={}ms",
+                    pages.size(),
+                    perf.getParallelThresholdPages(),
+                    getExecutorThreads(htmlRenderExecutor),
+                    Math.round((t1 - t0) / 1_000_000d));
+        } else {
+            for (Page page : pages) {
+                html.append(renderPage(page, document));
+            }
         }
 
         html.append("</div></body></html>");
@@ -82,6 +115,17 @@ public class DocumentRenderService {
         logger.info("Document rendered in {}ms: {} pages, HTML size: {} bytes", 
             duration, pages.size(), html.length());
         return html.toString();
+    }
+
+    private int getExecutorThreads(ExecutorService executor) {
+        try {
+            if (executor instanceof ThreadPoolExecutor tpe) {
+                return tpe.getMaximumPoolSize();
+            }
+        } catch (Exception ignored) {
+        }
+        // Fallback: unknown executor implementation
+        return -1;
     }
 
     private List<Page> collectPages(DocumentModel document) {

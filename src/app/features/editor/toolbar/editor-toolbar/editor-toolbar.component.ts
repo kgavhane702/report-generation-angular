@@ -308,8 +308,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     
     const document = this.documentService.document;
     try {
+      const t0 = performance.now();
       await this.exportService.exportToFile(document);
-      this.notify.success('Document exported successfully!', 'Exported');
+      const ms = Math.round(performance.now() - t0);
+      this.notify.success(`Document exported successfully (${ms}ms)!`, 'Exported');
     } catch (error) {
       const details = error instanceof Error ? error.message : 'Unknown error';
       this.notify.error(`Export failed: ${details}`, 'Export failed');
@@ -445,8 +447,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
 
     try {
+      const t0 = performance.now();
       await this.documentDownload.download(document, 'pdf');
-      this.notify.success('PDF generated successfully!', 'PDF ready');
+      const ms = Math.round(performance.now() - t0);
+      this.notify.success(`PDF generated successfully (${ms}ms)!`, 'PDF ready');
     } catch (error) {
       const details = error instanceof Error ? error.message : 'Unknown error';
       this.notify.error(
