@@ -52,6 +52,26 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     return [loc.sectionTitle, loc.subsectionTitle, loc.pageTitle].filter(Boolean).join(' › ');
   });
 
+  onLocationSectionClick(): void {
+    const sectionId = this.editorState.activeSectionId();
+    if (!sectionId) return;
+    this.editorState.setActiveSection(sectionId);
+  }
+
+  onLocationSubsectionClick(): void {
+    const subsectionId = this.editorState.activeSubsectionId();
+    if (!subsectionId) return;
+    this.editorState.setActiveSubsection(subsectionId);
+  }
+
+  onLocationPageClick(): void {
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
+    this.editorState.setActivePage(pageId);
+    const surface = document.getElementById(`page-surface-${pageId}`);
+    surface?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  }
+
   // Slide navigator state (pinned to editor-shell__canvas)
   readonly pageIds = this.editorState.activeSubsectionPageIds;
   readonly currentPageIndex = computed(() => {

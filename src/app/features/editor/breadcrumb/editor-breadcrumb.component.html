@@ -1,17 +1,31 @@
 <div class="breadcrumb">
-  <div class="breadcrumb__group">
-    <div class="breadcrumb__header">
-      <span>Sections</span>
-      <button type="button" (click)="addSection()">+ Section</button>
-    </div>
+  <div class="breadcrumb__header">
+    <span>Navigation</span>
+    <button type="button" (click)="addSection()">+ Section</button>
+  </div>
 
-    <div class="breadcrumb__list" role="list">
+  <div class="breadcrumb__tree" role="tree" aria-label="Sections, subsections, and pages">
+    <div class="breadcrumb__tree-section" *ngFor="let section of sections; trackBy: trackBySectionId">
+      <!-- SECTION -->
       <div
         class="breadcrumb__row breadcrumb__row--section"
-        *ngFor="let section of sections; trackBy: trackBySectionId"
+        role="treeitem"
+        [attr.aria-expanded]="isSectionExpanded(section.id)"
         [class.breadcrumb__row--active]="activeSectionId() === section.id"
+        [class.breadcrumb__row--path]="activeSectionId() === section.id && !!activePageId()"
+        [class.breadcrumb__row--open]="isSectionExpanded(section.id)"
         (click)="selectSection(section.id)"
       >
+        <button
+          type="button"
+          class="breadcrumb__toggle"
+          (click)="toggleSection(section.id, $event)"
+          [attr.aria-label]="isSectionExpanded(section.id) ? 'Collapse section' : 'Expand section'"
+          [attr.aria-pressed]="isSectionExpanded(section.id)"
+        >
+          {{ isSectionExpanded(section.id) ? '▾' : '▸' }}
+        </button>
+
         <ng-container *ngIf="editingSectionId === section.id; else sectionLabel">
           <input
             class="breadcrumb__input"
@@ -26,6 +40,9 @@
         <ng-template #sectionLabel>
           <span class="breadcrumb__label" [title]="section.title">{{ section.title }}</span>
           <span class="breadcrumb__actions">
+            <button type="button" class="breadcrumb__btn" (click)="addSubsectionFor(section.id, $event)" title="Add subsection">
+              +Sub
+            </button>
             <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section">✎</button>
             <button
               type="button"
@@ -38,47 +55,125 @@
           </span>
         </ng-template>
       </div>
-    </div>
-  </div>
 
-  <div class="breadcrumb__group">
-    <div class="breadcrumb__header">
-      <span>Subsections</span>
-      <button type="button" (click)="addSubsection()" [disabled]="!activeSectionId()">+ Subsection</button>
-    </div>
-
-    <div class="breadcrumb__list" role="list">
-      <div
-        class="breadcrumb__row breadcrumb__row--subsection"
-        *ngFor="let subsection of subsections(); trackBy: trackBySubsectionId"
-        [class.breadcrumb__row--active]="activeSubsectionId() === subsection.id"
-        (click)="selectSubsection(subsection.id)"
-      >
-        <ng-container *ngIf="editingSubsectionId === subsection.id; else subsectionLabel">
-          <input
-            class="breadcrumb__input"
-            [value]="editingSubsectionValue"
-            (click)="$event.stopPropagation()"
-            (input)="editingSubsectionValue = $any($event.target).value"
-            (blur)="saveSubsectionTitle(subsection.id)"
-            (keydown.enter)="saveSubsectionTitle(subsection.id)"
-            (keydown.escape)="cancelSubsectionEdit()"
-          />
-        </ng-container>
-        <ng-template #subsectionLabel>
-          <span class="breadcrumb__label" [title]="subsection.title">{{ subsection.title }}</span>
-          <span class="breadcrumb__actions">
-            <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">✎</button>
+      <!-- SUBSECTIONS (collapsible per section) -->
+      <div class="breadcrumb__children" *ngIf="isSectionExpanded(section.id)" role="group">
+        <ng-container *ngFor="let subsection of subsectionsForSection(section.id); trackBy: trackBySubsectionId">
+          <div
+            class="breadcrumb__row breadcrumb__row--subsection"
+            role="treeitem"
+            [attr.aria-expanded]="isSubsectionExpanded(subsection.id)"
+            [class.breadcrumb__row--active]="activeSubsectionId() === subsection.id"
+            [class.breadcrumb__row--path]="activeSubsectionId() === subsection.id && !!activePageId()"
+            [class.breadcrumb__row--open]="isSubsectionExpanded(subsection.id)"
+            (click)="selectSubsection(subsection.id)"
+          >
             <button
               type="button"
-              (click)="deleteSubsection(subsection.id, $event)"
-              [disabled]="subsections().length <= 1"
-              title="Delete subsection"
+              class="breadcrumb__toggle breadcrumb__toggle--sub"
+              (click)="toggleSubsection(subsection.id, $event)"
+              [attr.aria-label]="isSubsectionExpanded(subsection.id) ? 'Collapse subsection' : 'Expand subsection'"
+              [attr.aria-pressed]="isSubsectionExpanded(subsection.id)"
             >
-              ✕
+              {{ isSubsectionExpanded(subsection.id) ? '▾' : '▸' }}
             </button>
-          </span>
-        </ng-template>
+
+            <ng-container *ngIf="editingSubsectionId === subsection.id; else subsectionLabel">
+              <input
+                class="breadcrumb__input"
+                [value]="editingSubsectionValue"
+                (click)="$event.stopPropagation()"
+                (input)="editingSubsectionValue = $any($event.target).value"
+                (blur)="saveSubsectionTitle(subsection.id)"
+                (keydown.enter)="saveSubsectionTitle(subsection.id)"
+                (keydown.escape)="cancelSubsectionEdit()"
+              />
+            </ng-container>
+            <ng-template #subsectionLabel>
+              <span class="breadcrumb__label" [title]="subsection.title">{{ subsection.title }}</span>
+              <span class="breadcrumb__actions">
+                <button type="button" class="breadcrumb__btn" (click)="addPageFor(subsection.id, $event)" title="Add page">
+                  +Page
+                </button>
+                <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">✎</button>
+                <button
+                  type="button"
+                  (click)="deleteSubsection(section.id, subsection.id, $event)"
+                  [disabled]="subsectionsForSection(section.id).length <= 1"
+                  title="Delete subsection"
+                >
+                  ✕
+                </button>
+              </span>
+            </ng-template>
+          </div>
+
+          <!-- PAGES (collapsible per subsection) -->
+          <div class="breadcrumb__pages" *ngIf="isSubsectionExpanded(subsection.id)">
+            <div
+              class="breadcrumb__row breadcrumb__row--page"
+              *ngFor="let page of pagesForSubsection(subsection.id); trackBy: trackByPageId"
+              [class.breadcrumb__row--active]="activePageId() === page.id"
+              [class.breadcrumb__row--current]="activePageId() === page.id"
+              (click)="selectPage(page.id)"
+            >
+              <span class="breadcrumb__bullet" aria-hidden="true">•</span>
+
+              <ng-container *ngIf="editingPageId === page.id; else pageLabel">
+                <input
+                  class="breadcrumb__input"
+                  [value]="editingPageValue"
+                  (click)="$event.stopPropagation()"
+                  (input)="editingPageValue = $any($event.target).value"
+                  (blur)="savePageTitle(page.id)"
+                  (keydown.enter)="savePageTitle(page.id)"
+                  (keydown.escape)="cancelPageEdit()"
+                />
+              </ng-container>
+              <ng-template #pageLabel>
+                <span class="breadcrumb__label" [title]="displayPageTitle(page)">{{ displayPageTitle(page) }}</span>
+                <span class="breadcrumb__actions">
+                  <span
+                    class="breadcrumb__badge"
+                    [class.breadcrumb__badge--empty]="getWidgetCount(page.id) === 0"
+                    [title]="getWidgetCount(page.id) === 0 ? '' : 'Widgets'"
+                  >
+                    {{ getWidgetCount(page.id) === 0 ? '' : getWidgetCount(page.id) }}
+                  </span>
+                  <span class="breadcrumb__orientation" title="Orientation">
+                    <button
+                      type="button"
+                      class="breadcrumb__orientation-btn"
+                      [class.breadcrumb__orientation-btn--active]="page.orientation === 'landscape' || !page.orientation"
+                      (click)="setPageOrientation(page.id, 'landscape', $event)"
+                      title="Landscape"
+                    >
+                      ⬌
+                    </button>
+                    <button
+                      type="button"
+                      class="breadcrumb__orientation-btn"
+                      [class.breadcrumb__orientation-btn--active]="page.orientation === 'portrait'"
+                      (click)="setPageOrientation(page.id, 'portrait', $event)"
+                      title="Portrait"
+                    >
+                      ⬍
+                    </button>
+                  </span>
+                  <button type="button" (click)="startPageEdit(page, $event)" title="Rename page">✎</button>
+                  <button
+                    type="button"
+                    (click)="deletePage(subsection.id, page.id, $event)"
+                    [disabled]="pagesForSubsection(subsection.id).length <= 1"
+                    title="Delete page"
+                  >
+                    ✕
+                  </button>
+                </span>
+              </ng-template>
+            </div>
+          </div>
+        </ng-container>
       </div>
     </div>
   </div>

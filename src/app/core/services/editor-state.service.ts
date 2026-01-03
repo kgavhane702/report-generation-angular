@@ -273,6 +273,17 @@ export class EditorStateService {
     this.uiState.selectWidget(null);
   }
 
+  /**
+   * Set section/subsection/page together without triggering auto-selection logic.
+   * Used when user selects an explicit page from a tree (so we don't jump to first page).
+   */
+  setActiveHierarchy(sectionId: string | null, subsectionId: string | null, pageId: string | null): void {
+    this._sectionId.set(sectionId);
+    this._subsectionId.set(subsectionId);
+    this._pageId.set(pageId);
+    this.uiState.selectWidget(null);
+  }
+
   // ============================================
   // WIDGET SELECTION (delegated to UIStateService)
   // ============================================

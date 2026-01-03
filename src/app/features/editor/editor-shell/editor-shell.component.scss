@@ -188,7 +188,7 @@
 }
 
 .editor-shell__sidebar-location-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -201,23 +201,45 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: 11px;
   color: #334155;
   font-weight: 600;
 }
 
-.editor-shell__sidebar-location-part {
+.editor-shell__sidebar-location-link {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font: inherit;
+  font-size: inherit;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #334155;
+  font-weight: 600;
+  text-align: left;
+
+  &:hover:not(:disabled) {
+    background: rgba(148, 163, 184, 0.12);
+    color: #0f172a;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.9;
+  }
 }
 
-.editor-shell__sidebar-location-part--current {
+.editor-shell__sidebar-location-link--current {
   color: #0f172a;
+  font-weight: 700;
 }
 
 .editor-shell__sidebar-location-sep {
+  font-size: 11px;
   color: rgba(100, 116, 139, 0.7);
   flex: 0 0 auto;
 }

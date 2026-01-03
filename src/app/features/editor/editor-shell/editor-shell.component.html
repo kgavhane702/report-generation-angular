@@ -27,21 +27,42 @@
       <div class="editor-shell__sidebar-location" role="status" aria-live="polite">
         <div class="editor-shell__sidebar-location-label">You are here</div>
         <div class="editor-shell__sidebar-location-path" [title]="locationText()">
-          <span class="editor-shell__sidebar-location-part">{{ location().sectionTitle }}</span>
+          <button
+            type="button"
+            class="editor-shell__sidebar-location-link"
+            (click)="onLocationSectionClick()"
+            [disabled]="!editorState.activeSectionId()"
+            [title]="location().sectionTitle"
+          >
+            {{ location().sectionTitle }}
+          </button>
           <span class="editor-shell__sidebar-location-sep" aria-hidden="true">›</span>
-          <span class="editor-shell__sidebar-location-part">{{ location().subsectionTitle }}</span>
+          <button
+            type="button"
+            class="editor-shell__sidebar-location-link"
+            (click)="onLocationSubsectionClick()"
+            [disabled]="!editorState.activeSubsectionId()"
+            [title]="location().subsectionTitle"
+          >
+            {{ location().subsectionTitle }}
+          </button>
           <ng-container *ngIf="location().pageTitle">
             <span class="editor-shell__sidebar-location-sep" aria-hidden="true">›</span>
-            <span class="editor-shell__sidebar-location-part editor-shell__sidebar-location-part--current">
+            <button
+              type="button"
+              class="editor-shell__sidebar-location-link editor-shell__sidebar-location-link--current"
+              (click)="onLocationPageClick()"
+              [disabled]="!editorState.activePageId()"
+              [title]="location().pageTitle"
+            >
               {{ location().pageTitle }}
-            </span>
+            </button>
           </ng-container>
         </div>
       </div>
 
       <div class="editor-shell__sidebar-content">
         <app-editor-breadcrumb></app-editor-breadcrumb>
-        <app-page-outline></app-page-outline>
       </div>
     </aside>
 

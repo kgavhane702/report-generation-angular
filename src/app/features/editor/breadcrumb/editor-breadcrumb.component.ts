@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { Dictionary } from '@ngrx/entity';
@@ -7,7 +7,7 @@ import { DocumentService } from '../../../core/services/document.service';
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
-import { SectionEntity, SubsectionEntity } from '../../../store/document/document.state';
+import { PageEntity, SectionEntity, SubsectionEntity } from '../../../store/document/document.state';
 
 @Component({
   selector: 'app-editor-breadcrumb',
@@ -20,10 +20,16 @@ export class EditorBreadcrumbComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly store = inject(Store<AppState>);
 
+  // Expanded/collapsed state (independent from active selection)
+  private readonly expandedSectionIds = signal<Set<string>>(new Set());
+  private readonly expandedSubsectionIds = signal<Set<string>>(new Set());
+
   editingSectionId: string | null = null;
   editingSectionValue = '';
   editingSubsectionId: string | null = null;
   editingSubsectionValue = '';
+  editingPageId: string | null = null;
+  editingPageValue = '';
 
   /** All sections (ordered) */
   private readonly allSections = toSignal(
@@ -43,6 +49,36 @@ export class EditorBreadcrumbComponent {
     { initialValue: {} as Dictionary<SectionEntity> }
   );
 
+  /** Subsection entities map */
+  private readonly subsectionEntities = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionEntities),
+    { initialValue: {} as Dictionary<SubsectionEntity> }
+  );
+
+  /** Page entities map */
+  private readonly pageEntities = toSignal(
+    this.store.select(DocumentSelectors.selectPageEntities),
+    { initialValue: {} as Dictionary<PageEntity> }
+  );
+
+  /** Subsection IDs by section ID */
+  private readonly subsectionIdsBySectionId = toSignal(
+    this.store.select(DocumentSelectors.selectSubsectionIdsBySectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+
+  /** Page IDs by subsection ID */
+  private readonly pageIdsBySubsectionId = toSignal(
+    this.store.select(DocumentSelectors.selectPageIdsBySubsectionId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+
+  /** Widget IDs by page ID */
+  private readonly widgetIdsByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetIdsByPageId),
+    { initialValue: {} as Record<string, string[]> }
+  );
+
   /** Get sections ordered by sectionIds */
   get sections(): SectionEntity[] {
     const ids = this.sectionIds();
@@ -56,6 +92,34 @@ export class EditorBreadcrumbComponent {
   /** Active subsection ID */
   readonly activeSubsectionId = this.editorState.activeSubsectionId;
 
+  /** Active page ID */
+  readonly activePageId = this.editorState.activePageId;
+
+  constructor() {
+    // Ensure the currently active section/subsection are expanded by default
+    effect(() => {
+      const secId = this.activeSectionId();
+      if (secId) {
+        this.expandedSectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.add(secId);
+          return next;
+        });
+      }
+    }, { allowSignalWrites: true });
+
+    effect(() => {
+      const subId = this.activeSubsectionId();
+      if (subId) {
+        this.expandedSubsectionIds.update((prev) => {
+          const next = new Set(prev);
+          next.add(subId);
+          return next;
+        });
+      }
+    }, { allowSignalWrites: true });
+  }
+
   /** Get active section */
   get activeSection(): SectionEntity | null {
     const activeId = this.activeSectionId();
@@ -64,15 +128,74 @@ export class EditorBreadcrumbComponent {
     return entities[activeId] ?? null;
   }
 
-  /** Subsections for active section */
-  readonly subsections = this.editorState.activeSectionSubsections;
+  /** Subsections for a section */
+  subsectionsForSection(sectionId: string): SubsectionEntity[] {
+    const ids = this.subsectionIdsBySectionId()[sectionId] ?? [];
+    const entities = this.subsectionEntities();
+    return ids.map((id: string) => entities[id]).filter((s): s is SubsectionEntity => !!s);
+  }
+
+  /** Pages for a subsection */
+  pagesForSubsection(subsectionId: string): PageEntity[] {
+    const ids = this.pageIdsBySubsectionId()[subsectionId] ?? [];
+    const entities = this.pageEntities();
+    return ids.map((id: string) => entities[id]).filter((p): p is PageEntity => !!p);
+  }
 
   selectSection(sectionId: string): void {
     this.editorState.setActiveSection(sectionId);
   }
 
   selectSubsection(subsectionId: string): void {
-    this.editorState.setActiveSubsection(subsectionId);
+    // Selecting a subsection should also activate its parent section and a concrete page
+    // so the full hierarchy highlights consistently (section → subsection → page).
+    const subsection = this.subsectionEntities()[subsectionId];
+    const sectionId = subsection?.sectionId ?? null;
+    const firstPageId = this.pageIdsBySubsectionId()[subsectionId]?.[0] ?? null;
+
+    this.editorState.setActiveHierarchy(sectionId, subsectionId, firstPageId);
+  }
+
+  isSectionExpanded(sectionId: string): boolean {
+    return this.expandedSectionIds().has(sectionId);
+  }
+
+  toggleSection(sectionId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.expandedSectionIds.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  }
+
+  isSubsectionExpanded(subsectionId: string): boolean {
+    return this.expandedSubsectionIds().has(subsectionId);
+  }
+
+  toggleSubsection(subsectionId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.expandedSubsectionIds.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(subsectionId)) next.delete(subsectionId);
+      else next.add(subsectionId);
+      return next;
+    });
+  }
+
+  selectPage(pageId: string): void {
+    // When selecting a page, also activate its subsection + section so the whole
+    // hierarchy highlights (without triggering "auto-select first page" logic).
+    const page = this.pageEntities()[pageId];
+    const subsectionId = page?.subsectionId ?? null;
+    const subsection = subsectionId ? this.subsectionEntities()[subsectionId] : null;
+    const sectionId = subsection?.sectionId ?? null;
+
+    this.editorState.setActiveHierarchy(sectionId, subsectionId, pageId);
+
+    const surface = document.getElementById(`page-surface-${pageId}`);
+    surface?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
   }
 
   addSection(): void {
@@ -91,23 +214,34 @@ export class EditorBreadcrumbComponent {
     }
   }
 
-  addSubsection(): void {
-    const sectionId = this.activeSectionId();
-    if (!sectionId) {
-      return;
-    }
-    const ids = this.documentService.addSubsection(sectionId);
-    if (!ids?.subsectionId) {
-      return;
-    }
+  addSubsectionFor(sectionId: string, event?: MouseEvent): void {
+    event?.stopPropagation();
 
-    // Do not change current active selection when adding a new subsection.
-    // Only set active if nothing is currently active (edge case).
+    const ids = this.documentService.addSubsection(sectionId);
+    if (!ids?.subsectionId) return;
+
+    // Do not change current active selection when adding.
+    // Only initialize if nothing is active (edge case).
+    if (!this.activeSectionId()) {
+      this.editorState.setActiveSection(sectionId);
+    }
     if (!this.activeSubsectionId()) {
       this.editorState.setActiveSubsection(ids.subsectionId);
-      if (ids.pageId && !this.editorState.activePageId()) {
-        this.editorState.setActivePage(ids.pageId);
-      }
+    }
+    if (!this.activePageId() && ids.pageId) {
+      this.editorState.setActivePage(ids.pageId);
+    }
+  }
+
+  addPageFor(subsectionId: string, event?: MouseEvent): void {
+    event?.stopPropagation();
+
+    // Keep the current page active when adding a new page.
+    // Only fall back to the new page if nothing is currently active (edge case).
+    const currentActivePageId = this.activePageId();
+    const pageId = this.documentService.addPage(subsectionId);
+    if (!currentActivePageId && pageId) {
+      this.editorState.setActivePage(pageId);
     }
   }
 
@@ -164,23 +298,67 @@ export class EditorBreadcrumbComponent {
     this.editingSubsectionId = null;
   }
 
-  deleteSubsection(subsectionId: string, event: MouseEvent): void {
+  deleteSubsection(sectionId: string, subsectionId: string, event: MouseEvent): void {
     event.stopPropagation();
-    const sectionId = this.activeSectionId();
-    if (!sectionId) {
-      return;
-    }
-    const subsections = this.subsections();
+    const subsections = this.subsectionsForSection(sectionId);
     if (subsections.length <= 1) {
       return;
     }
     const fallback = this.documentService.deleteSubsection(sectionId, subsectionId);
-    if (fallback?.subsectionId) {
+    if (this.activeSubsectionId() === subsectionId && fallback?.subsectionId) {
       this.editorState.setActiveSubsection(fallback.subsectionId);
       if (fallback.pageId) {
         this.editorState.setActivePage(fallback.pageId);
       }
     }
+  }
+
+  startPageEdit(page: PageEntity, event: MouseEvent): void {
+    event.stopPropagation();
+    this.editingPageId = page.id;
+    this.editingPageValue = page.title ?? `Page ${page.number}`;
+  }
+
+  savePageTitle(pageId: string): void {
+    const value = this.editingPageValue.trim();
+    if (value) {
+      this.documentService.renamePage(pageId, value);
+    }
+    this.editingPageId = null;
+  }
+
+  cancelPageEdit(): void {
+    this.editingPageId = null;
+  }
+
+  deletePage(subsectionId: string, pageId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    const pages = this.pagesForSubsection(subsectionId);
+    if (pages.length <= 1) {
+      return;
+    }
+
+    const fallbackId = this.documentService.deletePage(subsectionId, pageId);
+    if (this.activePageId() === pageId && fallbackId) {
+      this.editorState.setActivePage(fallbackId);
+    }
+  }
+
+  displayPageTitle(page: PageEntity): string {
+    return page.title ?? `Page ${page.number}`;
+  }
+
+  setPageOrientation(
+    pageId: string,
+    orientation: 'portrait' | 'landscape',
+    event: MouseEvent
+  ): void {
+    event.stopPropagation();
+    this.documentService.updatePageOrientation(pageId, orientation);
+  }
+
+  getWidgetCount(pageId: string): number {
+    return this.widgetIdsByPageId()[pageId]?.length ?? 0;
   }
   
   /** Track by section ID */
@@ -191,5 +369,10 @@ export class EditorBreadcrumbComponent {
   /** Track by subsection ID */
   trackBySubsectionId(index: number, subsection: SubsectionEntity): string {
     return subsection.id;
+  }
+
+  /** Track by page ID */
+  trackByPageId(index: number, page: PageEntity): string {
+    return page.id;
   }
 }
