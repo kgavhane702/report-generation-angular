@@ -9,6 +9,7 @@ import { TableToolbarService } from '../../services/table-toolbar.service';
 import type { TableWidgetProps, WidgetModel } from '../../../models/widget.model';
 import type { TableHttpDataSourceConfig } from '../../../shared/http-request/models/http-data-source.model';
 import { RemoteWidgetLoadRegistryService } from '../../services/remote-widget-load-registry.service';
+import { NotificationService } from '../../services/notification.service';
 
 /**
  * Facade for importing a file and inserting it into a Table widget.
@@ -24,6 +25,7 @@ export class TableFileImportFacade {
   private readonly tableImport = inject(TableImportService);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly remoteLoads = inject(RemoteWidgetLoadRegistryService);
+  private readonly notify = inject(NotificationService);
 
   private readonly _importInProgress = signal<boolean>(false);
   readonly importInProgress = this._importInProgress.asReadonly();
@@ -88,7 +90,7 @@ export class TableFileImportFacade {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL import failed';
             this._importError.set(msg);
-            alert(msg);
+            this.notify.error(msg, 'Import failed');
             this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
             return;
           }
@@ -116,7 +118,7 @@ export class TableFileImportFacade {
             err?.message ||
             'URL import failed. Please verify the backend is running and the URL is accessible.';
           this._importError.set(msg);
-          alert(msg);
+          this.notify.error(msg, 'Import failed');
           this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
         },
       });
@@ -161,7 +163,7 @@ export class TableFileImportFacade {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'Excel import failed';
             this._importError.set(msg);
-            alert(msg);
+            this.notify.error(msg, 'Import failed');
             this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
             return;
           }
@@ -190,7 +192,7 @@ export class TableFileImportFacade {
             err?.error?.message ||
             'Excel import failed. Please verify the backend is running and the file is a valid .xlsx.';
           this._importError.set(msg);
-          alert(msg);
+          this.notify.error(msg, 'Import failed');
           this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
         },
       });
@@ -217,7 +219,7 @@ export class TableFileImportFacade {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'CSV import failed';
             this._importError.set(msg);
-            alert(msg);
+            this.notify.error(msg, 'Import failed');
             this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
             return;
           }
@@ -244,7 +246,7 @@ export class TableFileImportFacade {
             err?.error?.message ||
             'CSV import failed. Please verify the backend is running and the file is a valid .csv.';
           this._importError.set(msg);
-          alert(msg);
+          this.notify.error(msg, 'Import failed');
           this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
         },
       });
@@ -271,7 +273,7 @@ export class TableFileImportFacade {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'JSON import failed';
             this._importError.set(msg);
-            alert(msg);
+            this.notify.error(msg, 'Import failed');
             this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
             return;
           }
@@ -298,7 +300,7 @@ export class TableFileImportFacade {
             err?.error?.message ||
             'JSON import failed. Please verify the file is valid JSON.';
           this._importError.set(msg);
-          alert(msg);
+          this.notify.error(msg, 'Import failed');
           this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
         },
       });
@@ -325,7 +327,7 @@ export class TableFileImportFacade {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'XML import failed';
             this._importError.set(msg);
-            alert(msg);
+            this.notify.error(msg, 'Import failed');
             this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
             return;
           }
@@ -352,7 +354,7 @@ export class TableFileImportFacade {
             err?.error?.message ||
             'XML import failed. Please verify the file is valid XML.';
           this._importError.set(msg);
-          alert(msg);
+          this.notify.error(msg, 'Import failed');
           this.rollbackPlaceholder(pageId, placeholder.id, previousActiveWidgetId);
         },
       });

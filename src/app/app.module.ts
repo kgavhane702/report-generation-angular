@@ -1,8 +1,10 @@
 import { APP_INITIALIZER, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule } from '@angular/common/http';
 import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
+import { ToastrModule } from 'ngx-toastr';
 
 import { AppComponent } from './app.component';
 import { EditorModule } from './features/editor/editor.module';
@@ -28,7 +30,16 @@ function initializeIcons(iconPreloader: IconPreloaderService): () => Promise<voi
   declarations: [AppComponent],
   imports: [
     BrowserModule,
+    BrowserAnimationsModule,
     HttpClientModule,
+    ToastrModule.forRoot({
+      closeButton: true,
+      newestOnTop: true,
+      preventDuplicates: true,
+      positionClass: 'toast-bottom-right',
+      timeOut: 3500,
+      extendedTimeOut: 1500,
+    }),
     StoreModule.forRoot({
       [documentFeatureKey]: documentReducer,
     }),

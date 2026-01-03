@@ -23,6 +23,51 @@ body {
   line-height: 1.6;
 }
 
+// Ensure toast notifications always appear above dialogs/modals.
+.toast-container {
+  z-index: 10000000 !important;
+}
+
+// Make toasts a bit wider (professional, easier to read) while staying responsive.
+.toast-container .ngx-toastr {
+  width: 520px;
+  max-width: calc(100vw - 24px);
+  // Leave room for the built-in left icon background + right close button.
+  padding: 10px 44px 10px 44px !important;
+  min-height: 44px;
+  border-radius: 4px;
+  line-height: 1.3;
+  background-position: 14px 12px !important;
+  background-size: 18px 18px !important;
+}
+
+// Reduce vertical bulk so toasts look like slim rectangles (not tall squares).
+.toast-container .ngx-toastr .toast-title {
+  margin: 0 0 2px 0;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.toast-container .ngx-toastr .toast-message {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+// Ensure the close "×" never overlaps text.
+.toast-container .ngx-toastr .toast-close-button {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  line-height: 1;
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+.toast-container .ngx-toastr .toast-close-button:hover {
+  opacity: 1;
+}
+
 // Ensure form controls inherit the same typography everywhere (professional consistency)
 button,
 input,

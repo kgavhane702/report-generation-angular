@@ -8,6 +8,7 @@ import { EditorStateService } from '../../../../core/services/editor-state.servi
 import { ExportService } from '../../../../core/services/export.service';
 import { DocumentDownloadService } from '../../../../core/services/document-download.service';
 import { ImportService } from '../../../../core/services/import.service';
+import { NotificationService } from '../../../../core/services/notification.service';
 import { PendingChangesRegistry } from '../../../../core/services/pending-changes-registry.service';
 import { SaveIndicatorService } from '../../../../core/services/save-indicator.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
@@ -42,6 +43,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   private readonly exportService = inject(ExportService);
   private readonly documentDownload = inject(DocumentDownloadService);
   private readonly importService = inject(ImportService);
+  private readonly notify = inject(NotificationService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly saveIndicator = inject(SaveIndicatorService);
   private readonly undoRedo = inject(UndoRedoService);
@@ -295,21 +297,31 @@ export class EditorToolbarComponent implements AfterViewInit {
 
   async exportDocument(): Promise<void> {
     if (this.remoteLoadCount() > 0) {
-      alert('Please wait: remote (URL-based) widgets are still loading. Export is disabled until loading completes.');
+      this.notify.warning(
+        'Please wait: remote (URL-based) widgets are still loading.',
+        'Export disabled'
+      );
       return;
     }
     // Flush any pending changes from active editors before export
     await this.pendingChangesRegistry.flushAll();
     
     const document = this.documentService.document;
-    this.exportService.exportToFile(document).catch(() => {
-      // Error handling is done in export service
-    });
+    try {
+      await this.exportService.exportToFile(document);
+      this.notify.success('Document exported successfully!', 'Exported');
+    } catch (error) {
+      const details = error instanceof Error ? error.message : 'Unknown error';
+      this.notify.error(`Export failed: ${details}`, 'Export failed');
+    }
   }
 
   async exportToClipboard(): Promise<void> {
     if (this.remoteLoadCount() > 0) {
-      alert('Please wait: remote (URL-based) widgets are still loading. Export is disabled until loading completes.');
+      this.notify.warning(
+        'Please wait: remote (URL-based) widgets are still loading.',
+        'Export disabled'
+      );
       return;
     }
     // Flush any pending changes from active editors before export
@@ -318,9 +330,9 @@ export class EditorToolbarComponent implements AfterViewInit {
     const document = this.documentService.document;
     const success = await this.exportService.exportToClipboard(document);
     if (success) {
-      alert('Document exported to clipboard!');
+      this.notify.success('Document exported to clipboard!', 'Exported');
     } else {
-      alert('Failed to copy to clipboard. Please try exporting as file instead.');
+      this.notify.error('Failed to copy to clipboard. Please try exporting as file instead.', 'Export failed');
     }
   }
 
@@ -393,20 +405,20 @@ export class EditorToolbarComponent implements AfterViewInit {
 
         await this.forceChartsReRender();
         
-        let message = 'Document imported successfully!';
+        this.notify.success('Document imported successfully!', 'Imported');
+
         if (result.warnings && result.warnings.length > 0) {
-          message += '\n\nWarnings:\n' + result.warnings.join('\n');
+          const warnings = result.warnings.slice(0, 3).join(' • ');
+          const suffix = result.warnings.length > 3 ? ` (+${result.warnings.length - 3} more)` : '';
+          this.notify.warning(`${warnings}${suffix}`, 'Import warnings', { timeOut: 6000 });
         }
-        if (result.metadata) {
-          message += `\n\nImported from: ${result.metadata.exportedAt}`;
-          if (result.metadata.description) {
-            message += `\nDescription: ${result.metadata.description}`;
-          }
+
+        if (result.metadata?.description) {
+          this.notify.info(result.metadata.description, 'Import notes');
         }
-        alert(message);
       }
     } else {
-      alert(`Import failed: ${result.error || 'Unknown error'}`);
+      this.notify.error(result.error || 'Unknown error', 'Import failed');
     }
   }
 
@@ -416,7 +428,10 @@ export class EditorToolbarComponent implements AfterViewInit {
 
   async downloadPDF(): Promise<void> {
     if (this.remoteLoadCount() > 0) {
-      alert('Please wait: remote (URL-based) widgets are still loading. PDF download is disabled until loading completes.');
+      this.notify.warning(
+        'Please wait: remote (URL-based) widgets are still loading.',
+        'PDF download disabled'
+      );
       return;
     }
     // Flush any pending changes from active editors before export
@@ -425,16 +440,18 @@ export class EditorToolbarComponent implements AfterViewInit {
     const document = this.documentService.document;
 
     if (!document) {
-      alert('No document to export');
+      this.notify.info('No document to export', 'PDF');
       return;
     }
 
     try {
       await this.documentDownload.download(document, 'pdf');
+      this.notify.success('PDF generated successfully!', 'PDF ready');
     } catch (error) {
-      alert(
-        `Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
-          `Make sure the backend is running (default via proxy: http://localhost:8080).`
+      const details = error instanceof Error ? error.message : 'Unknown error';
+      this.notify.error(
+        `Failed to generate PDF: ${details}. Make sure the backend is running (default via proxy: http://localhost:8080).`,
+        'PDF failed'
       );
     }
   }

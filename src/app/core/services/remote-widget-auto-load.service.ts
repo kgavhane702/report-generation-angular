@@ -15,6 +15,7 @@ import { TableToolbarService } from './table-toolbar.service';
 import { DocumentService } from './document.service';
 import { RemoteWidgetLoadRegistryService } from './remote-widget-load-registry.service';
 import { EditastraImportService } from './editastra-import.service';
+import { NotificationService } from './notification.service';
 
 /**
  * Auto-loads URL-based widgets (chart/table) when they appear in the UI (e.g. after importing a document).
@@ -28,6 +29,7 @@ export class RemoteWidgetAutoLoadService {
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly documentService = inject(DocumentService);
   private readonly registry = inject(RemoteWidgetLoadRegistryService);
+  private readonly notify = inject(NotificationService);
   private readonly widgetEntities = toSignal(
     this.store.select(DocumentSelectors.selectWidgetEntities),
     { initialValue: {} as Dictionary<WidgetEntity> }
@@ -115,7 +117,7 @@ export class RemoteWidgetAutoLoadService {
         next: (resp) => {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL table load failed';
-            alert(msg);
+            this.notify.error(msg, 'Auto-load failed');
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
@@ -149,7 +151,7 @@ export class RemoteWidgetAutoLoadService {
             err?.error?.message ||
             err?.message ||
             'URL table load failed. Please verify the backend is running and the URL is accessible.';
-          alert(msg);
+          this.notify.error(msg, 'Auto-load failed');
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
@@ -187,7 +189,7 @@ export class RemoteWidgetAutoLoadService {
         next: (resp) => {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL chart load failed';
-            alert(msg);
+            this.notify.error(msg, 'Auto-load failed');
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
@@ -210,7 +212,7 @@ export class RemoteWidgetAutoLoadService {
             err?.error?.message ||
             err?.message ||
             'URL chart load failed. Please verify the backend is running and the URL is accessible.';
-          alert(msg);
+          this.notify.error(msg, 'Auto-load failed');
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
@@ -247,7 +249,7 @@ export class RemoteWidgetAutoLoadService {
         next: (resp) => {
           if (!resp?.success || !resp.data) {
             const msg = resp?.error?.message || 'URL text load failed';
-            alert(msg);
+            this.notify.error(msg, 'Auto-load failed');
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
@@ -269,7 +271,7 @@ export class RemoteWidgetAutoLoadService {
             err?.error?.message ||
             err?.message ||
             'URL text load failed. Please verify the backend is running and the URL is accessible.';
-          alert(msg);
+          this.notify.error(msg, 'Auto-load failed');
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
