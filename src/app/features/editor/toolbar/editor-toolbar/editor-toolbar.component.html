@@ -145,11 +145,12 @@
 </div>
 
 <app-modal
-  [(open)]="imageInsertDialogOpen"
+  [open]="imageInsertDialogOpen()"
+  (openChange)="imageInsertDialogOpen.set($event)"
   size="md"
-  [closeOnBackdrop]="!imageInsertInProgress"
-  [closeOnEsc]="!imageInsertInProgress"
-  [showCloseButton]="!imageInsertInProgress"
+  [closeOnBackdrop]="!imageInsertInProgress()"
+  [closeOnEsc]="!imageInsertInProgress()"
+  [showCloseButton]="!imageInsertInProgress()"
   (closed)="cancelImageInsert()"
 >
   <ng-container appModalHeader>
@@ -162,11 +163,11 @@
         Choose an image file. The image will be added to the canvas when you click “Insert”.
       </div>
 
-      <div *ngIf="imageInsertError" class="editor-toolbar__image-insert-error">
-        {{ imageInsertError }}
+      <div *ngIf="imageInsertError()" class="editor-toolbar__image-insert-error">
+        {{ imageInsertError() }}
       </div>
 
-      <div *ngIf="imageInsertInProgress" class="editor-toolbar__image-insert-loading" aria-live="polite" aria-busy="true">
+      <div *ngIf="imageInsertInProgress()" class="editor-toolbar__image-insert-loading" aria-live="polite" aria-busy="true">
         <span class="editor-toolbar__image-insert-spinner" aria-hidden="true"></span>
         Reading image…
       </div>
@@ -182,14 +183,14 @@
         <label
           for="editorToolbarImageInsertInput"
           class="editor-toolbar__image-insert-file-label"
-          [class.editor-toolbar__image-insert-file-label--disabled]="imageInsertInProgress"
+          [class.editor-toolbar__image-insert-file-label--disabled]="imageInsertInProgress()"
         >
           <span class="editor-toolbar__image-insert-file-button">Browse Files</span>
           <span class="editor-toolbar__image-insert-file-hint">JPG, PNG, GIF, WebP, or SVG</span>
         </label>
 
-        <div *ngIf="imageInsertFileName" class="editor-toolbar__image-insert-file-name">
-          Selected: {{ imageInsertFileName }}
+        <div *ngIf="imageInsertFileName()" class="editor-toolbar__image-insert-file-name">
+          Selected: {{ imageInsertFileName() }}
         </div>
       </div>
     </div>
@@ -200,7 +201,7 @@
       type="button"
       class="editor-toolbar__image-insert-btn editor-toolbar__image-insert-btn--secondary"
       (click)="cancelImageInsert()"
-      [disabled]="imageInsertInProgress"
+      [disabled]="imageInsertInProgress()"
     >
       Cancel
     </button>
@@ -208,10 +209,10 @@
       type="button"
       class="editor-toolbar__image-insert-btn editor-toolbar__image-insert-btn--primary"
       (click)="confirmImageInsert()"
-      [disabled]="!imageInsertFile || imageInsertInProgress"
+      [disabled]="!imageInsertFile() || imageInsertInProgress()"
     >
-      <span *ngIf="imageInsertInProgress" class="editor-toolbar__image-insert-btn-spinner" aria-hidden="true"></span>
-      {{ imageInsertInProgress ? 'Inserting…' : 'Insert' }}
+      <span *ngIf="imageInsertInProgress()" class="editor-toolbar__image-insert-btn-spinner" aria-hidden="true"></span>
+      {{ imageInsertInProgress() ? 'Inserting…' : 'Insert' }}
     </button>
   </ng-container>
 </app-modal>

@@ -80,11 +80,11 @@ export class EditorToolbarComponent implements AfterViewInit {
   private fileInput?: HTMLInputElement;
 
   /** Image insert dialog (UI-only, similar to table import style) */
-  imageInsertDialogOpen = false;
-  imageInsertFile: File | null = null;
-  imageInsertFileName: string | null = null;
-  imageInsertInProgress = false;
-  imageInsertError: string | null = null;
+  readonly imageInsertDialogOpen = signal(false);
+  readonly imageInsertFile = signal<File | null>(null);
+  readonly imageInsertFileName = signal<string | null>(null);
+  readonly imageInsertInProgress = signal(false);
+  readonly imageInsertError = signal<string | null>(null);
 
   // Image constraints
   private readonly IMAGE_MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -110,19 +110,19 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   openImageInsertDialog(): void {
-    if (this.imageInsertInProgress) return;
-    this.imageInsertDialogOpen = true;
-    this.imageInsertFile = null;
-    this.imageInsertFileName = null;
-    this.imageInsertError = null;
+    if (this.imageInsertInProgress()) return;
+    this.imageInsertDialogOpen.set(true);
+    this.imageInsertFile.set(null);
+    this.imageInsertFileName.set(null);
+    this.imageInsertError.set(null);
   }
 
   cancelImageInsert(): void {
-    if (this.imageInsertInProgress) return;
-    this.imageInsertDialogOpen = false;
-    this.imageInsertFile = null;
-    this.imageInsertFileName = null;
-    this.imageInsertError = null;
+    if (this.imageInsertInProgress()) return;
+    this.imageInsertDialogOpen.set(false);
+    this.imageInsertFile.set(null);
+    this.imageInsertFileName.set(null);
+    this.imageInsertError.set(null);
   }
 
   onImageInsertFileSelected(event: Event): void {
@@ -131,43 +131,43 @@ export class EditorToolbarComponent implements AfterViewInit {
     // reset immediately so selecting same file again triggers change
     input.value = '';
 
-    if (this.imageInsertInProgress) return;
+    if (this.imageInsertInProgress()) return;
     if (!file) return;
 
-    this.imageInsertFile = file;
-    this.imageInsertFileName = file.name;
-    this.imageInsertError = null;
+    this.imageInsertFile.set(file);
+    this.imageInsertFileName.set(file.name);
+    this.imageInsertError.set(null);
   }
 
   async confirmImageInsert(): Promise<void> {
-    const file = this.imageInsertFile;
-    if (!file || this.imageInsertInProgress) return;
+    const file = this.imageInsertFile();
+    if (!file || this.imageInsertInProgress()) return;
 
     const validationError = this.validateImageFile(file);
     if (validationError) {
-      this.imageInsertError = validationError;
+      this.imageInsertError.set(validationError);
       return;
     }
 
-    this.imageInsertInProgress = true;
-    this.imageInsertError = null;
+    this.imageInsertInProgress.set(true);
+    this.imageInsertError.set(null);
 
     let success = false;
     try {
       const src = await this.convertFileToBase64(file);
       this.insertImageWidget({ src, alt: file.name });
       // Reset state and close dialog after successful insertion
-      this.imageInsertFile = null;
-      this.imageInsertFileName = null;
-      this.imageInsertError = null;
+      this.imageInsertFile.set(null);
+      this.imageInsertFileName.set(null);
+      this.imageInsertError.set(null);
       success = true;
     } catch {
-      this.imageInsertError = 'Failed to read image. Please try another file.';
+      this.imageInsertError.set('Failed to read image. Please try another file.');
     } finally {
       // Always stop spinner; close dialog only on success.
-      this.imageInsertInProgress = false;
+      this.imageInsertInProgress.set(false);
       if (success) {
-        this.imageInsertDialogOpen = false;
+        this.imageInsertDialogOpen.set(false);
       }
     }
   }
