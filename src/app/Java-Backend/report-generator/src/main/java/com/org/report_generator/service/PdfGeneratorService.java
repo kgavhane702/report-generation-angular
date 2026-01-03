@@ -53,7 +53,8 @@ public class PdfGeneratorService {
         Page page = null;
         
         try {
-            Viewport viewport = calculateViewport(document);
+            // Viewport calculation is only used for debug logging. Avoid the extra page-walk on hot paths.
+            Viewport viewport = logger.isDebugEnabled() ? calculateViewport(document) : null;
 
             // Acquire context from pool instead of creating new one
             context = contextPool.acquire();
@@ -62,8 +63,10 @@ public class PdfGeneratorService {
             // Pooled contexts have a default viewport, but we rely on CSS page size
             // (@page rules) to set the actual PDF page dimensions, so viewport size
             // doesn't matter for PDF generation.
-            logger.debug("Using pooled context for PDF generation with calculated viewport: {}x{}", 
-                viewport.width(), viewport.height());
+            if (viewport != null) {
+                logger.debug("Using pooled context for PDF generation with calculated viewport: {}x{}",
+                        viewport.width(), viewport.height());
+            }
 
             page = context.newPage();
             long tPageCreated = System.nanoTime();
@@ -90,7 +93,10 @@ public class PdfGeneratorService {
             // The PDF pipeline renders HTML directly (no Angular runtime), so we replicate the same idea here by computing
             // a safe `--tw-auto-fit-scale` per URL table before printing.
             if (perf == null || perf.isUrlTableAutoFitEnabled()) {
-                applyUrlTableAutoFitScale(page);
+                // Cheap guard: avoid a page.evaluate() pass when there are no URL-tables in the HTML at all.
+                if (html != null && html.contains("data-url-table=\"true\"")) {
+                    applyUrlTableAutoFitScale(page);
+                }
             }
             long tAutoFit = System.nanoTime();
 

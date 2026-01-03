@@ -51,6 +51,10 @@ public class GlobalStylesRenderer {
                 background: white;
                 padding: 0;
             }
+            /* PDF doesn't need editor-style shadows; removing them reduces render/print cost. */
+            .document-container {
+                box-shadow: none !important;
+            }
             .widget-text ul, .widget-text ol {
                 page-break-inside: avoid;
             }
