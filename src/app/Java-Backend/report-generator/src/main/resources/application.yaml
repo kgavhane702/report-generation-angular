@@ -4,3 +4,14 @@ spring:
 
 server:
   port: 8080
+
+export:
+  playwright:
+    executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+    args:
+      - "--headless=new"
+      - "--no-sandbox"
+      - "--disable-setuid-sandbox"
+      - "--disable-dev-shm-usage"
+      - "--disable-accelerated-2d-canvas"
+      - "--disable-gpu"

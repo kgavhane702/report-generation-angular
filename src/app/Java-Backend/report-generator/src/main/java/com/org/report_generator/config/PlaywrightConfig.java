@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.nio.file.Paths;
-import java.util.List;
 
 @Configuration
 public class PlaywrightConfig implements DisposableBean {
@@ -23,17 +22,10 @@ public class PlaywrightConfig implements DisposableBean {
     }
 
     @Bean
-    public Browser browser(Playwright playwright) {
+    public Browser browser(Playwright playwright, PlaywrightProperties props) {
         BrowserType.LaunchOptions options = new BrowserType.LaunchOptions()
-                .setExecutablePath(Paths.get("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"))
-                .setArgs(List.of(
-                        "--headless=new",
-                        "--no-sandbox",
-                        "--disable-setuid-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-accelerated-2d-canvas",
-                        "--disable-gpu"
-                ));
+                .setExecutablePath(Paths.get(props.getExecutablePath()))
+                .setArgs(props.getArgs());
         this.browser = playwright.chromium().launch(options);
         return this.browser;
     }

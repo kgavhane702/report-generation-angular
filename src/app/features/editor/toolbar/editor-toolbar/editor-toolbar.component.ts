@@ -6,8 +6,8 @@ import { WidgetFactoryService } from '../../widget-host/widget-factory.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { ExportService } from '../../../../core/services/export.service';
+import { DocumentDownloadService } from '../../../../core/services/document-download.service';
 import { ImportService } from '../../../../core/services/import.service';
-import { PdfService } from '../../../../core/services/pdf.service';
 import { PendingChangesRegistry } from '../../../../core/services/pending-changes-registry.service';
 import { SaveIndicatorService } from '../../../../core/services/save-indicator.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
@@ -40,8 +40,8 @@ export class EditorToolbarComponent implements AfterViewInit {
   protected readonly documentService = inject(DocumentService);
   private readonly editorState = inject(EditorStateService);
   private readonly exportService = inject(ExportService);
+  private readonly documentDownload = inject(DocumentDownloadService);
   private readonly importService = inject(ImportService);
-  private readonly pdfService = inject(PdfService);
   private readonly pendingChangesRegistry = inject(PendingChangesRegistry);
   private readonly saveIndicator = inject(SaveIndicatorService);
   private readonly undoRedo = inject(UndoRedoService);
@@ -430,7 +430,7 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
 
     try {
-      await this.pdfService.downloadPDF(document);
+      await this.documentDownload.download(document, 'pdf');
     } catch (error) {
       alert(
         `Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +

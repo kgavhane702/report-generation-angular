@@ -13,6 +13,8 @@ import com.org.report_generator.model.document.Subsection;
 import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.model.document.WidgetPosition;
 import com.org.report_generator.model.document.WidgetSize;
+import com.org.report_generator.render.widgets.RenderContext;
+import com.org.report_generator.render.widgets.WidgetRendererRegistry;
 import com.org.report_generator.service.renderer.GlobalStylesRenderer;
 import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.TextWidgetRenderer;
@@ -40,10 +42,11 @@ public class DocumentRenderService {
     private static final double DEFAULT_HEIGHT_MM = 190.5d;
     private static final int DEFAULT_DPI = 96;
     
-    private final TextWidgetRenderer textWidgetRenderer = new TextWidgetRenderer();
-    private final ImageWidgetRenderer imageWidgetRenderer = new ImageWidgetRenderer();
-    private final TableWidgetRenderer tableWidgetRenderer = new TableWidgetRenderer();
-    private final EditastraWidgetRenderer editastraWidgetRenderer = new EditastraWidgetRenderer();
+    private final WidgetRendererRegistry widgetRenderers;
+
+    public DocumentRenderService(WidgetRendererRegistry widgetRenderers) {
+        this.widgetRenderers = widgetRenderers;
+    }
     
     // Cache for mmToPx calculations to avoid repeated computations
     // Key format: "mm_dpi" (e.g., "254.0_96")
@@ -140,7 +143,7 @@ public class DocumentRenderService {
 
         if (page.getWidgets() != null) {
             for (Widget widget : page.getWidgets()) {
-                builder.append(renderWidget(widget));
+                builder.append(renderWidget(widget, document, page));
             }
         }
 
@@ -150,22 +153,14 @@ public class DocumentRenderService {
         return builder.toString();
     }
 
-    private String renderWidget(Widget widget) {
+    private String renderWidget(Widget widget, DocumentModel document, Page page) {
         if (widget == null) {
             return "";
         }
         String type = Optional.ofNullable(widget.getType()).orElse("").toLowerCase(Locale.ROOT);
         String style = buildWidgetStyle(widget);
         JsonNode props = widget.getProps();
-
-        return switch (type) {
-            case "text" -> textWidgetRenderer.render(props, style);
-            case "image" -> imageWidgetRenderer.render(props, style);
-            case "chart" -> renderChartWidget(props, style);
-            case "table", "table-widget", "tablewidget" -> tableWidgetRenderer.render(props, style);
-            case "editastra" -> editastraWidgetRenderer.render(props, style);
-            default -> "<div class=\"widget\" style=\"" + escapeHtmlAttribute(style) + "\"></div>";
-        };
+        return widgetRenderers.render(type, props, style, new RenderContext(document, page));
     }
 
     private String buildWidgetStyle(Widget widget) {
@@ -243,24 +238,7 @@ public class DocumentRenderService {
 
 
 
-    private String renderChartWidget(JsonNode props, String style) {
-        if (props == null) {
-            return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\"></div>";
-        }
-        String image = props.path("exportedImage").asText("");
-        if (!image.isBlank()) {
-            String chartType = props.path("chartType").asText("N/A");
-            String escapedSrc = escapeHtmlAttribute(image);
-            String escapedAlt = escapeHtmlAttribute("Chart: " + chartType);
-            return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\">"
-                    + "<img src=\"" + escapedSrc + "\" alt=\"" + escapedAlt + "\" style=\"width: 100%; height: 100%; object-fit: contain;\" />"
-                    + "</div>";
-        }
-        String chartType = props.path("chartType").asText("N/A");
-        return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\">"
-                + "<div class=\"chart-placeholder\">Chart: " + escapeHtml(chartType) + "</div>"
-                + "</div>";
-    }
+    // Chart rendering is handled by WidgetRendererRegistry (ChartWidgetHtmlRenderer).
 
     /**
      * Converts millimeters to pixels using the given DPI.
