@@ -10,6 +10,7 @@ import type { TableWidgetProps, WidgetModel } from '../../../models/widget.model
 import type { TableHttpDataSourceConfig } from '../../../shared/http-request/models/http-data-source.model';
 import { RemoteWidgetLoadRegistryService } from '../../services/remote-widget-load-registry.service';
 import { NotificationService } from '../../services/notification.service';
+import { UndoRedoService } from '../../services/undo-redo.service';
 
 /**
  * Facade for importing a file and inserting it into a Table widget.
@@ -26,6 +27,7 @@ export class TableFileImportFacade {
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly remoteLoads = inject(RemoteWidgetLoadRegistryService);
   private readonly notify = inject(NotificationService);
+  private readonly undoRedo = inject(UndoRedoService);
 
   private readonly _importInProgress = signal<boolean>(false);
   readonly importInProgress = this._importInProgress.asReadonly();
@@ -51,7 +53,13 @@ export class TableFileImportFacade {
   }
 
   private rollbackPlaceholder(pageId: string, widgetId: string, previousActiveWidgetId: string | null): void {
-    this.documentService.deleteWidget(pageId, widgetId);
+    // Rollback is a system action (failed import). Don't create an extra undo step for it.
+    this.documentService.deleteWidget(pageId, widgetId, { recordUndo: false });
+
+    // Also drop the corresponding "add widget" undo entry (if it was the most recent command),
+    // so a failed import doesn't leave undo enabled for a widget that no longer exists.
+    this.undoRedo.dropLastAddWidgetCommand(widgetId);
+
     this.editorState.setActiveWidget(previousActiveWidgetId ?? null);
     if (this.tableToolbar.activeTableWidgetId === widgetId) {
       this.tableToolbar.setActiveTableWidget(null);

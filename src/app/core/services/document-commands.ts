@@ -6,6 +6,7 @@ import { DocumentActions, WidgetActions } from '../../store/document/document.ac
 import { AppState } from '../../store/app.state';
 import { WidgetEntity } from '../../store/document/document.state';
 import { Command } from './undo-redo.service';
+import { deepClone } from '../utils/deep-clone.util';
 
 /**
  * AddWidgetCommand
@@ -13,11 +14,25 @@ import { Command } from './undo-redo.service';
  * OPTIMIZED: Undo removes only the specific widget instead of replacing entire document
  */
 export class AddWidgetCommand implements Command {
+  readonly kind = 'add-widget' as const;
+
   constructor(
     private store: Store<AppState>,
     private pageId: string,
     private widget: WidgetModel
   ) {}
+
+  get widgetId(): string {
+    return this.widget.id;
+  }
+
+  /** Update the stored widget snapshot so redo re-adds the latest "final" widget state. */
+  updateWidgetSnapshot(widgetSnapshot: WidgetModel): void {
+    if (!widgetSnapshot || widgetSnapshot.id !== this.widget.id) {
+      return;
+    }
+    this.widget = deepClone(widgetSnapshot);
+  }
 
   execute(): void {
     this.store.dispatch(

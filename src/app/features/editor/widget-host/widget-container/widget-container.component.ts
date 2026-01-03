@@ -22,9 +22,12 @@ import { DraftStateService } from '../../../../core/services/draft-state.service
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { GuidesService } from '../../../../core/services/guides.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
+import { UndoRedoService } from '../../../../core/services/undo-redo.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
+import { WidgetActions } from '../../../../store/document/document.actions';
+import type { WidgetModel } from '../../../../models/widget.model';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -88,6 +91,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   protected readonly uiState = inject(UIStateService);
   private readonly guides = inject(GuidesService);
   private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
+  private readonly undoRedo = inject(UndoRedoService);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
   
   // ============================================
@@ -245,8 +249,18 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         }
 
         // Auto-load URL-based widgets (non-blocking) after document import/open.
+        // Also retry if error was cleared (user clicked refresh).
         if (widget) {
-          this.remoteAutoLoad.maybeAutoLoad(widget, this.pageId);
+          const props: any = widget.props || {};
+          // If error was just cleared, trigger reload
+          if (props.errorMessage === undefined && props.dataSource?.kind === 'http') {
+            // Small delay to ensure error state is fully cleared
+            setTimeout(() => {
+              this.remoteAutoLoad.maybeAutoLoad(widget, this.pageId);
+            }, 50);
+          } else {
+            this.remoteAutoLoad.maybeAutoLoad(widget, this.pageId);
+          }
         }
       });
   }
@@ -543,14 +557,38 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   onContentChange(props: Partial<WidgetProps>): void {
     const currentWidget = this.displayWidget();
     if (!currentWidget) return;
-    
-    // Update via document service for undo support
-    this.documentService.updateWidget(this.pageId, this.widgetId, {
-      props: {
-        ...currentWidget.props,
-        ...props,
-      } as WidgetProps,
-    });
+
+    const nextProps = {
+      ...currentWidget.props,
+      ...props,
+    } as WidgetProps;
+
+    // Treat async "loading" transitions (imports / URL auto-load) as NON-undoable system updates.
+    // Otherwise the user ends up with a broken undo step (e.g. undoing imported table data back to a placeholder).
+    const touchesLoading =
+      Object.prototype.hasOwnProperty.call(props as object, 'loading') ||
+      Object.prototype.hasOwnProperty.call(props as object, 'loadingMessage');
+
+    if (touchesLoading) {
+      // If this widget was created via an undoable AddWidgetCommand (e.g. user-triggered import placeholder),
+      // update the stored snapshot so redo re-adds the FINAL widget state, not the initial placeholder.
+      const wasLoading = (currentWidget.props as any)?.loading === true;
+      const nowLoaded = (props as any)?.loading === false;
+      if (wasLoading && nowLoaded) {
+        const { pageId: _pageId, ...withoutPageId } = currentWidget as unknown as WidgetEntity;
+        const snapshot: WidgetModel = {
+          ...(withoutPageId as unknown as WidgetModel),
+          props: nextProps as any,
+        };
+        this.undoRedo.updateLastAddWidgetSnapshot(this.widgetId, snapshot);
+      }
+
+      this.store.dispatch(WidgetActions.updateOne({ id: this.widgetId, changes: { props: nextProps as any } }));
+      return;
+    }
+
+    // Normal user edits should participate in undo/redo.
+    this.documentService.updateWidget(this.pageId, this.widgetId, { props: nextProps as WidgetProps });
   }
   
   onChartPropsChange(props: Partial<any>): void {

@@ -1,5 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { DocumentModel } from '../../models/document.model';
+import type { WidgetModel } from '../../models/widget.model';
 
 export interface Command {
   execute(): void;
@@ -109,6 +110,54 @@ export class UndoRedoService {
     this.zoomRedoStack.length = 0;
     this.updateDocumentState();
     this.updateZoomState();
+  }
+
+  /**
+   * Update the stored redo snapshot for the most recent "add widget" command for the given widget.
+   *
+   * Why:
+   * - Some widget flows (table import / URL auto-load) are async and apply their final props after the widget
+   *   is created. We want undo/redo to treat that as a single atomic operation: undo removes the widget,
+   *   redo re-adds the FINAL widget (not a stale loading placeholder).
+   *
+   * This does NOT create a new history entry; it mutates the existing command snapshot only.
+   */
+  updateLastAddWidgetSnapshot(widgetId: string, widgetSnapshot: WidgetModel): boolean {
+    if (!widgetId) return false;
+
+    const tryUpdate = (stack: Command[]): boolean => {
+      for (let i = stack.length - 1; i >= 0; i--) {
+        const cmd = stack[i] as any;
+        if (!cmd) continue;
+        if (cmd.kind !== 'add-widget') continue;
+        if (cmd.widgetId !== widgetId) continue;
+        if (typeof cmd.updateWidgetSnapshot !== 'function') continue;
+        cmd.updateWidgetSnapshot(widgetSnapshot);
+        return true;
+      }
+      return false;
+    };
+
+    const updatedUndo = tryUpdate(this.documentUndoStack);
+    const updatedRedo = tryUpdate(this.documentRedoStack);
+    return updatedUndo || updatedRedo;
+  }
+
+  /**
+   * Remove the most recent "add widget" command for a widget.
+   *
+   * Used to rollback failed async widget insert flows (e.g. table import placeholder) so we don't leave
+   * a dangling undo step for an action that effectively didn't complete.
+   */
+  dropLastAddWidgetCommand(widgetId: string): boolean {
+    const last = this.documentUndoStack[this.documentUndoStack.length - 1] as any;
+    if (!last) return false;
+    if (last.kind !== 'add-widget') return false;
+    if (last.widgetId !== widgetId) return false;
+
+    this.documentUndoStack.pop();
+    this.updateDocumentState();
+    return true;
   }
 
   getCurrentZoom(): number {

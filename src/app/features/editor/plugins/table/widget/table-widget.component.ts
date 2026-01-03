@@ -53,6 +53,7 @@ import { PendingChangesRegistry, FlushableWidget } from '../../../../../core/ser
 import { DraftStateService } from '../../../../../core/services/draft-state.service';
 import { LoggerService } from '../../../../../core/services/logger.service';
 import { TableConditionalFormattingService } from '../services/table-conditional-formatting.service';
+import { RemoteWidgetAutoLoadService } from '../../../../../core/services/remote-widget-auto-load.service';
 
 type ColResizeSegment = { boundaryIndex: number; leftPercent: number; topPercent: number; heightPercent: number };
 type RowResizeSegment = { boundaryIndex: number; topPercent: number; leftPercent: number; widthPercent: number };
@@ -243,6 +244,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly logger = inject(LoggerService);
   private readonly condFormatSvc = inject(TableConditionalFormattingService);
+  private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
 
   /** Local copy of rows during editing */
   private readonly localRows = signal<TableRow[]>([]);
@@ -424,6 +426,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   get loadingMessage(): string {
     return this.tableProps.loadingMessage || 'Loading…';
+  }
+
+  get errorMessage(): string | undefined {
+    return this.tableProps.errorMessage;
+  }
+
+  get hasError(): boolean {
+    return !!this.errorMessage && !this.isLoading;
+  }
+
+  get canRetry(): boolean {
+    return this.hasError && !!this.tableProps.dataSource;
   }
 
   private get headerRowEnabled(): boolean {
@@ -8346,6 +8360,29 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       columnFractions: this.normalizeFractions(this.columnFractions(), this.getTopLevelColCount(rows)),
       rowFractions: this.normalizeFractions(this.rowFractions(), this.getTopLevelRowCount(rows)),
     });
+  }
+
+  onRetryLoad(): void {
+    if (!this.canRetry || !this.widget) return;
+    const dataSource = this.tableProps.dataSource;
+    if (!dataSource || dataSource.kind !== 'http') return;
+
+    // Clear error state
+    this.propsChange.emit({
+      errorMessage: undefined,
+    });
+
+    // The widget container will trigger reload via remoteAutoLoad.maybeAutoLoad
+    // when it detects the widget has a dataSource but no data/error
+    // For now, we'll trigger it directly by clearing the session key and re-checking
+    const widgetEntity = this.widget as any;
+    const pageId = widgetEntity.pageId;
+    if (pageId) {
+      // Reset session so it can retry
+      this.remoteAutoLoad.resetSession();
+      // Manually trigger reload
+      this.remoteAutoLoad.maybeAutoLoad(widgetEntity, pageId);
+    }
   }
 }
 

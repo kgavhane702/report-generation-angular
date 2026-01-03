@@ -12,6 +12,23 @@
     <div class="table-widget__loading-text">{{ loadingMessage }}</div>
   </div>
 
+  <div *ngIf="hasError" class="table-widget__error-overlay" aria-live="polite">
+    <div class="table-widget__error-content">
+      <app-icon name="alert-circle" [size]="24" class="table-widget__error-icon"></app-icon>
+      <div class="table-widget__error-text">{{ errorMessage }}</div>
+      <button
+        *ngIf="canRetry"
+        type="button"
+        class="table-widget__refresh-button"
+        (click)="onRetryLoad()"
+        title="Retry loading data"
+      >
+        <app-icon name="refresh" [size]="16"></app-icon>
+        Refresh
+      </button>
+    </div>
+  </div>
+
   <!--
     IMPORTANT:
     The top-level table is rendered as a CSS grid (same as split grids) so the browser's native <table>

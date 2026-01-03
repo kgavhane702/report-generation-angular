@@ -66,6 +66,8 @@ export interface EditastraWidgetProps {
   /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
   loading?: boolean;
   loadingMessage?: string;
+  /** Optional transient UI state: error message when URL load fails. */
+  errorMessage?: string;
 }
 
 export interface ChartWidgetProps {
@@ -79,6 +81,8 @@ export interface ChartWidgetProps {
   /** Optional transient UI state: show placeholder/skeleton while data is loading. */
   loading?: boolean;
   loadingMessage?: string;
+  /** Optional transient UI state: error message when URL load fails. */
+  errorMessage?: string;
 }
 
 
@@ -169,6 +173,8 @@ export interface TableWidgetProps {
   /** Optional transient UI state: show placeholder/skeleton while importing/loading. */
   loading?: boolean;
   loadingMessage?: string;
+  /** Optional transient UI state: error message when URL load fails. */
+  errorMessage?: string;
 }
 
 export type TableRuleValueType = 'auto' | 'text' | 'number' | 'date';

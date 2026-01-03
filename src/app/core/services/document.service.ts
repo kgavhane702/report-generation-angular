@@ -178,9 +178,21 @@ export class DocumentService {
     this.saveIndicator.pulse();
   }
 
-  deleteWidget(pageId: string, widgetId: string): void {
+  deleteWidget(pageId: string, widgetId: string, options?: { recordUndo?: boolean }): void {
+    const recordUndo = options?.recordUndo !== false;
+
     const widget = this.widgetEntities()[widgetId];
     if (!widget) {
+      return;
+    }
+
+    if (!recordUndo) {
+      this.store.dispatch(
+        DocumentActions.deleteWidget({
+          pageId,
+          widgetId,
+        })
+      );
       return;
     }
 
@@ -198,6 +210,8 @@ export class DocumentService {
   // ============================================
 
   replaceDocument(document: DocumentModel): void {
+    // Document replacement (import/open) is a system action and must NOT create undo history.
+    // The caller (e.g., editor-toolbar) should clear undo history before calling this.
     this.store.dispatch(DocumentActions.setDocument({ document }));
   }
 

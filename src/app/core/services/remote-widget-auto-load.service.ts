@@ -12,11 +12,11 @@ import { DocumentSelectors } from '../../store/document/document.selectors';
 import { TableImportService } from './table-import.service';
 import { ChartImportApi } from '../chart-import/api/chart-import.api';
 import { TableToolbarService } from './table-toolbar.service';
-import { DocumentService } from './document.service';
 import { RemoteWidgetLoadRegistryService } from './remote-widget-load-registry.service';
 import { EditastraImportService } from './editastra-import.service';
 import { NotificationService } from './notification.service';
 import { ExportUiStateService } from './export-ui-state.service';
+import { WidgetActions } from '../../store/document/document.actions';
 
 /**
  * Auto-loads URL-based widgets (chart/table) when they appear in the UI (e.g. after importing a document).
@@ -28,7 +28,6 @@ export class RemoteWidgetAutoLoadService {
   private readonly chartImport = inject(ChartImportApi);
   private readonly editastraImport = inject(EditastraImportService);
   private readonly tableToolbar = inject(TableToolbarService);
-  private readonly documentService = inject(DocumentService);
   private readonly registry = inject(RemoteWidgetLoadRegistryService);
   private readonly notify = inject(NotificationService);
   private readonly exportUi = inject(ExportUiStateService);
@@ -69,7 +68,14 @@ export class RemoteWidgetAutoLoadService {
     const latest = this.widgetEntities()?.[widgetId]?.props as T | undefined;
     const base = (latest ?? fallbackProps) as T;
     const next = { ...(base as any), ...(patch as any) } as T;
-    this.documentService.updateWidget(pageId, widgetId, { props: next as any });
+    // IMPORTANT: URL auto-load is a background/system effect (after import/open) and must NOT
+    // participate in user undo/redo history.
+    this.store.dispatch(
+      WidgetActions.updateOne({
+        id: widgetId,
+        changes: { props: next as any },
+      })
+    );
   }
 
   maybeAutoLoad(widget: WidgetEntity | null, pageId: string): void {
@@ -87,6 +93,11 @@ export class RemoteWidgetAutoLoadService {
     if (props.loading === true) return; // already loading (e.g. user-triggered import placeholder)
 
     const key = `${widget.id}::${safeStableStringify(dataSource)}`;
+    // If there's an error but no data, allow retry (clear the session key to force reload)
+    if (props.errorMessage && (!props.rows || (props.rows as any[]).length === 0)) {
+      // Clear the session key for this widget so it can retry
+      this.startedKeys.delete(key);
+    }
     if (this.startedKeys.has(key)) return;
     this.startedKeys.add(key);
 
@@ -127,6 +138,7 @@ export class RemoteWidgetAutoLoadService {
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
+              errorMessage: msg,
             });
             return;
           }
@@ -141,6 +153,11 @@ export class RemoteWidgetAutoLoadService {
             // after document import/open. This prevents unexpected growth on load.
             preserveWidgetFrame: true,
           };
+
+          // Clear any previous error state on successful load.
+          this.updateWidgetProps(pageId, widgetId, props, {
+            errorMessage: undefined,
+          });
 
           // Ensure the table widget component is mounted before emitting (Subject is not replayed).
           requestAnimationFrame(() => {
@@ -161,6 +178,7 @@ export class RemoteWidgetAutoLoadService {
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
+            errorMessage: msg,
           });
         },
       });
@@ -199,6 +217,7 @@ export class RemoteWidgetAutoLoadService {
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
+              errorMessage: msg,
             });
             return;
           }
@@ -222,6 +241,7 @@ export class RemoteWidgetAutoLoadService {
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
+            errorMessage: msg,
           });
         },
       });
@@ -259,6 +279,7 @@ export class RemoteWidgetAutoLoadService {
             this.updateWidgetProps(pageId, widgetId, props, {
               loading: false,
               loadingMessage: undefined,
+              errorMessage: msg,
             });
             return;
           }
@@ -267,6 +288,7 @@ export class RemoteWidgetAutoLoadService {
             contentHtml: resp.data.contentHtml ?? '',
             loading: false,
             loadingMessage: undefined,
+            errorMessage: undefined,
           });
         },
         error: (err) => {
@@ -281,6 +303,7 @@ export class RemoteWidgetAutoLoadService {
           this.updateWidgetProps(pageId, widgetId, props, {
             loading: false,
             loadingMessage: undefined,
+            errorMessage: msg,
           });
         },
       });
