@@ -101,6 +101,14 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     return this.editorState.documentLogo()?.position || 'top-right';
   }
 
+  get logoMaxWidthPx(): number | undefined {
+    return this.editorState.documentLogo()?.maxWidthPx;
+  }
+
+  get logoMaxHeightPx(): number | undefined {
+    return this.editorState.documentLogo()?.maxHeightPx;
+  }
+
   get footerLeftText(): string | undefined {
     return this.editorState.documentFooter()?.leftText;
   }

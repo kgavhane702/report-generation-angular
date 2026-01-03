@@ -14,5 +14,7 @@ import lombok.NoArgsConstructor;
 public class LogoConfig {
     private String url;
     private String position; // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
+    private Integer maxWidthPx;
+    private Integer maxHeightPx;
 }
 

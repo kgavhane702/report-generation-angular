@@ -171,6 +171,31 @@
               <option value="bottom-right">Bottom Right</option>
             </select>
           </div>
+
+          <div class="header-footer-dialog__field header-footer-dialog__field--row">
+            <div class="header-footer-dialog__field">
+              <label class="header-footer-dialog__label">Max Width (px)</label>
+              <input
+                type="number"
+                class="header-footer-dialog__input"
+                min="10"
+                [value]="logoMaxWidthPx() ?? ''"
+                (input)="logoMaxWidthPx.set($any($event.target).value === '' ? null : +$any($event.target).value)"
+                placeholder="Auto"
+              />
+            </div>
+            <div class="header-footer-dialog__field">
+              <label class="header-footer-dialog__label">Max Height (px)</label>
+              <input
+                type="number"
+                class="header-footer-dialog__input"
+                min="10"
+                [value]="logoMaxHeightPx() ?? ''"
+                (input)="logoMaxHeightPx.set($any($event.target).value === '' ? null : +$any($event.target).value)"
+                placeholder="Auto"
+              />
+            </div>
+          </div>
           <div class="header-footer-dialog__field">
             <label class="header-footer-dialog__label">Logo Image</label>
             <div class="header-footer-dialog__image-upload">

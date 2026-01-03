@@ -41,6 +41,9 @@ export interface FooterConfig {
 export interface LogoConfig {
   url?: string;
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  /** Optional rendering constraints (px). When unset, defaults are used. */
+  maxWidthPx?: number;
+  maxHeightPx?: number;
 }
 
 export interface PageSize {

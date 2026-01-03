@@ -25,10 +25,6 @@ export function createInitialDocument(): DocumentModel {
       centerSubText: 'Subtext',
       showPageNumber: true,
     },
-    logo: {
-      url: '/assets/logo.png',
-      position: 'top-right',
-    },
   };
 }
 

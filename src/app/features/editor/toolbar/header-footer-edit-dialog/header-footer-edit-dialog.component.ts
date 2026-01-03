@@ -64,6 +64,8 @@ export class HeaderFooterEditDialogComponent {
   // Logo state (top-right corner)
   readonly logoImage = signal<string | null>(null);
   readonly logoPosition = signal<LogoPosition>('top-right');
+  readonly logoMaxWidthPx = signal<number | null>(null);
+  readonly logoMaxHeightPx = signal<number | null>(null);
 
   // Color palette
   readonly colorPalette: ColorOption[] = [
@@ -161,6 +163,8 @@ export class HeaderFooterEditDialogComponent {
     const logo = this.logo$();
     this.logoImage.set(logo?.url || null);
     this.logoPosition.set((logo?.position as LogoPosition) || 'top-right');
+    this.logoMaxWidthPx.set(typeof logo?.maxWidthPx === 'number' ? logo!.maxWidthPx! : null);
+    this.logoMaxHeightPx.set(typeof logo?.maxHeightPx === 'number' ? logo!.maxHeightPx! : null);
 
     this.open.set(true);
   }
@@ -268,6 +272,8 @@ export class HeaderFooterEditDialogComponent {
   async onLogoUpload(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    // Reset immediately so selecting the same file again still triggers change.
+    input.value = '';
     if (!file) return;
 
     try {
@@ -313,6 +319,8 @@ export class HeaderFooterEditDialogComponent {
     const logo: LogoConfig = {
       url: this.logoImage() || undefined,
       position: this.logoPosition(),
+      maxWidthPx: this.logoMaxWidthPx() ?? undefined,
+      maxHeightPx: this.logoMaxHeightPx() ?? undefined,
     };
 
     this.store.dispatch(DocumentMetaActions.updateHeader({ header }));

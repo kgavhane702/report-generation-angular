@@ -20,7 +20,14 @@
   <div class="page__header" *ngIf="headerLeftText || headerCenterText || headerRightText || headerLeftImage || headerCenterImage || headerRightImage || headerShowPageNumber || (logoUrl && (logoPosition === 'top-left' || logoPosition === 'top-right'))">
     <!-- Top Left -->
     <div class="page__header-left">
-      <img *ngIf="logoUrl && logoPosition === 'top-left'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img
+        *ngIf="logoUrl && logoPosition === 'top-left'"
+        [src]="logoUrl"
+        alt="Logo"
+        class="page__logo-image page__logo-image--inline"
+        [style.max-width.px]="logoMaxWidthPx"
+        [style.max-height.px]="logoMaxHeightPx"
+      />
       <img *ngIf="headerLeftImage" [src]="headerLeftImage" alt="Header left" class="page__header-image" />
       <span *ngIf="headerLeftText" [style.color]="headerTextColor">{{ headerLeftText }}</span>
     </div>
@@ -33,7 +40,14 @@
     
     <!-- Top Right -->
     <div class="page__header-right">
-      <img *ngIf="logoUrl && logoPosition === 'top-right'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img
+        *ngIf="logoUrl && logoPosition === 'top-right'"
+        [src]="logoUrl"
+        alt="Logo"
+        class="page__logo-image page__logo-image--inline"
+        [style.max-width.px]="logoMaxWidthPx"
+        [style.max-height.px]="logoMaxHeightPx"
+      />
       <img *ngIf="headerRightImage" [src]="headerRightImage" alt="Header right" class="page__header-image" />
       <span *ngIf="headerRightText" [style.color]="headerTextColor">{{ headerRightText }}</span>
       <span *ngIf="headerShowPageNumber && !headerRightText && !headerRightImage" [style.color]="headerTextColor">{{ formattedHeaderPageNumber }}</span>
@@ -61,7 +75,14 @@
   <div class="page__footer" *ngIf="footerLeftText || footerCenterText || footerCenterSubText || footerLeftImage || footerCenterImage || footerRightImage || showPageNumber || (logoUrl && (logoPosition === 'bottom-left' || logoPosition === 'bottom-right'))">
     <!-- Bottom Left -->
     <div class="page__footer-left">
-      <img *ngIf="logoUrl && logoPosition === 'bottom-left'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img
+        *ngIf="logoUrl && logoPosition === 'bottom-left'"
+        [src]="logoUrl"
+        alt="Logo"
+        class="page__logo-image page__logo-image--inline"
+        [style.max-width.px]="logoMaxWidthPx"
+        [style.max-height.px]="logoMaxHeightPx"
+      />
       <img *ngIf="footerLeftImage" [src]="footerLeftImage" alt="Footer left" class="page__footer-image" />
       <span *ngIf="footerLeftText" [style.color]="footerTextColor">{{ footerLeftText }}</span>
     </div>
@@ -79,7 +100,14 @@
     
     <!-- Bottom Right - Page Number -->
     <div class="page__footer-right">
-      <img *ngIf="logoUrl && logoPosition === 'bottom-right'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img
+        *ngIf="logoUrl && logoPosition === 'bottom-right'"
+        [src]="logoUrl"
+        alt="Logo"
+        class="page__logo-image page__logo-image--inline"
+        [style.max-width.px]="logoMaxWidthPx"
+        [style.max-height.px]="logoMaxHeightPx"
+      />
       <img *ngIf="footerRightImage" [src]="footerRightImage" alt="Footer right" class="page__footer-image" />
       <span *ngIf="showPageNumber" [style.color]="footerTextColor">{{ formattedPageNumber }}</span>
     </div>

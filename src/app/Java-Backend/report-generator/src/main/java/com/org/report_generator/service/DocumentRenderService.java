@@ -329,7 +329,7 @@ public class DocumentRenderService {
         // Left
         sb.append("<div class=\"page__header-left\">");
         if (hasLogoTop && "top-left".equalsIgnoreCase(logo.getPosition())) {
-            sb.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+            sb.append(renderLogoImg(logo));
         }
         if (header != null) {
             if (header.getLeftImage() != null && !header.getLeftImage().isBlank()) {
@@ -356,7 +356,7 @@ public class DocumentRenderService {
         // Right
         sb.append("<div class=\"page__header-right\">");
         if (hasLogoTop && "top-right".equalsIgnoreCase(logo.getPosition())) {
-            sb.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+            sb.append(renderLogoImg(logo));
         }
         boolean hasRightText = header != null && header.getRightText() != null && !header.getRightText().isBlank();
         boolean hasRightImage = header != null && header.getRightImage() != null && !header.getRightImage().isBlank();
@@ -451,7 +451,7 @@ public class DocumentRenderService {
 
         footerHtml.append("<div class=\"page__footer-left\">");
         if (hasLogoBottom && "bottom-left".equalsIgnoreCase(logo.getPosition())) {
-            footerHtml.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+            footerHtml.append(renderLogoImg(logo));
         }
         if (footer != null) {
             if (footer.getLeftImage() != null && !footer.getLeftImage().isBlank()) {
@@ -481,7 +481,7 @@ public class DocumentRenderService {
 
         footerHtml.append("<div class=\"page__footer-right\">");
         if (hasLogoBottom && "bottom-right".equalsIgnoreCase(logo.getPosition())) {
-            footerHtml.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+            footerHtml.append(renderLogoImg(logo));
         }
         if (footer != null) {
             if (footer.getRightImage() != null && !footer.getRightImage().isBlank()) {
@@ -496,6 +496,21 @@ public class DocumentRenderService {
 
         footerHtml.append("</div>");
         return footerHtml.toString();
+    }
+
+    private String renderLogoImg(LogoConfig logo) {
+        if (logo == null || logo.getUrl() == null || logo.getUrl().isBlank()) {
+            return "";
+        }
+        StringBuilder style = new StringBuilder();
+        if (logo.getMaxWidthPx() != null && logo.getMaxWidthPx() > 0) {
+            style.append("max-width: ").append(logo.getMaxWidthPx()).append("px;");
+        }
+        if (logo.getMaxHeightPx() != null && logo.getMaxHeightPx() > 0) {
+            style.append("max-height: ").append(logo.getMaxHeightPx()).append("px;");
+        }
+        String styleAttr = style.length() > 0 ? " style=\"" + escapeHtmlAttribute(style.toString()) + "\"" : "";
+        return "<img src=\"" + escapeHtmlAttribute(logo.getUrl()) + "\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\"" + styleAttr + " />";
     }
 }
 
