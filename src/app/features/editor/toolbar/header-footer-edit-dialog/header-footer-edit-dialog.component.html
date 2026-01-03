@@ -1,0 +1,430 @@
+<app-modal
+  [open]="open()"
+  (openChange)="open.set($event)"
+  size="lg"
+  title="Header & Footer Settings"
+>
+  <ng-container appModalBody>
+    <div class="header-footer-dialog">
+      <!-- Tabs -->
+      <div class="header-footer-dialog__tabs">
+        <button
+          type="button"
+          class="header-footer-dialog__tab"
+          [class.header-footer-dialog__tab--active]="activeTab() === 'header'"
+          (click)="setActiveTab('header')"
+        >
+          Header
+        </button>
+        <button
+          type="button"
+          class="header-footer-dialog__tab"
+          [class.header-footer-dialog__tab--active]="activeTab() === 'footer'"
+          (click)="setActiveTab('footer')"
+        >
+          Footer
+        </button>
+      </div>
+
+      <!-- Header Tab Content -->
+      <div class="header-footer-dialog__content" *ngIf="activeTab() === 'header'">
+        <div class="header-footer-dialog__sections-grid">
+        <!-- Left Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Left</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="headerLeftText()"
+              (input)="onHeaderTextChange('left', $any($event.target).value)"
+              placeholder="Left text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="headerLeftImage()" class="header-footer-dialog__image-preview">
+                <img [src]="headerLeftImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeHeaderImage('left')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onHeaderImageUpload('left', $event)"
+                class="header-footer-dialog__file-input"
+                id="headerLeftImage"
+              />
+              <label for="headerLeftImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ headerLeftImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Center</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="headerCenterText()"
+              (input)="onHeaderTextChange('center', $any($event.target).value)"
+              placeholder="Center text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="headerCenterImage()" class="header-footer-dialog__image-preview">
+                <img [src]="headerCenterImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeHeaderImage('center')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onHeaderImageUpload('center', $event)"
+                class="header-footer-dialog__file-input"
+                id="headerCenterImage"
+              />
+              <label for="headerCenterImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ headerCenterImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Right</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="headerRightText()"
+              (input)="onHeaderTextChange('right', $any($event.target).value)"
+              placeholder="Right text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="headerRightImage()" class="header-footer-dialog__image-preview">
+                <img [src]="headerRightImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeHeaderImage('right')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onHeaderImageUpload('right', $event)"
+                class="header-footer-dialog__file-input"
+                id="headerRightImage"
+              />
+              <label for="headerRightImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ headerRightImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logo Section (separate row) -->
+        <div class="header-footer-dialog__section header-footer-dialog__section--full">
+          <div class="header-footer-dialog__section-title">Logo</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Position</label>
+            <select
+              class="header-footer-dialog__select"
+              [value]="logoPosition()"
+              (change)="logoPosition.set($any($event.target).value)"
+            >
+              <option value="top-left">Top Left</option>
+              <option value="top-right">Top Right</option>
+              <option value="bottom-left">Bottom Left</option>
+              <option value="bottom-right">Bottom Right</option>
+            </select>
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Logo Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="logoImage()" class="header-footer-dialog__image-preview">
+                <img [src]="logoImage()" alt="Logo Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeLogo()"
+                  title="Remove logo"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onLogoUpload($event)"
+                class="header-footer-dialog__file-input"
+                id="logoImage"
+              />
+              <label for="logoImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ logoImage() ? 'Change Logo' : 'Upload Logo' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Common Settings -->
+        <div class="header-footer-dialog__section header-footer-dialog__section--full">
+          <div class="header-footer-dialog__section-title">Settings</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text Color</label>
+            <app-color-picker
+              [currentColor]="headerTextColor()"
+              [colorPalette]="colorPalette"
+              icon="format_color_text"
+              title="Text color"
+              (colorSelected)="headerTextColor.set($event)"
+            ></app-color-picker>
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="headerShowPageNumber()"
+                (change)="headerShowPageNumber.set($any($event.target).checked)"
+                class="header-footer-dialog__checkbox"
+              />
+              <span>Show Page Number</span>
+            </label>
+          </div>
+          <div class="header-footer-dialog__field" *ngIf="headerShowPageNumber()">
+            <label class="header-footer-dialog__label">Page Number Format</label>
+            <select
+              class="header-footer-dialog__select"
+              [value]="headerPageNumberFormat()"
+              (change)="headerPageNumberFormat.set($any($event.target).value)"
+            >
+              <option *ngFor="let format of pageNumberFormats" [value]="format.value">
+                {{ format.label }} ({{ format.example }})
+              </option>
+            </select>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <!-- Footer Tab Content -->
+      <div class="header-footer-dialog__content" *ngIf="activeTab() === 'footer'">
+        <div class="header-footer-dialog__sections-grid header-footer-dialog__sections-grid--footer">
+        <!-- Left Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Left</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="footerLeftText()"
+              (input)="onFooterTextChange('left', $any($event.target).value)"
+              placeholder="Left text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="footerLeftImage()" class="header-footer-dialog__image-preview">
+                <img [src]="footerLeftImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeFooterImage('left')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onFooterImageUpload('left', $event)"
+                class="header-footer-dialog__file-input"
+                id="footerLeftImage"
+              />
+              <label for="footerLeftImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ footerLeftImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Center</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="footerCenterText()"
+              (input)="onFooterTextChange('center', $any($event.target).value)"
+              placeholder="Center text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Sub Text</label>
+            <input
+              type="text"
+              class="header-footer-dialog__input"
+              [value]="footerCenterSubText()"
+              (input)="onFooterSubTextChange($any($event.target).value)"
+              placeholder="Center sub text"
+            />
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="footerCenterImage()" class="header-footer-dialog__image-preview">
+                <img [src]="footerCenterImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeFooterImage('center')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onFooterImageUpload('center', $event)"
+                class="header-footer-dialog__file-input"
+                id="footerCenterImage"
+              />
+              <label for="footerCenterImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ footerCenterImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Section -->
+        <div class="header-footer-dialog__section">
+          <div class="header-footer-dialog__section-title">Right</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Image</label>
+            <div class="header-footer-dialog__image-upload">
+              <div *ngIf="footerRightImage()" class="header-footer-dialog__image-preview">
+                <img [src]="footerRightImage()" alt="Preview" />
+                <button
+                  type="button"
+                  class="header-footer-dialog__remove-image"
+                  (click)="removeFooterImage('right')"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                (change)="onFooterImageUpload('right', $event)"
+                class="header-footer-dialog__file-input"
+                id="footerRightImage"
+              />
+              <label for="footerRightImage" class="header-footer-dialog__file-label">
+                <app-icon name="upload_file"></app-icon>
+                <span>{{ footerRightImage() ? 'Change Image' : 'Upload Image' }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Common Settings -->
+        <div class="header-footer-dialog__section header-footer-dialog__section--full">
+          <div class="header-footer-dialog__section-title">Settings</div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__label">Text Color</label>
+            <app-color-picker
+              [currentColor]="footerTextColor()"
+              [colorPalette]="colorPalette"
+              icon="format_color_text"
+              title="Text color"
+              (colorSelected)="footerTextColor.set($event)"
+            ></app-color-picker>
+          </div>
+          <div class="header-footer-dialog__field">
+            <label class="header-footer-dialog__checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="footerShowPageNumber()"
+                (change)="footerShowPageNumber.set($any($event.target).checked)"
+                class="header-footer-dialog__checkbox"
+              />
+              <span>Show Page Number</span>
+            </label>
+          </div>
+          <div class="header-footer-dialog__field" *ngIf="footerShowPageNumber()">
+            <label class="header-footer-dialog__label">Page Number Format</label>
+            <select
+              class="header-footer-dialog__select"
+              [value]="footerPageNumberFormat()"
+              (change)="footerPageNumberFormat.set($any($event.target).value)"
+            >
+              <option *ngFor="let format of pageNumberFormats" [value]="format.value">
+                {{ format.label }} ({{ format.example }})
+              </option>
+            </select>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+
+  <ng-container appModalFooter>
+    <button
+      type="button"
+      class="header-footer-dialog__button header-footer-dialog__button--secondary"
+      (click)="cancel()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="header-footer-dialog__button header-footer-dialog__button--primary"
+      (click)="save()"
+    >
+      Save
+    </button>
+  </ng-container>
+</app-modal>

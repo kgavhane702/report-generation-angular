@@ -9,15 +9,33 @@ export interface DocumentModel {
   pageSize: PageSize;
   sections: SectionModel[];
   metadata?: Record<string, unknown>;
+  header?: HeaderConfig;
   footer?: FooterConfig;
   logo?: LogoConfig;
+}
+
+export interface HeaderConfig {
+  leftText?: string;
+  centerText?: string;
+  rightText?: string;
+  leftImage?: string; // base64 or URL
+  centerImage?: string;
+  rightImage?: string;
+  textColor?: string;
+  showPageNumber?: boolean;
+  pageNumberFormat?: 'arabic' | 'roman' | 'alphabetic'; // 1,2,3 | i,ii,iii | a,b,c
 }
 
 export interface FooterConfig {
   leftText?: string;
   centerText?: string;
   centerSubText?: string;
+  leftImage?: string; // base64 or URL
+  centerImage?: string;
+  rightImage?: string;
+  textColor?: string;
   showPageNumber?: boolean;
+  pageNumberFormat?: 'arabic' | 'roman' | 'alphabetic'; // 1,2,3 | i,ii,iii | a,b,c
 }
 
 export interface LogoConfig {

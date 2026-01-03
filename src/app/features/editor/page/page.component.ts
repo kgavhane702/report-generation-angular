@@ -18,6 +18,8 @@ import { EditorStateService } from '../../../core/services/editor-state.service'
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
 import { PageEntity } from '../../../store/document/document.state';
+import { formatPageNumber, PageNumberFormat } from '../../../core/utils/page-number-formatter.util';
+import { LogoConfig } from '../../../models/document.model';
 
 /**
  * PageComponent
@@ -91,9 +93,12 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     return `#${this.surfaceId}`;
   }
 
-  get displayLogoUrl(): string {
-    const logo = this.editorState.documentLogo();
-    return logo?.url || '/assets/logo.png';
+  get logoUrl(): string | undefined {
+    return this.editorState.documentLogo()?.url;
+  }
+
+  get logoPosition(): LogoConfig['position'] {
+    return this.editorState.documentLogo()?.position || 'top-right';
   }
 
   get footerLeftText(): string | undefined {
@@ -104,16 +109,88 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     return this.editorState.documentFooter()?.centerText;
   }
 
-  get footerSubText(): string | undefined {
+  get footerCenterSubText(): string | undefined {
     return this.editorState.documentFooter()?.centerSubText;
+  }
+
+  get footerLeftImage(): string | undefined {
+    return this.editorState.documentFooter()?.leftImage;
+  }
+
+  get footerCenterImage(): string | undefined {
+    return this.editorState.documentFooter()?.centerImage;
+  }
+
+  get footerRightImage(): string | undefined {
+    return this.editorState.documentFooter()?.rightImage;
+  }
+
+  get footerTextColor(): string {
+    return this.editorState.documentFooter()?.textColor || '#000000';
+  }
+
+  get headerLeftText(): string | undefined {
+    return this.editorState.documentHeader()?.leftText;
+  }
+
+  get headerCenterText(): string | undefined {
+    return this.editorState.documentHeader()?.centerText;
+  }
+
+  get headerRightText(): string | undefined {
+    return this.editorState.documentHeader()?.rightText;
+  }
+
+  get headerLeftImage(): string | undefined {
+    return this.editorState.documentHeader()?.leftImage;
+  }
+
+  get headerCenterImage(): string | undefined {
+    return this.editorState.documentHeader()?.centerImage;
+  }
+
+  get headerRightImage(): string | undefined {
+    return this.editorState.documentHeader()?.rightImage;
+  }
+
+  get headerTextColor(): string {
+    return this.editorState.documentHeader()?.textColor || '#000000';
+  }
+
+  get headerShowPageNumber(): boolean {
+    return this.editorState.documentHeader()?.showPageNumber || false;
+  }
+
+  get headerPageNumberFormat(): PageNumberFormat {
+    return this.editorState.documentHeader()?.pageNumberFormat || 'arabic';
   }
 
   get showPageNumber(): boolean {
     return this.editorState.documentFooter()?.showPageNumber !== false;
   }
+
+  get footerPageNumberFormat(): PageNumberFormat {
+    return this.editorState.documentFooter()?.pageNumberFormat || 'arabic';
+  }
   
   get pageNumber(): number {
     return this._pageData()?.number ?? 1;
+  }
+
+  get formattedPageNumber(): string {
+    const num = this.pageNumber;
+    if (this.showPageNumber) {
+      return formatPageNumber(num, this.footerPageNumberFormat);
+    }
+    if (this.headerShowPageNumber) {
+      return formatPageNumber(num, this.headerPageNumberFormat);
+    }
+    return num.toString();
+  }
+
+  get formattedHeaderPageNumber(): string {
+    if (!this.headerShowPageNumber) return '';
+    return formatPageNumber(this.pageNumber, this.headerPageNumberFormat);
   }
   
   get pageOrientation(): 'portrait' | 'landscape' {

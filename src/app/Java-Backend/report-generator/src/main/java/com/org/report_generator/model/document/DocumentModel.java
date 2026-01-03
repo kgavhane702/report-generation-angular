@@ -18,6 +18,7 @@ public class DocumentModel {
     private String title;
     private PageSize pageSize = new PageSize();
     private List<Section> sections = new ArrayList<>();
+    private HeaderConfig header;
     private FooterConfig footer;
     private LogoConfig logo;
 }

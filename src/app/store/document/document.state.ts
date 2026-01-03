@@ -1,6 +1,6 @@
 import { EntityState } from '@ngrx/entity';
 
-import { UUID, PageSize, FooterConfig, LogoConfig } from '../../models/document.model';
+import { UUID, PageSize, HeaderConfig, FooterConfig, LogoConfig } from '../../models/document.model';
 import { BackgroundSpec } from '../../models/page.model';
 import {
   WidgetType,
@@ -53,6 +53,7 @@ export interface DocumentMetaState {
   version: string;
   pageSize: PageSize;
   metadata?: Record<string, unknown>;
+  header?: HeaderConfig;
   footer?: FooterConfig;
   logo?: LogoConfig;
 }

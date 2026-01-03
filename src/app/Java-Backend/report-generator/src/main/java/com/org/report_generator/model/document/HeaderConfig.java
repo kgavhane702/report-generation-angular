@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class FooterConfig {
+public class HeaderConfig {
     private String leftText;
     private String centerText;
-    private String centerSubText;
+    private String rightText;
 
     private String leftImage;
     private String centerImage;
@@ -24,4 +24,5 @@ public class FooterConfig {
     private Boolean showPageNumber;
     private String pageNumberFormat; // 'arabic' | 'roman' | 'alphabetic'
 }
+
 

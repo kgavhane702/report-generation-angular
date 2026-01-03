@@ -55,6 +55,12 @@ const selectPageSize = createSelector(
   (meta) => meta.pageSize
 );
 
+/** Select document header */
+const selectDocumentHeader = createSelector(
+  selectDocumentMeta,
+  (meta) => meta.header
+);
+
 /** Select document footer */
 const selectDocumentFooter = createSelector(
   selectDocumentMeta,
@@ -386,6 +392,7 @@ export const DocumentSelectors = {
   selectDocumentMeta,
   selectDocumentTitle,
   selectPageSize,
+  selectDocumentHeader,
   selectDocumentFooter,
   selectDocumentLogo,
   

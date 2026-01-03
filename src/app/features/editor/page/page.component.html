@@ -7,13 +7,28 @@
 >
   <app-guides-overlay [pageId]="pageId" [widthPx]="widthPx" [heightPx]="heightPx"></app-guides-overlay>
 
-  <!-- Fixed Logo at Top Right -->
-  <div class="page__logo-placeholder">
-    <img
-      [src]="displayLogoUrl"
-      alt="Logo"
-      class="page__logo-image"
-    />
+  <!-- Fixed Header Elements at Top -->
+  <div class="page__header" *ngIf="headerLeftText || headerCenterText || headerRightText || headerLeftImage || headerCenterImage || headerRightImage || headerShowPageNumber || (logoUrl && (logoPosition === 'top-left' || logoPosition === 'top-right'))">
+    <!-- Top Left -->
+    <div class="page__header-left">
+      <img *ngIf="logoUrl && logoPosition === 'top-left'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img *ngIf="headerLeftImage" [src]="headerLeftImage" alt="Header left" class="page__header-image" />
+      <span *ngIf="headerLeftText" [style.color]="headerTextColor">{{ headerLeftText }}</span>
+    </div>
+    
+    <!-- Top Center -->
+    <div class="page__header-center">
+      <img *ngIf="headerCenterImage" [src]="headerCenterImage" alt="Header center" class="page__header-image" />
+      <span *ngIf="headerCenterText" [style.color]="headerTextColor">{{ headerCenterText }}</span>
+    </div>
+    
+    <!-- Top Right -->
+    <div class="page__header-right">
+      <img *ngIf="logoUrl && logoPosition === 'top-right'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img *ngIf="headerRightImage" [src]="headerRightImage" alt="Header right" class="page__header-image" />
+      <span *ngIf="headerRightText" [style.color]="headerTextColor">{{ headerRightText }}</span>
+      <span *ngIf="headerShowPageNumber && !headerRightText && !headerRightImage" [style.color]="headerTextColor">{{ formattedHeaderPageNumber }}</span>
+    </div>
   </div>
 
   <!-- 
@@ -34,28 +49,30 @@
   ></app-widget-container>
 
   <!-- Fixed Footer Elements at Bottom -->
-  <div class="page__footer" *ngIf="footerLeftText || footerCenterText || showPageNumber">
-    <!-- Bottom Left Text - Blue -->
-    <div class="page__footer-left" *ngIf="footerLeftText">
-      {{ footerLeftText }}
+  <div class="page__footer" *ngIf="footerLeftText || footerCenterText || footerCenterSubText || footerLeftImage || footerCenterImage || footerRightImage || showPageNumber || (logoUrl && (logoPosition === 'bottom-left' || logoPosition === 'bottom-right'))">
+    <!-- Bottom Left -->
+    <div class="page__footer-left">
+      <img *ngIf="logoUrl && logoPosition === 'bottom-left'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img *ngIf="footerLeftImage" [src]="footerLeftImage" alt="Footer left" class="page__footer-image" />
+      <span *ngIf="footerLeftText" [style.color]="footerTextColor">{{ footerLeftText }}</span>
     </div>
-    <div class="page__footer-left" *ngIf="!footerLeftText"></div>
     
-    <!-- Bottom Middle Text -->
-    <div class="page__footer-center" *ngIf="footerCenterText || footerSubText">
-      <div class="page__footer-center-line" *ngIf="footerCenterText">
+    <!-- Bottom Middle -->
+    <div class="page__footer-center">
+      <img *ngIf="footerCenterImage" [src]="footerCenterImage" alt="Footer center" class="page__footer-image" />
+      <div class="page__footer-center-line" *ngIf="footerCenterText" [style.color]="footerTextColor">
         {{ footerCenterText }}
       </div>
-      <div class="page__footer-center-line" *ngIf="footerSubText">
-        {{ footerSubText }}
+      <div class="page__footer-center-line" *ngIf="footerCenterSubText" [style.color]="footerTextColor">
+        {{ footerCenterSubText }}
       </div>
     </div>
-    <div class="page__footer-center" *ngIf="!footerCenterText && !footerSubText"></div>
     
     <!-- Bottom Right - Page Number -->
-    <div class="page__footer-right" *ngIf="showPageNumber">
-      {{ pageNumber }}
+    <div class="page__footer-right">
+      <img *ngIf="logoUrl && logoPosition === 'bottom-right'" [src]="logoUrl" alt="Logo" class="page__logo-image page__logo-image--inline" />
+      <img *ngIf="footerRightImage" [src]="footerRightImage" alt="Footer right" class="page__footer-image" />
+      <span *ngIf="showPageNumber" [style.color]="footerTextColor">{{ formattedPageNumber }}</span>
     </div>
-    <div class="page__footer-right" *ngIf="!showPageNumber"></div>
   </div>
 </div>

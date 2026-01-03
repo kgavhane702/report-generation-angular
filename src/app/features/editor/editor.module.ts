@@ -34,6 +34,7 @@ import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-html.directive';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
+import { HeaderFooterEditDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
 
 @NgModule({
@@ -75,6 +76,7 @@ import { AppIconComponent } from '../../shared/components/icon/icon.component';
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
     AppIconComponent,
+    HeaderFooterEditDialogComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],

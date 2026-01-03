@@ -5,6 +5,7 @@ import {
   PageSize,
   SectionModel,
   SubsectionModel,
+  HeaderConfig,
   FooterConfig,
   LogoConfig,
 } from '../../models/document.model';
@@ -158,6 +159,9 @@ export const DocumentMetaActions = createActionGroup({
     
     /** Update page size */
     'Update Page Size': props<{ pageSize: Partial<PageSize> }>(),
+    
+    /** Update header configuration */
+    'Update Header': props<{ header: HeaderConfig }>(),
     
     /** Update footer configuration */
     'Update Footer': props<{ footer: FooterConfig }>(),

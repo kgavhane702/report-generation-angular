@@ -75,6 +75,7 @@ public class ImageWidgetRenderer {
         int opacity = props.path("opacity").asInt(100);
         int borderWidth = props.path("borderWidth").asInt(0);
         String borderColor = props.path("borderColor").asText("#000000");
+        String borderStyleProp = props.path("borderStyle").asText("solid");
         int borderRadius = props.path("borderRadius").asInt(0);
         
         if (src.isBlank()) {
@@ -107,7 +108,13 @@ public class ImageWidgetRenderer {
         // Build border style
         String borderStyle = "";
         if (borderWidth > 0) {
-            borderStyle = "border: " + borderWidth + "px solid " + escapeHtmlAttribute(borderColor) + ";";
+            String bs = borderStyleProp == null ? "solid" : borderStyleProp.trim().toLowerCase();
+            if (bs.isBlank()) {
+                bs = "solid";
+            }
+            if (!"none".equals(bs)) {
+                borderStyle = "border: " + borderWidth + "px " + escapeHtmlAttribute(bs) + " " + escapeHtmlAttribute(borderColor) + ";";
+            }
         }
         
         // Build border radius style

@@ -51,21 +51,54 @@ public class PageStylesRenderer {
             }
         }
         
-        .page__logo-placeholder {
-            position: absolute;
-            top: 0;
-            right: 0;
-            z-index: 1000;
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            pointer-events: none;
-        }
-        
         .page__logo-image {
             max-height: 40px;
             max-width: 120px;
+            object-fit: contain;
+            display: block;
+        }
+
+        .page__logo-image--inline {
+            max-height: 26px;
+            max-width: 100px;
+        }
+
+        .page__header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 4px 20px;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.95);
+            min-height: 20px;
+            box-sizing: border-box;
+        }
+
+        .page__header-left,
+        .page__header-center,
+        .page__header-right {
+            font-size: 12px;
+            font-weight: 500;
+            flex: 1;
+            min-width: 0;
+            line-height: 1.2;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .page__header-left { justify-content: flex-start; text-align: left; }
+        .page__header-center { justify-content: center; text-align: center; }
+        .page__header-right { justify-content: flex-end; text-align: right; }
+
+        .page__header-image {
+            max-height: 30px;
+            max-width: 100px;
             object-fit: contain;
             display: block;
         }
@@ -88,18 +121,19 @@ public class PageStylesRenderer {
         
         .page__footer-left {
             font-size: 12px;
-            color: #1e40af;
             font-weight: 500;
             flex: 1;
             text-align: left;
             min-width: 0;
             line-height: 1.2;
             padding-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .page__footer-center {
             font-size: 12px;
-            color: #374151;
             font-weight: 500;
             flex: 1;
             text-align: center;
@@ -117,13 +151,23 @@ public class PageStylesRenderer {
         
         .page__footer-right {
             font-size: 12px;
-            color: #374151;
             font-weight: 500;
             flex: 1;
             text-align: right;
             min-width: 0;
             line-height: 1.2;
             padding-bottom: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .page__footer-image {
+            max-height: 30px;
+            max-width: 100px;
+            object-fit: contain;
+            display: block;
         }
         """;
     

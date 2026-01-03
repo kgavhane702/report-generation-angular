@@ -3,6 +3,7 @@ package com.org.report_generator.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.MissingNode;
 import com.org.report_generator.model.document.DocumentModel;
+import com.org.report_generator.model.document.HeaderConfig;
 import com.org.report_generator.model.document.FooterConfig;
 import com.org.report_generator.model.document.LogoConfig;
 import com.org.report_generator.model.document.Page;
@@ -135,7 +136,7 @@ public class DocumentRenderService {
                 .append(heightPx)
                 .append("px;\">");
 
-        builder.append(renderLogo(document, widthPx, heightPx));
+        builder.append(renderHeader(document, page));
 
         if (page.getWidgets() != null) {
             for (Widget widget : page.getWidgets()) {
@@ -294,83 +295,202 @@ public class DocumentRenderService {
         return escapeHtml(input);
     }
 
-    private String renderLogo(DocumentModel document, double pageWidth, double pageHeight) {
+    private String renderHeader(DocumentModel document, Page page) {
+        HeaderConfig header = document.getHeader();
         LogoConfig logo = document.getLogo();
-        if (logo == null || logo.getUrl() == null || logo.getUrl().isBlank()) {
+
+        boolean hasLogoTop = logo != null
+                && logo.getUrl() != null
+                && !logo.getUrl().isBlank()
+                && ("top-left".equalsIgnoreCase(logo.getPosition()) || "top-right".equalsIgnoreCase(logo.getPosition()));
+
+        boolean hasContent = header != null && (
+                (header.getLeftText() != null && !header.getLeftText().isBlank()) ||
+                (header.getCenterText() != null && !header.getCenterText().isBlank()) ||
+                (header.getRightText() != null && !header.getRightText().isBlank()) ||
+                (header.getLeftImage() != null && !header.getLeftImage().isBlank()) ||
+                (header.getCenterImage() != null && !header.getCenterImage().isBlank()) ||
+                (header.getRightImage() != null && !header.getRightImage().isBlank()) ||
+                (header.getShowPageNumber() != null && header.getShowPageNumber())
+        );
+
+        if (!hasContent && !hasLogoTop) {
             return "";
         }
 
-        String position = Optional.ofNullable(logo.getPosition()).orElse("top-right").toLowerCase(Locale.ROOT);
-        String style = "position: absolute; z-index: 1000; padding: 12px 16px; pointer-events: none;";
+        String textColor = header != null && header.getTextColor() != null && !header.getTextColor().isBlank()
+                ? header.getTextColor()
+                : "#000000";
+        String colorStyle = "color: " + escapeHtmlAttribute(textColor) + ";";
 
-        switch (position) {
-            case "top-left":
-                style += "top: 0; left: 0;";
-                break;
-            case "top-right":
-                style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
-                break;
-            case "bottom-left":
-                style += "bottom: 0; left: 0;";
-                break;
-            case "bottom-right":
-                style += "bottom: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
-                break;
-            default:
-                style += "top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end;";
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div class=\"page__header\">");
+
+        // Left
+        sb.append("<div class=\"page__header-left\">");
+        if (hasLogoTop && "top-left".equalsIgnoreCase(logo.getPosition())) {
+            sb.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
         }
+        if (header != null) {
+            if (header.getLeftImage() != null && !header.getLeftImage().isBlank()) {
+                sb.append("<img src=\"").append(escapeHtmlAttribute(header.getLeftImage())).append("\" alt=\"Header left\" class=\"page__header-image\" />");
+            }
+            if (header.getLeftText() != null && !header.getLeftText().isBlank()) {
+                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getLeftText())).append("</span>");
+            }
+        }
+        sb.append("</div>");
 
-        String escapedStyle = escapeHtmlAttribute(style);
-        String escapedUrl = escapeHtmlAttribute(logo.getUrl());
-        return "<div class=\"page__logo-placeholder\" style=\"" + escapedStyle + "\">" +
-                "<img src=\"" + escapedUrl + "\" alt=\"Logo\" class=\"page__logo-image\" />" +
-                "</div>";
+        // Center
+        sb.append("<div class=\"page__header-center\">");
+        if (header != null) {
+            if (header.getCenterImage() != null && !header.getCenterImage().isBlank()) {
+                sb.append("<img src=\"").append(escapeHtmlAttribute(header.getCenterImage())).append("\" alt=\"Header center\" class=\"page__header-image\" />");
+            }
+            if (header.getCenterText() != null && !header.getCenterText().isBlank()) {
+                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getCenterText())).append("</span>");
+            }
+        }
+        sb.append("</div>");
+
+        // Right
+        sb.append("<div class=\"page__header-right\">");
+        if (hasLogoTop && "top-right".equalsIgnoreCase(logo.getPosition())) {
+            sb.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+        }
+        boolean hasRightText = header != null && header.getRightText() != null && !header.getRightText().isBlank();
+        boolean hasRightImage = header != null && header.getRightImage() != null && !header.getRightImage().isBlank();
+        if (header != null) {
+            if (hasRightImage) {
+                sb.append("<img src=\"").append(escapeHtmlAttribute(header.getRightImage())).append("\" alt=\"Header right\" class=\"page__header-image\" />");
+            }
+            if (hasRightText) {
+                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getRightText())).append("</span>");
+            }
+            if ((header.getShowPageNumber() != null && header.getShowPageNumber()) && !hasRightText && !hasRightImage && page.getNumber() != null) {
+                String formatted = formatPageNumber(page.getNumber(), header.getPageNumberFormat());
+                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(formatted)).append("</span>");
+            }
+        }
+        sb.append("</div>");
+
+        sb.append("</div>");
+        return sb.toString();
+    }
+
+    private String formatPageNumber(int pageNumber, String format) {
+        String f = format == null ? "arabic" : format.toLowerCase(Locale.ROOT);
+        return switch (f) {
+            case "roman" -> toRoman(pageNumber).toLowerCase(Locale.ROOT);
+            case "alphabetic" -> toAlphabetic(pageNumber).toLowerCase(Locale.ROOT);
+            default -> Integer.toString(pageNumber);
+        };
+    }
+
+    private String toRoman(int number) {
+        if (number <= 0) return "";
+        int[] values = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
+        String[] numerals = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
+        StringBuilder sb = new StringBuilder();
+        int n = number;
+        for (int i = 0; i < values.length; i++) {
+            while (n >= values[i]) {
+                sb.append(numerals[i]);
+                n -= values[i];
+            }
+        }
+        return sb.toString();
+    }
+
+    private String toAlphabetic(int number) {
+        if (number <= 0) return "";
+        StringBuilder sb = new StringBuilder();
+        int n = number;
+        while (n > 0) {
+            n--; // 1 -> a
+            char c = (char) ('A' + (n % 26));
+            sb.insert(0, c);
+            n /= 26;
+        }
+        return sb.toString();
     }
 
     private String renderFooter(DocumentModel document, Page page, double pageWidth, double pageHeight) {
         FooterConfig footer = document.getFooter();
-        if (footer == null) {
+        LogoConfig logo = document.getLogo();
+        if (footer == null && (logo == null || logo.getUrl() == null || logo.getUrl().isBlank())) {
             return "";
         }
 
-        boolean hasContent = (footer.getLeftText() != null && !footer.getLeftText().isBlank()) ||
-                            (footer.getCenterText() != null && !footer.getCenterText().isBlank()) ||
-                            (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) ||
-                            (footer.getShowPageNumber() != null && footer.getShowPageNumber());
+        boolean hasLogoBottom = logo != null
+                && logo.getUrl() != null
+                && !logo.getUrl().isBlank()
+                && ("bottom-left".equalsIgnoreCase(logo.getPosition()) || "bottom-right".equalsIgnoreCase(logo.getPosition()));
 
-        if (!hasContent) {
+        boolean hasContent = footer != null && (
+                (footer.getLeftText() != null && !footer.getLeftText().isBlank()) ||
+                (footer.getCenterText() != null && !footer.getCenterText().isBlank()) ||
+                (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) ||
+                (footer.getLeftImage() != null && !footer.getLeftImage().isBlank()) ||
+                (footer.getCenterImage() != null && !footer.getCenterImage().isBlank()) ||
+                (footer.getRightImage() != null && !footer.getRightImage().isBlank()) ||
+                (footer.getShowPageNumber() != null && footer.getShowPageNumber())
+        );
+
+        if (!hasContent && !hasLogoBottom) {
             return "";
         }
+
+        String textColor = footer != null && footer.getTextColor() != null && !footer.getTextColor().isBlank()
+                ? footer.getTextColor()
+                : "#000000";
+        String colorStyle = "color: " + escapeHtmlAttribute(textColor) + ";";
 
         StringBuilder footerHtml = new StringBuilder();
         footerHtml.append("<div class=\"page__footer\">");
 
         footerHtml.append("<div class=\"page__footer-left\">");
-        if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
-            footerHtml.append(escapeHtml(footer.getLeftText()));
-        } else {
-            footerHtml.append("&nbsp;");
+        if (hasLogoBottom && "bottom-left".equalsIgnoreCase(logo.getPosition())) {
+            footerHtml.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+        }
+        if (footer != null) {
+            if (footer.getLeftImage() != null && !footer.getLeftImage().isBlank()) {
+                footerHtml.append("<img src=\"").append(escapeHtmlAttribute(footer.getLeftImage())).append("\" alt=\"Footer left\" class=\"page__footer-image\" />");
+            }
+            if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
+                footerHtml.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(footer.getLeftText())).append("</span>");
+            }
         }
         footerHtml.append("</div>");
 
         footerHtml.append("<div class=\"page__footer-center\">");
-        if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
-            footerHtml.append("<div class=\"page__footer-center-line\">").append(escapeHtml(footer.getCenterText())).append("</div>");
-        }
-        if (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) {
-            footerHtml.append("<div class=\"page__footer-center-line\">").append(escapeHtml(footer.getCenterSubText())).append("</div>");
-        }
-        if ((footer.getCenterText() == null || footer.getCenterText().isBlank()) && 
-            (footer.getCenterSubText() == null || footer.getCenterSubText().isBlank())) {
-            footerHtml.append("&nbsp;");
+        if (footer != null) {
+            if (footer.getCenterImage() != null && !footer.getCenterImage().isBlank()) {
+                footerHtml.append("<img src=\"").append(escapeHtmlAttribute(footer.getCenterImage())).append("\" alt=\"Footer center\" class=\"page__footer-image\" />");
+            }
+            if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
+                footerHtml.append("<div class=\"page__footer-center-line\" style=\"").append(colorStyle).append("\">")
+                        .append(escapeHtml(footer.getCenterText())).append("</div>");
+            }
+            if (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) {
+                footerHtml.append("<div class=\"page__footer-center-line\" style=\"").append(colorStyle).append("\">")
+                        .append(escapeHtml(footer.getCenterSubText())).append("</div>");
+            }
         }
         footerHtml.append("</div>");
 
         footerHtml.append("<div class=\"page__footer-right\">");
-        if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
-            footerHtml.append(page.getNumber());
-        } else {
-            footerHtml.append("&nbsp;");
+        if (hasLogoBottom && "bottom-right".equalsIgnoreCase(logo.getPosition())) {
+            footerHtml.append("<img src=\"").append(escapeHtmlAttribute(logo.getUrl())).append("\" alt=\"Logo\" class=\"page__logo-image page__logo-image--inline\" />");
+        }
+        if (footer != null) {
+            if (footer.getRightImage() != null && !footer.getRightImage().isBlank()) {
+                footerHtml.append("<img src=\"").append(escapeHtmlAttribute(footer.getRightImage())).append("\" alt=\"Footer right\" class=\"page__footer-image\" />");
+            }
+            if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
+                String formatted = formatPageNumber(page.getNumber(), footer.getPageNumberFormat());
+                footerHtml.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(formatted)).append("</span>");
+            }
         }
         footerHtml.append("</div>");
 

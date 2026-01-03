@@ -27,6 +27,7 @@ import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
+import { HeaderFooterEditDialogComponent } from '../header-footer-edit-dialog/header-footer-edit-dialog.component';
 
 @Component({
   selector: 'app-editor-toolbar',
@@ -94,6 +95,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   isEditingDocumentName = false;
   documentNameValue = '';
   @ViewChild('documentNameInputRef') documentNameInputRef?: ElementRef<HTMLInputElement>;
+
+  // Header/Footer dialog
+  @ViewChild(HeaderFooterEditDialogComponent) headerFooterDialog?: HeaderFooterEditDialogComponent;
 
   addWidget(type: WidgetType): void {
     const pageId = this.editorState.activePageId();
@@ -404,6 +408,10 @@ export class EditorToolbarComponent implements AfterViewInit {
     } else {
       alert(`Import failed: ${result.error || 'Unknown error'}`);
     }
+  }
+
+  openHeaderFooterDialog(): void {
+    this.headerFooterDialog?.openDialog();
   }
 
   async downloadPDF(): Promise<void> {

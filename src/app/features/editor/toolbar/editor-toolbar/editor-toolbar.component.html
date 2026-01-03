@@ -117,6 +117,14 @@
   <div class="editor-toolbar__group editor-toolbar__group--export">
     <button
       type="button"
+      class="editor-toolbar__icon-button"
+      (click)="openHeaderFooterDialog()"
+      title="Edit Header & Footer"
+    >
+      <app-icon name="tune" [size]="18"></app-icon>
+    </button>
+    <button
+      type="button"
       class="editor-toolbar__icon-button editor-toolbar__icon-button--export"
       (click)="exportDocument()"
       title="Export document as JSON file"
@@ -217,4 +225,5 @@
   </ng-container>
 </app-modal>
 
+<app-header-footer-edit-dialog></app-header-footer-edit-dialog>
 

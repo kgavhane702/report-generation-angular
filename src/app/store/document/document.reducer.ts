@@ -479,6 +479,15 @@ export const documentReducer = createReducer(
     };
   }),
   
+  on(DocumentMetaActions.updateHeader, (state, { header }) => {
+    return {
+      normalized: {
+        ...state.normalized,
+        meta: { ...state.normalized.meta, header },
+      },
+    };
+  }),
+  
   on(DocumentMetaActions.updateFooter, (state, { footer }) => {
     return {
       normalized: {

@@ -93,6 +93,12 @@ export class EditorStateService {
     { initialValue: { widthMm: 254, heightMm: 190.5, dpi: 96 } }
   );
   
+  /** Document header */
+  readonly documentHeader = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentHeader),
+    { initialValue: undefined }
+  );
+
   /** Document footer */
   readonly documentFooter = toSignal(
     this.store.select(DocumentSelectors.selectDocumentFooter),
