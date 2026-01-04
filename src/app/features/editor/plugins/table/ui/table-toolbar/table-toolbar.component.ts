@@ -209,6 +209,12 @@ export class TableToolbarComponent {
     this.toolbarService.requestMergeCells();
   }
 
+  onFitRowClick(event: MouseEvent): void {
+    event.preventDefault();
+    if (!this.hasActiveCell) return;
+    this.toolbarService.requestFitRowToContent();
+  }
+
   onCellFillSelected(color: string): void {
     if (!this.hasActiveCell) return;
     this.cellFillColor = color;

@@ -465,10 +465,19 @@ export class EditastraToolbarComponent {
     input.click();
   }
 
+  onResetImageSizeClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasActiveEditor) return;
+    this.toolbarService.resetActiveInlineImageSize();
+  }
+
   onImageFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files && input.files.length ? input.files[0] : null;
     if (!file) return;
+
+    const altFromName = (file.name ?? '').replace(/\.[^.]+$/, '').trim();
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -477,7 +486,7 @@ export class EditastraToolbarComponent {
 
       // Restore focus/selection to the editor and insert at the saved caret position.
       this.restoreSelectionForImage();
-      this.toolbarService.insertImageAtCursor(dataUrl);
+      this.toolbarService.insertImageAtCursor(dataUrl, { alt: altFromName });
     };
     reader.readAsDataURL(file);
   }

@@ -121,6 +121,18 @@
     >
       <app-icon name="delete_col" [size]="18"></app-icon>
     </button>
+
+    <div class="table-toolbar__mini-separator" aria-hidden="true"></div>
+
+    <button
+      type="button"
+      class="table-toolbar__button"
+      [disabled]="!hasActiveCell"
+      (mousedown)="onFitRowClick($event)"
+      title="Fit row height to content"
+    >
+      <app-icon name="fit_contain"></app-icon>
+    </button>
   </div>
 
   <div class="table-toolbar__separator"></div>

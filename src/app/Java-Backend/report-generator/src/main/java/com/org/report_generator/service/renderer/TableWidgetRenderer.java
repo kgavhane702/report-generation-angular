@@ -232,6 +232,14 @@ public class TableWidgetRenderer {
         .widget-table .tw-resizable-image--right { float: right; margin: 0.1em 0 0.1em 0.5em; }
         .widget-table .tw-resizable-image--block { display: block; float: none; clear: both; margin: 0.35em auto; }
 
+        /* Clear floated images so container height includes them (prevents clipped content) */
+        .widget-table .table-widget__cell-content::after {
+            content: '';
+            display: block;
+            clear: both;
+            height: 0;
+        }
+
         /* Hide resize handle in exported output */
         .widget-table .tw-resizable-image__handle { display: none !important; }
         

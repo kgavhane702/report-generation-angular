@@ -3,6 +3,7 @@ import {
   Component,
   ElementRef,
   EventEmitter,
+  inject,
   Input,
   Output,
   ViewChild,
@@ -12,6 +13,7 @@ import { ViewEncapsulation } from '@angular/core';
 
 import { TwSafeInnerHtmlDirective } from '../../../../../shared/directives/tw-safe-inner-html.directive';
 import { SafeHtmlPipe } from '../../../../../shared/pipes/safe-html.pipe';
+import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
 
 /**
  * EditastraEditorComponent
@@ -34,6 +36,8 @@ import { SafeHtmlPipe } from '../../../../../shared/pipes/safe-html.pipe';
   encapsulation: ViewEncapsulation.None,
 })
 export class EditastraEditorComponent {
+  private readonly toolbarService = inject(TableToolbarService);
+
   @Input() html = '';
   @Input() placeholder = 'Type here...';
   @Input() disabled = false;
@@ -87,6 +91,91 @@ export class EditastraEditorComponent {
 
   onKeydown(event: KeyboardEvent): void {
     this.editorKeydown.emit(event);
+  }
+
+  onPaste(event: ClipboardEvent): void {
+    if (!this.isEditable) return;
+
+    const dt = event.clipboardData;
+    const items = dt?.items ? Array.from(dt.items) : [];
+    if (items.length === 0) return;
+
+    const fileItem = items.find((it) => it.kind === 'file' && (it.type ?? '').toLowerCase().startsWith('image/')) ?? null;
+    const file = fileItem?.getAsFile?.() ?? null;
+    if (!file) return;
+
+    // We will insert a data:image so it persists in JSON/PDF; prevent the browser from inserting blob URLs.
+    event.preventDefault();
+    event.stopPropagation();
+
+    const altFromName = (file.name ?? '').replace(/\.[^.]+$/, '').trim();
+
+    // Preserve caret before async FileReader.
+    this.toolbarService.snapshotSelection();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      this.toolbarService.insertImageAtCursor(dataUrl, { alt: altFromName });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  onDragOver(event: DragEvent): void {
+    if (!this.isEditable) return;
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const f0 = files[0];
+    if ((f0?.type ?? '').toLowerCase().startsWith('image/')) {
+      event.preventDefault();
+    }
+  }
+
+  onDrop(event: DragEvent): void {
+    if (!this.isEditable) return;
+    const files = event.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!((file?.type ?? '').toLowerCase().startsWith('image/'))) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // Try to place caret at drop point (best-effort).
+    try {
+      const docAny = document as any;
+      let range: Range | null = null;
+      if (typeof docAny.caretRangeFromPoint === 'function') {
+        range = docAny.caretRangeFromPoint(event.clientX, event.clientY) as Range | null;
+      } else if (typeof docAny.caretPositionFromPoint === 'function') {
+        const pos = docAny.caretPositionFromPoint(event.clientX, event.clientY) as { offsetNode: Node; offset: number } | null;
+        if (pos?.offsetNode) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, Math.max(0, pos.offset ?? 0));
+          range.collapse(true);
+        }
+      }
+      if (range) {
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    } catch {
+      // ignore
+    }
+
+    const altFromName = (file.name ?? '').replace(/\.[^.]+$/, '').trim();
+
+    this.toolbarService.snapshotSelection();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      this.toolbarService.insertImageAtCursor(dataUrl, { alt: altFromName });
+    };
+    reader.readAsDataURL(file);
   }
 }
 

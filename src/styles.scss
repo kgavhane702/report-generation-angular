@@ -154,6 +154,11 @@ app-root {
   position: relative;
 }
 
+.tw-resizable-image:focus {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 2px;
+}
+
 .tw-resizable-image img,
 .tw-resizable-image svg {
   display: block;
@@ -218,4 +223,13 @@ app-root {
   background:
     linear-gradient(135deg, transparent 42%, rgba(15, 23, 42, 0.55) 42%, rgba(15, 23, 42, 0.55) 52%, transparent 52%),
     linear-gradient(135deg, transparent 62%, rgba(15, 23, 42, 0.35) 62%, rgba(15, 23, 42, 0.35) 72%, transparent 72%);
+}
+
+// Clear floated images so editor height/scrollHeight includes them (prevents clipped content after wrap-left/right).
+.editastra-editor__surface::after,
+.table-widget__cell-editor::after {
+  content: '';
+  display: block;
+  clear: both;
+  height: 0;
 }

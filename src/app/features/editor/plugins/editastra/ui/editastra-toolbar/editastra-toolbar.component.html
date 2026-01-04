@@ -135,6 +135,18 @@
             <app-icon [name]="$any(p).icon"></app-icon>
           </button>
 
+          <!-- Reset selected image size -->
+          <button
+            *ngSwitchCase="'reset-image-size'"
+            type="button"
+            class="table-toolbar__button"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onResetImageSizeClick($event)"
+            [attr.title]="$any(p).title"
+          >
+            <app-icon [name]="$any(p).icon"></app-icon>
+          </button>
+
           <!-- Text align buttons -->
           <button
             *ngSwitchCase="'align'"

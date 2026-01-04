@@ -41,6 +41,14 @@ export interface TableDeleteRequest {
   axis: 'row' | 'col';
 }
 
+export interface TableFitRowRequest {
+  /**
+   * Fit the active row (or selected rows if multi-cell selection exists) to content.
+   * This is a transient editing action handled by TableWidgetComponent.
+   */
+  kind: 'fit-active-or-selection';
+}
+
 export interface TableImportFromExcelRequest {
   widgetId: string;
   rows: Array<{
@@ -90,6 +98,7 @@ export class TableToolbarService {
   private readonly lineHeightRequestedSubject = new Subject<string>();
   private readonly insertRequestedSubject = new Subject<TableInsertRequest>();
   private readonly deleteRequestedSubject = new Subject<TableDeleteRequest>();
+  private readonly fitRowRequestedSubject = new Subject<TableFitRowRequest>();
   // format painter removed (will be reworked later)
   private readonly importFromExcelRequestedSubject = new Subject<TableImportFromExcelRequest>();
 
@@ -116,6 +125,7 @@ export class TableToolbarService {
   public readonly lineHeightRequested$: Observable<string> = this.lineHeightRequestedSubject.asObservable();
   public readonly insertRequested$: Observable<TableInsertRequest> = this.insertRequestedSubject.asObservable();
   public readonly deleteRequested$: Observable<TableDeleteRequest> = this.deleteRequestedSubject.asObservable();
+  public readonly fitRowRequested$: Observable<TableFitRowRequest> = this.fitRowRequestedSubject.asObservable();
   public readonly importFromExcelRequested$: Observable<TableImportFromExcelRequest> =
     this.importFromExcelRequestedSubject.asObservable();
   public readonly tableOptionsRequested$: Observable<{ options: TableSectionOptions; widgetId: string }> = this.tableOptionsRequestedSubject.asObservable();
@@ -154,6 +164,13 @@ export class TableToolbarService {
 
   /** Cache the last selection range inside the active cell so toolbar interactions can restore it. */
   private lastSelectionRange: Range | null = null;
+
+  /**
+   * Track the last clicked/focused image wrapper inside the active editor so toolbar actions
+   * (align, reset size, etc.) can reliably target images even when the caret isn't adjacent.
+   */
+  private activeResizableImageWrapper: HTMLElement | null = null;
+  private activeCellMouseDownListener: ((ev: MouseEvent) => void) | null = null;
 
   private hasTextSelectionInActiveCell(): boolean {
     const cell = this.activeCell;
@@ -217,6 +234,10 @@ export class TableToolbarService {
     this.deleteRequestedSubject.next(request);
   }
 
+  requestFitRowToContent(): void {
+    this.fitRowRequestedSubject.next({ kind: 'fit-active-or-selection' });
+  }
+
   requestImportTableFromExcel(request: TableImportFromExcelRequest): void {
     this.importFromExcelRequestedSubject.next(request);
   }
@@ -245,16 +266,57 @@ export class TableToolbarService {
    */
   setSelectedCells(cells: Set<string>): void {
     this.selectedCellsSubject.next(cells);
+    // If user is operating on a multi-cell selection, prefer cell formatting over image controls.
+    if ((cells?.size ?? 0) > 1) {
+      this.activeResizableImageWrapper = null;
+    }
   }
 
   /**
    * Register a cell as the active one for formatting
    */
   setActiveCell(cell: HTMLElement | null, widgetId: string | null): void {
+    // Remove delegated listener from previous active cell.
+    const prev = this.activeCellSubject.value;
+    if (prev && this.activeCellMouseDownListener) {
+      try {
+        prev.removeEventListener('mousedown', this.activeCellMouseDownListener, true);
+      } catch {
+        // ignore
+      }
+    }
+    this.activeCellMouseDownListener = null;
+    this.activeResizableImageWrapper = null;
+
     this.activeCellSubject.next(cell);
     this.activeTableWidgetIdSubject.next(widgetId);
     
     if (cell) {
+      // Delegate clicks on images to capture "active image" without mutating persisted HTML.
+      this.activeCellMouseDownListener = (ev: MouseEvent) => {
+        const target = ev.target as Element | null;
+        const wrapper = (target?.closest?.('.tw-resizable-image') as HTMLElement | null) ?? null;
+        if (wrapper && cell.contains(wrapper)) {
+          this.activeResizableImageWrapper = wrapper;
+          // Make existing images focusable for better UX (outline via :focus). This is safe to persist.
+          if (!wrapper.hasAttribute('tabindex')) {
+            wrapper.setAttribute('tabindex', '0');
+          }
+          try {
+            wrapper.focus?.();
+          } catch {
+            // ignore
+          }
+        } else {
+          this.activeResizableImageWrapper = null;
+        }
+      };
+      try {
+        cell.addEventListener('mousedown', this.activeCellMouseDownListener, true);
+      } catch {
+        // ignore
+      }
+
       this.updateFormattingState();
     }
   }
@@ -767,17 +829,21 @@ export class TableToolbarService {
    * Apply text alignment to selected cells or active cell
    */
   applyTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
-    // If the caret is currently adjacent to (or selecting) a resizable image wrapper,
-    // interpret align buttons as IMAGE layout controls.
-    const activeImage = this.getActiveResizableImageWrapper();
-    if (activeImage && this.activeCell) {
-      this.applyImageAlign(activeImage, align);
-      try {
-        this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-align' } }));
-      } catch {
-        // Best-effort.
+    // If the user explicitly selected text or multiple cells, alignment should affect text/cells, not images.
+    const selectedCount = this.getSelectedCellsCount();
+    const hasTextSelection = this.hasTextSelectionInActiveCell();
+    if (!hasTextSelection && selectedCount <= 1) {
+      // If an image wrapper is active (focused/clicked/caret-adjacent), interpret align as IMAGE layout control.
+      const activeImage = this.getActiveResizableImageWrapper();
+      if (activeImage && this.activeCell) {
+        this.applyImageAlign(activeImage, align);
+        try {
+          this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-align' } }));
+        } catch {
+          // Best-effort.
+        }
+        return;
       }
-      return;
     }
 
     const cells = this.getSelectedCellElements?.() ?? [];
@@ -1138,7 +1204,7 @@ export class TableToolbarService {
    * - Center: block (above/below)
    * - Justify: inline glyph (reset)
    */
-  insertImageAtCursor(dataUrl: string): void {
+  insertImageAtCursor(dataUrl: string, options?: { alt?: string }): void {
     const cell = this.activeCell;
     if (!cell) return;
 
@@ -1153,6 +1219,7 @@ export class TableToolbarService {
     wrapper.className = 'tw-resizable-image tw-resizable-image--inline';
     wrapper.setAttribute('data-tw-resizable-image', '1');
     wrapper.setAttribute('contenteditable', 'false');
+    wrapper.setAttribute('tabindex', '0');
 
     const isInTableCell = !!cell.closest('.widget-table');
 
@@ -1176,7 +1243,7 @@ export class TableToolbarService {
         // Fallback: render as <img> (won't inherit font color, but still works).
         const img = document.createElement('img');
         img.src = dataUrl;
-        img.alt = '';
+        img.alt = (options?.alt ?? '').toString();
         img.setAttribute('draggable', 'false');
         img.addEventListener('load', () => {
           try {
@@ -1190,7 +1257,7 @@ export class TableToolbarService {
     } else {
       const img = document.createElement('img');
       img.src = dataUrl;
-      img.alt = '';
+      img.alt = (options?.alt ?? '').toString();
       img.setAttribute('draggable', 'false');
       img.addEventListener('load', () => {
         try {
@@ -1303,6 +1370,37 @@ export class TableToolbarService {
     this.updateFormattingState();
   }
 
+  /**
+   * Reset the currently active/selected inline image back to its default "insert" size.
+   * - Table: 1em (glyph-size)
+   * - Editastra: 4em (raster), 1.2em (SVG glyph)
+   */
+  resetActiveInlineImageSize(): void {
+    const cell = this.activeCell;
+    if (!cell) return;
+
+    const wrapper = this.getActiveResizableImageWrapper();
+    if (!wrapper || !cell.contains(wrapper)) return;
+
+    const isInTableCell = !!cell.closest('.widget-table');
+    const isSvgWrapper = wrapper.getAttribute('data-tw-svg') === '1' || !!wrapper.querySelector('svg');
+
+    if (isSvgWrapper) {
+      const glyph = isInTableCell ? '1em' : '1.2em';
+      wrapper.style.width = glyph;
+      wrapper.style.height = glyph;
+    } else {
+      wrapper.style.width = isInTableCell ? '1em' : '4em';
+      wrapper.style.removeProperty('height');
+    }
+
+    try {
+      cell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-reset-size' } }));
+    } catch {
+      // Best-effort.
+    }
+  }
+
   private isSvgDataUrl(dataUrl: string): boolean {
     const v = (dataUrl ?? '').trim().toLowerCase();
     return v.startsWith('data:image/svg+xml');
@@ -1402,6 +1500,17 @@ export class TableToolbarService {
   private getActiveResizableImageWrapper(): HTMLElement | null {
     const cell = this.activeCell;
     if (!cell) return null;
+
+    // Prefer focused image wrapper.
+    const activeEl = document.activeElement as HTMLElement | null;
+    if (activeEl && activeEl.classList?.contains('tw-resizable-image') && cell.contains(activeEl)) {
+      return activeEl;
+    }
+
+    // Prefer last clicked image wrapper in this active cell.
+    if (this.activeResizableImageWrapper && this.activeResizableImageWrapper.isConnected && cell.contains(this.activeResizableImageWrapper)) {
+      return this.activeResizableImageWrapper;
+    }
 
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;

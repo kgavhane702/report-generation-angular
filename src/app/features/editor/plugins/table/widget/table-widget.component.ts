@@ -44,6 +44,7 @@ import {
   CellBorderRequest,
   SplitCellRequest,
   TableDeleteRequest,
+  TableFitRowRequest,
   TableInsertRequest,
   TableImportFromExcelRequest,
   TableToolbarService,
@@ -385,6 +386,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private mergeSubscription?: Subscription;
   private insertSubscription?: Subscription;
   private deleteSubscription?: Subscription;
+  private fitRowSubscription?: Subscription;
   private textAlignSubscription?: Subscription;
   private verticalAlignSubscription?: Subscription;
   private cellBackgroundSubscription?: Subscription;
@@ -725,6 +727,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         return;
       }
       this.applyDelete(request);
+    });
+
+    this.fitRowSubscription = this.toolbarService.fitRowRequested$.subscribe((request: TableFitRowRequest) => {
+      if (this.toolbarService.activeTableWidgetId !== this.widget.id) {
+        return;
+      }
+      if (request.kind !== 'fit-active-or-selection') {
+        return;
+      }
+      this.fitActiveOrSelectedRowsToContent();
     });
 
     this.tableOptionsSubscription = this.toolbarService.tableOptionsRequested$.subscribe(({ options, widgetId }) => {
@@ -1457,6 +1469,135 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     };
   }
 
+  private fitActiveOrSelectedRowsToContent(): void {
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+
+    // Ensure our model reflects any in-progress DOM edits before measuring.
+    this.syncCellContent();
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    if (rowCount <= 0) return;
+
+    const ids = this.selectedCells().size > 0 ? Array.from(this.selectedCells()) : (this.activeCellId ? [this.activeCellId] : []);
+    if (ids.length === 0) return;
+
+    const targetRows = new Set<number>();
+    for (const id of ids) {
+      const parsed = this.parseLeafId(id);
+      if (!parsed) continue;
+      const r = Math.max(0, Math.min(rowCount - 1, Math.trunc(parsed.row)));
+      targetRows.add(r);
+    }
+    if (targetRows.size === 0) return;
+
+    const rect = this.getTableRect();
+    if (!rect) return;
+
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const tableHeightPx = Math.max(1, rect.height / zoomScale);
+
+    const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+    const currentHeightsPx = baseFractions.map((f) => f * tableHeightPx);
+
+    const contentMinHeightsPx = Array.from({ length: rowCount }, (_, r) =>
+      Math.max(this.minRowPx, this.computeMinTopLevelRowHeightPx(r, currentHeightsPx, zoomScale, 'autoFit'))
+    );
+    const contentMinSumPx = contentMinHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+    if (Number.isFinite(contentMinSumPx) && contentMinSumPx > 0) {
+      this.setContentMinHeights(contentMinSumPx);
+    }
+
+    const desiredHeightsPx = [...currentHeightsPx];
+    for (const r of targetRows) {
+      desiredHeightsPx[r] = contentMinHeightsPx[r] ?? this.minRowPx;
+    }
+
+    const sumDesired = desiredHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+
+    const sinkIndex = Math.max(0, rowCount - 1);
+
+    // Case 1: Fits within existing widget height. Keep target rows tight, and let the bottom row absorb any remainder.
+    if (sumDesired <= tableHeightPx + 0.5) {
+      const remainder = Math.max(0, tableHeightPx - sumDesired);
+      desiredHeightsPx[sinkIndex] = (desiredHeightsPx[sinkIndex] ?? 0) + remainder;
+
+      const nextFractions = desiredHeightsPx.map((px) => px / tableHeightPx);
+      this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // Case 2: Need more height. First shrink non-target rows down to their content minimums.
+    let excessPx = Math.max(0, sumDesired - tableHeightPx);
+    let slackSumPx = 0;
+    for (let r = 0; r < rowCount; r++) {
+      if (targetRows.has(r)) continue;
+      const slack = Math.max(0, (desiredHeightsPx[r] ?? 0) - (contentMinHeightsPx[r] ?? this.minRowPx));
+      slackSumPx += slack;
+    }
+
+    if (slackSumPx >= excessPx - 0.5 && slackSumPx > 0.5) {
+      // Redistribute by taking proportionally from slack.
+      for (let r = 0; r < rowCount; r++) {
+        if (targetRows.has(r)) continue;
+        const min = contentMinHeightsPx[r] ?? this.minRowPx;
+        const cur = desiredHeightsPx[r] ?? 0;
+        const slack = Math.max(0, cur - min);
+        if (slack <= 0) continue;
+        const take = excessPx * (slack / slackSumPx);
+        desiredHeightsPx[r] = Math.max(min, cur - take);
+      }
+
+      // Normalize totals back to tableHeightPx to avoid drift.
+      const sumAfter = desiredHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+      const fix = Number.isFinite(sumAfter) ? tableHeightPx - sumAfter : 0;
+      if (Number.isFinite(fix) && Math.abs(fix) > 0.5) {
+        desiredHeightsPx[sinkIndex] = Math.max(contentMinHeightsPx[sinkIndex] ?? this.minRowPx, (desiredHeightsPx[sinkIndex] ?? 0) + fix);
+      }
+
+      const nextFractions = desiredHeightsPx.map((px) => px / tableHeightPx);
+      this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+
+      this.emitPropsChange(this.localRows());
+      this.scheduleRecomputeResizeSegments();
+      this.cdr.markForCheck();
+      return;
+    }
+
+    // Not enough slack: shrink everything possible, then grow widget so the fitted rows don't clip.
+    for (let r = 0; r < rowCount; r++) {
+      if (targetRows.has(r)) continue;
+      desiredHeightsPx[r] = contentMinHeightsPx[r] ?? this.minRowPx;
+    }
+
+    const sumAfterShrink = desiredHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+    const deficitPx = Math.max(0, sumAfterShrink - tableHeightPx);
+    if (deficitPx > 0.5) {
+      const bufferPx = 4;
+      const stepPx = 8;
+      const growPx = Math.min(1600, this.roundUpPx(deficitPx + bufferPx, stepPx));
+      const growRes = this.growWidgetSizeBy(0, growPx, { commit: true });
+      const appliedGrowPx = growRes?.appliedHeightPx ?? 0;
+      if (Number.isFinite(appliedGrowPx) && appliedGrowPx > 0.5) {
+        const newTotalH = tableHeightPx + appliedGrowPx;
+        const sumNow = desiredHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+        const extra = Math.max(0, newTotalH - sumNow);
+        desiredHeightsPx[sinkIndex] = (desiredHeightsPx[sinkIndex] ?? 0) + extra;
+
+        const nextFractions = desiredHeightsPx.map((px) => px / newTotalH);
+        this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
+      }
+    }
+
+    this.emitPropsChange(this.localRows());
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
   /**
    * When preserving the widget frame (URL auto-load after JSON import/open), tables can become "dense"
    * (many rows squeezed into a fixed height). We scale down padding/font-size to avoid clipped text
@@ -1854,6 +1995,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
     if (this.deleteSubscription) {
       this.deleteSubscription.unsubscribe();
+    }
+    if (this.fitRowSubscription) {
+      this.fitRowSubscription.unsubscribe();
     }
     if (this.textAlignSubscription) {
       this.textAlignSubscription.unsubscribe();

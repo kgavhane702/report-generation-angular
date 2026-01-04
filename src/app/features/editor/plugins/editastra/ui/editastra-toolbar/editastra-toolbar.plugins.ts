@@ -32,6 +32,13 @@ export type EditastraToolbarPlugin =
       icon: 'image';
     }
   | {
+      kind: 'reset-image-size';
+      id: string;
+      group: EditastraToolbarGroupId;
+      title: string;
+      icon: 'sync';
+    }
+  | {
       kind: 'vAlign';
       id: string;
       group: EditastraToolbarGroupId;
@@ -192,6 +199,7 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
 
   // Insert
   { kind: 'insert-image', id: 'insertImage', group: 'insert', title: 'Insert image', icon: 'image' },
+  { kind: 'reset-image-size', id: 'resetImageSize', group: 'insert', title: 'Reset image size', icon: 'sync' },
 
   // Text alignment
   { kind: 'align', id: 'alignLeft', group: 'align', title: 'Align Left', value: 'left', icon: 'alignLeft' },
