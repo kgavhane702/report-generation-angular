@@ -81,6 +81,14 @@ export class ExportService {
               // Replace with a minimal empty grid; keep styling flags + dataSource.
               // Optional: preserve existing header row(s) for URL tables, so users can keep custom headers/conditions
               // while still stripping remote (fetched) body data from exports.
+              //
+              // NOTE (URL tables are dynamic):
+              // - We cannot know what the next URL fetch will return (row/col counts, content density).
+              // - Best-effort preservation strategy:
+              //   - Always preserve widget frame + sizing fractions (handled elsewhere).
+              //   - Optionally preserve header row(s) content/style if `preserveHeaderOnUrlLoad` is enabled.
+              //   - Preserve a single "body style template" row (styles only, empty content) so user-applied
+              //     formatting like font-size/family/color survives export→import even though remote data is stripped.
               const preserveHeader = props.preserveHeaderOnUrlLoad === true;
               const hasHeaderFlag = props.headerRow === true;
               const headerRowCount =
@@ -101,13 +109,29 @@ export class ExportService {
                       1,
                       ...headerRows.map((r) => (Array.isArray(r?.cells) ? r.cells.length : 0))
                     )
-                  : 1;
+                  : 0;
+
+              // Preserve cell-level styling for the body by sampling the first body row (or the first row when there
+              // is no header/body distinction in the exported placeholder).
+              const styleTemplateRowIndex =
+                headerRowCount > 0 ? Math.min(existingRows.length - 1, headerRowCount) : 0;
+              const styleTemplateRow = existingRows[styleTemplateRowIndex] ?? existingRows[0] ?? null;
+              const styleTemplateCells: any[] = Array.isArray(styleTemplateRow?.cells) ? styleTemplateRow.cells : [];
+              const templateColCount = styleTemplateCells.length;
+
+              const colCount = Math.max(1, headerColCount || templateColCount || 1);
+
               const emptyBodyRow = {
                 id: 'row-0-body',
-                cells: Array.from({ length: headerColCount }, (_, i) => ({
-                  id: `cell-0-${i}`,
-                  contentHtml: '',
-                })),
+                cells: Array.from({ length: colCount }, (_, i) => {
+                  const t = styleTemplateCells[i] ?? null;
+                  const style = t?.style && typeof t.style === 'object' ? { ...t.style } : undefined;
+                  return {
+                    id: `cell-0-${i}`,
+                    contentHtml: '',
+                    ...(style ? { style } : {}),
+                  };
+                }),
               };
 
               props.rows = headerRows.length > 0 ? [...headerRows, emptyBodyRow] : [emptyBodyRow];

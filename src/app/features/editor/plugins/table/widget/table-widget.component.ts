@@ -897,6 +897,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private applyExcelImport(req: TableImportFromExcelRequest): void {
     const preserveWidgetFrame = req.preserveWidgetFrame === true;
     const existingBeforeImport = this.localRows();
+    const isUrlAutoLoad = preserveWidgetFrame && (this.tableProps.dataSource as any)?.kind === 'http';
+    const preserveHeaderOnUrlLoad = isUrlAutoLoad && this.tableProps.preserveHeaderOnUrlLoad === true;
+    const headerRowCountForTemplate =
+      preserveHeaderOnUrlLoad ? this.getEffectiveHeaderRowCountFromProps(this.tableProps) : 0;
+
+    // URL tables (export→import): preserve user formatting even though we strip remote data.
+    // ExportService keeps a single empty "body template" row with cell styles (font-size/family/etc.).
+    // When the real remote rows load, copy those template styles onto the incoming cells so the table
+    // looks consistent with what the user designed, independent of the dynamic data payload.
+    const templateRow =
+      (Array.isArray(existingBeforeImport) && existingBeforeImport.length > 0
+        ? existingBeforeImport[Math.min(existingBeforeImport.length - 1, headerRowCountForTemplate)]
+        : null) ?? null;
+    const templateCells: TableCell[] = Array.isArray(templateRow?.cells) ? (templateRow!.cells as any) : [];
 
     // Import is complete once we reach this point (backend response already received).
     // For preserved-frame (URL) imports, keep the overlay until the first fit pass completes,
@@ -914,18 +928,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       cells: r.cells.map((c, colIndex) => ({
         id: c.id || `${rowIndex}-${colIndex}`,
         contentHtml: c.contentHtml ?? '',
+        ...(isUrlAutoLoad && templateCells[colIndex]?.style ? { style: { ...(templateCells[colIndex].style as any) } } : {}),
         merge: c.merge ?? undefined,
         coveredBy: c.coveredBy ?? undefined,
       })),
     }));
 
     // URL auto-load mode: optionally preserve the existing header row(s) and replace only the body.
-    const isUrlAutoLoad = preserveWidgetFrame && (this.tableProps.dataSource as any)?.kind === 'http';
-    const preserveHeaderOnUrlLoad = isUrlAutoLoad && this.tableProps.preserveHeaderOnUrlLoad === true;
-    const headerRowCount =
-      preserveHeaderOnUrlLoad
-        ? this.getEffectiveHeaderRowCountFromProps(this.tableProps)
-        : 0;
+    const headerRowCount = headerRowCountForTemplate;
 
     const preservedHeaderRows =
       preserveHeaderOnUrlLoad && headerRowCount > 0
