@@ -140,3 +140,82 @@ app-root {
     line-height: inherit !important;
   }
 }
+
+// ============================================
+// Resizable inline images inside contenteditable editors (Editastra + Table cells)
+// ============================================
+.tw-resizable-image {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: 100%;
+  background: transparent;
+  padding: 0;
+  margin: 0 0.25em 0 0;
+  position: relative;
+}
+
+.tw-resizable-image img,
+.tw-resizable-image svg {
+  display: block;
+  width: 100%;
+}
+
+.tw-resizable-image img {
+  height: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+// Inline SVG (icons) are sized by the wrapper; keep it square via wrapper height when present.
+.tw-resizable-image svg {
+  height: 100%;
+}
+
+// Layout modes
+.tw-resizable-image--inline {
+  float: none;
+}
+
+.tw-resizable-image--left {
+  float: left;
+  margin: 0.1em 0.5em 0.1em 0;
+}
+
+.tw-resizable-image--right {
+  float: right;
+  margin: 0.1em 0 0.1em 0.5em;
+}
+
+.tw-resizable-image--block {
+  display: block;
+  float: none;
+  clear: both;
+  margin: 0.35em auto;
+}
+
+// Custom resize handle (no background/padding on the image itself)
+.tw-resizable-image__handle {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+}
+
+.editastra-editor__surface:focus-within .tw-resizable-image:hover .tw-resizable-image__handle,
+.tw-resizable-image[data-tw-resize-active='1'] .tw-resizable-image__handle {
+  opacity: 1;
+}
+
+.tw-resizable-image__handle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, transparent 42%, rgba(15, 23, 42, 0.55) 42%, rgba(15, 23, 42, 0.55) 52%, transparent 52%),
+    linear-gradient(135deg, transparent 62%, rgba(15, 23, 42, 0.35) 62%, rgba(15, 23, 42, 0.35) 72%, transparent 72%);
+}

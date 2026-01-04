@@ -767,6 +767,19 @@ export class TableToolbarService {
    * Apply text alignment to selected cells or active cell
    */
   applyTextAlign(align: 'left' | 'center' | 'right' | 'justify'): void {
+    // If the caret is currently adjacent to (or selecting) a resizable image wrapper,
+    // interpret align buttons as IMAGE layout controls.
+    const activeImage = this.getActiveResizableImageWrapper();
+    if (activeImage && this.activeCell) {
+      this.applyImageAlign(activeImage, align);
+      try {
+        this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-align' } }));
+      } catch {
+        // Best-effort.
+      }
+      return;
+    }
+
     const cells = this.getSelectedCellElements?.() ?? [];
     if (cells.length > 0) {
       cells.forEach(cell => {
@@ -1104,6 +1117,347 @@ export class TableToolbarService {
     } catch {
       // If restoring fails, execCommand will apply at the current caret.
     }
+  }
+
+  /**
+   * Snapshot the current selection inside the active cell.
+   * Useful before opening native dialogs (file picker) that can steal focus/selection.
+   */
+  snapshotSelection(): void {
+    this.handleSelectionChange();
+  }
+
+  /**
+   * Insert an image at the current cursor position within the active cell/editor.
+   * Stores images as data URLs so they persist in the document model.
+   *
+   * Default behavior: insert as an inline "glyph" object (caret can move around it).
+   * The user can later use Align buttons while the caret is near the image to switch:
+   * - Left: wrap-left
+   * - Right: wrap-right
+   * - Center: block (above/below)
+   * - Justify: inline glyph (reset)
+   */
+  insertImageAtCursor(dataUrl: string): void {
+    const cell = this.activeCell;
+    if (!cell) return;
+
+    // Restore caret if toolbar interaction stole focus.
+    this.restoreSelectionIfNeeded();
+    cell.focus();
+
+    const selection = window.getSelection();
+    if (!selection) return;
+
+    const wrapper = document.createElement('span');
+    wrapper.className = 'tw-resizable-image tw-resizable-image--inline';
+    wrapper.setAttribute('data-tw-resizable-image', '1');
+    wrapper.setAttribute('contenteditable', 'false');
+
+    const isInTableCell = !!cell.closest('.widget-table');
+
+    // Default sizing:
+    // - Table: start at glyph-size (matches current font size)
+    // - Editastra: start a bit larger (still scales with font size)
+    wrapper.style.width = isInTableCell ? '1em' : '4em';
+
+    const isSvg = this.isSvgDataUrl(dataUrl);
+    if (isSvg) {
+      const svg = this.buildInlineSvgFromDataUrl(dataUrl);
+      if (svg) {
+        svg.classList.add('tw-inline-svg');
+        wrapper.appendChild(svg);
+        // SVG icons should default to glyph-size.
+        const glyph = isInTableCell ? '1em' : '1.2em';
+        wrapper.style.width = glyph;
+        wrapper.style.height = glyph;
+        wrapper.setAttribute('data-tw-svg', '1');
+      } else {
+        // Fallback: render as <img> (won't inherit font color, but still works).
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.alt = '';
+        img.setAttribute('draggable', 'false');
+        img.addEventListener('load', () => {
+          try {
+            cell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-load' } }));
+          } catch {
+            // ignore
+          }
+        });
+        wrapper.appendChild(img);
+      }
+    } else {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = '';
+      img.setAttribute('draggable', 'false');
+      img.addEventListener('load', () => {
+        try {
+          cell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-load' } }));
+        } catch {
+          // ignore
+        }
+      });
+      wrapper.appendChild(img);
+    }
+
+    // Custom resize handle (pointer-driven) so the icon can be customized.
+    const handle = document.createElement('span');
+    handle.className = 'tw-resizable-image__handle';
+    handle.setAttribute('contenteditable', 'false');
+    handle.setAttribute('aria-hidden', 'true');
+    wrapper.appendChild(handle);
+
+    handle.addEventListener('pointerdown', (ev: PointerEvent) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+
+      wrapper.setAttribute('data-tw-resize-active', '1');
+
+      try {
+        (ev.target as HTMLElement | null)?.setPointerCapture?.(ev.pointerId);
+      } catch {
+        // Ignore.
+      }
+
+      const startRect = wrapper.getBoundingClientRect();
+      const startW = Math.max(1, startRect.width);
+      const startX = ev.clientX;
+
+      const minW = 16;
+      const maxW = Math.max(minW, startW + 2000);
+      const isSvgWrapper = wrapper.getAttribute('data-tw-svg') === '1';
+
+      const onMove = (moveEv: PointerEvent) => {
+        const dx = moveEv.clientX - startX;
+        const nextW = Math.max(minW, Math.min(maxW, Math.round(startW + dx)));
+        wrapper.style.width = `${nextW}px`;
+        // Keep inline SVG square so it matches glyph behavior.
+        if (isSvgWrapper) {
+          wrapper.style.height = `${nextW}px`;
+        }
+      };
+
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove, true);
+        window.removeEventListener('pointerup', onUp, true);
+        wrapper.removeAttribute('data-tw-resize-active');
+        try {
+          cell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-image-resize' } }));
+        } catch {
+          // Best-effort.
+        }
+      };
+
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+    });
+
+    let range: Range;
+    if (selection.rangeCount > 0) {
+      const r = selection.getRangeAt(0);
+      // Only use selection if it lives inside the active cell.
+      range = cell.contains(r.startContainer) ? r : document.createRange();
+    } else {
+      range = document.createRange();
+    }
+
+    if (!cell.contains(range.startContainer)) {
+      range.selectNodeContents(cell);
+      range.collapse(false);
+    } else {
+      range.deleteContents();
+    }
+
+    // Insert the wrapper at the caret.
+    range.insertNode(wrapper);
+
+    // Add a caret spacer after the image so the user can continue typing.
+    const spacer = document.createTextNode('\u200B');
+    try {
+      wrapper.parentNode?.insertBefore(spacer, wrapper.nextSibling);
+    } catch {
+      // Ignore.
+    }
+
+    // Move caret after the spacer (or after wrapper if spacer failed).
+    try {
+      const nextAnchor = spacer.parentNode ? spacer : wrapper;
+      range.setStartAfter(nextAnchor);
+      range.setEndAfter(nextAnchor);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      this.lastSelectionRange = range.cloneRange();
+    } catch {
+      // ignore
+    }
+
+    // Notify the editor wrapper (table/editastra) that content changed.
+    try {
+      cell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-insert-image' } }));
+    } catch {
+      // Best-effort.
+    }
+
+    this.updateFormattingState();
+  }
+
+  private isSvgDataUrl(dataUrl: string): boolean {
+    const v = (dataUrl ?? '').trim().toLowerCase();
+    return v.startsWith('data:image/svg+xml');
+  }
+
+  private buildInlineSvgFromDataUrl(dataUrl: string): SVGElement | null {
+    try {
+      const raw = (dataUrl ?? '').trim();
+      const lower = raw.toLowerCase();
+      if (!lower.startsWith('data:image/svg+xml')) return null;
+
+      const commaIdx = raw.indexOf(',');
+      if (commaIdx === -1) return null;
+      const meta = raw.slice(0, commaIdx).toLowerCase();
+      const payload = raw.slice(commaIdx + 1);
+
+      let svgText = '';
+      if (meta.includes(';base64')) {
+        svgText = atob(payload);
+      } else {
+        // URL-encoded or plain text payload.
+        svgText = decodeURIComponent(payload);
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgText, 'image/svg+xml');
+      const svg = doc.documentElement as unknown as SVGElement | null;
+      if (!svg || svg.tagName.toLowerCase() !== 'svg') return null;
+
+      this.sanitizeInlineSvg(svg);
+      this.applyCurrentColorToSvg(svg);
+
+      // Ensure predictable sizing inside the wrapper.
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      if (!svg.getAttribute('preserveAspectRatio')) {
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      }
+
+      return document.importNode(svg, true) as unknown as SVGElement;
+    } catch {
+      return null;
+    }
+  }
+
+  private sanitizeInlineSvg(svg: SVGElement): void {
+    // Remove obviously unsafe elements.
+    const forbidden = svg.querySelectorAll('script,foreignObject,iframe,object,embed');
+    forbidden.forEach((n) => n.remove());
+
+    const walker = document.createTreeWalker(svg, NodeFilter.SHOW_ELEMENT);
+    const nodes: Element[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Element);
+
+    for (const el of nodes) {
+      for (const attr of Array.from(el.attributes)) {
+        const name = (attr.name ?? '').toLowerCase();
+        const value = attr.value ?? '';
+        if (!name) continue;
+
+        if (name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+
+        // Prevent external references inside inline SVG.
+        if (name === 'href' || name === 'xlink:href') {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+
+        if (name === 'style' && (value ?? '').toLowerCase().includes('url(')) {
+          el.removeAttribute('style');
+        }
+      }
+    }
+  }
+
+  private applyCurrentColorToSvg(svg: SVGElement): void {
+    // Ensure the SVG inherits the surrounding text color.
+    const all = svg.querySelectorAll('*');
+    for (const el of Array.from(all)) {
+      const fill = (el.getAttribute('fill') ?? '').trim();
+      if (fill && fill.toLowerCase() !== 'none' && fill.toLowerCase() !== 'currentcolor') {
+        el.setAttribute('fill', 'currentColor');
+      }
+      const stroke = (el.getAttribute('stroke') ?? '').trim();
+      if (stroke && stroke.toLowerCase() !== 'none' && stroke.toLowerCase() !== 'currentcolor') {
+        el.setAttribute('stroke', 'currentColor');
+      }
+    }
+    if (!svg.getAttribute('fill')) {
+      svg.setAttribute('fill', 'currentColor');
+    }
+  }
+
+  private getActiveResizableImageWrapper(): HTMLElement | null {
+    const cell = this.activeCell;
+    if (!cell) return null;
+
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+
+    // Case 1: selection is inside the wrapper element subtree.
+    const startNode = range.startContainer;
+    const startEl =
+      (startNode && startNode.nodeType === Node.ELEMENT_NODE ? (startNode as Element) : (startNode as any as Node | null)?.parentElement) ?? null;
+    const direct = (startEl?.closest?.('.tw-resizable-image') as HTMLElement | null) ?? null;
+    if (direct && cell.contains(direct)) return direct;
+
+    // Case 2: selection is on the contenteditable container and offset points near a wrapper node.
+    if (range.startContainer && range.startContainer.nodeType === Node.ELEMENT_NODE) {
+      const container = range.startContainer as Element;
+      if (cell.contains(container)) {
+        const idx = range.startOffset;
+        const candidates: Array<Node | null> = [
+          container.childNodes.item(idx) ?? null,
+          idx > 0 ? (container.childNodes.item(idx - 1) ?? null) : null,
+        ];
+        for (const n of candidates) {
+          const el = n && (n as any).nodeType === Node.ELEMENT_NODE ? (n as HTMLElement) : null;
+          if (el && el.classList.contains('tw-resizable-image') && cell.contains(el)) {
+            return el;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private applyImageAlign(wrapper: HTMLElement, align: 'left' | 'center' | 'right' | 'justify'): void {
+    wrapper.classList.remove(
+      'tw-resizable-image--inline',
+      'tw-resizable-image--left',
+      'tw-resizable-image--right',
+      'tw-resizable-image--block'
+    );
+
+    if (align === 'justify') {
+      // Use justify as a convenient "reset to inline glyph" for images.
+      wrapper.classList.add('tw-resizable-image--inline');
+      return;
+    }
+    if (align === 'left') {
+      wrapper.classList.add('tw-resizable-image--left');
+      return;
+    }
+    if (align === 'right') {
+      wrapper.classList.add('tw-resizable-image--right');
+      return;
+    }
+    // center => block
+    wrapper.classList.add('tw-resizable-image--block');
   }
 }
 

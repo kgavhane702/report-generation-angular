@@ -58,7 +58,7 @@ function sanitizeRichTextHtml(input: string): string {
   const doc = parser.parseFromString(input, 'text/html');
 
   // Remove dangerous elements completely.
-  const forbiddenSelectors = 'script,style,iframe,object,embed,link,meta';
+  const forbiddenSelectors = 'script,style,iframe,object,embed,link,meta,foreignObject';
   doc.querySelectorAll(forbiddenSelectors).forEach((el) => el.remove());
 
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
@@ -78,6 +78,13 @@ function sanitizeRichTextHtml(input: string): string {
         continue;
       }
 
+      // Prevent external references inside inline SVG payloads.
+      // (We allow <svg> in rich text for icons, but block href/xlink:href entirely.)
+      if (name === 'xlink:href') {
+        el.removeAttribute(attr.name);
+        continue;
+      }
+
       if (name === 'style') {
         const nextStyle = sanitizeInlineStyle(value);
         if (nextStyle) {
@@ -89,6 +96,11 @@ function sanitizeRichTextHtml(input: string): string {
       }
 
       if (name === 'href') {
+        // Never allow hrefs inside SVG trees (prevents <a> and <use> references).
+        if (el.closest('svg')) {
+          el.removeAttribute('href');
+          continue;
+        }
         // Prevent `javascript:` URLs.
         if (!isSafeHref(value)) {
           el.removeAttribute('href');
@@ -96,9 +108,19 @@ function sanitizeRichTextHtml(input: string): string {
         continue;
       }
 
-      // Drop src to avoid unexpected remote loads inside editor content.
+      // Never allow srcset inside editor content (can trigger unexpected remote loads).
+      if (name === 'srcset') {
+        el.removeAttribute(attr.name);
+        continue;
+      }
+
+      // Allow ONLY safe data:image/* URLs on <img>. Drop all other src attributes.
       if (name === 'src') {
-        el.removeAttribute('src');
+        if (el.tagName.toLowerCase() === 'img' && isSafeImageSrc(value)) {
+          // keep
+        } else {
+          el.removeAttribute('src');
+        }
         continue;
       }
     }
@@ -115,6 +137,17 @@ function sanitizeInlineStyle(style: string): string {
     'font-style',
     'text-decoration',
     'white-space',
+    'line-height',
+    'font-size',
+    'font-family',
+    // Images
+    'width',
+    'height',
+    'max-width',
+    'max-height',
+    'min-width',
+    'min-height',
+    'vertical-align',
   ]);
 
   const parts = style
@@ -162,6 +195,19 @@ function isSafeHref(href: string): boolean {
     v.startsWith('/') ||
     v.startsWith('#')
   );
+}
+
+function isSafeImageSrc(src: string): boolean {
+  const v = (src ?? '').trim().toLowerCase();
+  if (!v.startsWith('data:image/')) return false;
+
+  // Only allow common image MIME types. Keep this strict: no `data:text/html`, etc.
+  // Examples:
+  // - data:image/png;base64,...
+  // - data:image/jpeg;base64,...
+  // - data:image/svg+xml;base64,...
+  // - data:image/svg+xml;charset=utf-8,...
+  return /^data:image\/(png|jpe?g|gif|webp|bmp|svg\+xml)(;charset=[a-z0-9._-]+)?(;base64)?,/i.test(v);
 }
 
 

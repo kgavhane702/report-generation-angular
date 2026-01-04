@@ -186,6 +186,7 @@ export class EditastraToolbarComponent {
   @ViewChild('fontSizeTrigger', { static: false }) fontSizeTrigger?: ElementRef<HTMLElement>;
   @ViewChild('lineHeightTrigger', { static: false }) lineHeightTrigger?: ElementRef<HTMLElement>;
   @ViewChild('bulletStyleTrigger', { static: false }) bulletStyleTrigger?: ElementRef<HTMLElement>;
+  @ViewChild('imageFileInput', { static: false }) imageFileInput?: ElementRef<HTMLInputElement>;
 
   readonly headingDropdownOpen = signal(false);
   readonly fontFamilyDropdownOpen = signal(false);
@@ -248,6 +249,10 @@ export class EditastraToolbarComponent {
   /** Saved active cell element for custom font size input */
   private savedActiveCell: HTMLElement | null = null;
 
+  /** Saved selection for image insertion (native file picker steals focus/selection). */
+  private imageSavedSelectionRange: Range | null = null;
+  private imageSavedActiveCell: HTMLElement | null = null;
+
   openFontSizeDropdown(event?: MouseEvent): void {
     if (event) {
       event.preventDefault();
@@ -280,6 +285,31 @@ export class EditastraToolbarComponent {
       if (sel) {
         sel.removeAllRanges();
         sel.addRange(this.savedSelectionRange);
+      }
+    }
+  }
+
+  private saveSelectionForImage(): void {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      this.imageSavedSelectionRange = sel.getRangeAt(0).cloneRange();
+    } else {
+      this.imageSavedSelectionRange = null;
+    }
+    this.imageSavedActiveCell = this.toolbarService.activeCell;
+  }
+
+  private restoreSelectionForImage(): void {
+    if (this.imageSavedActiveCell) {
+      this.imageSavedActiveCell.focus();
+      // Ensure toolbar service has a valid active cell even if the editor blurred while the file dialog was open.
+      this.toolbarService.setActiveCell(this.imageSavedActiveCell, this.toolbarService.activeTableWidgetId);
+    }
+    if (this.imageSavedSelectionRange) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(this.imageSavedSelectionRange);
       }
     }
   }
@@ -417,6 +447,39 @@ export class EditastraToolbarComponent {
     event.stopPropagation();
     if (!this.hasActiveEditor) return;
     this.toolbarService.applyTextAlign(align);
+  }
+
+  onInsertImageClick(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.hasActiveEditor) return;
+
+    // Snapshot selection now; native file picker will steal focus/selection.
+    this.saveSelectionForImage();
+
+    const input = this.imageFileInput?.nativeElement;
+    if (!input) return;
+
+    // Allow selecting the same file twice in a row.
+    input.value = '';
+    input.click();
+  }
+
+  onImageFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files && input.files.length ? input.files[0] : null;
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+
+      // Restore focus/selection to the editor and insert at the saved caret position.
+      this.restoreSelectionForImage();
+      this.toolbarService.insertImageAtCursor(dataUrl);
+    };
+    reader.readAsDataURL(file);
   }
 
   onVerticalAlignClick(event: MouseEvent, align: 'top' | 'middle' | 'bottom'): void {

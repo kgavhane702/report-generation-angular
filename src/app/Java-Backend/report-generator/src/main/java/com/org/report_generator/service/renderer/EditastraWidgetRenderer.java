@@ -85,6 +85,40 @@ public class EditastraWidgetRenderer {
         .widget-editastra__editor .custom-marker-chevron li::before { content: '›'; }
         .widget-editastra__editor .custom-marker-dash li::before { content: '–'; }
         .widget-editastra__editor .custom-marker-check li::before { content: '✓'; }
+
+        /* Resizable inline images (matches frontend behavior) */
+        .widget-editastra .tw-resizable-image {
+            display: inline-block;
+            vertical-align: middle;
+            max-width: 100%;
+            background: transparent;
+            padding: 0;
+            margin: 0 0.25em 0 0;
+            position: relative;
+        }
+
+        .widget-editastra .tw-resizable-image img,
+        .widget-editastra .tw-resizable-image svg {
+            display: block;
+            width: 100%;
+        }
+
+        .widget-editastra .tw-resizable-image img {
+            height: auto;
+            object-fit: contain;
+        }
+
+        .widget-editastra .tw-resizable-image svg {
+            height: 100%;
+        }
+
+        .widget-editastra .tw-resizable-image--inline { float: none; }
+        .widget-editastra .tw-resizable-image--left { float: left; margin: 0.1em 0.5em 0.1em 0; }
+        .widget-editastra .tw-resizable-image--right { float: right; margin: 0.1em 0 0.1em 0.5em; }
+        .widget-editastra .tw-resizable-image--block { display: block; float: none; clear: both; margin: 0.35em auto; }
+
+        /* Hide resize handle in exported output */
+        .widget-editastra .tw-resizable-image__handle { display: none !important; }
         """;
 
     public String render(JsonNode props, String widgetStyle) {

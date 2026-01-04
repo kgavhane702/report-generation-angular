@@ -123,6 +123,18 @@
             </svg>
           </button>
 
+          <!-- Insert image -->
+          <button
+            *ngSwitchCase="'insert-image'"
+            type="button"
+            class="table-toolbar__button"
+            [disabled]="!hasActiveEditor"
+            (mousedown)="onInsertImageClick($event)"
+            [attr.title]="$any(p).title"
+          >
+            <app-icon [name]="$any(p).icon"></app-icon>
+          </button>
+
           <!-- Text align buttons -->
           <button
             *ngSwitchCase="'align'"
@@ -357,5 +369,14 @@
 <ng-template #embedded>
   <ng-container *ngTemplateOutlet="content"></ng-container>
 </ng-template>
+
+<!-- Hidden file input for inserting images -->
+<input
+  #imageFileInput
+  type="file"
+  accept="image/*"
+  style="display: none"
+  (change)="onImageFileSelected($event)"
+/>
 
 

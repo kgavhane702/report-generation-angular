@@ -3,6 +3,7 @@ export type EditastraToolbarGroupId =
   | 'script'
   | 'vAlign'
   | 'lists'
+  | 'insert'
   | 'align'
   | 'typography'
   | 'colors';
@@ -22,6 +23,13 @@ export type EditastraToolbarPlugin =
         | 'subscript';
       stateKey: 'isBold' | 'isItalic' | 'isUnderline' | 'isStrikethrough' | 'isSuperscript' | 'isSubscript';
       command: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'superscript' | 'subscript';
+    }
+  | {
+      kind: 'insert-image';
+      id: string;
+      group: EditastraToolbarGroupId;
+      title: string;
+      icon: 'image';
     }
   | {
       kind: 'vAlign';
@@ -114,6 +122,7 @@ export const EDITASTRA_TOOLBAR_GROUP_ORDER: EditastraToolbarGroupId[] = [
   'script',
   'vAlign',
   'lists',
+  'insert',
   'align',
   'typography',
   'colors',
@@ -180,6 +189,9 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
   { kind: 'mini-separator', id: 'lists-mini-sep-1', group: 'lists' },
   { kind: 'bullet-dropdown', id: 'bulletStyle', group: 'lists', title: 'Bullet list' },
   { kind: 'numbered-list', id: 'numberedList', group: 'lists', title: 'Numbered list' },
+
+  // Insert
+  { kind: 'insert-image', id: 'insertImage', group: 'insert', title: 'Insert image', icon: 'image' },
 
   // Text alignment
   { kind: 'align', id: 'alignLeft', group: 'align', title: 'Align Left', value: 'left', icon: 'alignLeft' },

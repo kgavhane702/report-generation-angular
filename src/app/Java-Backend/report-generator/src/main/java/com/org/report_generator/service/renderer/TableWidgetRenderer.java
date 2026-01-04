@@ -21,6 +21,9 @@ public class TableWidgetRenderer {
             overflow: visible;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             color: #0f172a;
+            /* Match frontend default typography (tables default to 14px, not browser 16px). */
+            font-size: 14px;
+            line-height: 1.35;
             /* Defaults that can be overridden per-widget (e.g. showBorders=false) */
             --table-border-style: solid;
             --table-border-width: 1px;
@@ -197,6 +200,40 @@ public class TableWidgetRenderer {
         .widget-table .table-widget__cell-content .custom-marker-check li::before {
             content: '✓';
         }
+
+        /* Resizable inline images (matches frontend behavior) */
+        .widget-table .tw-resizable-image {
+            display: inline-block;
+            vertical-align: middle;
+            max-width: 100%;
+            background: transparent;
+            padding: 0;
+            margin: 0 0.25em 0 0;
+            position: relative;
+        }
+
+        .widget-table .tw-resizable-image img,
+        .widget-table .tw-resizable-image svg {
+            display: block;
+            width: 100%;
+        }
+
+        .widget-table .tw-resizable-image img {
+            height: auto;
+            object-fit: contain;
+        }
+
+        .widget-table .tw-resizable-image svg {
+            height: 100%;
+        }
+
+        .widget-table .tw-resizable-image--inline { float: none; }
+        .widget-table .tw-resizable-image--left { float: left; margin: 0.1em 0.5em 0.1em 0; }
+        .widget-table .tw-resizable-image--right { float: right; margin: 0.1em 0 0.1em 0.5em; }
+        .widget-table .tw-resizable-image--block { display: block; float: none; clear: both; margin: 0.35em auto; }
+
+        /* Hide resize handle in exported output */
+        .widget-table .tw-resizable-image__handle { display: none !important; }
         
         /* Split grid inside a cell */
         .widget-table .table-widget__split-grid {
