@@ -176,6 +176,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   /** Local preview frame for smooth resize without store updates */
   private readonly _previewFrame = signal<WidgetFrame | null>(null);
+  /** Ghost frame for resize previews (unclamped cursor-following outline) */
+  private readonly _ghostFrame = signal<WidgetFrame | null>(null);
   
   // ============================================
   // COMPUTED PROPERTIES
@@ -221,6 +223,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       x: widget.position.x,
       y: widget.position.y,
     };
+  }
+
+  get ghostFrame(): WidgetFrame | null {
+    return this._ghostFrame();
   }
   
   /**
@@ -438,6 +444,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     // Initialize preview frame
     this._previewFrame.set({ ...this.frame });
+    this._ghostFrame.set({ ...this.frame });
     
     (event.target as HTMLElement).setPointerCapture(event.pointerId);
   }
@@ -495,39 +502,15 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         break;
     }
     
-    // Clamp and set preview frame (LOCAL state only, no store update!)
-    //
-    // IMPORTANT: For tables, the true minimum height is computed asynchronously (after DOM updates).
-    // If we only capture minHeight once on pointerdown, the *first* resize attempt may feel broken:
-    // the first drag "calculates" and the second drag works.
-    // Fix: recompute min constraints live during the drag so the first drag uses the latest value.
-    const widget = this.displayWidget();
-    const live = this.computeResizeMinConstraints(widget);
-
-    // Reduce "jumpy" feel when shrinking past min constraints:
-    // for tables, the content-min-height can fluctuate slightly during the gesture (DOM measurement),
-    // which makes the clamp appear to bounce. Keep the effective clamp monotonic (never increasing)
-    // while the user is shrinking.
-    let minWidth = live.minWidth;
-    let minHeight = live.minHeight;
-    if (widget?.type === 'table' && this.resizeStart) {
-      const shrinkingHeight = nextHeight < this.resizeStart.height - 0.5;
-      if (shrinkingHeight) {
-        const sticky = this.resizeStart.minHeight;
-        if (Number.isFinite(sticky) && sticky > 0) {
-          minHeight = Math.min(sticky, minHeight);
-        }
-      }
-      // Keep sticky values updated so they can decrease (never increase while shrinking).
-      this.resizeStart.minHeight = minHeight;
-      this.resizeStart.minWidth = minWidth;
-    }
-
-    const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY, minWidth, minHeight);
-
-    // Keep resize behavior unchanged during the gesture; guides are visual only.
-    this._previewFrame.set(frame);
-    this.guides.updateResize(this.pageId, this.widgetId, frame, this.pageWidth, this.pageHeight, this.activeHandle);
+    // PPT-style ghost resize:
+    // - During the drag, ONLY the ghost outline moves (never blocked by content-min constraints).
+    // - The real widget frame stays fixed to its starting size/position (no mid-gesture reflow/jumps).
+    // - On release, we apply min constraints + snapping once and commit.
+    const ghost = this.clampFrame(nextWidth, nextHeight, nextX, nextY, 1, 1);
+    this._ghostFrame.set(ghost);
+    // Keep the widget frame frozen (preview stays at the starting frame from pointerdown).
+    // Guides are visual only during the gesture (no snapping / no mutation).
+    this.guides.updateResize(this.pageId, this.widgetId, ghost, this.pageWidth, this.pageHeight, this.activeHandle);
   }
   
   @HostListener('document:pointerup', ['$event'])
@@ -539,6 +522,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Get the final frame (visual preview)
     const previewFrame = this._previewFrame();
     const handle = this.activeHandle;
+    const widget = this.displayWidget();
+    const ghostFrame = this._ghostFrame();
     
     // Clear resize state
     this.uiState.stopResizing();
@@ -546,13 +531,19 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.activeHandle = null;
     this.resizeStart = undefined;
     this._previewFrame.set(null);
+    this._ghostFrame.set(null);
     
     // NOW commit to store (only once, at the end)
     if (previewFrame) {
-      // If snapping is enabled, apply it at the end only.
+      // Apply min constraints + snapping at the end only.
+      const { minWidth, minHeight } = this.computeResizeMinConstraints(widget);
+      // Prefer the last ghost frame for intent, but fall back to preview if needed.
+      const base = ghostFrame ?? previewFrame;
+      const clamped = this.clampFrame(base.width, base.height, base.x, base.y, minWidth, minHeight);
+
       const finalFrame = this.uiState.guidesSnapEnabled() && handle
-        ? this.guides.updateResize(this.pageId, this.widgetId, previewFrame, this.pageWidth, this.pageHeight, handle)
-        : previewFrame;
+        ? this.guides.updateResize(this.pageId, this.widgetId, clamped, this.pageWidth, this.pageHeight, handle)
+        : clamped;
 
       this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });

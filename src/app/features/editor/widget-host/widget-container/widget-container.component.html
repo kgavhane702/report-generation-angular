@@ -3,6 +3,7 @@
   <div
     class="widget-container"
     [class.widget-container--selected]="isSelected"
+    [class.widget-container--resizing]="isResizing"
     [attr.data-widget-id]="widgetId"
     cdkDrag
     [cdkDragConstrainPosition]="constrainDragPosition"
@@ -141,4 +142,16 @@
       <app-icon name="trash" [size]="13"></app-icon>
     </button>
   </div>
+
+  <!-- Ghost resize outline (cursor-following preview) -->
+  <div
+    *ngIf="ghostFrame as gf"
+    class="widget-container__resize-ghost"
+    aria-hidden="true"
+    [style.left.px]="gf.x"
+    [style.top.px]="gf.y"
+    [style.width.px]="gf.width"
+    [style.height.px]="gf.height"
+    [style.zIndex]="calculatedZIndex + 50"
+  ></div>
 </ng-container>

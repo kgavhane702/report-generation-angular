@@ -12,6 +12,22 @@
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.15), 0 2px 8px rgba(99, 102, 241, 0.1);
 }
 
+// During resize we show a separate ghost outline; keep the real widget border subtle.
+.widget-container--resizing.widget-container--selected {
+  border-color: rgba(99, 102, 241, 0.15) !important;
+  box-shadow: none;
+}
+
+.widget-container__resize-ghost {
+  position: absolute;
+  border: 2px dashed rgba(99, 102, 241, 0.9);
+  border-radius: 0.5rem;
+  pointer-events: none;
+  user-select: none;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.15);
+}
+
 .widget-container__content {
   width: 100%;
   height: 100%;
