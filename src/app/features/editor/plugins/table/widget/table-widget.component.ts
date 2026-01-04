@@ -181,11 +181,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    */
   private manualTopLevelRowMinHeightsPx: number[] = [];
 
+  /**
+   * Track last known content size per leaf so we only auto-shrink on content-decreasing edits
+   * (delete/backspace), not on normal typing which feels like the table is "jumping".
+   */
+  private readonly lastLeafTextLen = new Map<string, number>();
+
   private autoFitRowHeightRaf: number | null = null;
   private postImportFitHeaderRaf: number | null = null;
   private outerResizeFitRaf: number | null = null;
   private outerResizeCommitRaf: number | null = null;
   private wasOuterResizingThisWidget = false;
+  private outerResizeStartSize: { width: number; height: number } | null = null;
   private resizeEndEffectRef?: EffectRef;
   private minHeightEffectRef?: EffectRef;
   private computeMinHeightRaf: number | null = null;
@@ -642,6 +649,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const was = this.wasOuterResizingThisWidget;
       this.wasOuterResizingThisWidget = isResizingMe;
 
+      // Capture the widget size at the start of the outer resize gesture so we can distinguish:
+      // - width-only resizes (where auto-shrink-to-content is desirable)
+      // - height-increasing resizes (where we should respect the user's chosen slack and NOT snap back)
+      if (!was && isResizingMe) {
+        const w = this.widget?.size?.width ?? null;
+        const h = this.widget?.size?.height ?? null;
+        this.outerResizeStartSize =
+          Number.isFinite(w as number) && Number.isFinite(h as number) && (w as number) > 0 && (h as number) > 0
+            ? { width: w as number, height: h as number }
+            : null;
+      }
+
       if (was && !isResizingMe) {
         this.scheduleOuterResizeCommitFit();
       }
@@ -941,6 +960,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.activeCellId = null;
     this.toolbarService.setActiveCell(null, this.widget.id);
     this.manualTopLevelRowMinHeightsPx = [];
+    this.lastLeafTextLen.clear();
 
     this.localRows.set(this.cloneRows(rows));
     this.rowsAtEditStart = this.cloneRows(rows);
@@ -1242,15 +1262,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Update layout immediately.
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
-    this.setContentMinHeights(fit.minTableHeightPx);
+    // Keep the min-height clamp synced (preserved mode clamps to current widget height).
+    this.setContentMinHeights(fit.minRequiredTableHeightPx);
 
     // If the imported URL data cannot fit within the current widget height, auto-grow once so content isn't clipped.
     // This addresses the "text is clipped until click/resize" issue for exported→reopened URL tables where the user
     // previously resized the widget smaller than the content requires.
-    if (fit.minTableHeightPx > tableHeightPx + 1) {
+    if (fit.minRequiredTableHeightPx > tableHeightPx + 1) {
       const bufferPx = 4;
       const stepPx = 8;
-      const deficitPx = Math.max(0, fit.minTableHeightPx - tableHeightPx);
+      const deficitPx = Math.max(0, fit.minRequiredTableHeightPx - tableHeightPx);
       const growPx = Math.min(1600, this.roundUpPx(deficitPx + bufferPx, stepPx));
 
       if (Number.isFinite(growPx) && growPx > 0.5) {
@@ -1295,7 +1316,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
           const nextFractions = nextHeights.map((px) => px / newTotalH);
           this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
-          this.setContentMinHeights(fit.minTableHeightPx);
+          // Re-apply required height so preserved-mode clamp can track the new widget height.
+          this.setContentMinHeights(fit.minRequiredTableHeightPx);
         }
       }
     }
@@ -1313,14 +1335,16 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private fitTopLevelRowsToContentWithinHeight(
     currentRowHeightsPx: number[],
     tableHeightPx: number,
-    zoomScale: number
-  ): { nextFractions: number[]; minTableHeightPx: number } | null {
+    zoomScale: number,
+    options?: { respectManualMins?: boolean }
+  ): { nextFractions: number[]; minRequiredTableHeightPx: number; contentMinTableHeightPx: number } | null {
     const rowsModel = this.localRows();
     const rowCount = this.getTopLevelRowCount(rowsModel);
     if (rowCount <= 0) return null;
 
     const safeH = Math.max(1, Number.isFinite(tableHeightPx) ? tableHeightPx : 0);
     const safeScale = Math.max(0.1, Number.isFinite(zoomScale) ? zoomScale : 1);
+    const respectManualMins = options?.respectManualMins !== false;
 
     let heights = Array.isArray(currentRowHeightsPx) ? [...currentRowHeightsPx] : [];
     if (heights.length !== rowCount) {
@@ -1330,28 +1354,43 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const maxIterations = 3;
     let minHeights: number[] = [];
+    let contentMinSum = this.minRowPx * rowCount;
+    let requiredMinSum = contentMinSum;
 
     for (let iter = 0; iter < maxIterations; iter++) {
       // Compute min height for each row at current distribution.
-      minHeights = Array.from({ length: rowCount }, (_, r) =>
+      const contentMins = Array.from({ length: rowCount }, (_, r) =>
         this.computeMinTopLevelRowHeightPx(r, heights, safeScale, 'autoFit')
       );
 
-      // Respect manual row-resize minimums (in-memory). This prevents auto-fit / auto-shrink
-      // from undoing a user's explicit row sizing during later column-resizes.
-      const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
-      for (let r = 0; r < rowCount; r++) {
-        const contentMin = minHeights[r] ?? this.minRowPx;
-        const manualMin = manualMins[r] ?? 0;
-        minHeights[r] = Math.max(this.minRowPx, contentMin, manualMin);
+      // Content-only minimums (for outer widget clamp).
+      const contentMinHeights = contentMins.map((h) => Math.max(this.minRowPx, h ?? this.minRowPx));
+      contentMinSum = contentMinHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+
+      // Effective minimums for this fitting pass. This may include manual mins (for auto-fit behavior),
+      // but we intentionally do NOT expose them to the outer widget min-height clamp.
+      minHeights = [...contentMinHeights];
+      if (respectManualMins) {
+        const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+        for (let r = 0; r < rowCount; r++) {
+          const contentMin = minHeights[r] ?? this.minRowPx;
+          const manualMin = manualMins[r] ?? 0;
+          minHeights[r] = Math.max(this.minRowPx, contentMin, manualMin);
+        }
       }
 
-      const minSum = minHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
-      this.setContentMinHeights(minSum);
+      requiredMinSum = minHeights.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+
+      // Keep the outer resizer clamp synced to content-only min height.
+      this.setContentMinHeights(contentMinSum);
 
       // If impossible to fit within current height, we can't redistribute enough.
-      if (minSum > safeH + 1) {
-        return { nextFractions: this.normalizeFractions(this.rowFractions(), rowCount), minTableHeightPx: minSum };
+      if (requiredMinSum > safeH + 1) {
+        return {
+          nextFractions: this.normalizeFractions(this.rowFractions(), rowCount),
+          minRequiredTableHeightPx: requiredMinSum,
+          contentMinTableHeightPx: this.contentMinTableHeightPx,
+        };
       }
 
       let deficitSum = 0;
@@ -1399,7 +1438,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     const nextFractions = heights.map((px) => px / safeH);
-    return { nextFractions: this.normalizeFractions(nextFractions, rowCount), minTableHeightPx: this.contentMinTableHeightPx };
+    // Ensure clamp reflects the last computed content min height.
+    this.setContentMinHeights(contentMinSum);
+    return {
+      nextFractions: this.normalizeFractions(nextFractions, rowCount),
+      minRequiredTableHeightPx: requiredMinSum,
+      contentMinTableHeightPx: this.contentMinTableHeightPx,
+    };
   }
 
   /**
@@ -1624,18 +1669,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const baseFractions = this.normalizeFractions(this.rowFractions(), rowCount);
     const heightsPx = baseFractions.map((f) => f * tableHeightPx);
 
-    const fit = this.fitTopLevelRowsToContentWithinHeight(heightsPx, tableHeightPx, zoomScale);
+    const fit = this.fitTopLevelRowsToContentWithinHeight(heightsPx, tableHeightPx, zoomScale, {
+      // Outer widget resize is a manual gesture; do NOT let in-memory manual row mins block it.
+      respectManualMins: false,
+    });
     if (!fit) return;
 
     this.rowFractions.set(this.normalizeFractions(fit.nextFractions, rowCount));
-    this.setContentMinHeights(fit.minTableHeightPx);
+    this.setContentMinHeights(fit.minRequiredTableHeightPx);
 
     if (persist) {
       // If width shrink (or corner resize) increased wrapping, ensure we end the outer resize with NO clipped content.
       // IMPORTANT: match internal column-resize behavior:
       // - Grow the widget height if needed
       // - Grow ONLY the rows that need more height (deficit rows), keep other rows' pixel heights stable
-      if (fit.minTableHeightPx > tableHeightPx + 1) {
+      if (fit.minRequiredTableHeightPx > tableHeightPx + 1) {
         const minHeightsPx = Array.from({ length: rowCount }, (_, r) =>
           this.computeMinTopLevelRowHeightPx(r, heightsPx, zoomScale, 'autoFit')
         );
@@ -1678,7 +1726,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
               const nextFractions = nextHeights.map((px) => px / newTotalH);
               this.rowFractions.set(this.normalizeFractions(nextFractions, rowCount));
-              this.setContentMinHeights(fit.minTableHeightPx);
+              this.setContentMinHeights(fit.minRequiredTableHeightPx);
             }
 
             this.suppressWidgetSyncDuringAutoFit = false;
@@ -1687,8 +1735,38 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       }
 
       // If the user widened the widget (less wrapping), reclaim vertical slack after the resize gesture ends.
-      // This matches the post-column-resize behavior (tighten like backspace/delete), but runs only on release.
-      this.tryAutoShrinkWidgetToContentMin({ commit: true });
+      // IMPORTANT: do NOT auto-shrink after a height-increasing resize; that feels like the resize "didn't stick".
+      // Only tighten when the user increased width without increasing height (typical right/left handle resize).
+      const start = this.outerResizeStartSize;
+      const startW = start?.width ?? null;
+      const startH = start?.height ?? null;
+      const tableWidthPx = Math.max(1, rect.width / zoomScale);
+      const tolPx = 1;
+      const widthIncreased = Number.isFinite(startW as number) && (tableWidthPx > (startW as number) + tolPx);
+      const heightIncreased =
+        Number.isFinite(startH as number) && (tableHeightPx > (startH as number) + tolPx);
+      if (widthIncreased && !heightIncreased) {
+        this.tryAutoShrinkWidgetToContentMin({ commit: true });
+      }
+
+      // The user just performed a MANUAL outer resize. That gesture should be allowed to override any
+      // prior manual row-resize minimums. Otherwise a row-resize that previously grew the table can
+      // make the widget feel "stuck" when trying to shrink later.
+      const finalRect = this.getTableRect();
+      if (finalRect) {
+        const finalTableHeightPx = Math.max(1, finalRect.height / zoomScale);
+        const mins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
+        const finalFractions = this.normalizeFractions(this.rowFractions(), rowCount);
+        for (let r = 0; r < rowCount; r++) {
+          const actualPx = (finalFractions[r] ?? 0) * finalTableHeightPx;
+          if (!Number.isFinite(actualPx) || actualPx <= 0) continue;
+          const curMin = mins[r] ?? 0;
+          if (Number.isFinite(curMin) && curMin > 0) {
+            mins[r] = Math.min(curMin, Math.round(actualPx));
+          }
+        }
+        this.manualTopLevelRowMinHeightsPx = mins;
+      }
 
       this.emitPropsChange(this.localRows());
 
@@ -1698,6 +1776,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (this.sizingState === 'preserved' || this.sizingState === 'auto') {
         this.sizingState = 'fitted';
       }
+
+      // Clear captured start size once the resize is fully committed.
+      this.outerResizeStartSize = null;
     }
 
     this.scheduleRecomputeResizeSegments();
@@ -2023,6 +2104,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // If the editor is visually empty, ensure there's a caret-friendly placeholder.
     this.ensureCaretPlaceholderForEmptyEditor(cell);
+
+    // Seed the last-known content size so we can detect delete/backspace on the first edit.
+    const leafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
+    const textLen = this.htmlToPlainTextForSizing(cell.innerHTML).trim().length;
+    this.lastLeafTextLen.set(leafId, Math.max(0, Math.trunc(textLen)));
   }
 
   onCellBlur(blurredEl: HTMLElement | null, rowIndex: number, cellIndex: number, leafPath?: string): void {
@@ -2079,12 +2165,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Content is synced on blur to avoid frequent updates.
     // But we *do* auto-grow the table/widget when content needs more vertical space,
     // so the <td>/<tr> height expands with typing instead of the inner DIV overflowing.
+    const leafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
     if (el) {
+      const nextTextLen = this.htmlToPlainTextForSizing(el.innerHTML).trim().length;
+      const prevTextLen = this.lastLeafTextLen.get(leafId);
+      // Only auto-shrink when content got smaller (delete/backspace / content removal).
+      const shouldAutoShrink =
+        typeof prevTextLen === 'number' && Number.isFinite(prevTextLen) && nextTextLen < prevTextLen;
+      this.lastLeafTextLen.set(leafId, Math.max(0, Math.trunc(nextTextLen)));
+
       this.maybeAutoGrowToFit(el, rowIndex, cellIndex, leafPath);
-      this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);
+      if (shouldAutoShrink) {
+        this.scheduleAutoShrinkToFit(el, rowIndex, cellIndex, leafPath);
+      }
     }
 
-    const leafId = this.composeLeafId(rowIndex, cellIndex, leafPath ?? '');
     this.scheduleAutosaveCommit(leafId, el);
     this.cdr.markForCheck();
   }
@@ -5816,8 +5911,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const currentRowHeightsPx = baseFractions.map((f) => f * currentTableHeightPx);
 
     const manualMins = this.ensureManualTopLevelRowMinHeightsPx(rowCount);
-    const minHeightsPx = Array.from({ length: rowCount }, (_, r) => {
+    const contentMinHeightsPx = Array.from({ length: rowCount }, (_, r) => {
       const contentMin = this.computeMinTopLevelRowHeightPx(r, currentRowHeightsPx, zoomScale, 'autoFit');
+      return Math.max(this.minRowPx, contentMin);
+    });
+
+    // Effective mins for auto-shrink should respect manual row resizes, but the OUTER widget clamp should NOT.
+    const minHeightsPx = contentMinHeightsPx.map((contentMin, r) => {
       const manualMin = manualMins[r] ?? 0;
       return Math.max(this.minRowPx, contentMin, manualMin);
     });
@@ -5825,8 +5925,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const minSumPx = minHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
     if (!Number.isFinite(minSumPx) || minSumPx <= 0) return false;
 
-    // Keep the min-height attribute in sync so the outer resizer clamp is correct.
-    this.setContentMinHeights(minSumPx);
+    // Keep the min-height attribute (outer resizer clamp) in sync with CONTENT-only minimums.
+    // Manual row mins are a local "PPT-like" preference and should not make outer widget resizing feel stuck.
+    const contentMinSumPx = contentMinHeightsPx.reduce((a, b) => a + (Number.isFinite(b) ? Math.max(0, b) : 0), 0);
+    if (Number.isFinite(contentMinSumPx) && contentMinSumPx > 0) {
+      this.setContentMinHeights(contentMinSumPx);
+    }
 
     const bufferPx = 4;
     const stepPx = 8;
@@ -5918,7 +6022,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
 
     // Check if the minimum required height exceeds current height
-    const minRequiredHeightPx = fitResult.minTableHeightPx;
+    const minRequiredHeightPx = fitResult.minRequiredTableHeightPx;
     const needsGrowth = minRequiredHeightPx > currentTableHeightPx + 1;
 
     if (needsGrowth) {
@@ -5946,14 +6050,15 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Convert to fractions for new height
       const newFractions = scaledHeightsPx.map((h) => h / newTableHeightPx);
       this.rowFractions.set(this.normalizeFractions(newFractions, rowCount));
-      this.setContentMinHeights(minRequiredHeightPx);
+      // Keep outer clamp synced to content-only min height (manual mins are not a hard clamp).
+      this.setContentMinHeights(fitResult.contentMinTableHeightPx);
 
       // Commit draft
       this.draftState.commitDraft(this.widget.id);
     } else {
       // No growth needed - just apply the redistributed fractions
       this.rowFractions.set(this.normalizeFractions(fitResult.nextFractions, rowCount));
-      this.setContentMinHeights(fitResult.minTableHeightPx);
+      this.setContentMinHeights(fitResult.contentMinTableHeightPx);
 
       // If widening columns reduced wrapping, reclaim slack by auto-shrinking the widget.
       if (this.tryAutoShrinkWidgetToContentMin()) {

@@ -21,6 +21,6 @@ export const TABLE_MIN_SPLIT_COL_PX = 24;
  * Default initial row height (px) for a freshly inserted table widget.
  * This avoids the "huge empty table" look while still feeling PPT-like.
  */
-export const TABLE_INITIAL_ROW_PX = 40;
+export const TABLE_INITIAL_ROW_PX = 32;
 
 

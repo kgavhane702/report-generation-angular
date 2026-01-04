@@ -503,7 +503,27 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Fix: recompute min constraints live during the drag so the first drag uses the latest value.
     const widget = this.displayWidget();
     const live = this.computeResizeMinConstraints(widget);
-    const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY, live.minWidth, live.minHeight);
+
+    // Reduce "jumpy" feel when shrinking past min constraints:
+    // for tables, the content-min-height can fluctuate slightly during the gesture (DOM measurement),
+    // which makes the clamp appear to bounce. Keep the effective clamp monotonic (never increasing)
+    // while the user is shrinking.
+    let minWidth = live.minWidth;
+    let minHeight = live.minHeight;
+    if (widget?.type === 'table' && this.resizeStart) {
+      const shrinkingHeight = nextHeight < this.resizeStart.height - 0.5;
+      if (shrinkingHeight) {
+        const sticky = this.resizeStart.minHeight;
+        if (Number.isFinite(sticky) && sticky > 0) {
+          minHeight = Math.min(sticky, minHeight);
+        }
+      }
+      // Keep sticky values updated so they can decrease (never increase while shrinking).
+      this.resizeStart.minHeight = minHeight;
+      this.resizeStart.minWidth = minWidth;
+    }
+
+    const frame = this.clampFrame(nextWidth, nextHeight, nextX, nextY, minWidth, minHeight);
 
     // Keep resize behavior unchanged during the gesture; guides are visual only.
     this._previewFrame.set(frame);
@@ -673,9 +693,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       // we do NOT clamp (user is already in an overflow state).
       const currentH = this.frame.height;
       const domMinH = this.readTableMinHeightPxFromDom();
-      // If the table hasn't computed its min height yet (first interaction / immediately after style changes),
-      // do NOT block the first drag. We'll pick up the DOM-provided value as soon as it's available.
-      const contentMinH = domMinH ?? 20;
+      const computedMinH = this.computeTableMinHeightPx(currentH);
+
+      // Prefer the table widget's own min-height attribute when it is usable AND we're not already clipped.
+      // If the content is already clipped at the current height, do not clamp (allow free resize).
+      const safeDomMinH =
+        domMinH !== null && Number.isFinite(domMinH) && domMinH > 0 && domMinH <= currentH + 1 ? domMinH : null;
+      const contentMinH = safeDomMinH ?? computedMinH ?? 20;
       return { minWidth: baseMinWidth, minHeight: Math.max(baseMinHeight, contentMinH) };
     }
 
