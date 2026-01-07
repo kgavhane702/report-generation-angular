@@ -63,7 +63,10 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   private isActivelyEditing = false;
   /** Baseline of last committed HTML (normalized) to prevent duplicate emits during autosave. */
   private htmlAtEditStart = '';
-  private suppressNextBlur = false;
+  /** Delay blur handling so toolbar/dropdown interactions don't end editing. */
+  private blurTimeoutId: number | null = null;
+  /** Tracks pointerdown that happened in toolbar/dropdowns so blur can be ignored. */
+  private isClickingInsideEditUi = false;
   private autoGrowRaf: number | null = null;
   private autosaveTimeoutId: number | null = null;
   private readonly autosaveDelayMs = 650;
@@ -180,6 +183,10 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
 
   ngOnDestroy(): void {
     this.verticalAlignSub?.unsubscribe();
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId);
+      this.blurTimeoutId = null;
+    }
     if (this.autosaveTimeoutId !== null) {
       clearTimeout(this.autosaveTimeoutId);
       this.autosaveTimeoutId = null;
@@ -246,18 +253,22 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     const t = event.target as HTMLElement | null;
     if (!t) return;
 
-    // If the user is interacting with the Editastra toolbar, suppress blur.
-    const isOurToolbar = t.closest('[data-editastra-toolbar="1"]');
-    // Dropdowns are portaled to body, so we identify them via data attributes
-    const isOurDropdown = t.closest('[data-editastra-dropdown="1"]');
-    // Color pickers also use portaled dropdowns, identified via data-color-picker-dropdown
-    const isOurColorPicker = t.closest('[data-color-picker-dropdown="editastra"]');
+    // If the user is interacting with the widget toolbar (top rail) or any Editastra dropdown,
+    // treat the ensuing blur as "internal" so we don't exit edit mode.
+    const isWidgetToolbar = !!t.closest('app-widget-toolbar');
+    const isOurStandaloneToolbar = !!t.closest('[data-editastra-toolbar="1"]');
+    // Dropdowns are portaled to body, so we identify them via data attributes or CSS classes.
+    const isOurDropdown = !!t.closest('[data-editastra-dropdown="1"]');
+    const isOurColorPicker = !!t.closest('[data-color-picker-dropdown="editastra"]');
+    const isAnchoredDropdownPanel = !!t.closest('.anchored-dropdown') || !!t.closest('.anchored-dropdown-portal');
+    const isColorPickerContent = !!t.closest('.color-picker__dropdown-content') || !!t.closest('.color-picker');
+    const isBorderPickerContent = !!t.closest('.border-picker__content') || !!t.closest('.border-picker');
 
-    if (isOurToolbar || isOurDropdown || isOurColorPicker) {
-      this.suppressNextBlur = true;
+    if (isWidgetToolbar || isOurStandaloneToolbar || isOurDropdown || isOurColorPicker || isAnchoredDropdownPanel || isColorPickerContent || isBorderPickerContent) {
+      this.isClickingInsideEditUi = true;
       // Clear in a microtask so we only suppress the immediate blur caused by this click.
       queueMicrotask(() => {
-        this.suppressNextBlur = false;
+        this.isClickingInsideEditUi = false;
       });
     }
   }
@@ -283,25 +294,59 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   onEditorBlur(): void {
     if (!this.isActivelyEditing) return;
 
-    // Toolbar clicks should not end editing or commit.
-    if (this.suppressNextBlur) {
-      // Re-focus editor on next frame (after toolbar handler runs).
-      requestAnimationFrame(() => {
-        this.editorComp?.focus();
-      });
-      return;
+    // Delay blur handling so we can detect toolbar/dropdown interactions.
+    if (this.blurTimeoutId !== null) {
+      clearTimeout(this.blurTimeoutId);
+      this.blurTimeoutId = null;
     }
 
-    if (this.autosaveTimeoutId !== null) {
-      clearTimeout(this.autosaveTimeoutId);
-      this.autosaveTimeoutId = null;
-    }
+    this.blurTimeoutId = window.setTimeout(() => {
+      const activeElement = document.activeElement as HTMLElement | null;
+      const editableEl = this.editorComp?.getEditableElement() ?? null;
 
-    this.commitContentChange('blur');
-    this.isActivelyEditing = false;
-    this.editingChange.emit(false);
-    this.tableToolbar.setActiveCell(null, this.widget?.id ?? null);
-    this.cdr.markForCheck();
+      const isStillInsideEditor =
+        !!(activeElement && editableEl && (activeElement === editableEl || editableEl.contains(activeElement)));
+
+      // Widget toolbar is a shared shell (top rail) hosting the Editastra toolbar for this widget type.
+      const widgetToolbarEl = document.querySelector('app-widget-toolbar');
+      const isStillInsideWidgetToolbar = !!(activeElement && widgetToolbarEl?.contains(activeElement));
+
+      // Portaled dropdown panels / color picker dropdowns live under body.
+      const isStillInsideEditastraDropdown =
+        !!(activeElement && (
+          activeElement.closest('[data-editastra-dropdown="1"]') ||
+          activeElement.closest('[data-color-picker-dropdown="editastra"]') ||
+          activeElement.closest('.anchored-dropdown') ||
+          activeElement.closest('.anchored-dropdown-portal') ||
+          activeElement.closest('.color-picker__dropdown-content') ||
+          activeElement.closest('.border-picker__content')
+        ));
+
+      // Only commit and exit editing if focus moved completely outside editor + toolbar/dropdowns.
+      if (!isStillInsideEditor && !isStillInsideWidgetToolbar && !isStillInsideEditastraDropdown && !this.isClickingInsideEditUi) {
+        if (this.autosaveTimeoutId !== null) {
+          clearTimeout(this.autosaveTimeoutId);
+          this.autosaveTimeoutId = null;
+        }
+
+        this.commitContentChange('blur');
+        this.isActivelyEditing = false;
+        this.editingChange.emit(false);
+        this.tableToolbar.setActiveCell(null, this.widget?.id ?? null);
+        this.cdr.markForCheck();
+      } else {
+        // If focus moved to toolbar buttons, re-focus the editor surface so typing can continue.
+        // Avoid stealing focus from text inputs/selects (e.g., font size input).
+        const tag = (activeElement?.tagName || '').toUpperCase();
+        const isFormControl = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+        if (!isFormControl) {
+          requestAnimationFrame(() => this.editorComp?.focus());
+        }
+      }
+
+      this.blurTimeoutId = null;
+      this.isClickingInsideEditUi = false;
+    }, 150);
   }
 
   focusEditorFromContainer(event: MouseEvent): void {

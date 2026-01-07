@@ -2617,13 +2617,27 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.blurTimeoutId = window.setTimeout(() => {
       const activeElement = document.activeElement;
       const toolbarElement = document.querySelector('app-table-toolbar');
+      const widgetToolbarElement = document.querySelector('app-widget-toolbar');
       
       const isStillInsideTable = activeElement && 
         this.tableContainer?.nativeElement?.contains(activeElement);
       const isStillInsideToolbar = activeElement && 
         toolbarElement?.contains(activeElement);
+      const isStillInsideWidgetToolbar = activeElement &&
+        widgetToolbarElement?.contains(activeElement);
+
+      // Check if focus is inside a portaled dropdown (color picker, border picker, anchored dropdown)
+      // These are rendered in document.body, not inside the toolbar element.
+      const isInsidePortaledDropdown = !!(activeElement && (
+        (activeElement as Element).closest('.anchored-dropdown') ||
+        (activeElement as Element).closest('.anchored-dropdown-portal') ||
+        (activeElement as Element).closest('[data-color-picker-dropdown]') ||
+        (activeElement as Element).closest('.color-picker__dropdown-content') ||
+        (activeElement as Element).closest('.border-picker__content') ||
+        (activeElement as Element).closest('[data-editastra-dropdown]')
+      ));
       
-      if (!isStillInsideTable && !isStillInsideToolbar) {
+      if (!isStillInsideTable && !isStillInsideToolbar && !isStillInsideWidgetToolbar && !isInsidePortaledDropdown) {
         if (this.autosaveTimeoutId !== null) {
           clearTimeout(this.autosaveTimeoutId);
           this.autosaveTimeoutId = null;
@@ -3190,13 +3204,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const target = event.target as Node | null;
     const isInsideTable = !!(target && this.tableContainer?.nativeElement?.contains(target));
     const toolbarElement = document.querySelector('app-table-toolbar');
+    const widgetToolbarElement = document.querySelector('app-widget-toolbar');
     const isInsideToolbar = !!(target && toolbarElement?.contains(target));
+    const isInsideWidgetToolbar = !!(target && widgetToolbarElement?.contains(target));
     
-    // Also check if click is inside a color picker dropdown (which may be positioned outside toolbar)
-    const isInsideColorPicker = !!(target && (
+    // Also check if click is inside a portaled dropdown (color picker, border picker, anchored dropdown)
+    // These are rendered in document.body, not inside the toolbar element.
+    const isInsidePortaledDropdown = !!(target && (
       (target as Element).closest('.color-picker') ||
-      (target as Element).closest('.color-picker__dropdown') ||
-      (target as Element).closest('.color-picker__trigger')
+      (target as Element).closest('.color-picker__dropdown-content') ||
+      (target as Element).closest('[data-color-picker-dropdown]') ||
+      (target as Element).closest('.border-picker__content') ||
+      (target as Element).closest('.anchored-dropdown') ||
+      (target as Element).closest('.anchored-dropdown-portal') ||
+      (target as Element).closest('[data-editastra-dropdown]')
     ));
 
     // PPT-like: clicking anywhere on the table selects the table widget,
@@ -3206,7 +3227,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
 
-    if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar && !isInsideColorPicker) {
+    if (this.tableContainer?.nativeElement && !isInsideTable && !isInsideToolbar && !isInsideWidgetToolbar && !isInsidePortaledDropdown) {
       this.clearSelection();
       // Clear table selection if user clicked away.
       if (this.toolbarService.activeTableWidgetId === this.widget.id) {

@@ -114,6 +114,11 @@ export class TableToolbarComponent {
     return this.toolbarService.activeCell !== null;
   }
 
+  /** True when there is an active cell (edit mode) OR at least 1 cell is selected (drag selection). */
+  get hasCellsForStyling(): boolean {
+    return this.toolbarService.activeCell !== null || this.toolbarService.selectedCells.size > 0;
+  }
+
   /**
    * NOTE: This component is OnPush, so using plain getters against service state can lead to stale UI
    * while the table is updating selection. Use observables + async pipe to drive button disabled state.
@@ -130,6 +135,11 @@ export class TableToolbarComponent {
 
   /** Enabled only when 2+ cells are selected. */
   readonly canMerge$ = this.toolbarService.canMergeSelection$;
+
+  /** Enabled when there is an active cell (edit mode) OR at least 1 cell is selected (drag selection). */
+  readonly hasCellsForStyling$ = combineLatest([this.toolbarService.activeCell$, this.selectedCellsCount$]).pipe(
+    map(([cell, count]) => !!cell || count > 0)
+  );
 
   /** Table is active if the selected widget is a table (from EditorStateService) */
   get hasActiveTable(): boolean {
@@ -238,13 +248,13 @@ export class TableToolbarComponent {
   }
 
   onCellFillSelected(color: string): void {
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.cellFillColor = color;
     this.toolbarService.applyCellBackgroundColor(color);
   }
 
   onBorderValueChange(value: BorderValue): void {
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.borderColor = value.color;
     this.borderWidth = value.width;
     this.borderStyle = value.style;

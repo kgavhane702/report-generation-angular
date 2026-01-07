@@ -154,14 +154,14 @@
       [currentColor]="cellFillColor"
       [colorPalette]="highlightFillPalette"
       icon="format_color_fill"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       title="Cell fill"
       (colorSelected)="onCellFillSelected($event)"
     ></app-color-picker>
 
     <!-- Border (single dropdown with live preview: color + style + width) -->
     <app-border-picker
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       title="Border"
       [colorPalette]="highlightFillPalette"
       [value]="{ color: borderColor, width: borderWidth, style: borderStyle }"
