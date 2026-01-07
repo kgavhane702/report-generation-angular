@@ -39,6 +39,7 @@
     <button
       type="button"
       class="table-toolbar__button table-toolbar__button--wide"
+      [disabled]="!(canSplit$ | async)"
       (mousedown)="openSplitDialog($event)"
       title="Split cell (Rows/Columns)"
     >
@@ -49,8 +50,9 @@
     <button
       type="button"
       class="table-toolbar__button table-toolbar__button--wide"
+      [disabled]="!(canMerge$ | async)"
       (mousedown)="onMergeClick($event)"
-      title="Merge selected cells (rectangle)"
+      title="Merge selected cells (select 2+ cells)"
     >
       <app-icon name="table_merge"></app-icon>
       <span class="table-toolbar__button-label">Merge</span>

@@ -82,6 +82,7 @@ export class TableToolbarService {
   private readonly activeCellSubject = new BehaviorSubject<HTMLElement | null>(null);
   private readonly activeTableWidgetIdSubject = new BehaviorSubject<string | null>(null);
   private readonly selectedCellsSubject = new BehaviorSubject<Set<string>>(new Set());
+  private readonly canMergeSelectionSubject = new BehaviorSubject<boolean>(false);
   private readonly splitCellRequestedSubject = new Subject<SplitCellRequest>();
   private readonly mergeCellsRequestedSubject = new Subject<void>();
   private readonly textAlignRequestedSubject = new Subject<'left' | 'center' | 'right' | 'justify'>();
@@ -108,6 +109,8 @@ export class TableToolbarService {
   
   public readonly activeCell$: Observable<HTMLElement | null> = this.activeCellSubject.asObservable();
   public readonly activeTableWidgetId$: Observable<string | null> = this.activeTableWidgetIdSubject.asObservable();
+  public readonly selectedCells$: Observable<Set<string>> = this.selectedCellsSubject.asObservable();
+  public readonly canMergeSelection$: Observable<boolean> = this.canMergeSelectionSubject.asObservable();
   public readonly splitCellRequested$: Observable<SplitCellRequest> = this.splitCellRequestedSubject.asObservable();
   public readonly mergeCellsRequested$: Observable<void> = this.mergeCellsRequestedSubject.asObservable();
   public readonly textAlignRequested$: Observable<'left' | 'center' | 'right' | 'justify'> = this.textAlignRequestedSubject.asObservable();
@@ -218,6 +221,16 @@ export class TableToolbarService {
     return this.selectedCellsSubject.value;
   }
 
+  /** Whether the current selection is actually mergeable (rectangle/valid region). */
+  get canMergeSelection(): boolean {
+    return !!this.canMergeSelectionSubject.value;
+  }
+
+  /** Used by the table widget to keep merge button enabled-state in sync with merge rules. */
+  setCanMergeSelection(canMerge: boolean): void {
+    this.canMergeSelectionSubject.next(!!canMerge);
+  }
+
   requestSplitCell(request: SplitCellRequest): void {
     this.splitCellRequestedSubject.next(request);
   }
@@ -266,6 +279,10 @@ export class TableToolbarService {
    */
   setSelectedCells(cells: Set<string>): void {
     this.selectedCellsSubject.next(cells);
+    // Fast-path: if there isn't even a multi-cell selection, merge is definitely disabled.
+    if ((cells?.size ?? 0) < 2) {
+      this.canMergeSelectionSubject.next(false);
+    }
     // If user is operating on a multi-cell selection, prefer cell formatting over image controls.
     if ((cells?.size ?? 0) > 1) {
       this.activeResizableImageWrapper = null;
@@ -324,6 +341,9 @@ export class TableToolbarService {
   /** Mark a table widget as active/selected without focusing a cell. */
   setActiveTableWidget(widgetId: string | null): void {
     this.activeTableWidgetIdSubject.next(widgetId);
+    if (!widgetId) {
+      this.canMergeSelectionSubject.next(false);
+    }
   }
 
   /** Update table section options (header row/first column/total row/last column) */
@@ -1148,6 +1168,7 @@ export class TableToolbarService {
   /** Clear active table selection (used when clicking outside the table). */
   clearActiveTableWidget(): void {
     this.activeTableWidgetIdSubject.next(null);
+    this.canMergeSelectionSubject.next(false);
   }
 
   private handleSelectionChange = (): void => {

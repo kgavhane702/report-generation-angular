@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { combineLatest, map, startWith } from 'rxjs';
 
 import { TableToolbarService, TableSectionOptions } from '../../../../../../core/services/table-toolbar.service';
 import { EditorStateService } from '../../../../../../core/services/editor-state.service';
@@ -113,6 +114,23 @@ export class TableToolbarComponent {
     return this.toolbarService.activeCell !== null;
   }
 
+  /**
+   * NOTE: This component is OnPush, so using plain getters against service state can lead to stale UI
+   * while the table is updating selection. Use observables + async pipe to drive button disabled state.
+   */
+  readonly selectedCellsCount$ = this.toolbarService.selectedCells$.pipe(
+    map((s) => s?.size ?? 0),
+    startWith(0)
+  );
+
+  /** Enabled when there is an active cell OR at least 1 cell is selected. */
+  readonly canSplit$ = combineLatest([this.toolbarService.activeCell$, this.selectedCellsCount$]).pipe(
+    map(([cell, count]) => !!cell || count > 0)
+  );
+
+  /** Enabled only when 2+ cells are selected. */
+  readonly canMerge$ = this.toolbarService.canMergeSelection$;
+
   /** Table is active if the selected widget is a table (from EditorStateService) */
   get hasActiveTable(): boolean {
     return this.isTableWidgetActive();
@@ -186,6 +204,8 @@ export class TableToolbarComponent {
 
   openSplitDialog(event: MouseEvent): void {
     event.preventDefault();
+    // Guard: avoid opening when no target cell/selection exists.
+    if (!this.hasActiveCell && this.toolbarService.selectedCells.size === 0) return;
     this.splitDialogOpen = true;
   }
 
@@ -206,6 +226,8 @@ export class TableToolbarComponent {
 
   onMergeClick(event: MouseEvent): void {
     event.preventDefault();
+    // Guard: merge requires a multi-cell selection.
+    if (!this.toolbarService.canMergeSelection) return;
     this.toolbarService.requestMergeCells();
   }
 

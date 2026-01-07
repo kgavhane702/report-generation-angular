@@ -3491,7 +3491,66 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const normalized = this.normalizeSelection(selection);
     this.selectedCells.set(normalized);
     this.toolbarService.setSelectedCells(normalized);
+    // Keep toolbar merge button state in sync with actual merge rules.
+    this.toolbarService.setCanMergeSelection(this.computeCanMergeSelection(normalized));
     this.cdr.markForCheck();
+  }
+
+  /**
+   * Whether the current selection is actually mergeable.
+   * This mirrors the same validation used by the merge implementation:
+   * - top-level merge requires a filled rectangle and no merges extending outside
+   * - split-grid merge requires a filled rectangle within the same split owner
+   */
+  private computeCanMergeSelection(selection: Set<string>): boolean {
+    if (!selection || selection.size < 2) return false;
+
+    const parsedAll = Array.from(selection)
+      .map((id) => this.parseLeafId(id))
+      .filter((p): p is { row: number; col: number; path: number[] } => !!p);
+
+    if (parsedAll.length < 2) return false;
+
+    const topLevelKeys = new Set(parsedAll.map((p) => `${p.row}-${p.col}`));
+    const snapshot = this.localRows();
+
+    // If selection spans multiple top-level cells, eligibility is based on top-level merge rectangle validity.
+    if (topLevelKeys.size >= 2) {
+      const coords = Array.from(topLevelKeys).map((k) => {
+        const [row, col] = k.split('-').map(Number);
+        return { row, col };
+      });
+      const expanded = this.expandTopLevelSelection(coords, snapshot);
+      if (expanded.size < 2) return false;
+      const rect = this.getTopLevelBoundingRect(expanded);
+      if (!rect) return false;
+      return this.isValidTopLevelMergeRect(rect, expanded, snapshot);
+    }
+
+    // Otherwise, allow merge only within a single split grid (sub-cells).
+    const baseRow = parsedAll[0].row;
+    const baseCol = parsedAll[0].col;
+    if (!parsedAll.every((p) => p.row === baseRow && p.col === baseCol && p.path.length > 0)) {
+      return false;
+    }
+
+    const depth = parsedAll[0].path.length;
+    if (!parsedAll.every((p) => p.path.length === depth)) return false;
+
+    const prefix = parsedAll[0].path.slice(0, -1);
+    if (!parsedAll.every((p) => this.arraysEqual(p.path.slice(0, -1), prefix))) return false;
+
+    const indices = parsedAll.map((p) => p.path[p.path.length - 1]);
+    const baseCell = snapshot?.[baseRow]?.cells?.[baseCol];
+    if (!baseCell || baseCell.coveredBy) return false;
+    const owner = prefix.length === 0 ? baseCell : this.getCellAtPath(baseCell, prefix);
+    if (!owner || !owner.split) return false;
+
+    const expanded = this.expandSplitSelection(owner, indices);
+    if (expanded.size < 2) return false;
+    const rect = this.getSplitBoundingRect(owner.split.cols, expanded);
+    if (!rect) return false;
+    return this.isValidSplitMergeRect(owner, rect, expanded);
   }
 
   private normalizeSelection(selection: Set<string>): Set<string> {
