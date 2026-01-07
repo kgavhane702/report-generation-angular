@@ -19,6 +19,10 @@ export interface TableFormattingState {
   fontFamily: string;
   fontSizePx: number | null;
   blockTag: string;
+  /** Current text color for the active selection (best-effort). Hex string like #rrggbb, or '' when unknown/mixed. */
+  textColor: string;
+  /** Current highlight color for the active selection (best-effort). Hex string like #rrggbb, or '' when none/unknown/mixed. */
+  highlightColor: string;
 }
 
 export interface SplitCellRequest {
@@ -150,6 +154,8 @@ export class TableToolbarService {
     fontFamily: '',
     fontSizePx: null,
     blockTag: 'p',
+    textColor: '#000000',
+    highlightColor: '',
   });
 
   // format painter removed
@@ -812,6 +818,8 @@ export class TableToolbarService {
     if (this.getSelectedCellsCount() > 1) {
       // Cell-level text color for multi-cell selection.
       this.textColorRequestedSubject.next(value);
+      // Keep toolbar UI in sync even before widget persists.
+      this.formattingState.update((s) => ({ ...s, textColor: this.normalizeColorToHex(value) || s.textColor }));
       return;
     }
 
@@ -832,6 +840,8 @@ export class TableToolbarService {
     if (this.getSelectedCellsCount() > 1) {
       // Cell-level highlight for multi-cell selection.
       this.textHighlightRequestedSubject.next(value);
+      // Keep toolbar UI in sync even before widget persists.
+      this.formattingState.update((s) => ({ ...s, highlightColor: this.normalizeColorToHex(value) }));
       return;
     }
 
@@ -1043,6 +1053,13 @@ export class TableToolbarService {
         (el.style.fontSize || window.getComputedStyle(el).fontSize || '').trim()
       );
 
+      const textColorState = this.getSelectedCellsUniformState<string>((el) =>
+        (el.style.color || window.getComputedStyle(el).color || '').trim()
+      );
+      const highlightState = this.getSelectedCellsUniformState<string>((el) =>
+        (el.style.backgroundColor || window.getComputedStyle(el).backgroundColor || '').trim()
+      );
+
       const fontSizePx = (() => {
         if (fsState.all === null) return null;
         const m = (fsState.all ?? '').match(/^(\d+(?:\.\d+)?)px$/);
@@ -1064,6 +1081,13 @@ export class TableToolbarService {
         fontFamily: ffState.all === null ? '' : ffState.all,
         fontSizePx,
         blockTag: 'p', // Multi-cell: default to paragraph
+        textColor: textColorState.all === null ? '' : (this.normalizeColorToHex(textColorState.all) || ''),
+        highlightColor: (() => {
+          if (highlightState.all === null) return '';
+          const hx = this.normalizeColorToHex(highlightState.all) || '';
+          // Treat fully transparent/none as empty.
+          return hx;
+        })(),
       });
       return;
     }
@@ -1097,6 +1121,48 @@ export class TableToolbarService {
       surfaceAlign === 'middle' || surfaceAlign === 'bottom' ? (surfaceAlign as any) : 'top';
 
     const fontFamily = (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
+
+    // Best-effort: current inline text/highlight colors from browser command values.
+    // NOTE: queryCommandValue can be stale immediately after focus changes; consumers should refresh on selectionchange.
+    const textColorHex = (() => {
+      const baseHex = this.normalizeColorToHex(computedStyle.color) || '#000000';
+      // Prefer DOM-derived color at caret/selection (works for Editastra where color can be on inline spans).
+      const fromSelection = this.getTextColorHexFromSelection(cell, baseHex);
+      if (fromSelection) return fromSelection;
+
+      // Fallback to browser command value.
+      const raw = (() => { try { return (document.queryCommandValue('foreColor') as any) ?? ''; } catch { return ''; } })();
+      return this.normalizeColorToHex(raw) || baseHex;
+    })();
+    const highlightColorHex = (() => {
+      // IMPORTANT:
+      // In tables, "fill" is often the cell element's background.
+      // In Editastra, "widget background" may live on an ancestor (editable itself can be transparent).
+      // So compute an *effective* background by walking up to the first non-transparent bg.
+      const effectiveBgHex = this.getEffectiveBackgroundHex(cell);
+      const selection = window.getSelection();
+      const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+      // Prefer hiliteColor (true text highlight when supported).
+      const hiliteRaw = (() => { try { return (document.queryCommandValue('hiliteColor') as any) ?? ''; } catch { return ''; } })();
+      const hiliteHex = this.normalizeColorToHex(hiliteRaw) || '';
+      if (hiliteHex && hiliteHex !== effectiveBgHex) return hiliteHex;
+
+      // Next, try reading highlight from the element under the caret/selection (more reliable than backColor in our table cells).
+      const fromSelection = this.getHighlightHexFromSelection(cell, effectiveBgHex);
+      if (fromSelection) return fromSelection;
+
+      // Finally, fall back to backColor ONLY when there's an actual text selection,
+      // and only if it doesn't match the cell fill background (otherwise fill bleeds into "highlight").
+      if (range && !range.collapsed) {
+        const backRaw = (() => { try { return (document.queryCommandValue('backColor') as any) ?? ''; } catch { return ''; } })();
+        const backHex = this.normalizeColorToHex(backRaw) || '';
+        if (backHex && backHex !== effectiveBgHex) return backHex;
+      }
+
+      return '';
+    })();
+
     const fontSizeRaw = (cell.style.fontSize || computedStyle.fontSize || '').trim();
     const fontSizePx = (() => {
       const m = fontSizeRaw.match(/^(\d+(?:\.\d+)?)px$/);
@@ -1120,7 +1186,115 @@ export class TableToolbarService {
       fontFamily,
       fontSizePx,
       blockTag,
+      textColor: textColorHex,
+      highlightColor: highlightColorHex,
     });
+  }
+
+  private getHighlightHexFromSelection(cell: HTMLElement, cellBgHex: string): string {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return '';
+      const range = selection.getRangeAt(0);
+      // Anchor a node near the caret.
+      const startNode = range.startContainer;
+      const startEl =
+        (startNode instanceof HTMLElement
+          ? startNode
+          : (startNode.parentElement as HTMLElement | null)) ?? null;
+      if (!startEl) return '';
+      if (!cell.contains(startEl)) return '';
+
+      // Walk up from the caret element toward the cell, looking for a non-transparent background that differs from cell fill.
+      let el: HTMLElement | null = startEl;
+      while (el && el !== cell) {
+        const bg = window.getComputedStyle(el).backgroundColor;
+        const bgHex = this.normalizeColorToHex(bg) || '';
+        if (bgHex && bgHex !== cellBgHex) return bgHex;
+        el = el.parentElement;
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  }
+
+  private getTextColorHexFromSelection(cell: HTMLElement, baseHex: string): string {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return '';
+      const range = selection.getRangeAt(0);
+      const startNode = range.startContainer;
+      const startEl =
+        (startNode instanceof HTMLElement
+          ? startNode
+          : (startNode.parentElement as HTMLElement | null)) ?? null;
+      if (!startEl) return '';
+      if (!cell.contains(startEl)) return '';
+
+      // Walk up from caret toward the editor root, and take the first color that differs from the base.
+      let el: HTMLElement | null = startEl;
+      while (el && el !== cell) {
+        const c = window.getComputedStyle(el).color;
+        const hx = this.normalizeColorToHex(c) || '';
+        if (hx && hx !== baseHex) return hx;
+        el = el.parentElement;
+      }
+
+      return '';
+    } catch {
+      return '';
+    }
+  }
+
+  private getEffectiveBackgroundHex(el: HTMLElement): string {
+    try {
+      let node: HTMLElement | null = el;
+      while (node && node !== document.body) {
+        const bg = window.getComputedStyle(node).backgroundColor;
+        const hx = this.normalizeColorToHex(bg) || '';
+        if (hx) return hx;
+        node = node.parentElement;
+      }
+      return '';
+    } catch {
+      return '';
+    }
+  }
+
+  private normalizeColorToHex(input: string): string {
+    const raw = (input ?? '').toString().trim();
+    if (!raw) return '';
+    // Already hex.
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) {
+      if (raw.length === 4) {
+        const r = raw[1], g = raw[2], b = raw[3];
+        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+      }
+      return raw.toLowerCase();
+    }
+    // rgb/rgba(...) - treat fully transparent as empty
+    const m = raw.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?/i);
+    if (m) {
+      const r = Math.max(0, Math.min(255, Number(m[1]) || 0));
+      const g = Math.max(0, Math.min(255, Number(m[2]) || 0));
+      const b = Math.max(0, Math.min(255, Number(m[3]) || 0));
+      const a = m[4] === undefined ? 1 : Math.max(0, Math.min(1, Number(m[4]) || 0));
+      if (a <= 0.05) return '';
+      const toHex = (n: number) => n.toString(16).padStart(2, '0');
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+    // Fallback: let the browser parse named colors etc.
+    try {
+      const el = document.createElement('span');
+      el.style.color = raw;
+      document.body.appendChild(el);
+      const c = window.getComputedStyle(el).color;
+      document.body.removeChild(el);
+      return this.normalizeColorToHex(c);
+    } catch {
+      return '';
+    }
   }
 
   private detectCurrentBlockTag(): string {

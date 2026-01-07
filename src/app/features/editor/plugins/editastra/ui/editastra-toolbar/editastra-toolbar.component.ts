@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostBinding, Input, ViewChild, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostBinding, HostListener, Input, ViewChild, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -508,6 +508,23 @@ export class EditastraToolbarComponent {
     if (!this.hasActiveEditor) return;
     this.highlightColor = color;
     this.toolbarService.applyTextHighlight(color);
+  }
+
+  @HostListener('document:selectionchange')
+  onSelectionChangeSyncToolbarColors(): void {
+    // Only run when focus is inside an editable surface (table cell editor or editastra editor).
+    const ae = document.activeElement as HTMLElement | null;
+    const inTable = !!ae?.closest?.('.table-widget__cell-editor');
+    const inEditastra = !!ae?.closest?.('.editastra-editor__editable');
+    if (!inTable && !inEditastra) return;
+
+    // Refresh formatting state on selection changes so toolbar reflects the currently focused cell,
+    // not the last-picked color.
+    this.toolbarService.updateFormattingState();
+    const st = this.toolbarService.formattingState();
+    if (st?.textColor) this.textColor = st.textColor;
+    // highlightColor can be '' to indicate none; always set.
+    this.highlightColor = st?.highlightColor ?? this.highlightColor;
   }
 
   onBackgroundColorSelected(color: string): void {
