@@ -373,6 +373,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   /** Blur timeout for delayed blur handling */
   private blurTimeoutId: number | null = null;
 
+  /** Clipboard handlers (Excel-style multi-cell paste/copy) */
+  private clipboardPasteListener: ((ev: ClipboardEvent) => void) | null = null;
+  private clipboardCopyListener: ((ev: ClipboardEvent) => void) | null = null;
+
   /**
    * Debounced autosave while editing.
    * Lets global undo/redo get incremental steps without requiring the user to blur/click outside.
@@ -1729,6 +1733,294 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     }
   }
 
+  private hasTextSelectionInActiveCell(): boolean {
+    const cell = this.activeCellElement;
+    if (!cell) return false;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+    const r = sel.getRangeAt(0);
+    if (r.collapsed) return false;
+    const a = sel.anchorNode;
+    const f = sel.focusNode;
+    if (!a || !f) return false;
+    return cell.contains(a) && cell.contains(f);
+  }
+
+  private escapeHtml(text: string): string {
+    const s = (text ?? '').toString();
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private cellTextToHtml(text: string): string {
+    const v = (text ?? '').toString();
+    if (!v) return '';
+    // Preserve intra-cell line breaks without introducing untrusted HTML.
+    return this.escapeHtml(v).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+  }
+
+  private parseClipboardTabularGrid(html: string, text: string): string[][] | null {
+    // Prefer HTML tables (Excel/Sheets provides rich HTML).
+    const rawHtml = (html ?? '').toString();
+    if (rawHtml && typeof DOMParser !== 'undefined') {
+      try {
+        const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+        const table = doc.querySelector('table');
+        if (table) {
+          const out: string[][] = [];
+          const rows = Array.from(table.querySelectorAll('tr'));
+          for (const tr of rows) {
+            const cells = Array.from(tr.children).filter((c) => {
+              const tag = (c as HTMLElement).tagName?.toLowerCase?.() ?? '';
+              return tag === 'td' || tag === 'th';
+            }) as HTMLElement[];
+            if (cells.length === 0) continue;
+            out.push(cells.map((c) => (c.textContent ?? '').replace(/\r\n/g, '\n')));
+          }
+
+          while (out.length > 0 && out[out.length - 1].every((v) => (v ?? '').trim() === '')) {
+            out.pop();
+          }
+          if (out.length === 0) return null;
+
+          const maxCols = Math.max(1, ...out.map((r) => r.length));
+          for (const r of out) {
+            while (r.length < maxCols) r.push('');
+          }
+          return out;
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    const rawText = (text ?? '').toString();
+    if (!rawText) return null;
+
+    // Excel multi-cell copy uses tab-separated values with newlines between rows.
+    if (!rawText.includes('\t') && !rawText.includes('\n') && !rawText.includes('\r\n')) {
+      return null;
+    }
+
+    const lines = rawText.replace(/\r\n/g, '\n').split('\n');
+    const grid = lines.map((line) => line.split('\t').map((v) => v ?? ''));
+
+    while (grid.length > 0 && grid[grid.length - 1].every((v) => (v ?? '').trim() === '')) {
+      grid.pop();
+    }
+    if (grid.length === 0) return null;
+
+    const maxCols = Math.max(1, ...grid.map((r) => r.length));
+    for (const r of grid) {
+      while (r.length < maxCols) r.push('');
+    }
+    return grid;
+  }
+
+  private handleClipboardPaste(event: ClipboardEvent): void {
+    if (this.isResizingGrid || this.isResizingSplitGrid) return;
+    if (this.isLoadingSig()) return;
+
+    const container = this.tableContainer?.nativeElement;
+    const target = event.target as HTMLElement | null;
+    if (!container || !target || !container.contains(target)) return;
+
+    // Only handle paste inside a cell editor.
+    if (!target.closest?.('.table-widget__cell-editor')) return;
+
+    const dt = event.clipboardData;
+    if (!dt) return;
+
+    // Let the editor-level image paste handler take precedence (it reads file items).
+    // Check both dt.items (modern API) and dt.files (legacy fallback) for image files.
+    // Some corporate/managed browsers only populate dt.files, not dt.items.
+    let hasImageFile = false;
+    const items = dt.items ? Array.from(dt.items) : [];
+    for (const item of items) {
+      if (item.kind === 'file' && (item.type ?? '').toLowerCase().startsWith('image/')) {
+        hasImageFile = true;
+        break;
+      }
+    }
+    if (!hasImageFile && dt.files && dt.files.length > 0) {
+      for (let i = 0; i < dt.files.length; i++) {
+        const f = dt.files[i];
+        if (f && (f.type ?? '').toLowerCase().startsWith('image/')) {
+          hasImageFile = true;
+          break;
+        }
+      }
+    }
+    if (hasImageFile) return;
+
+    const html = dt.getData('text/html') || '';
+    const text = dt.getData('text/plain') || '';
+    const grid = this.parseClipboardTabularGrid(html, text);
+    if (!grid) return;
+
+    const rowsN = grid.length;
+    const colsN = Math.max(1, ...grid.map((r) => r.length));
+
+    // If it's effectively a single value and the user isn't multi-selecting, keep normal paste behavior.
+    if (rowsN <= 1 && colsN <= 1 && this.selectedCells().size <= 1) {
+      return;
+    }
+
+    const baseLeafId = this.activeCellId ?? (this.selectedCells().size > 0 ? Array.from(this.selectedCells())[0] : null);
+    if (!baseLeafId) return;
+
+    const parsed = this.parseLeafId(baseLeafId);
+    if (!parsed) return;
+
+    // For now: spreadsheet-like paste only on the TOP-LEVEL grid (no nested split grids).
+    if (parsed.path.length !== 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.applyTabularPasteToTopLevel(parsed.row, parsed.col, grid);
+  }
+
+  private applyTabularPasteToTopLevel(startRow: number, startCol: number, grid: string[][]): void {
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const colCount = this.getTopLevelColCount(rowsModel);
+    if (rowCount <= 0 || colCount <= 0) return;
+
+    const r0 = Math.max(0, Math.min(rowCount - 1, Math.trunc(startRow)));
+    const c0 = Math.max(0, Math.min(colCount - 1, Math.trunc(startCol)));
+
+    // Sync current DOM edits before applying.
+    this.syncCellContent();
+
+    const touchedLeafIds: string[] = [];
+
+    untracked(() => {
+      this.localRows.update((rows) => {
+        const next = this.cloneRows(rows);
+
+        for (let dr = 0; dr < grid.length; dr++) {
+          for (let dc = 0; dc < (grid[dr]?.length ?? 0); dc++) {
+            const rr = r0 + dr;
+            const cc = c0 + dc;
+            if (rr < 0 || rr >= rowCount || cc < 0 || cc >= colCount) continue;
+
+            let cell = next?.[rr]?.cells?.[cc];
+            if (!cell) continue;
+
+            if (cell.coveredBy) {
+              const a = cell.coveredBy;
+              cell = next?.[a.row]?.cells?.[a.col];
+              if (!cell) continue;
+              touchedLeafIds.push(`${a.row}-${a.col}`);
+            } else {
+              touchedLeafIds.push(`${rr}-${cc}`);
+            }
+
+            const html = this.cellTextToHtml(grid[dr][dc] ?? '');
+            cell.contentHtml = this.normalizeEditorHtmlForModel(html);
+          }
+        }
+
+        return next;
+      });
+    });
+
+    // Update live DOM for visible editors (twSafeInnerHtml defers while focused).
+    const unique = Array.from(new Set(touchedLeafIds));
+    for (const id of unique) {
+      const el = this.resolveLeafEditorElement(id, null);
+      if (!el) continue;
+      const model = this.getCellModelByLeafId(id);
+      if (model) {
+        el.innerHTML = model.contentHtml ?? '';
+        if ((model.contentHtml ?? '') === '') {
+          this.ensureCaretPlaceholderForEmptyEditor(el);
+        }
+      }
+    }
+
+    // Discrete paste action -> create undo step.
+    this.commitChanges('autosave');
+
+    // Best-effort: grow to avoid immediate clipping after large paste.
+    if (this.activeCellId) {
+      const activeEl = this.resolveLeafEditorElement(this.activeCellId, this.activeCellElement);
+      const parsed = this.parseLeafId(this.activeCellId);
+      if (activeEl && parsed && parsed.path.length === 0) {
+        this.maybeAutoGrowToFit(activeEl, parsed.row, parsed.col, '');
+      }
+    }
+
+    this.scheduleRecomputeResizeSegments();
+    this.cdr.markForCheck();
+  }
+
+  private handleClipboardCopy(event: ClipboardEvent): void {
+    const container = this.tableContainer?.nativeElement;
+    const target = event.target as HTMLElement | null;
+    if (!container || !target || !container.contains(target)) return;
+
+    // If user is selecting text inside an editor, do not override normal copy.
+    if (this.hasTextSelectionInActiveCell()) return;
+
+    const selection = this.selectedCells();
+    const baseLeafId = this.activeCellId ?? (selection.size > 0 ? Array.from(selection)[0] : null);
+    if (!baseLeafId) return;
+
+    const parsed = this.parseLeafId(baseLeafId);
+    if (!parsed) return;
+    if (parsed.path.length !== 0) return; // top-level only for now
+
+    const bounds = this.computeTableBoundsForSelection(selection, baseLeafId);
+    if (!bounds) return;
+
+    const rowsModel = this.localRows();
+    const rowCount = this.getTopLevelRowCount(rowsModel);
+    const colCount = this.getTopLevelColCount(rowsModel);
+    if (rowCount <= 0 || colCount <= 0) return;
+
+    const r1 = Math.max(0, Math.min(rowCount - 1, Math.trunc(bounds.minRow)));
+    const r2 = Math.max(0, Math.min(rowCount - 1, Math.trunc(bounds.maxRow)));
+    const c1 = Math.max(0, Math.min(colCount - 1, Math.trunc(bounds.minCol)));
+    const c2 = Math.max(0, Math.min(colCount - 1, Math.trunc(bounds.maxCol)));
+
+    const grid: string[][] = [];
+    for (let r = r1; r <= r2; r++) {
+      const row: string[] = [];
+      for (let c = c1; c <= c2; c++) {
+        const cell = rowsModel?.[r]?.cells?.[c];
+        if (!cell || cell.coveredBy) {
+          row.push('');
+          continue;
+        }
+        const text = this.htmlToPlainTextForSizing(cell.contentHtml ?? '').replace(/\r\n/g, '\n');
+        row.push((text ?? '').replace(/\n/g, ' ').trim());
+      }
+      grid.push(row);
+    }
+
+    const tsv = grid.map((r) => r.map((v) => (v ?? '').replace(/\t/g, ' ')).join('\t')).join('\r\n');
+    const htmlTable =
+      '<table><tbody>' +
+      grid.map((r) => '<tr>' + r.map((v) => '<td>' + this.escapeHtml(v ?? '') + '</td>').join('') + '</tr>').join('') +
+      '</tbody></table>';
+
+    if (!event.clipboardData) return;
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      event.clipboardData.setData('text/plain', tsv);
+      event.clipboardData.setData('text/html', htmlTable);
+    } catch {
+      // ignore
+    }
+  }
+
   private computeTextSizingScore(text: string): number {
     const s = (text ?? '').toString();
     if (!s) return 0;
@@ -1757,6 +2049,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   ngAfterViewInit(): void {
     // Recompute after view is laid out (also handles cases where ngOnInit RAF ran before table existed).
     this.scheduleRecomputeResizeSegments();
+
+    // Excel-style clipboard support (multi-cell paste/copy). We only override default behavior for
+    // tabular payloads; normal single-cell rich-text paste (and image paste handled by EditastraEditor)
+    // remains unchanged.
+    const container = this.tableContainer?.nativeElement;
+    if (container) {
+      this.clipboardPasteListener = (ev: ClipboardEvent) => this.handleClipboardPaste(ev);
+      this.clipboardCopyListener = (ev: ClipboardEvent) => this.handleClipboardCopy(ev);
+      try {
+        container.addEventListener('paste', this.clipboardPasteListener, true);
+        container.addEventListener('copy', this.clipboardCopyListener, true);
+      } catch {
+        // ignore
+      }
+    }
 
     // Recompute on actual table size changes.
     const table = this.getTableElement();
@@ -2050,6 +2357,27 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (this.importSubscription) {
       this.importSubscription.unsubscribe();
     }
+
+    // Clipboard handlers
+    const container = this.tableContainer?.nativeElement;
+    if (container) {
+      if (this.clipboardPasteListener) {
+        try {
+          container.removeEventListener('paste', this.clipboardPasteListener, true);
+        } catch {
+          // ignore
+        }
+      }
+      if (this.clipboardCopyListener) {
+        try {
+          container.removeEventListener('copy', this.clipboardCopyListener, true);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    this.clipboardPasteListener = null;
+    this.clipboardCopyListener = null;
     
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
     document.removeEventListener('mouseup', this.handleDocumentMouseUp);

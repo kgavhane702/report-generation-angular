@@ -97,12 +97,40 @@ export class EditastraEditorComponent {
     if (!this.isEditable) return;
 
     const dt = event.clipboardData;
-    const items = dt?.items ? Array.from(dt.items) : [];
-    if (items.length === 0) return;
+    if (!dt) return;
 
-    const fileItem = items.find((it) => it.kind === 'file' && (it.type ?? '').toLowerCase().startsWith('image/')) ?? null;
-    const file = fileItem?.getAsFile?.() ?? null;
-    if (!file) return;
+    // Try to get an image file from clipboard.
+    // Strategy 1: clipboardData.items (works for images copied from web pages in Chrome/Edge).
+    // Strategy 2: clipboardData.files (works for file pastes, and on some browsers/systems where items API fails).
+    let file: File | null = null;
+
+    // Strategy 1: DataTransferItemList
+    const items = dt.items ? Array.from(dt.items) : [];
+    for (const item of items) {
+      if (item.kind === 'file' && (item.type ?? '').toLowerCase().startsWith('image/')) {
+        const f = item.getAsFile?.();
+        if (f) {
+          file = f;
+          break;
+        }
+      }
+    }
+
+    // Strategy 2: FileList fallback (better support on some corporate/managed browsers)
+    if (!file && dt.files && dt.files.length > 0) {
+      for (let i = 0; i < dt.files.length; i++) {
+        const f = dt.files[i];
+        if (f && (f.type ?? '').toLowerCase().startsWith('image/')) {
+          file = f;
+          break;
+        }
+      }
+    }
+
+    if (!file) {
+      // No image file found; let browser handle normal paste (text/html).
+      return;
+    }
 
     // We will insert a data:image so it persists in JSON/PDF; prevent the browser from inserting blob URLs.
     event.preventDefault();
@@ -116,8 +144,14 @@ export class EditastraEditorComponent {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) return;
+      if (!dataUrl) {
+        console.warn('[EditastraEditor] FileReader returned empty result for pasted image.');
+        return;
+      }
       this.toolbarService.insertImageAtCursor(dataUrl, { alt: altFromName });
+    };
+    reader.onerror = () => {
+      console.warn('[EditastraEditor] FileReader failed to read pasted image:', reader.error);
     };
     reader.readAsDataURL(file);
   }
@@ -172,8 +206,14 @@ export class EditastraEditorComponent {
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) return;
+      if (!dataUrl) {
+        console.warn('[EditastraEditor] FileReader returned empty result for dropped image.');
+        return;
+      }
       this.toolbarService.insertImageAtCursor(dataUrl, { alt: altFromName });
+    };
+    reader.onerror = () => {
+      console.warn('[EditastraEditor] FileReader failed to read dropped image:', reader.error);
     };
     reader.readAsDataURL(file);
   }
