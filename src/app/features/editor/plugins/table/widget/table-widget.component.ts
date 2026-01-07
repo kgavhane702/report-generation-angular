@@ -1835,28 +1835,6 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const dt = event.clipboardData;
     if (!dt) return;
 
-    // Let the editor-level image paste handler take precedence (it reads file items).
-    // Check both dt.items (modern API) and dt.files (legacy fallback) for image files.
-    // Some corporate/managed browsers only populate dt.files, not dt.items.
-    let hasImageFile = false;
-    const items = dt.items ? Array.from(dt.items) : [];
-    for (const item of items) {
-      if (item.kind === 'file' && (item.type ?? '').toLowerCase().startsWith('image/')) {
-        hasImageFile = true;
-        break;
-      }
-    }
-    if (!hasImageFile && dt.files && dt.files.length > 0) {
-      for (let i = 0; i < dt.files.length; i++) {
-        const f = dt.files[i];
-        if (f && (f.type ?? '').toLowerCase().startsWith('image/')) {
-          hasImageFile = true;
-          break;
-        }
-      }
-    }
-    if (hasImageFile) return;
-
     const html = dt.getData('text/html') || '';
     const text = dt.getData('text/plain') || '';
     const grid = this.parseClipboardTabularGrid(html, text);

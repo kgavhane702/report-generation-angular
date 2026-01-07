@@ -1206,20 +1206,14 @@ export class TableToolbarService {
    */
   insertImageAtCursor(dataUrl: string, options?: { alt?: string }): void {
     const cell = this.activeCell;
-    if (!cell) {
-      console.warn('[TableToolbarService] insertImageAtCursor: no active cell. Image paste aborted.');
-      return;
-    }
+    if (!cell) return;
 
     // Restore caret if toolbar interaction stole focus.
     this.restoreSelectionIfNeeded();
     cell.focus();
 
     const selection = window.getSelection();
-    if (!selection) {
-      console.warn('[TableToolbarService] insertImageAtCursor: window.getSelection() returned null.');
-      return;
-    }
+    if (!selection) return;
 
     const wrapper = document.createElement('span');
     wrapper.className = 'tw-resizable-image tw-resizable-image--inline';
