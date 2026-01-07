@@ -2448,6 +2448,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
         const leafId = this.resumeLeafId;
         this.resumeLeafId = null;
+        const savedOffset = this.resumeCursorOffset;
+        const isRedo = this.resumeIsRedo;
+        this.resumeCursorOffset = null;
+        this.resumeIsRedo = false;
+
         if (leafId && this.tableContainer?.nativeElement) {
           const el = this.tableContainer.nativeElement.querySelector(
             `.table-widget__cell-editor[data-leaf="${leafId}"]`
@@ -2459,10 +2464,23 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
             if (model) {
               el.innerHTML = model.contentHtml ?? '';
             }
-            el.focus();
             this.activeCellElement = el;
             this.activeCellId = leafId;
             this.toolbarService.setActiveCell(el, this.widget.id);
+            // Focus and restore cursor position in the same frame to avoid race conditions.
+            requestAnimationFrame(() => {
+              el.focus();
+              if (isRedo) {
+                // For redo: always place cursor at the end of restored content.
+                this.setCursorAtEnd(el);
+              } else if (savedOffset !== null) {
+                // For undo: restore cursor to saved offset (clamped to new content length).
+                this.setCursorOffsetInElement(el, savedOffset);
+              } else {
+                // Fallback: place cursor at the end of content.
+                this.setCursorAtEnd(el);
+              }
+            });
           }
         }
       }
@@ -2471,6 +2489,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
   private resumeEditingAfterDocHistorySync = false;
   private resumeLeafId: string | null = null;
+  /** Saved cursor offset (character count from start) for restoration after undo. */
+  private resumeCursorOffset: number | null = null;
+  /** Whether the pending history sync is a redo (cursor goes to end) vs undo (cursor restored). */
+  private resumeIsRedo = false;
 
   @HostListener('document:tw-table-pre-doc-undo', ['$event'])
   onPreDocUndo(event: Event): void {
@@ -2482,6 +2504,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // disabling the "actively editing" gate. We'll restore edit mode after ngOnChanges applies it.
     this.resumeEditingAfterDocHistorySync = true;
     this.resumeLeafId = this.activeCellId;
+    // Save cursor position before undo so we can restore it after content updates.
+    this.resumeCursorOffset = this.getCursorOffsetInElement(this.activeCellElement);
+    this.resumeIsRedo = false;
     this.isActivelyEditing.set(false);
   }
 
@@ -2493,6 +2518,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     this.resumeEditingAfterDocHistorySync = true;
     this.resumeLeafId = this.activeCellId;
+    // For redo, cursor always goes to end of restored content.
+    this.resumeIsRedo = true;
     this.isActivelyEditing.set(false);
   }
 
@@ -8948,6 +8975,98 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       // Manually trigger reload
       this.remoteAutoLoad.maybeAutoLoad(widgetEntity, pageId);
     }
+  }
+
+  /**
+   * Get the cursor offset as a character count from the start of the element's text content.
+   * Returns null if there's no valid selection within the element.
+   */
+  private getCursorOffsetInElement(el: HTMLElement | null): number | null {
+    if (!el) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+
+    const range = sel.getRangeAt(0);
+    // Ensure the selection is within this element.
+    if (!el.contains(range.commonAncestorContainer)) return null;
+
+    // Create a range from the start of the element to the cursor position.
+    const preCaretRange = document.createRange();
+    preCaretRange.selectNodeContents(el);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+
+    // The length of the text content in this range gives us the cursor offset.
+    return preCaretRange.toString().length;
+  }
+
+  /**
+   * Set the cursor position in an element to a specific character offset.
+   * If the offset exceeds the content length, the cursor is placed at the end.
+   */
+  private setCursorOffsetInElement(el: HTMLElement, offset: number): void {
+    const textLength = (el.textContent ?? '').length;
+    const targetOffset = Math.max(0, Math.min(offset, textLength));
+
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    // Walk the DOM tree to find the text node and offset for the target character position.
+    const result = this.findNodeAndOffsetForCharOffset(el, targetOffset);
+    if (!result) {
+      // Fallback: place cursor at the end.
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false); // Collapse to end.
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+
+    const range = document.createRange();
+    range.setStart(result.node, result.offset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  /**
+   * Walk the element's descendants to find the text node and offset corresponding to a character offset.
+   */
+  private findNodeAndOffsetForCharOffset(
+    root: Node,
+    targetOffset: number
+  ): { node: Node; offset: number } | null {
+    let currentOffset = 0;
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node: Text | null = walker.nextNode() as Text | null;
+
+    while (node) {
+      const nodeLength = node.length;
+      if (currentOffset + nodeLength >= targetOffset) {
+        return { node, offset: targetOffset - currentOffset };
+      }
+      currentOffset += nodeLength;
+      node = walker.nextNode() as Text | null;
+    }
+
+    // If we ran out of nodes, return the last position available.
+    // This can happen if targetOffset >= total text length.
+    return null;
+  }
+
+  /**
+   * Place cursor at the end of the element's content.
+   */
+  private setCursorAtEnd(el: HTMLElement): void {
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false); // Collapse to end.
+    sel.removeAllRanges();
+    sel.addRange(range);
   }
 }
 
