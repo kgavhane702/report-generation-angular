@@ -3501,6 +3501,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    * This mirrors the same validation used by the merge implementation:
    * - top-level merge requires a filled rectangle and no merges extending outside
    * - split-grid merge requires a filled rectangle within the same split owner
+   * - cross-parent sub-cell merge requires composable split grids and valid rectangle in the combined grid
    */
   private computeCanMergeSelection(selection: Set<string>): boolean {
     if (!selection || selection.size < 2) return false;
@@ -3514,8 +3515,18 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const topLevelKeys = new Set(parsedAll.map((p) => `${p.row}-${p.col}`));
     const snapshot = this.localRows();
 
-    // If selection spans multiple top-level cells, eligibility is based on top-level merge rectangle validity.
+    // If selection spans multiple top-level cells...
     if (topLevelKeys.size >= 2) {
+      // If any sub-cells are selected across parents, check if cross-parent sub-cell merge would work.
+      const hasAnySubCells = parsedAll.some((p) => p.path.length > 0);
+      if (hasAnySubCells) {
+        if (this.canMergeAcrossSplitParents(parsedAll)) {
+          return true;
+        }
+        // If cross-parent sub-cell merge doesn't work, fall through to check top-level merge.
+      }
+
+      // Check if top-level merge is valid.
       const coords = Array.from(topLevelKeys).map((k) => {
         const [row, col] = k.split('-').map(Number);
         return { row, col };
@@ -3551,6 +3562,232 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const rect = this.getSplitBoundingRect(owner.split.cols, expanded);
     if (!rect) return false;
     return this.isValidSplitMergeRect(owner, rect, expanded);
+  }
+
+  /**
+   * Check if cross-parent sub-cell merge would succeed.
+   * This mirrors the validation logic in tryMergeAcrossSplitParents without actually performing the merge.
+   */
+  private canMergeAcrossSplitParents(parsed: Array<{ row: number; col: number; path: number[] }>): boolean {
+    // We only support immediate (depth=1) sub-cells here.
+    if (!parsed.every((p) => p.path.length === 1)) return false;
+
+    const topKeys = new Set(parsed.map((p) => `${p.row}-${p.col}`));
+    if (topKeys.size < 2) return false;
+
+    const snapshot = this.localRows();
+
+    // Expand top-level coverage.
+    const seedCoords = Array.from(topKeys).map((k) => {
+      const [row, col] = k.split('-').map(Number);
+      return { row, col };
+    });
+    const expandedTop = this.expandTopLevelSelection(seedCoords, snapshot);
+    if (expandedTop.size < 2) return false;
+
+    const outerRect = this.getTopLevelBoundingRect(expandedTop);
+    if (!outerRect) return false;
+
+    const { minRow, maxRow, minCol, maxCol } = outerRect;
+    const topRowSpan = maxRow - minRow + 1;
+    const topColSpan = maxCol - minCol + 1;
+
+    // Require the coverage to be a filled rectangle (no gaps).
+    if (expandedTop.size !== topRowSpan * topColSpan) return false;
+
+    // Ensure no merges extend outside this rectangle.
+    if (!this.isValidTopLevelMergeRect(outerRect, expandedTop, snapshot)) return false;
+
+    // Identify all top-level anchors within the outer rectangle.
+    const anchorKeys = new Set<string>();
+    for (let r = minRow; r <= maxRow; r++) {
+      for (let c = minCol; c <= maxCol; c++) {
+        const cell = snapshot?.[r]?.cells?.[c];
+        if (!cell) return false;
+        const a = cell.coveredBy ? cell.coveredBy : { row: r, col: c };
+        anchorKeys.add(`${a.row}-${a.col}`);
+      }
+    }
+
+    type AnchorMeta = {
+      row: number;
+      col: number;
+      rowSpan: number;
+      colSpan: number;
+      splitRows: number;
+      splitCols: number;
+      unitRows: number;
+      unitCols: number;
+    };
+
+    const anchors: AnchorMeta[] = [];
+    for (const k of anchorKeys) {
+      const [ar, ac] = k.split('-').map(Number);
+      const cell = snapshot?.[ar]?.cells?.[ac];
+      if (!cell) return false;
+      if (!cell.split) return false;
+
+      const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
+      const colSpan = Math.max(1, cell.merge?.colSpan ?? 1);
+      const splitRows = Math.max(1, cell.split.rows);
+      const splitCols = Math.max(1, cell.split.cols);
+
+      if (splitRows % rowSpan !== 0) return false;
+      if (splitCols % colSpan !== 0) return false;
+
+      const unitRows = splitRows / rowSpan;
+      const unitCols = splitCols / colSpan;
+
+      anchors.push({
+        row: ar,
+        col: ac,
+        rowSpan,
+        colSpan,
+        splitRows,
+        splitCols,
+        unitRows,
+        unitCols,
+      });
+    }
+
+    // Choose global unit resolution.
+    const globalUnitRows = Math.max(...anchors.map((a) => a.unitRows));
+    const globalUnitCols = Math.max(...anchors.map((a) => a.unitCols));
+    if (!anchors.every((a) => globalUnitRows % a.unitRows === 0)) return false;
+    if (!anchors.every((a) => globalUnitCols % a.unitCols === 0)) return false;
+
+    const combinedRows = globalUnitRows * topRowSpan;
+    const combinedCols = globalUnitCols * topColSpan;
+
+    // Build combined grid template (same as tryMergeAcrossSplitParents).
+    const combinedCells: Array<TableCell | null> = new Array(combinedRows * combinedCols).fill(null);
+
+    const placeCell = (row: number, col: number, cell: TableCell) => {
+      const idx = row * combinedCols + col;
+      if (combinedCells[idx]) throw new Error('overlap');
+      combinedCells[idx] = cell;
+    };
+
+    const fillCovered = (anchorRow: number, anchorCol: number, rowSpan: number, colSpan: number) => {
+      for (let r = anchorRow; r < anchorRow + rowSpan; r++) {
+        for (let c = anchorCol; c < anchorCol + colSpan; c++) {
+          if (r === anchorRow && c === anchorCol) continue;
+          const idx = r * combinedCols + c;
+          if (combinedCells[idx]) throw new Error('overlap');
+          combinedCells[idx] = {
+            id: `covered-${anchorRow}-${anchorCol}-${r}-${c}`,
+            contentHtml: '',
+            coveredBy: { row: anchorRow, col: anchorCol },
+          };
+        }
+      }
+    };
+
+    try {
+      for (const a of anchors) {
+        const cell = snapshot?.[a.row]?.cells?.[a.col];
+        const split = cell?.split;
+        if (!cell || !split) return false;
+
+        const scaleRow = globalUnitRows / a.unitRows;
+        const scaleCol = globalUnitCols / a.unitCols;
+
+        const globalRowOffset = (a.row - minRow) * globalUnitRows;
+        const globalColOffset = (a.col - minCol) * globalUnitCols;
+
+        for (let lr = 0; lr < a.splitRows; lr++) {
+          for (let lc = 0; lc < a.splitCols; lc++) {
+            const localIdx = lr * a.splitCols + lc;
+            const localCell = split.cells[localIdx];
+            if (!localCell) return false;
+
+            if (localCell.coveredBy) continue;
+
+            const localRowSpan = Math.max(1, localCell.merge?.rowSpan ?? 1);
+            const localColSpan = Math.max(1, localCell.merge?.colSpan ?? 1);
+
+            const startRow = globalRowOffset + lr * scaleRow;
+            const startCol = globalColOffset + lc * scaleCol;
+            const spanRows = localRowSpan * scaleRow;
+            const spanCols = localColSpan * scaleCol;
+
+            const cloned: TableCell = {
+              id: localCell.id,
+              contentHtml: localCell.contentHtml,
+              style: localCell.style,
+            };
+            if (spanRows > 1 || spanCols > 1) {
+              cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+            }
+
+            placeCell(startRow, startCol, cloned);
+            fillCovered(startRow, startCol, spanRows, spanCols);
+          }
+        }
+      }
+    } catch {
+      return false;
+    }
+
+    // Ensure full grid populated.
+    for (let i = 0; i < combinedCells.length; i++) {
+      if (!combinedCells[i]) return false;
+    }
+    const combinedTemplate: TableCell[] = combinedCells as TableCell[];
+
+    // Map selected leaf indices into the combined grid.
+    const anchorMetaByKey = new Map<string, AnchorMeta>();
+    for (const a of anchors) {
+      anchorMetaByKey.set(`${a.row}-${a.col}`, a);
+    }
+
+    const selectedCombined = new Set<number>();
+    for (const p of parsed) {
+      const idx = p.path[0];
+      if (!Number.isFinite(idx)) return false;
+
+      const base = snapshot?.[p.row]?.cells?.[p.col];
+      if (!base) return false;
+      const topAnchor = base.coveredBy ? base.coveredBy : { row: p.row, col: p.col };
+      const meta = anchorMetaByKey.get(`${topAnchor.row}-${topAnchor.col}`);
+      if (!meta) return false;
+
+      const anchorCell = snapshot?.[topAnchor.row]?.cells?.[topAnchor.col];
+      const split = anchorCell?.split;
+      if (!anchorCell || !split) return false;
+
+      if (idx < 0 || idx >= meta.splitRows * meta.splitCols) return false;
+
+      const lr0 = Math.floor(idx / meta.splitCols);
+      const lc0 = idx % meta.splitCols;
+      const localCell = split.cells[idx];
+      const localAnchor = localCell?.coveredBy ? localCell.coveredBy : { row: lr0, col: lc0 };
+
+      const scaleRow = globalUnitRows / meta.unitRows;
+      const scaleCol = globalUnitCols / meta.unitCols;
+      const globalRowOffset = (topAnchor.row - minRow) * globalUnitRows;
+      const globalColOffset = (topAnchor.col - minCol) * globalUnitCols;
+      const globalRow = globalRowOffset + localAnchor.row * scaleRow;
+      const globalCol = globalColOffset + localAnchor.col * scaleCol;
+      selectedCombined.add(globalRow * combinedCols + globalCol);
+    }
+
+    if (selectedCombined.size < 2) return false;
+
+    // Validate that the requested merge is a valid rectangle in the combined grid.
+    const tempOwner: TableCell = {
+      id: 'tmp',
+      contentHtml: '',
+      split: { rows: combinedRows, cols: combinedCols, cells: combinedTemplate },
+    };
+
+    const expanded = this.expandSplitSelection(tempOwner, Array.from(selectedCombined));
+    if (expanded.size < 2) return false;
+
+    const innerRect = this.getSplitBoundingRect(combinedCols, expanded);
+    if (!innerRect) return false;
+
+    return this.isValidSplitMergeRect(tempOwner, innerRect, expanded);
   }
 
   private normalizeSelection(selection: Set<string>): Set<string> {
