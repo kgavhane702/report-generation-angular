@@ -66,12 +66,18 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
    * Page data from granular selector
    */
   private readonly _pageData = signal<PageEntity | null>(null);
+  
+  /**
+   * Global sequential page number (1-based) derived from document order
+   */
+  private readonly _globalPageNumber = signal<number>(1);
 
   /**
    * Subscriptions
    */
   private widgetIdsSubscription?: Subscription;
   private pageDataSubscription?: Subscription;
+  private pageNumberSubscription?: Subscription;
 
   // ============================================
   // COMPUTED PROPERTIES
@@ -182,7 +188,7 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   }
   
   get pageNumber(): number {
-    return this._pageData()?.number ?? 1;
+    return this._globalPageNumber();
   }
 
   get formattedPageNumber(): string {
@@ -228,12 +234,14 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
 
     this._widgetIds.set([]);
     this._pageData.set(null);
+    this._globalPageNumber.set(1);
     this.subscribeToPage(newPageId);
   }
   
   ngOnDestroy(): void {
     this.widgetIdsSubscription?.unsubscribe();
     this.pageDataSubscription?.unsubscribe();
+    this.pageNumberSubscription?.unsubscribe();
   }
 
   // ============================================
@@ -251,6 +259,7 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   private subscribeToPage(pageId: string): void {
     this.widgetIdsSubscription?.unsubscribe();
     this.pageDataSubscription?.unsubscribe();
+    this.pageNumberSubscription?.unsubscribe();
 
     // Subscribe to widget IDs using granular selector
     this.widgetIdsSubscription = this.store
@@ -264,6 +273,13 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
       .select(DocumentSelectors.selectPageById(pageId))
       .subscribe((pageData) => {
         this._pageData.set(pageData);
+      });
+
+    // Subscribe to global sequential page number
+    this.pageNumberSubscription = this.store
+      .select(DocumentSelectors.selectGlobalPageNumberForPage(pageId))
+      .subscribe((num) => {
+        this._globalPageNumber.set(num);
       });
   }
   

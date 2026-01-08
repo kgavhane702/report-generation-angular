@@ -39,10 +39,11 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     const section = this.editorState.activeSection();
     const subsection = this.editorState.activeSubsection();
     const page = this.editorState.activePage();
+    const pageNumber = this.editorState.activePageNumber();
 
     const sectionTitle = section?.title || 'Section';
     const subsectionTitle = subsection?.title || 'Subsection';
-    const pageTitle = page ? (page.title ?? `Page ${page.number}`) : '';
+    const pageTitle = page ? (page.title ?? `Page ${pageNumber}`) : '';
 
     return { sectionTitle, subsectionTitle, pageTitle };
   });
@@ -73,7 +74,7 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   }
 
   // Slide navigator state (pinned to editor-shell__canvas)
-  readonly pageIds = this.editorState.activeSubsectionPageIds;
+  readonly pageIds = this.editorState.documentPageIds;
   readonly currentPageIndex = computed(() => {
     const activePageId = this.editorState.activePageId();
     const ids = this.pageIds();

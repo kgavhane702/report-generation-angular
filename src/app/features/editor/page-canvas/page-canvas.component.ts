@@ -55,10 +55,10 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   @HostBinding('class.page-canvas') hostClass = true;
 
   /**
-   * Page IDs for the active subsection - REACTIVE
-   * Automatically updates when subsection changes
+   * Page IDs in full document order (section -> subsection -> page) - REACTIVE
+   * Used for continuous paging across subsections/sections.
    */
-  readonly pageIds = this.editorState.activeSubsectionPageIds;
+  readonly pageIds = this.editorState.documentPageIds;
 
   /**
    * Active subsection ID for template
@@ -189,17 +189,13 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
    * Calculate zoom level to fit the page within the visible canvas area
    */
   calculateFitZoom(): number {
-    const pages = this.editorState.activeSubsectionPages();
-    if (pages.length === 0) {
+    const activePage = this.editorState.activePage();
+    if (!activePage) {
       return 100;
     }
 
     const activePageId = this.editorState.activePageId();
-    const activePage = pages.find((p: any) => p.id === activePageId) || pages[0];
-
-    if (!activePage) {
-      return 100;
-    }
+    if (!activePageId) return 100;
 
     const size = this.pageSize();
     const orientation = activePage.orientation || 'landscape';

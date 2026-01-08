@@ -62,7 +62,8 @@ export function createPageModel(pageNumber: number, orientation: 'portrait' | 'l
   return {
     id: uuid(),
     number: pageNumber,
-    title: `Page ${pageNumber}`,
+    // Title is optional; UI should display `Page ${globalPageNumber}` when title is not set.
+    title: undefined,
     widgets: [],
     orientation,
   };

@@ -1,8 +1,12 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { DocumentService } from '../../../core/services/document.service';
 import { PageEntity } from '../../../store/document/document.state';
+import { AppState } from '../../../store/app.state';
+import { DocumentSelectors } from '../../../store/document/document.selectors';
 
 @Component({
   selector: 'app-page-outline',
@@ -13,6 +17,13 @@ import { PageEntity } from '../../../store/document/document.state';
 export class PageOutlineComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly documentService = inject(DocumentService);
+  private readonly store = inject(Store<AppState>);
+
+  /** Global sequential page number by pageId (1-based) */
+  private readonly globalPageNumberByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectGlobalPageNumberByPageId),
+    { initialValue: {} as Record<string, number> }
+  );
 
   editingPageId: string | null = null;
   editingPageValue = '';
@@ -50,7 +61,7 @@ export class PageOutlineComponent {
   startPageEdit(page: PageEntity, event: MouseEvent): void {
     event.stopPropagation();
     this.editingPageId = page.id;
-    this.editingPageValue = page.title ?? `Page ${page.number}`;
+    this.editingPageValue = page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
   }
 
   savePageTitle(pageId: string): void {
@@ -77,7 +88,11 @@ export class PageOutlineComponent {
   }
 
   displayTitle(page: PageEntity): string {
-    return page.title ?? `Page ${page.number}`;
+    return page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
+  }
+
+  private getGlobalPageNumber(pageId: string): number {
+    return this.globalPageNumberByPageId()[pageId] ?? this.editorState.getPageById(pageId)?.number ?? 1;
   }
 
   setPageOrientation(

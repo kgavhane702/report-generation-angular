@@ -80,6 +80,18 @@ export class EditorStateService {
     this.store.select(DocumentSelectors.selectPageIdsBySubsectionId),
     { initialValue: {} as Record<string, string[]> }
   );
+
+  /** All page IDs in document order (section -> subsection -> page) */
+  readonly documentPageIds = toSignal(
+    this.store.select(DocumentSelectors.selectFlattenedPageIdsInDocumentOrder),
+    { initialValue: [] as string[] }
+  );
+
+  /** Global sequential page number by pageId (1-based) */
+  private readonly globalPageNumberByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectGlobalPageNumberByPageId),
+    { initialValue: {} as Record<string, number> }
+  );
   
   /** Widget IDs by page ID */
   private readonly widgetIdsByPageId = toSignal(
@@ -144,6 +156,13 @@ export class EditorStateService {
     if (!id) return null;
     const entities = this.pageEntities();
     return entities[id] ?? null;
+  });
+
+  /** Active page number (sequential in document order, 1-based) */
+  readonly activePageNumber = computed<number>(() => {
+    const pageId = this._pageId();
+    if (!pageId) return 1;
+    return this.globalPageNumberByPageId()[pageId] ?? 1;
   });
   
   /** Page IDs for active subsection */
@@ -275,6 +294,17 @@ export class EditorStateService {
   }
 
   setActivePage(pageId: string): void {
+    // When paging continuously across sections/subsections, keep the full hierarchy
+    // in sync (section -> subsection -> page) so sidebars highlight correctly.
+    const page = this.pageEntities()[pageId];
+    if (page) {
+      const subsectionId = page.subsectionId ?? null;
+      const subsection = subsectionId ? this.subsectionEntities()[subsectionId] : null;
+      const sectionId = subsection?.sectionId ?? null;
+      this._sectionId.set(sectionId);
+      this._subsectionId.set(subsectionId);
+    }
+
     this._pageId.set(pageId);
     this.uiState.selectWidget(null);
   }
@@ -355,6 +385,11 @@ export class EditorStateService {
   getPageById(pageId: string): PageEntity | null {
     const entities = this.pageEntities();
     return entities[pageId] ?? null;
+  }
+
+  /** Get global sequential page number by pageId (1-based) */
+  getGlobalPageNumber(pageId: string): number {
+    return this.globalPageNumberByPageId()[pageId] ?? 1;
   }
   
   /** Reset navigation to first section/subsection/page */

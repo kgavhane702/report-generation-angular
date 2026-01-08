@@ -61,6 +61,12 @@ export class EditorBreadcrumbComponent {
     { initialValue: {} as Dictionary<PageEntity> }
   );
 
+  /** Global sequential page number by pageId (1-based) */
+  private readonly globalPageNumberByPageId = toSignal(
+    this.store.select(DocumentSelectors.selectGlobalPageNumberByPageId),
+    { initialValue: {} as Record<string, number> }
+  );
+
   /** Subsection IDs by section ID */
   private readonly subsectionIdsBySectionId = toSignal(
     this.store.select(DocumentSelectors.selectSubsectionIdsBySectionId),
@@ -367,7 +373,7 @@ export class EditorBreadcrumbComponent {
   startPageEdit(page: PageEntity, event: MouseEvent): void {
     event.stopPropagation();
     this.editingPageId = page.id;
-    this.editingPageValue = page.title ?? `Page ${page.number}`;
+    this.editingPageValue = page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
   }
 
   savePageTitle(pageId: string): void {
@@ -396,7 +402,11 @@ export class EditorBreadcrumbComponent {
   }
 
   displayPageTitle(page: PageEntity): string {
-    return page.title ?? `Page ${page.number}`;
+    return page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
+  }
+
+  private getGlobalPageNumber(pageId: string): number {
+    return this.globalPageNumberByPageId()[pageId] ?? this.pageEntities()[pageId]?.number ?? 1;
   }
 
   setPageOrientation(

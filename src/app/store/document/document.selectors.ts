@@ -291,6 +291,53 @@ const selectWidgetCountForPage = (pageId: string) => createSelector(
 // ============================================
 
 /**
+ * Flatten page IDs in document order:
+ * sectionIds (order) -> subsectionIdsBySectionId (order) -> pageIdsBySubsectionId (order)
+ *
+ * This is the single source of truth for:
+ * - continuous paging across subsections/sections
+ * - global sequential page numbering (index + 1)
+ */
+const selectFlattenedPageIdsInDocumentOrder = createSelector(
+  selectSectionIds,
+  selectSubsectionIdsBySectionId,
+  selectPageIdsBySubsectionId,
+  (sectionIds, subsectionIdsBySectionId, pageIdsBySubsectionId): string[] => {
+    const flattened: string[] = [];
+    for (const sectionId of sectionIds) {
+      const subIds = subsectionIdsBySectionId[sectionId] ?? [];
+      for (const subId of subIds) {
+        const pageIds = pageIdsBySubsectionId[subId] ?? [];
+        flattened.push(...pageIds);
+      }
+    }
+    return flattened;
+  }
+);
+
+/**
+ * Global sequential page number by pageId (1-based), derived from document order.
+ */
+const selectGlobalPageNumberByPageId = createSelector(
+  selectFlattenedPageIdsInDocumentOrder,
+  (pageIds): Record<string, number> => {
+    const map: Record<string, number> = {};
+    for (let i = 0; i < pageIds.length; i++) {
+      map[pageIds[i]] = i + 1;
+    }
+    return map;
+  }
+);
+
+/**
+ * Factory selector: global sequential page number for a pageId (1-based).
+ */
+const selectGlobalPageNumberForPage = (pageId: string) => createSelector(
+  selectGlobalPageNumberByPageId,
+  (map) => map[pageId] ?? 1
+);
+
+/**
  * Select total widget count across all pages
  */
 const selectTotalWidgetCount = createSelector(
@@ -316,7 +363,8 @@ const selectTotalPageCount = createSelector(
  */
 const selectDenormalizedDocument = createSelector(
   selectNormalizedState,
-  (normalized): DocumentModel => {
+  selectGlobalPageNumberByPageId,
+  (normalized, globalPageNumbers): DocumentModel => {
     const { meta, sectionIds, subsectionIdsBySectionId, pageIdsBySubsectionId, widgetIdsByPageId } = normalized;
     const sectionEntities = normalized.sections.entities;
     const subsectionEntities = normalized.subsections.entities;
@@ -344,7 +392,7 @@ const selectDenormalizedDocument = createSelector(
           
           return {
             id: page.id,
-            number: page.number,
+            number: globalPageNumbers[pageId] ?? page.number,
             title: page.title,
             background: page.background,
             orientation: page.orientation,
@@ -420,6 +468,10 @@ export const DocumentSelectors = {
   selectPageById,
   selectPageIdsForSubsection,
   selectPagesForSubsection,
+  // Flattened order + global page numbering
+  selectFlattenedPageIdsInDocumentOrder,
+  selectGlobalPageNumberByPageId,
+  selectGlobalPageNumberForPage,
   
   // Widgets
   selectWidgetState,
