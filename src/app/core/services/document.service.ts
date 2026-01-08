@@ -12,7 +12,7 @@ import {
   SubsectionSelection,
 } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
-import { DocumentActions } from '../../store/document/document.actions';
+import { DocumentActions, DocumentMetaActions } from '../../store/document/document.actions';
 import { DocumentSelectors } from '../../store/document/document.selectors';
 import { AppState } from '../../store/app.state';
 import {
@@ -217,6 +217,11 @@ export class DocumentService {
 
   updateDocumentTitle(title: string): void {
     this.store.dispatch(DocumentActions.updateDocumentTitle({ title }));
+  }
+
+  updateDocumentMetadata(metadata: Record<string, unknown>): void {
+    this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata }));
+    this.saveIndicator.pulse();
   }
 
   updatePageSize(pageSize: Partial<PageSize>): void {

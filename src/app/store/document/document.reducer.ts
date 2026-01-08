@@ -505,6 +505,15 @@ export const documentReducer = createReducer(
       },
     };
   }),
+
+  on(DocumentMetaActions.updateMetadata, (state, { metadata }) => {
+    return {
+      normalized: {
+        ...state.normalized,
+        meta: { ...state.normalized.meta, metadata },
+      },
+    };
+  }),
   
   on(BulkDocumentActions.loadDocument, (state, { document }) => {
     const normalized = normalizeDocument(document);

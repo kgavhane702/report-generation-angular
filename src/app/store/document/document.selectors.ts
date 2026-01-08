@@ -43,6 +43,18 @@ const selectDocumentMeta = createSelector(
   (normalized) => normalized.meta
 );
 
+/** Select free-form document metadata object (always defined) */
+const selectDocumentMetadata = createSelector(
+  selectDocumentMeta,
+  (meta) => meta.metadata ?? {}
+);
+
+/** Layout preset id stored in metadata (defaults to PPT preset) */
+const selectPageLayoutPresetId = createSelector(
+  selectDocumentMetadata,
+  (metadata) => metadata['pageLayoutPresetId'] as string | undefined
+);
+
 /** Select document title */
 const selectDocumentTitle = createSelector(
   selectDocumentMeta,
@@ -438,11 +450,13 @@ export const DocumentSelectors = {
   
   // Document meta
   selectDocumentMeta,
+  selectDocumentMetadata,
   selectDocumentTitle,
   selectPageSize,
   selectDocumentHeader,
   selectDocumentFooter,
   selectDocumentLogo,
+  selectPageLayoutPresetId,
   
   // Sections
   selectSectionState,

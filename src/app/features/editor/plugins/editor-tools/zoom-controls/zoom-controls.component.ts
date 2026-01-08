@@ -6,6 +6,7 @@ import {
 import { EditorStateService } from '../../../../../core/services/editor-state.service';
 import { UndoRedoService } from '../../../../../core/services/undo-redo.service';
 import { DocumentService } from '../../../../../core/services/document.service';
+import { getOrientedPageSizeMm, mmToPx } from '../../../../../core/utils/page-dimensions.util';
 
 /**
  * ZoomControlsComponent
@@ -149,16 +150,7 @@ export class ZoomControlsComponent {
       return;
     }
 
-    // Use normalized state - get pages for active subsection
-    const pages = this.editorState.activeSubsectionPages();
-    if (pages.length === 0) {
-      this.editorState.setZoom(100);
-      return;
-    }
-
-    const activePageId = this.editorState.activePageId();
-    const activePage = pages.find((p: any) => p.id === activePageId) || pages[0];
-
+    const activePage = this.editorState.activePage();
     if (!activePage) {
       this.editorState.setZoom(100);
       return;
@@ -166,21 +158,11 @@ export class ZoomControlsComponent {
 
     const pageSize = this.editorState.pageSize();
     const orientation = activePage.orientation || 'landscape';
-    const { widthMm, heightMm } = pageSize;
-
-    let pageWidthMm = widthMm;
-    let pageHeightMm = heightMm;
-    if (orientation === 'portrait' && widthMm > heightMm) {
-      pageWidthMm = heightMm;
-      pageHeightMm = widthMm;
-    } else if (orientation === 'landscape' && heightMm > widthMm) {
-      pageWidthMm = heightMm;
-      pageHeightMm = widthMm;
-    }
+    const { widthMm: pageWidthMm, heightMm: pageHeightMm } = getOrientedPageSizeMm(pageSize, orientation);
 
     const dpi = pageSize.dpi ?? 96;
-    const pageWidthPx = Math.round((pageWidthMm / 25.4) * dpi);
-    const pageHeightPx = Math.round((pageHeightMm / 25.4) * dpi);
+    const pageWidthPx = mmToPx(pageWidthMm, dpi);
+    const pageHeightPx = mmToPx(pageHeightMm, dpi);
 
     if (pageWidthPx === 0 || pageHeightPx === 0) {
       this.editorState.setZoom(100);

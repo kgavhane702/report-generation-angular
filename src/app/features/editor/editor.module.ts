@@ -36,6 +36,8 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
 import { HeaderFooterEditDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
+import { PageLayoutSelectorComponent } from './toolbar/page-layout-selector/page-layout-selector.component';
+import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/document-download-menu.component';
 
 @NgModule({
   declarations: [
@@ -77,6 +79,8 @@ import { AppIconComponent } from '../../shared/components/icon/icon.component';
     TwSafeInnerHtmlDirective,
     AppIconComponent,
     HeaderFooterEditDialogComponent,
+    PageLayoutSelectorComponent,
+    DocumentDownloadMenuComponent,
   ],
   exports: [EditorShellComponent],
   providers: [ChartRegistryInitializer],

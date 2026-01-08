@@ -15,6 +15,7 @@ import {
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
 import { UIStateService } from '../../../core/services/ui-state.service';
+import { getOrientedPageSizeMm, mmToPx } from '../../../core/utils/page-dimensions.util';
 
 /**
  * PageCanvasComponent
@@ -133,8 +134,10 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
   get basePageWidthPx(): number {
     const size = this.pageSize();
     const dpi = size.dpi ?? 96;
-    const widthMm = Math.max(size.widthMm, size.heightMm);
-    return Math.round((widthMm / 25.4) * dpi);
+    const activePage = this.editorState.activePage();
+    const orientation = activePage?.orientation || 'landscape';
+    const { widthMm } = getOrientedPageSizeMm(size, orientation);
+    return mmToPx(widthMm, dpi);
   }
 
   /**
@@ -149,19 +152,8 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
 
     const activePage = this.editorState.activePage();
     const orientation = activePage?.orientation || 'landscape';
-
-    const { widthMm, heightMm } = size;
-    let pageHeightMm = heightMm;
-
-    // Normalize to actual oriented height (same logic as PageComponent)
-    if (orientation === 'portrait') {
-      pageHeightMm = widthMm > heightMm ? widthMm : heightMm;
-    } else {
-      // landscape
-      pageHeightMm = widthMm > heightMm ? heightMm : widthMm;
-    }
-
-    return Math.round((pageHeightMm / 25.4) * dpi);
+    const { heightMm } = getOrientedPageSizeMm(size, orientation);
+    return mmToPx(heightMm, dpi);
   }
 
   /**
@@ -199,21 +191,11 @@ export class PageCanvasComponent implements AfterViewInit, OnDestroy {
 
     const size = this.pageSize();
     const orientation = activePage.orientation || 'landscape';
-    const { widthMm, heightMm } = size;
-    
-    let pageWidthMm = widthMm;
-    let pageHeightMm = heightMm;
-    if (orientation === 'portrait' && widthMm > heightMm) {
-      pageWidthMm = heightMm;
-      pageHeightMm = widthMm;
-    } else if (orientation === 'landscape' && heightMm > widthMm) {
-      pageWidthMm = heightMm;
-      pageHeightMm = widthMm;
-    }
+    const { widthMm: pageWidthMm, heightMm: pageHeightMm } = getOrientedPageSizeMm(size, orientation);
 
     const dpi = size.dpi ?? 96;
-    const pageWidthPx = Math.round((pageWidthMm / 25.4) * dpi);
-    const pageHeightPx = Math.round((pageHeightMm / 25.4) * dpi);
+    const pageWidthPx = mmToPx(pageWidthMm, dpi);
+    const pageHeightPx = mmToPx(pageHeightMm, dpi);
 
     const canvasElement = this.elementRef.nativeElement.closest('.editor-shell__canvas') as HTMLElement;
     if (!canvasElement) {

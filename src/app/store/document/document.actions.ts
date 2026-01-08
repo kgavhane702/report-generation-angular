@@ -168,6 +168,9 @@ export const DocumentMetaActions = createActionGroup({
     
     /** Update logo configuration */
     'Update Logo': props<{ logo: LogoConfig }>(),
+
+    /** Update document metadata (free-form JSON persisted with the document) */
+    'Update Metadata': props<{ metadata: Record<string, unknown> }>(),
   },
 });
 

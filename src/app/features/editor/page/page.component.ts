@@ -20,6 +20,7 @@ import { DocumentSelectors } from '../../../store/document/document.selectors';
 import { PageEntity } from '../../../store/document/document.state';
 import { formatPageNumber, PageNumberFormat } from '../../../core/utils/page-number-formatter.util';
 import { LogoConfig } from '../../../models/document.model';
+import { getOrientedPageSizeMm, mmToPx } from '../../../core/utils/page-dimensions.util';
 
 /**
  * PageComponent
@@ -84,11 +85,13 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   // ============================================
 
   get widthPx(): number {
-    return this.convertMmToPx(this.getOrientedSize().widthMm);
+    const { widthMm } = getOrientedPageSizeMm(this.pageSize, this.pageOrientation);
+    return mmToPx(widthMm, this.pageSize.dpi ?? 96);
   }
 
   get heightPx(): number {
-    return this.convertMmToPx(this.getOrientedSize().heightMm);
+    const { heightMm } = getOrientedPageSizeMm(this.pageSize, this.pageOrientation);
+    return mmToPx(heightMm, this.pageSize.dpi ?? 96);
   }
 
   get surfaceId(): string {
@@ -283,26 +286,5 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
       });
   }
   
-  private convertMmToPx(mm: number): number {
-    const dpi = this.pageSize.dpi ?? 96;
-    const inches = mm / 25.4;
-    return Math.round(inches * dpi);
-  }
-
-  private getOrientedSize(): { widthMm: number; heightMm: number } {
-    const { widthMm, heightMm } = this.pageSize;
-    const orientation = this.pageOrientation;
-
-    if (orientation === 'portrait') {
-      if (widthMm > heightMm) {
-        return { widthMm: heightMm, heightMm: widthMm };
-      }
-      return { widthMm, heightMm };
-    }
-
-    if (heightMm > widthMm) {
-      return { widthMm: heightMm, heightMm: widthMm };
-    }
-    return { widthMm, heightMm };
-  }
+  // Note: sizing logic is centralized in `getOrientedPageSizeMm` to match backend export.
 }

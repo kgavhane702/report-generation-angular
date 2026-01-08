@@ -1,0 +1,34 @@
+<div class="page-layout-selector">
+  <button
+    type="button"
+    class="page-layout-selector__button"
+    (click)="toggleMenu()"
+    [attr.aria-expanded]="menuOpen()"
+    aria-haspopup="menu"
+    title="Document layout (page size preset)"
+  >
+    <span class="page-layout-selector__label">{{ currentLabel() }}</span>
+    <span class="page-layout-selector__chev" aria-hidden="true">▾</span>
+  </button>
+
+  <div *ngIf="menuOpen()" class="page-layout-selector__menu" role="menu">
+    <div class="page-layout-selector__header">Layout</div>
+    <button
+      *ngFor="let p of presets"
+      type="button"
+      class="page-layout-selector__item"
+      role="menuitemradio"
+      [attr.aria-checked]="current().id === p.id"
+      [class.page-layout-selector__item--active]="current().id === p.id"
+      (click)="selectPreset(p.id)"
+    >
+      <div class="page-layout-selector__item-title">{{ p.label }}</div>
+      <div class="page-layout-selector__item-desc">{{ p.description }}</div>
+    </button>
+    <div class="page-layout-selector__footer">
+      Orientation is per-page (Portrait/Landscape).
+    </div>
+  </div>
+</div>
+
+

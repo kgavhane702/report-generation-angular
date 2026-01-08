@@ -111,6 +111,7 @@
   <app-undo-redo-controls></app-undo-redo-controls>
 
   <div class="editor-toolbar__group">
+    <app-page-layout-selector></app-page-layout-selector>
     <app-zoom-controls></app-zoom-controls>
   </div>
 
@@ -130,7 +131,7 @@
       title="Export document as JSON file"
       [disabled]="exportDisabled()"
     >
-      <app-icon name="download" [size]="18"></app-icon>
+      <app-icon name="save" [size]="18"></app-icon>
     </button>
     <button
       type="button"
@@ -138,17 +139,9 @@
       (click)="triggerImport()"
       title="Import document from JSON file"
     >
-      <app-icon name="upload" [size]="18"></app-icon>
+      <app-icon name="import_content" [size]="18"></app-icon>
     </button>
-    <button
-      type="button"
-      class="editor-toolbar__icon-button"
-      (click)="downloadPDF()"
-      title="Download document as PDF"
-      [disabled]="exportDisabled()"
-    >
-      <app-icon name="picture_as_pdf" [size]="18"></app-icon>
-    </button>
+    <app-document-download-menu [disabled]="exportDisabled()"></app-document-download-menu>
   </div>
 </div>
 
