@@ -515,16 +515,18 @@ export class EditastraToolbarComponent {
     // Only run when focus is inside an editable surface (table cell editor or editastra editor).
     const ae = document.activeElement as HTMLElement | null;
     const inTable = !!ae?.closest?.('.table-widget__cell-editor');
-    const inEditastra = !!ae?.closest?.('.editastra-editor__editable');
+    // Editastra editor surface uses `.editastra-editor__surface` (see `editastra-editor.component.html`).
+    const inEditastra = !!ae?.closest?.('.editastra-editor__surface');
     if (!inTable && !inEditastra) return;
 
     // Refresh formatting state on selection changes so toolbar reflects the currently focused cell,
     // not the last-picked color.
     this.toolbarService.updateFormattingState();
     const st = this.toolbarService.formattingState();
-    if (st?.textColor) this.textColor = st.textColor;
-    // highlightColor can be '' to indicate none; always set.
-    this.highlightColor = st?.highlightColor ?? this.highlightColor;
+    // IMPORTANT: do NOT keep the last-picked value.
+    // We want the UI to reflect the caret/selection's formatting, even if it is "default"/empty.
+    this.textColor = (st?.textColor || '').trim() || '#000000';
+    this.highlightColor = (st?.highlightColor || '').trim();
   }
 
   onBackgroundColorSelected(color: string): void {

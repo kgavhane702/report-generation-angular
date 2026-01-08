@@ -280,6 +280,12 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
     this.pending.register(this);
     this.editingChange.emit(true);
 
+    // Ensure the widget is selected/active while editing so the widget toolbar enables its actions.
+    // Otherwise `EditorStateService.activeWidget()` can be null or another widget, causing toolbar buttons to stay disabled.
+    if (this.widget?.id) {
+      this.uiState.selectWidget(this.widget.id);
+    }
+
     // Register this editor surface as the active formatting target for the toolbar.
     const el = this.editorComp?.getEditableElement() ?? null;
     this.tableToolbar.setActiveCell(el, this.widget?.id ?? null);
