@@ -3,28 +3,12 @@
     type="button"
     class="document-download-menu__button"
     [class.document-download-menu__button--disabled]="disabled"
-    (click)="toggleMenu()"
+    (click)="downloadPdf()"
     [disabled]="disabled"
-    [attr.aria-expanded]="menuOpen()"
-    aria-haspopup="menu"
     [title]="buttonTitle()"
   >
-    <app-icon name="download" [size]="18"></app-icon>
-    <span class="document-download-menu__chev" aria-hidden="true">▾</span>
+    <app-icon name="picture_as_pdf" [size]="18"></app-icon>
   </button>
-
-  <div *ngIf="menuOpen()" class="document-download-menu__menu" role="menu">
-    <div class="document-download-menu__header">Download as</div>
-    <button
-      *ngFor="let opt of options"
-      type="button"
-      class="document-download-menu__item"
-      role="menuitem"
-      (click)="download(opt.format)"
-    >
-      {{ opt.label }}
-    </button>
-  </div>
 </div>
 
 
