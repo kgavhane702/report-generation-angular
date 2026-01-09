@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, OnDestroy, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 
@@ -36,7 +36,7 @@ import { SettingsDialogComponent } from '../header-footer-edit-dialog/header-foo
   styleUrls: ['./editor-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EditorToolbarComponent implements AfterViewInit {
+export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   private readonly widgetFactory = inject(WidgetFactoryService);
   protected readonly documentService = inject(DocumentService);
   private readonly editorState = inject(EditorStateService);
@@ -97,6 +97,15 @@ export class EditorToolbarComponent implements AfterViewInit {
   
   // File input reference for import
   private fileInput?: HTMLInputElement;
+  private readonly onImportFileInputChange = (event: Event): void => {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    // Important: reset the input so selecting the SAME file again triggers a change event.
+    input.value = '';
+    if (file) {
+      void this.importDocument(file);
+    }
+  };
 
   /** Image insert dialog (UI-only, similar to table import style) */
   readonly imageInsertDialogOpen = signal(false);
@@ -392,15 +401,7 @@ export class EditorToolbarComponent implements AfterViewInit {
       this.fileInput.type = 'file';
       this.fileInput.accept = '.json,application/json';
       this.fileInput.style.display = 'none';
-      this.fileInput.addEventListener('change', (event) => {
-        const input = event.target as HTMLInputElement;
-        const file = input.files?.[0];
-        // Important: reset the input so selecting the SAME file again triggers a change event.
-        input.value = '';
-        if (file) {
-          this.importDocument(file);
-        }
-      });
+      this.fileInput.addEventListener('change', this.onImportFileInputChange);
       document.body.appendChild(this.fileInput);
     }
     // Also clear before opening picker (some browsers keep last selection until cleared).
@@ -537,6 +538,24 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+  }
+
+  ngOnDestroy(): void {
+    // IMPORTANT: this file input is appended to <body>, so it must be cleaned up
+    // when the toolbar component is destroyed (routing/HMR) to avoid leaks/duplicate handlers.
+    if (this.fileInput) {
+      try {
+        this.fileInput.removeEventListener('change', this.onImportFileInputChange);
+      } catch {
+        // ignore
+      }
+      try {
+        this.fileInput.remove();
+      } catch {
+        // ignore
+      }
+      this.fileInput = undefined;
+    }
   }
 
   onSaveIndicatorKeydown(event: KeyboardEvent): void {

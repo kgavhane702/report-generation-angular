@@ -7,8 +7,10 @@ import {
   HostListener,
   inject,
   Input,
+  OnChanges,
   OnDestroy,
   Output,
+  SimpleChanges,
   ViewChild,
   ViewEncapsulation,
 } from '@angular/core';
@@ -25,7 +27,7 @@ export type AppModalCloseReason = 'close' | 'backdrop' | 'esc' | 'api';
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.Emulated,
 })
-export class AppModalComponent implements AfterViewInit, OnDestroy {
+export class AppModalComponent implements AfterViewInit, OnChanges, OnDestroy {
   private readonly document = inject(DOCUMENT);
 
   @ViewChild('modalContainer', { static: true }) modalContainer!: ElementRef<HTMLDivElement>;
@@ -67,6 +69,14 @@ export class AppModalComponent implements AfterViewInit, OnDestroy {
 
   private appendedToBody = false;
   private previousBodyOverflow: string | null = null;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['open']) {
+      // Parent typically controls [open] (signals). Keep body scroll lock in sync
+      // even when the modal is opened/closed externally.
+      this.syncBodyScrollLock();
+    }
+  }
 
   ngAfterViewInit(): void {
     // Bootstrap-style: render at document.body level to avoid stacking-context issues.
