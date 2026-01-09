@@ -134,13 +134,6 @@
   <app-undo-redo-controls></app-undo-redo-controls>
 
   <div class="editor-toolbar__group">
-    <span
-      class="editor-toolbar__disabled-wrap"
-      [class.editor-toolbar__disabled-wrap--disabled]="documentLocked()"
-      [attr.title]="documentLocked() ? 'Document is locked' : null"
-    >
-      <app-page-layout-selector></app-page-layout-selector>
-    </span>
     <app-zoom-controls></app-zoom-controls>
   </div>
 
@@ -157,8 +150,8 @@
     <button
       type="button"
       class="editor-toolbar__icon-button"
-      (click)="openHeaderFooterDialog()"
-      [title]="documentLocked() ? 'Document is locked' : 'Edit Header & Footer'"
+      (click)="openSettingsDialog()"
+      [title]="documentLocked() ? 'Document is locked' : 'Settings'"
       [disabled]="documentLocked()"
     >
       <app-icon name="tune" [size]="18"></app-icon>
@@ -257,5 +250,5 @@
   </ng-container>
 </app-modal>
 
-<app-header-footer-edit-dialog></app-header-footer-edit-dialog>
+<app-settings-dialog></app-settings-dialog>
 

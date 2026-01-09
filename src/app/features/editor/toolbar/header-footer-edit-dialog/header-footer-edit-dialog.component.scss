@@ -48,6 +48,10 @@
   &--footer {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  &--page {
+    grid-template-columns: 1fr;
+  }
 }
 
 .header-footer-dialog__section {
@@ -237,5 +241,11 @@
       background: rgba(148, 163, 184, 0.26);
     }
   }
+}
+
+.header-footer-dialog__hint {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
 }
 

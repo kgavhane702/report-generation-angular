@@ -3,6 +3,7 @@ import {
   Component,
   ElementRef,
   HostListener,
+  Input,
   inject,
   signal,
   computed,
@@ -21,6 +22,9 @@ import { DocumentService } from '../../../../core/services/document.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PageLayoutSelectorComponent {
+  /** Visual styling variant depending on where the selector is rendered. */
+  @Input() variant: 'toolbar' | 'settings' = 'toolbar';
+
   private readonly el = inject(ElementRef<HTMLElement>);
   private readonly pageLayout = inject(PageLayoutService);
   private readonly documentService = inject(DocumentService);
@@ -32,6 +36,7 @@ export class PageLayoutSelectorComponent {
   readonly documentLocked = this.documentService.documentLocked;
 
   toggleMenu(): void {
+    if (this.variant !== 'toolbar') return;
     if (this.documentLocked()) return;
     this.menuOpen.update(v => !v);
   }
@@ -44,11 +49,14 @@ export class PageLayoutSelectorComponent {
     if (this.documentLocked()) return;
     // id is strongly typed in config; keep template simple.
     this.pageLayout.setPreset(id);
-    this.closeMenu();
+    if (this.variant === 'toolbar') {
+      this.closeMenu();
+    }
   }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
+    if (this.variant !== 'toolbar') return;
     const target = event.target as Node | null;
     if (!target) return;
     if (!this.el.nativeElement.contains(target)) {

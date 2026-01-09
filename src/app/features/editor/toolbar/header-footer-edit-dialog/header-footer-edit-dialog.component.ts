@@ -15,25 +15,27 @@ import { HeaderConfig, FooterConfig, LogoConfig } from '../../../../models/docum
 import { DocumentService } from '../../../../core/services/document.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
+import { PageLayoutSelectorComponent } from '../page-layout-selector/page-layout-selector.component';
 
 type PageNumberFormat = 'arabic' | 'roman' | 'alphabetic';
-type TabType = 'header' | 'footer';
+type TabType = 'header' | 'footer' | 'page';
 type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 @Component({
-  selector: 'app-header-footer-edit-dialog',
+  selector: 'app-settings-dialog',
   standalone: true,
   imports: [
     CommonModule,
     AppModalComponent,
     ColorPickerComponent,
     AppIconComponent,
+    PageLayoutSelectorComponent,
   ],
   templateUrl: './header-footer-edit-dialog.component.html',
   styleUrls: ['./header-footer-edit-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HeaderFooterEditDialogComponent {
+export class SettingsDialogComponent {
   private readonly store = inject(Store<AppState>);
   private readonly documentService = inject(DocumentService);
   readonly documentLocked = toSignal(
@@ -42,7 +44,7 @@ export class HeaderFooterEditDialogComponent {
   );
 
   readonly open = signal(false);
-  readonly activeTab = signal<TabType>('header');
+  readonly activeTab = signal<TabType>('page');
 
   // Header state
   readonly headerLeftText = signal('');

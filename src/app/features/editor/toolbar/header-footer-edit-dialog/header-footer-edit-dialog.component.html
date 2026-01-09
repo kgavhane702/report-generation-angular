@@ -11,6 +11,14 @@
         <button
           type="button"
           class="header-footer-dialog__tab"
+          [class.header-footer-dialog__tab--active]="activeTab() === 'page'"
+          (click)="setActiveTab('page')"
+        >
+          Page
+        </button>
+        <button
+          type="button"
+          class="header-footer-dialog__tab"
           [class.header-footer-dialog__tab--active]="activeTab() === 'header'"
           (click)="setActiveTab('header')"
         >
@@ -24,6 +32,22 @@
         >
           Footer
         </button>
+      </div>
+
+      <!-- Page Tab Content -->
+      <div class="header-footer-dialog__content" *ngIf="activeTab() === 'page'">
+        <div class="header-footer-dialog__sections-grid header-footer-dialog__sections-grid--page">
+          <div class="header-footer-dialog__section header-footer-dialog__section--full">
+            <div class="header-footer-dialog__section-title">Layout</div>
+            <div class="header-footer-dialog__field">
+              <label class="header-footer-dialog__label">Page size preset</label>
+              <app-page-layout-selector variant="settings"></app-page-layout-selector>
+              <div class="header-footer-dialog__hint">
+                Layout applies to the whole document. Orientation is set per-page (Portrait/Landscape).
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Header Tab Content -->

@@ -1,35 +1,56 @@
-<div class="page-layout-selector">
-  <button
-    type="button"
-    class="page-layout-selector__button"
-    (click)="toggleMenu()"
-    [attr.aria-expanded]="menuOpen()"
-    aria-haspopup="menu"
-    title="Document layout (page size preset)"
-    [disabled]="documentLocked()"
-  >
-    <span class="page-layout-selector__label">{{ currentLabel() }}</span>
-    <span class="page-layout-selector__chev" aria-hidden="true">▾</span>
-  </button>
-
-  <div *ngIf="menuOpen()" class="page-layout-selector__menu" role="menu">
-    <div class="page-layout-selector__header">Layout</div>
+<div class="page-layout-selector" [class.page-layout-selector--settings]="variant === 'settings'">
+  <ng-container *ngIf="variant === 'toolbar'; else settingsVariant">
     <button
-      *ngFor="let p of presets"
       type="button"
-      class="page-layout-selector__item"
-      role="menuitemradio"
-      [attr.aria-checked]="current().id === p.id"
-      [class.page-layout-selector__item--active]="current().id === p.id"
-      (click)="selectPreset(p.id)"
+      class="page-layout-selector__button"
+      (click)="toggleMenu()"
+      [attr.aria-expanded]="menuOpen()"
+      aria-haspopup="menu"
+      title="Document layout (page size preset)"
+      [disabled]="documentLocked()"
     >
-      <div class="page-layout-selector__item-title">{{ p.label }}</div>
-      <div class="page-layout-selector__item-desc">{{ p.description }}</div>
+      <span class="page-layout-selector__label">{{ currentLabel() }}</span>
+      <span class="page-layout-selector__chev" aria-hidden="true">▾</span>
     </button>
-    <div class="page-layout-selector__footer">
-      Orientation is per-page (Portrait/Landscape).
+
+    <div *ngIf="menuOpen()" class="page-layout-selector__menu" role="menu">
+      <div class="page-layout-selector__header">Layout</div>
+      <button
+        *ngFor="let p of presets"
+        type="button"
+        class="page-layout-selector__item"
+        role="menuitemradio"
+        [attr.aria-checked]="current().id === p.id"
+        [class.page-layout-selector__item--active]="current().id === p.id"
+        (click)="selectPreset(p.id)"
+      >
+        <div class="page-layout-selector__item-title">{{ p.label }}</div>
+        <div class="page-layout-selector__item-desc">{{ p.description }}</div>
+      </button>
+      <div class="page-layout-selector__footer">
+        Orientation is per-page (Portrait/Landscape).
+      </div>
     </div>
-  </div>
+  </ng-container>
+
+  <ng-template #settingsVariant>
+    <div class="page-layout-selector__settings" role="radiogroup" aria-label="Page layout preset">
+      <button
+        *ngFor="let p of presets"
+        type="button"
+        class="page-layout-selector__settings-item"
+        role="radio"
+        [attr.aria-checked]="current().id === p.id"
+        [attr.aria-label]="p.label"
+        [class.page-layout-selector__settings-item--active]="current().id === p.id"
+        (click)="selectPreset(p.id)"
+        [disabled]="documentLocked()"
+      >
+        <div class="page-layout-selector__settings-title">{{ p.label }}</div>
+        <div class="page-layout-selector__settings-desc">{{ p.description }}</div>
+      </button>
+    </div>
+  </ng-template>
 </div>
 
 

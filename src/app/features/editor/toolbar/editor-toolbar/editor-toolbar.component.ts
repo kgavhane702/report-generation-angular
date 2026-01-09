@@ -28,7 +28,7 @@ import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
-import { HeaderFooterEditDialogComponent } from '../header-footer-edit-dialog/header-footer-edit-dialog.component';
+import { SettingsDialogComponent } from '../header-footer-edit-dialog/header-footer-edit-dialog.component';
 
 @Component({
   selector: 'app-editor-toolbar',
@@ -115,7 +115,7 @@ export class EditorToolbarComponent implements AfterViewInit {
   @ViewChild('documentNameInputRef') documentNameInputRef?: ElementRef<HTMLInputElement>;
 
   // Header/Footer dialog
-  @ViewChild(HeaderFooterEditDialogComponent) headerFooterDialog?: HeaderFooterEditDialogComponent;
+  @ViewChild(SettingsDialogComponent) settingsDialog?: SettingsDialogComponent;
 
   addWidget(type: WidgetType): void {
     if (this.documentLocked()) {
@@ -485,12 +485,12 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.documentImportInProgress.set(false);
   }
 
-  openHeaderFooterDialog(): void {
+  openSettingsDialog(): void {
     if (this.documentLocked()) {
       this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
       return;
     }
-    this.headerFooterDialog?.openDialog();
+    this.settingsDialog?.openDialog();
   }
 
   async downloadPDF(): Promise<void> {

@@ -34,9 +34,8 @@ import { SafeHtmlPipe } from '../../shared/pipes/safe-html.pipe';
 import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-html.directive';
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
-import { HeaderFooterEditDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
+import { SettingsDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
-import { PageLayoutSelectorComponent } from './toolbar/page-layout-selector/page-layout-selector.component';
 import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/document-download-menu.component';
 import { EditorRoutingModule } from './editor-routing.module';
 
@@ -80,8 +79,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
     AppIconComponent,
-    HeaderFooterEditDialogComponent,
-    PageLayoutSelectorComponent,
+    SettingsDialogComponent,
     DocumentDownloadMenuComponent,
   ],
   exports: [EditorShellComponent],
