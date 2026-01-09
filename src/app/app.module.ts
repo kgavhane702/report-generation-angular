@@ -7,7 +7,7 @@ import { EffectsModule } from '@ngrx/effects';
 import { ToastrModule } from 'ngx-toastr';
 
 import { AppComponent } from './app.component';
-import { EditorModule } from './features/editor/editor.module';
+import { AppRoutingModule } from './app-routing.module';
 import {
   documentFeatureKey,
   documentReducer,
@@ -32,6 +32,7 @@ function initializeIcons(iconPreloader: IconPreloaderService): () => Promise<voi
     BrowserModule,
     BrowserAnimationsModule,
     HttpClientModule,
+    AppRoutingModule,
     ToastrModule.forRoot({
       closeButton: true,
       newestOnTop: true,
@@ -44,7 +45,6 @@ function initializeIcons(iconPreloader: IconPreloaderService): () => Promise<voi
       [documentFeatureKey]: documentReducer,
     }),
     EffectsModule.forRoot([]),
-    EditorModule,
   ],
   providers: [
     {

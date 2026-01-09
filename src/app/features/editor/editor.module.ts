@@ -38,6 +38,7 @@ import { HeaderFooterEditDialogComponent } from './toolbar/header-footer-edit-di
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
 import { PageLayoutSelectorComponent } from './toolbar/page-layout-selector/page-layout-selector.component';
 import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/document-download-menu.component';
+import { EditorRoutingModule } from './editor-routing.module';
 
 @NgModule({
   declarations: [
@@ -60,6 +61,7 @@ import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/
   ],
   imports: [
     CommonModule,
+    EditorRoutingModule,
     FormsModule,
     ReactiveFormsModule,
     DragDropModule,
