@@ -104,24 +104,86 @@ export class TableConditionalFormattingService {
   }
 
   /**
-   * Build a map of normalized column key → column index from the header row.
+   * Build a map of normalized column key → column index from the header rows.
+   *
+   * Supports multi-row grouped headers by concatenating header labels like:
+   * - "Performance > Q1"
+   *
+   * Also always includes a stable index-based key `col:{i}` as a fallback.
    */
   getColumnKeyToIndexMap(rows: TableRow[], headerRowCount: number): Map<string, number> {
     const map = new Map<string, number>();
-    if (!Array.isArray(rows) || rows.length === 0 || headerRowCount <= 0) return map;
+    if (!Array.isArray(rows) || rows.length === 0) return map;
 
-    const headerRowIndex = Math.min(rows.length - 1, headerRowCount - 1);
-    const headerRow = rows[headerRowIndex];
-    const cells = Array.isArray(headerRow?.cells) ? headerRow.cells : [];
+    const persisted = Math.max(0, Math.min(4, rows.length, Math.trunc(headerRowCount || 0)));
+    const metaDepth = this.getHeaderDepthFromMeta(rows);
+    const safeHeaderCount = Math.min(4, rows.length, Math.max(persisted, metaDepth));
+    const colCount = Math.max(
+      1,
+      ...rows
+        .slice(0, Math.max(1, safeHeaderCount))
+        .map((r) => (Array.isArray(r?.cells) ? r.cells.length : 0))
+    );
 
-    for (let i = 0; i < cells.length; i++) {
-      const name = this.getHeaderCellLabel(cells[i]);
-      const key = this.normalizeColumnKey(name) || `col:${i}`;
-      if (!map.has(key)) {
-        map.set(key, i);
+    const resolveCovered = (cell: any): TableCell | null => {
+      let cur: any = cell ?? null;
+      let guard = 0;
+      while (cur && cur.coveredBy && guard < 6) {
+        const r = Number(cur.coveredBy.row);
+        const c = Number(cur.coveredBy.col);
+        if (!Number.isFinite(r) || !Number.isFinite(c)) break;
+        const nextRow = rows[r];
+        const next = (Array.isArray(nextRow?.cells) ? nextRow.cells[c] : null) as any;
+        if (!next || next === cur) break;
+        cur = next;
+        guard++;
       }
+      return cur as TableCell | null;
+    };
+
+    for (let colIndex = 0; colIndex < colCount; colIndex++) {
+      const parts: string[] = [];
+      for (let r = 0; r < safeHeaderCount; r++) {
+        const row = rows[r];
+        const cells = Array.isArray(row?.cells) ? row.cells : [];
+        const cell = cells[colIndex] as any;
+        const resolved = resolveCovered(cell);
+        const label = resolved ? this.getHeaderCellLabel(resolved) : '';
+        if (!label) continue;
+        const last = parts[parts.length - 1];
+        if (last !== label) parts.push(label);
+      }
+
+      const name = parts.join(' > ');
+      const key = this.normalizeColumnKey(name) || `col:${colIndex}`;
+
+      if (!map.has(key)) {
+        map.set(key, colIndex);
+      }
+      // Always allow stable index-based addressing.
+      map.set(`col:${colIndex}`, colIndex);
     }
     return map;
+  }
+
+  /**
+   * Determine header depth from explicit header metadata (merges/coveredBy/splits) in the top rows.
+   * This is safe because data rows typically do not contain merge metadata.
+   */
+  private getHeaderDepthFromMeta(rows: TableRow[]): number {
+    const maxRows = Math.min(4, rows.length);
+    const rowHasMeta = (row: TableRow | undefined): boolean => {
+      const maybeCells = row?.cells;
+      const cells = Array.isArray(maybeCells) ? maybeCells : [];
+      return cells.some((c: any) => !!c?.merge || !!c?.coveredBy || !!c?.split);
+    };
+
+    let depth = 0;
+    for (let r = 0; r < maxRows; r++) {
+      if (!rowHasMeta(rows[r])) break;
+      depth = r + 1;
+    }
+    return depth;
   }
 
   /**

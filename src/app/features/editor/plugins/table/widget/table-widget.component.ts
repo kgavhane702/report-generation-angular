@@ -484,7 +484,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   getSectionStyle(rowIndex: number, colIndex: number): Partial<TableCellStyle> {
     const rowCount = this.topLevelRowCount;
     const colCount = this.topLevelColCount;
-    const isHeaderRow = this.headerRowEnabled && rowIndex === 0;
+    const headerCount = this.getEffectiveHeaderRowCountFromProps(this.tableProps);
+    const isHeaderRow = headerCount > 0 && rowIndex < headerCount;
     const isTotalRow = this.totalRowEnabled && rowIndex === rowCount - 1 && rowCount > 1;
     const isFirstCol = this.firstColumnEnabled && colIndex === 0;
     const isLastCol = this.lastColumnEnabled && colIndex === colCount - 1 && colCount > 1;
@@ -980,6 +981,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         ? [...preservedHeaderRows, ...bodyRows]
         : bodyRows;
 
+    // Infer header rows for newly imported tables so multi-row Excel headers work out of the box.
+    // IMPORTANT: do NOT override header settings during URL auto-load (preserveWidgetFrame=true),
+    // because in that path we’re only replacing dynamic body data inside an existing widget.
+    const currentHeaderCount = this.getEffectiveHeaderRowCountFromProps(this.tableProps);
+    const inferredHeaderCount = preserveWidgetFrame ? currentHeaderCount : this.inferHeaderRowCountFromRows(rows);
+    const nextHeaderCount = Math.max(0, Math.min(rows.length, Math.max(currentHeaderCount, inferredHeaderCount)));
+    const shouldEnableHeader = nextHeaderCount > 0 ? true : !!this.tableProps.headerRow;
+
     // Reset transient UI state that may now point at non-existent leaves.
     this.clearSelection();
     this.activeCellElement = null;
@@ -1087,6 +1096,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       mergedRegions: [],
       columnFractions: normalizedCols,
       rowFractions: normalizedRows,
+      ...(preserveWidgetFrame
+        ? {}
+        : {
+            headerRow: shouldEnableHeader,
+            headerRowCount: shouldEnableHeader ? Math.max(1, nextHeaderCount) : 0,
+          }),
       loading: false,
       loadingMessage: undefined,
     });
@@ -1121,6 +1136,94 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         ? Math.trunc(props.headerRowCount)
         : 1;
     return Math.max(0, n);
+  }
+
+  /**
+   * Best-effort inference of headerRowCount from imported rows.
+   *
+   * Handles common Excel pattern:
+   * - Row 0: group headers with merges (e.g. "Performance" spanning Q1/Q2/Q3)
+   * - Row 1: leaf headers (e.g. Q1, Q2, Q3)
+   */
+  private inferHeaderRowCountFromRows(rows: TableRow[]): number {
+    const safeRows = Array.isArray(rows) ? rows : [];
+    if (safeRows.length === 0) return 0;
+
+    const colCount = Math.max(1, this.getTopLevelColCount(safeRows));
+
+    const row0Labels = this.getResolvedRowLabels(safeRows, 0, colCount);
+    const nonEmpty0 = row0Labels.filter(Boolean);
+    if (nonEmpty0.length === 0) return 0;
+
+    // Default: at least 1 header row for imported tables.
+    let inferred = 1;
+
+    // Safe inference for hierarchical headers (JSON import builds real header merges).
+    // Count consecutive top rows (up to 4) that contain explicit header metadata (merge/coveredBy/split).
+    const maxRows = Math.min(4, safeRows.length);
+    const rowHasMeta = (r: number): boolean => {
+      const row = safeRows[r];
+      const cells = Array.isArray(row?.cells) ? row.cells : [];
+      return cells.some((c: any) => !!c?.merge || !!c?.coveredBy || !!c?.split);
+    };
+
+    if (rowHasMeta(0)) {
+      let depth = 0;
+      for (let r = 0; r < maxRows; r++) {
+        if (!rowHasMeta(r)) break;
+        depth = r + 1;
+      }
+      inferred = Math.max(inferred, depth);
+    }
+
+    // Back-compat heuristic (Excel-style): grouped header row + leaf header row.
+    // Only attempt when row 0 has merges and we only inferred a single row from metadata.
+    if (inferred === 1 && safeRows.length >= 2 && rowHasMeta(0)) {
+      const row1Labels = this.getResolvedRowLabels(safeRows, 1, colCount);
+      const nonEmpty1 = row1Labels.filter(Boolean);
+
+      const uniq0 = new Set(nonEmpty0.map((s) => s.toLowerCase())).size;
+      const uniq1 = new Set(nonEmpty1.map((s) => s.toLowerCase())).size;
+
+      const hasManyLabels = nonEmpty1.length >= Math.ceil(colCount * 0.6);
+      const hasMoreDistinct = uniq1 >= uniq0 + 2;
+
+      if (hasManyLabels && hasMoreDistinct) inferred = 2;
+    }
+
+    return Math.max(1, Math.min(4, inferred));
+  }
+
+  private getResolvedRowLabels(rows: TableRow[], rowIndex: number, colCount: number): string[] {
+    const row = rows[rowIndex];
+    const cells = Array.isArray(row?.cells) ? row.cells : [];
+    return Array.from({ length: colCount }, (_, colIndex) => {
+      const cell = cells[colIndex] as any;
+      const resolved = this.resolveCoveredCell(rows, rowIndex, colIndex, cell);
+      const txt = resolved ? this.htmlToPlainTextForSizing(resolved.contentHtml ?? '').replace(/\s+/g, ' ').trim() : '';
+      return txt;
+    });
+  }
+
+  private resolveCoveredCell(
+    rows: TableRow[],
+    _rowIndex: number,
+    _colIndex: number,
+    cell: TableCell | null | undefined
+  ): TableCell | null {
+    let cur: any = cell ?? null;
+    let guard = 0;
+    while (cur && cur.coveredBy && guard < 6) {
+      const r = Number(cur.coveredBy.row);
+      const c = Number(cur.coveredBy.col);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) break;
+      const nextRow = rows[r];
+      const next = (Array.isArray(nextRow?.cells) ? nextRow.cells[c] : null) as any;
+      if (!next || next === cur) break;
+      cur = next;
+      guard++;
+    }
+    return cur as TableCell | null;
   }
 
   /**

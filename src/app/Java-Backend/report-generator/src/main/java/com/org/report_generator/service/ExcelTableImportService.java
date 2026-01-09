@@ -42,13 +42,18 @@ public class ExcelTableImportService {
     public TableImportResponse parseXlsx(InputStream inputStream, Integer sheetIndex) throws Exception {
         long startTime = System.currentTimeMillis();
         try (Workbook workbook = new XSSFWorkbook(inputStream)) {
-            Sheet sheet = getSheet(workbook, sheetIndex);
+            Sheet sheet = selectSheet(workbook, sheetIndex);
+            Integer effectiveSheetIndex = sheet == null ? null : workbook.getSheetIndex(sheet);
             int firstRow = sheet.getFirstRowNum();
             int lastRow = sheet.getLastRowNum();
             int maxColExclusive = findMaxColumn(sheet, firstRow, lastRow);
             
             int estimatedRows = lastRow - firstRow + 1;
-            logger.debug("Parsing Excel sheet: rows={}, maxCol={}", estimatedRows, maxColExclusive);
+            logger.debug("Parsing Excel sheet: sheetIndex={}, sheetName={}, rows={}, maxCol={}",
+                    effectiveSheetIndex,
+                    sheet == null ? "null" : sheet.getSheetName(),
+                    estimatedRows,
+                    maxColExclusive);
             
             // Validate dimensions against limits
             validateDimensions(estimatedRows, maxColExclusive);
@@ -82,12 +87,85 @@ public class ExcelTableImportService {
         }
     }
 
-    private Sheet getSheet(Workbook workbook, Integer sheetIndex) {
-        int idx = sheetIndex == null ? 0 : sheetIndex;
-        if (idx < 0 || idx >= workbook.getNumberOfSheets()) {
-            idx = 0;
+    /**
+     * Selects which sheet to parse.
+     *
+     * - If sheetIndex is provided and valid and the sheet looks non-empty, use it.
+     * - Otherwise, fall back to the first sheet that looks non-empty.
+     *
+     * This prevents returning a "1x1 empty table" when the workbook has an empty first sheet
+     * and the data is on a later sheet (common in template-driven Excel files).
+     */
+    private Sheet selectSheet(Workbook workbook, Integer sheetIndex) {
+        int n = workbook == null ? 0 : workbook.getNumberOfSheets();
+        if (n <= 0) {
+            throw new InvalidExcelFileException("Workbook has no sheets");
         }
-        return workbook.getSheetAt(idx);
+
+        if (sheetIndex != null && sheetIndex >= 0 && sheetIndex < n) {
+            Sheet explicit = workbook.getSheetAt(sheetIndex);
+            if (!looksEmpty(explicit)) {
+                return explicit;
+            }
+            logger.debug("Requested sheetIndex={} looks empty; falling back to first non-empty sheet", sheetIndex);
+        }
+
+        for (int i = 0; i < n; i++) {
+            Sheet s = workbook.getSheetAt(i);
+            if (!looksEmpty(s)) {
+                return s;
+            }
+        }
+
+        // All sheets look empty — return the first to keep behavior deterministic.
+        return workbook.getSheetAt(0);
+    }
+
+    /**
+     * Fast heuristic to detect whether a sheet contains any meaningful data or merges.
+     * We intentionally do not treat formatting-only cells as content.
+     */
+    private boolean looksEmpty(Sheet sheet) {
+        if (sheet == null) return true;
+        if (sheet.getNumMergedRegions() > 0) return false;
+
+        int first = sheet.getFirstRowNum();
+        int last = sheet.getLastRowNum();
+        if (last < first) return true;
+
+        // Scan a bounded region for any non-blank value.
+        // This keeps large files fast while still correctly detecting normal sheets.
+        int maxRowsToScan = 200;
+        int maxColsToScan = 80;
+
+        int rowsScanned = 0;
+        for (int r = first; r <= last && rowsScanned < maxRowsToScan; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            rowsScanned++;
+
+            short lastCell = row.getLastCellNum();
+            if (lastCell <= 0) continue;
+
+            int cols = Math.min((int) lastCell, maxColsToScan);
+            for (int c = 0; c < cols; c++) {
+                Cell cell = row.getCell(c);
+                if (cell == null) continue;
+
+                CellType type = cell.getCellType();
+                if (type == CellType.FORMULA) {
+                    type = cell.getCachedFormulaResultType();
+                }
+
+                if (type == CellType.BLANK) continue;
+
+                String text = dataFormatter.formatCellValue(cell);
+                if (text != null && !text.trim().isEmpty()) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private int findMaxColumn(Sheet sheet, int firstRow, int lastRow) {

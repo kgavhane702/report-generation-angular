@@ -66,98 +66,153 @@ export class TableColumnRulesDialogComponent {
     const props = this.props;
     const rows = Array.isArray(props?.rows) ? props!.rows : [];
 
-    const headerRowCount = this.getEffectiveHeaderRowCount(props);
-    const headerRowIndex = headerRowCount > 0 ? Math.min(rows.length - 1, headerRowCount - 1) : -1;
-    let headerRow = headerRowIndex >= 0 ? rows[headerRowIndex] : null;
+    const colCount = this.getColumnCount(rows, props);
+    if (colCount <= 0) {
+      return [{ index: 0, name: 'Column 1', key: 'col:0' }];
+    }
 
-    // If headerRow is not enabled, still try to use the first row for naming if it contains any labels.
-    if (!headerRow && rows.length > 0) {
-      const first = rows[0];
-      const hasAnyLabel =
-        Array.isArray(first?.cells) &&
-        first.cells.some((c: any) => {
-          const txt = this.getLeafCellLabel(c as TableCell);
-          return !!txt;
-        });
-      if (hasAnyLabel) {
-        headerRow = first;
+    const headerRowCountForNaming = this.getHeaderRowCountForNaming(props, rows, colCount);
+
+    const out: ColumnOption[] = [];
+    const seenKeys = new Set<string>();
+    for (let colIndex = 0; colIndex < colCount; colIndex++) {
+      const parts: string[] = [];
+      for (let r = 0; r < headerRowCountForNaming; r++) {
+        const label = this.getHeaderLabelAt(rows, r, colIndex);
+        if (!label) continue;
+        const last = parts[parts.length - 1];
+        if (last !== label) parts.push(label);
       }
+
+      const name = parts.join(' > ') || `Column ${colIndex + 1}`;
+
+      // Prefer a stable name-based key so rules can follow columns by header text.
+      // If the computed key collides (duplicate headers), fall back to index-based key for uniqueness.
+      const baseKey = this.normalizeColumnKey(name);
+      const key = baseKey && !seenKeys.has(baseKey) ? baseKey : `col:${colIndex}`;
+      seenKeys.add(key);
+
+      out.push({ index: colIndex, name, key });
     }
 
-    // Flatten header cells to get visual columns (expanding split cells)
-    const flatCols = this.flattenHeaderCells(headerRow?.cells ?? []);
+    return out;
+  }
 
-    // If we got nothing, fall back to columnFractions count or 1
-    if (flatCols.length === 0) {
-      const fallbackCount = Array.isArray(props?.columnFractions) ? props!.columnFractions!.length : 1;
-      return Array.from({ length: fallbackCount }, (_, i) => ({
-        index: i,
-        name: `Column ${i + 1}`,
-        key: `col:${i}`,
-      }));
+  /**
+   * Compute the number of top-level columns.
+   */
+  private getColumnCount(rows: any[], props: TableWidgetProps | null): number {
+    const fromRows = Math.max(
+      0,
+      ...rows.map((r) => (Array.isArray(r?.cells) ? r.cells.length : 0))
+    );
+    const fromFractions = Array.isArray(props?.columnFractions) ? props!.columnFractions!.length : 0;
+    return Math.max(1, fromRows, fromFractions || 0);
+  }
+
+  /**
+   * Decide how many header rows to use for naming.
+   *
+   * - If the widget has header rows enabled, prefer the persisted headerRowCount.
+   * - If the imported grid contains real multi-row header metadata (merges/covered cells), allow up to 4 levels.
+   */
+  private getHeaderRowCountForNaming(props: TableWidgetProps | null, rows: any[], colCount: number): number {
+    if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+    // If header rows are not enabled, never guess from data (prevents "id > 1" etc).
+    if (!props?.headerRow) return 0;
+
+    const persisted = Math.max(1, Math.min(4, this.getEffectiveHeaderRowCount(props) || 1));
+
+    // If the imported grid clearly contains multi-row header metadata (merges/coveredBy/splits),
+    // bump up to that depth (capped) so nested headers like "address > geo > lat" show correctly.
+    const metaDepth = this.getHeaderDepthFromMeta(rows);
+    const effective = Math.max(persisted, metaDepth);
+
+    // Back-compat heuristic: if only 1 header row is persisted, but the first two rows look like grouped headers,
+    // use 2 so we can show "Performance > Q1" (Excel-style grouped header).
+    if (effective < 2 && rows.length >= 2 && this.looksLikeTwoHeaderRows(rows, colCount)) {
+      return 2;
     }
 
-    return flatCols.map((col, i) => {
-      const name = col.name || `Column ${i + 1}`;
-      const key = this.normalizeColumnKey(name) || `col:${i}`;
-      return { index: i, name, key };
+    return Math.min(4, rows.length, effective);
+  }
+
+  private looksLikeTwoHeaderRows(rows: any[], colCount: number): boolean {
+    const row0 = rows[0];
+    const row1 = rows[1];
+    if (!row0 || !row1) return false;
+
+    const labels0 = this.getRowLabels(row0, rows, 0, colCount);
+    const labels1 = this.getRowLabels(row1, rows, 1, colCount);
+
+    const nonEmpty0 = labels0.filter(Boolean);
+    const nonEmpty1 = labels1.filter(Boolean);
+
+    const uniq0 = new Set(nonEmpty0.map((s) => s.toLowerCase())).size;
+    const uniq1 = new Set(nonEmpty1.map((s) => s.toLowerCase())).size;
+
+    // Leaf header row should have labels for most columns and usually more distinct labels than the group row.
+    const hasManyLabels = nonEmpty1.length >= Math.ceil(colCount * 0.6);
+    const hasMoreDistinct = uniq1 >= uniq0 + 2;
+    return hasManyLabels && hasMoreDistinct;
+  }
+
+  /**
+   * Determine header depth from explicit header metadata (merges/coveredBy/splits) in the top rows.
+   * This is safe because data rows typically do not contain merge metadata.
+   */
+  private getHeaderDepthFromMeta(rows: any[]): number {
+    const maxRows = Math.min(4, rows.length);
+    const rowHasMeta = (row: any): boolean => {
+      const cells = Array.isArray(row?.cells) ? row.cells : [];
+      return cells.some((c: any) => !!c?.merge || !!c?.coveredBy || !!c?.split);
+    };
+
+    let depth = 0;
+    for (let r = 0; r < maxRows; r++) {
+      if (!rowHasMeta(rows[r])) break;
+      depth = r + 1;
+    }
+    return depth;
+  }
+
+  private getRowLabels(row: any, rows: any[], rowIndex: number, colCount: number): string[] {
+    const cells = Array.isArray(row?.cells) ? row.cells : [];
+    return Array.from({ length: colCount }, (_, colIndex) => {
+      const cell = cells[colIndex] as TableCell | undefined;
+      const resolved = this.resolveCoveredCell(rows, rowIndex, colIndex, cell);
+      return resolved ? this.getLeafCellLabel(resolved) : '';
     });
   }
 
-  /**
-   * Flatten header cells, expanding split cells into their leaf columns.
-   * Returns an array of { name } for each visual column.
-   */
-  private flattenHeaderCells(cells: any[]): Array<{ name: string }> {
-    const result: Array<{ name: string }> = [];
-    for (const cell of cells) {
-      this.collectVisualColumns(cell as TableCell, result);
-    }
-    return result;
+  private getHeaderLabelAt(rows: any[], rowIndex: number, colIndex: number): string {
+    const row = rows[rowIndex];
+    const cells = Array.isArray(row?.cells) ? row.cells : [];
+    const cell = cells[colIndex] as TableCell | undefined;
+    const resolved = this.resolveCoveredCell(rows, rowIndex, colIndex, cell);
+    return resolved ? this.getLeafCellLabel(resolved) : '';
   }
 
-  /**
-   * Recursively collect visual columns from a cell.
-   * If the cell is split, we expand its leaf cells as separate visual columns.
-   * Otherwise, the cell itself is one visual column.
-   */
-  private collectVisualColumns(cell: TableCell | null | undefined, out: Array<{ name: string }>): void {
-    if (!cell) {
-      out.push({ name: '' });
-      return;
+  private resolveCoveredCell(
+    rows: any[],
+    rowIndex: number,
+    colIndex: number,
+    cell: TableCell | undefined
+  ): TableCell | null {
+    let cur: any = cell ?? null;
+    let guard = 0;
+    while (cur && cur.coveredBy && guard < 6) {
+      const r = Number(cur.coveredBy.row);
+      const c = Number(cur.coveredBy.col);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) break;
+      const nextRow = rows[r];
+      const next = (Array.isArray(nextRow?.cells) ? nextRow.cells[c] : null) as any;
+      if (!next || next === cur) break;
+      cur = next;
+      guard++;
     }
-
-    const split = (cell as any)?.split as { rows?: number; cols?: number; cells?: any[] } | undefined;
-
-    // If this cell is split horizontally (cols > 1), expand each column
-    if (split && Array.isArray(split.cells) && typeof split.cols === 'number' && split.cols > 1) {
-      const rows = typeof split.rows === 'number' && split.rows > 0 ? split.rows : 1;
-      const cols = split.cols;
-
-      // For each visual column in the split, we take the LAST row's cell as the column name
-      // (since headers often have a top row like "Personal Info" spanning, and bottom row with actual names)
-      for (let c = 0; c < cols; c++) {
-        // Get the bottom-most cell in this column
-        const bottomRowIndex = rows - 1;
-        const cellIndex = bottomRowIndex * cols + c;
-        const subCell = split.cells[cellIndex] as TableCell | undefined;
-
-        // Check if this subcell is itself split
-        const subSplit = (subCell as any)?.split as { cols?: number } | undefined;
-        if (subSplit && typeof subSplit.cols === 'number' && subSplit.cols > 1) {
-          // Recursively expand
-          this.collectVisualColumns(subCell, out);
-        } else {
-          // Leaf cell - extract its name
-          const name = subCell ? this.getLeafCellLabel(subCell) : '';
-          out.push({ name });
-        }
-      }
-    } else {
-      // Not split or only 1 column - this is a single visual column
-      const name = this.getLeafCellLabel(cell);
-      out.push({ name });
-    }
+    return cur as TableCell | null;
   }
 
   /**
@@ -192,8 +247,25 @@ export class TableColumnRulesDialogComponent {
     if (next) {
       const cols = this.columns();
       const firstKey = cols[0]?.key ?? '';
-      this.selectedColumnKey = this.selectedColumnKey || firstKey;
-      this.loadDraftForKey(this.selectedColumnKey);
+
+      const hasKey = (k: string) => cols.some((c) => c.key === k);
+      let nextKey = (this.selectedColumnKey ?? '').toString();
+
+      // If we have an old saved key (e.g. "performance") that no longer matches the new stable keys ("col:3"),
+      // map it to the column index so the UI selects the correct option and the draft loads correctly.
+      if (!nextKey || !hasKey(nextKey)) {
+        const existing = Array.isArray(this.columnRules) ? this.columnRules : [];
+        const rs = existing.find((x) => x?.columnKey === nextKey || this.resolveRuleSetKey(x) === nextKey) ?? null;
+        const idx = rs ? this.resolveRuleSetIndex(rs) : null;
+        nextKey = idx !== null ? (cols.find((c) => c.index === idx)?.key ?? firstKey) : firstKey;
+      }
+
+      if (!hasKey(nextKey)) {
+        nextKey = firstKey;
+      }
+
+      this.selectedColumnKey = nextKey;
+      this.loadDraftForKey(nextKey);
     }
   }
 
@@ -252,6 +324,7 @@ export class TableColumnRulesDialogComponent {
     });
 
     const nextRuleSet: TableColumnRuleSet = {
+      // Stable key: always by column index
       columnKey: col.key,
       columnName: col.name,
       fallbackColIndex: col.index,
@@ -260,8 +333,9 @@ export class TableColumnRulesDialogComponent {
       rules: cleanedRules,
     };
 
+    // Replace any existing rules targeting the same column index (supports older saved keys too).
     const nextAll = [
-      ...existing.filter((rs) => this.resolveRuleSetKey(rs) !== col.key),
+      ...existing.filter((rs) => this.resolveRuleSetIndex(rs) !== col.index),
       ...(cleanedRules.length > 0 ? [nextRuleSet] : []),
     ];
 
@@ -271,7 +345,16 @@ export class TableColumnRulesDialogComponent {
 
   private loadDraftForKey(key: string): void {
     const existing = Array.isArray(this.columnRules) ? this.columnRules : [];
-    const rs = existing.find((x) => this.resolveRuleSetKey(x) === key) ?? null;
+
+    const cols = this.columns();
+    const targetIndex = cols.find((c) => c.key === key)?.index ?? this.parseColKeyIndex(key);
+
+    // Prefer exact key match, but fall back to index match so older saved keys still load correctly.
+    const rs =
+      existing.find((x) => x?.columnKey === key) ??
+      existing.find((x) => this.resolveRuleSetKey(x) === key) ??
+      (targetIndex !== null ? existing.find((x) => this.resolveRuleSetIndex(x) === targetIndex) : null) ??
+      null;
     this.rulesEnabled = rs?.enabled !== false;
     this.rulesDraft = rs?.rules
       ? rs.rules.map((r: TableConditionRule) => ({ ...r, when: { ...(r.when as any) }, then: { ...(r.then as any) } }))
@@ -281,6 +364,26 @@ export class TableColumnRulesDialogComponent {
   private resolveRuleSetKey(rs: TableColumnRuleSet | null | undefined): string {
     if (!rs) return '';
     return rs.columnKey || this.normalizeColumnKey(rs.columnName || '') || '';
+  }
+
+  private resolveRuleSetIndex(rs: TableColumnRuleSet | null | undefined): number | null {
+    if (!rs) return null;
+
+    const fallback =
+      typeof (rs as any).fallbackColIndex === 'number'
+        ? Math.trunc((rs as any).fallbackColIndex)
+        : typeof (rs as any).colIndex === 'number'
+          ? Math.trunc((rs as any).colIndex)
+          : this.parseColKeyIndex(rs.columnKey || '');
+
+    return fallback !== null && Number.isFinite(fallback) && fallback >= 0 ? fallback : null;
+  }
+
+  private parseColKeyIndex(key: string): number | null {
+    const m = (key ?? '').toString().trim().match(/^col:(\d+)$/i);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
   }
 
   private getEffectiveHeaderRowCount(props: TableWidgetProps | null): number {
