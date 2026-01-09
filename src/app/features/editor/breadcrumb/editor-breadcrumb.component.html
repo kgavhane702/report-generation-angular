@@ -1,7 +1,26 @@
 <div class="breadcrumb">
   <div class="breadcrumb__header">
-    <span>Navigation</span>
-    <button type="button" (click)="addSection()" [disabled]="isDocumentLocked">+ Section</button>
+    <span class="breadcrumb__header-actions breadcrumb__header-actions--left">
+      <button
+        type="button"
+        (click)="expandAllSections()"
+        title="Expand all sections"
+        aria-label="Expand all sections"
+      >
+        <app-icon name="expand" [size]="14"></app-icon>
+      </button>
+      <button
+        type="button"
+        (click)="collapseAllSections()"
+        title="Collapse all sections"
+        aria-label="Collapse all sections"
+      >
+        <app-icon name="collapse" [size]="14"></app-icon>
+      </button>
+    </span>
+    <span class="breadcrumb__header-actions breadcrumb__header-actions--right">
+      <button type="button" (click)="addSection()" [disabled]="isDocumentLocked">+ Section</button>
+    </span>
   </div>
 
   <div class="breadcrumb__tree" role="tree" aria-label="Sections, subsections, and pages">
@@ -42,6 +61,16 @@
         <ng-template #sectionLabel>
           <span class="breadcrumb__label" [title]="section.title">{{ section.title }}</span>
           <span class="breadcrumb__actions">
+            <button
+              *ngIf="subsectionsForSection(section.id).length > 0"
+              type="button"
+              class="breadcrumb__btn breadcrumb__btn--toggle-all"
+              (click)="toggleAllSubsectionsForSection(section.id, $event)"
+              [title]="areAllSubsectionsExpanded(section.id) ? 'Collapse all subsections (hide pages)' : 'Expand all subsections (show pages)'"
+              [attr.aria-label]="areAllSubsectionsExpanded(section.id) ? 'Collapse all subsections' : 'Expand all subsections'"
+            >
+              <app-icon [name]="areAllSubsectionsExpanded(section.id) ? 'collapse' : 'expand'" [size]="14"></app-icon>
+            </button>
             <button type="button" class="breadcrumb__btn" (click)="addSubsectionFor(section.id, $event)" title="Add subsection" [disabled]="isDocumentLocked">
               +Sub
             </button>

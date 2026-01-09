@@ -96,6 +96,51 @@ export class EditorBreadcrumbComponent {
     return ids.map((id: string) => entities[id]).filter((s): s is SectionEntity => !!s);
   }
 
+  /** Global controls: expand/collapse all sections (show subsections, but not pages) */
+  expandAllSections(): void {
+    const ids = this.sectionIds();
+    this.expandedSectionIds.set(new Set(ids));
+    // "Till the section" => do not auto-expand subsections to page level.
+    this.expandedSubsectionIds.set(new Set());
+  }
+
+  collapseAllSections(): void {
+    this.expandedSectionIds.set(new Set());
+    this.expandedSubsectionIds.set(new Set());
+  }
+
+  areAllSubsectionsExpanded(sectionId: string): boolean {
+    const subs = this.subsectionsForSection(sectionId);
+    if (subs.length === 0) return false;
+    const expanded = this.expandedSubsectionIds();
+    return subs.every((s) => expanded.has(s.id));
+  }
+
+  toggleAllSubsectionsForSection(sectionId: string, event: MouseEvent): void {
+    event.stopPropagation();
+
+    // Ensure the section itself is expanded so the change is visible.
+    this.expandedSectionIds.update((prev) => {
+      const next = new Set(prev);
+      next.add(sectionId);
+      return next;
+    });
+
+    const subsectionIds = this.subsectionsForSection(sectionId).map((s) => s.id);
+    if (subsectionIds.length === 0) return;
+
+    const shouldExpand = !this.areAllSubsectionsExpanded(sectionId);
+    this.expandedSubsectionIds.update((prev) => {
+      const next = new Set(prev);
+      if (shouldExpand) {
+        subsectionIds.forEach((id) => next.add(id));
+      } else {
+        subsectionIds.forEach((id) => next.delete(id));
+      }
+      return next;
+    });
+  }
+
   /** Active section ID */
   readonly activeSectionId = this.editorState.activeSectionId;
   

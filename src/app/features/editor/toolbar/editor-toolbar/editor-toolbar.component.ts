@@ -63,7 +63,7 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.store.select(DocumentSelectors.selectDocumentTitle),
     { initialValue: 'Untitled Document' }
   );
-
+  
   /** Document lock state (persisted in document metadata) */
   readonly documentLocked = toSignal(
     this.store.select(DocumentSelectors.selectDocumentLocked),

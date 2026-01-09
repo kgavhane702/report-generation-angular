@@ -36,6 +36,20 @@
   letter-spacing: 0.05em;
 }
 
+.breadcrumb__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.breadcrumb__header-actions--left {
+  // purely semantic; inherits header-actions styling
+}
+
+.breadcrumb__header-actions--right {
+  // purely semantic; inherits header-actions styling
+}
+
 .breadcrumb__header button {
   border: none;
   background: transparent;
@@ -263,6 +277,14 @@
     opacity: 0.35;
     cursor: not-allowed;
   }
+}
+
+.breadcrumb__btn--toggle-all {
+  width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .breadcrumb__pages {
