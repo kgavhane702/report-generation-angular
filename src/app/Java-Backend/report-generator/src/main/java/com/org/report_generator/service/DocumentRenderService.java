@@ -340,10 +340,10 @@ public class DocumentRenderService {
             return "";
         }
 
-        String textColor = header != null && header.getTextColor() != null && !header.getTextColor().isBlank()
-                ? header.getTextColor()
-                : "#000000";
-        String colorStyle = "color: " + escapeHtmlAttribute(textColor) + ";";
+        // Per-position text colors (fallback to global, then to black)
+        String leftColor = header != null ? header.getEffectiveLeftTextColor() : "#000000";
+        String centerColor = header != null ? header.getEffectiveCenterTextColor() : "#000000";
+        String rightColor = header != null ? header.getEffectiveRightTextColor() : "#000000";
 
         StringBuilder sb = new StringBuilder();
         sb.append("<div class=\"page__header\">");
@@ -358,7 +358,7 @@ public class DocumentRenderService {
                 sb.append("<img src=\"").append(escapeHtmlAttribute(header.getLeftImage())).append("\" alt=\"Header left\" class=\"page__header-image\" />");
             }
             if (header.getLeftText() != null && !header.getLeftText().isBlank()) {
-                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getLeftText())).append("</span>");
+                sb.append("<span style=\"color: ").append(escapeHtmlAttribute(leftColor)).append(";\">").append(escapeHtml(header.getLeftText())).append("</span>");
             }
         }
         sb.append("</div>");
@@ -370,7 +370,7 @@ public class DocumentRenderService {
                 sb.append("<img src=\"").append(escapeHtmlAttribute(header.getCenterImage())).append("\" alt=\"Header center\" class=\"page__header-image\" />");
             }
             if (header.getCenterText() != null && !header.getCenterText().isBlank()) {
-                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getCenterText())).append("</span>");
+                sb.append("<span style=\"color: ").append(escapeHtmlAttribute(centerColor)).append(";\">").append(escapeHtml(header.getCenterText())).append("</span>");
             }
         }
         sb.append("</div>");
@@ -380,18 +380,17 @@ public class DocumentRenderService {
         if (hasLogoTop && "top-right".equalsIgnoreCase(logo.getPosition())) {
             sb.append(renderLogoImg(logo));
         }
-        boolean hasRightText = header != null && header.getRightText() != null && !header.getRightText().isBlank();
-        boolean hasRightImage = header != null && header.getRightImage() != null && !header.getRightImage().isBlank();
         if (header != null) {
-            if (hasRightImage) {
+            if (header.getRightImage() != null && !header.getRightImage().isBlank()) {
                 sb.append("<img src=\"").append(escapeHtmlAttribute(header.getRightImage())).append("\" alt=\"Header right\" class=\"page__header-image\" />");
             }
-            if (hasRightText) {
-                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(header.getRightText())).append("</span>");
+            if (header.getRightText() != null && !header.getRightText().isBlank()) {
+                sb.append("<span style=\"color: ").append(escapeHtmlAttribute(rightColor)).append(";\">").append(escapeHtml(header.getRightText())).append("</span>");
             }
-            if ((header.getShowPageNumber() != null && header.getShowPageNumber()) && !hasRightText && !hasRightImage && page.getNumber() != null) {
+            // Always show page number if enabled, regardless of other content in right section
+            if (header.getShowPageNumber() != null && header.getShowPageNumber() && page.getNumber() != null) {
                 String formatted = formatPageNumber(page.getNumber(), header.getPageNumberFormat());
-                sb.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(formatted)).append("</span>");
+                sb.append("<span style=\"color: ").append(escapeHtmlAttribute(rightColor)).append(";\">").append(escapeHtml(formatted)).append("</span>");
             }
         }
         sb.append("</div>");
@@ -463,10 +462,10 @@ public class DocumentRenderService {
             return "";
         }
 
-        String textColor = footer != null && footer.getTextColor() != null && !footer.getTextColor().isBlank()
-                ? footer.getTextColor()
-                : "#000000";
-        String colorStyle = "color: " + escapeHtmlAttribute(textColor) + ";";
+        // Per-position text colors (fallback to global, then to black)
+        String leftColor = footer != null ? footer.getEffectiveLeftTextColor() : "#000000";
+        String centerColor = footer != null ? footer.getEffectiveCenterTextColor() : "#000000";
+        String rightColor = footer != null ? footer.getEffectiveRightTextColor() : "#000000";
 
         StringBuilder footerHtml = new StringBuilder();
         footerHtml.append("<div class=\"page__footer\">");
@@ -480,7 +479,7 @@ public class DocumentRenderService {
                 footerHtml.append("<img src=\"").append(escapeHtmlAttribute(footer.getLeftImage())).append("\" alt=\"Footer left\" class=\"page__footer-image\" />");
             }
             if (footer.getLeftText() != null && !footer.getLeftText().isBlank()) {
-                footerHtml.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(footer.getLeftText())).append("</span>");
+                footerHtml.append("<span style=\"color: ").append(escapeHtmlAttribute(leftColor)).append(";\">").append(escapeHtml(footer.getLeftText())).append("</span>");
             }
         }
         footerHtml.append("</div>");
@@ -491,11 +490,11 @@ public class DocumentRenderService {
                 footerHtml.append("<img src=\"").append(escapeHtmlAttribute(footer.getCenterImage())).append("\" alt=\"Footer center\" class=\"page__footer-image\" />");
             }
             if (footer.getCenterText() != null && !footer.getCenterText().isBlank()) {
-                footerHtml.append("<div class=\"page__footer-center-line\" style=\"").append(colorStyle).append("\">")
+                footerHtml.append("<div class=\"page__footer-center-line\" style=\"color: ").append(escapeHtmlAttribute(centerColor)).append(";\">")
                         .append(escapeHtml(footer.getCenterText())).append("</div>");
             }
             if (footer.getCenterSubText() != null && !footer.getCenterSubText().isBlank()) {
-                footerHtml.append("<div class=\"page__footer-center-line\" style=\"").append(colorStyle).append("\">")
+                footerHtml.append("<div class=\"page__footer-center-line\" style=\"color: ").append(escapeHtmlAttribute(centerColor)).append(";\">")
                         .append(escapeHtml(footer.getCenterSubText())).append("</div>");
             }
         }
@@ -511,7 +510,7 @@ public class DocumentRenderService {
             }
             if (footer.getShowPageNumber() != null && footer.getShowPageNumber() && page.getNumber() != null) {
                 String formatted = formatPageNumber(page.getNumber(), footer.getPageNumberFormat());
-                footerHtml.append("<span style=\"").append(colorStyle).append("\">").append(escapeHtml(formatted)).append("</span>");
+                footerHtml.append("<span style=\"color: ").append(escapeHtmlAttribute(rightColor)).append(";\">").append(escapeHtml(formatted)).append("</span>");
             }
         }
         footerHtml.append("</div>");

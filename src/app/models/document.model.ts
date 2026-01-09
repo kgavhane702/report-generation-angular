@@ -21,7 +21,11 @@ export interface HeaderConfig {
   leftImage?: string; // base64 or URL
   centerImage?: string;
   rightImage?: string;
-  textColor?: string;
+  // Per-position text colors (takes precedence over global textColor)
+  leftTextColor?: string;
+  centerTextColor?: string;
+  rightTextColor?: string;
+  textColor?: string; // Legacy global text color - fallback if per-position not set
   showPageNumber?: boolean;
   pageNumberFormat?: 'arabic' | 'roman' | 'alphabetic'; // 1,2,3 | i,ii,iii | a,b,c
 }
@@ -33,7 +37,11 @@ export interface FooterConfig {
   leftImage?: string; // base64 or URL
   centerImage?: string;
   rightImage?: string;
-  textColor?: string;
+  // Per-position text colors (takes precedence over global textColor)
+  leftTextColor?: string;
+  centerTextColor?: string;
+  rightTextColor?: string;
+  textColor?: string; // Legacy global text color - fallback if per-position not set
   showPageNumber?: boolean;
   pageNumberFormat?: 'arabic' | 'roman' | 'alphabetic'; // 1,2,3 | i,ii,iii | a,b,c
 }

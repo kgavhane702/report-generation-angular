@@ -20,8 +20,8 @@ public class PageStylesRenderer {
     private static final String PAGE_CSS = """
         .page {
             position: relative;
-            /* Hard clip page overflow so PDF never paints content beyond the page box. */
-            overflow: hidden;
+            /* Allow visible overflow for header/footer - clipping handled by @page rules */
+            overflow: visible;
             box-sizing: border-box;
         }
         
@@ -32,8 +32,8 @@ public class PageStylesRenderer {
             padding: 0;
             border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0;
-            /* Hard clip at the surface boundary too (matches PPT-like viewport behavior). */
-            overflow: hidden;
+            /* Allow visible overflow for header/footer */
+            overflow: visible;
             box-sizing: border-box;
         }
 
@@ -44,10 +44,11 @@ public class PageStylesRenderer {
                 border: none !important;
             }
 
-            /* Print hardening: ensure Chromium respects page clipping during PDF generation. */
-            .page,
-            .page__surface {
-                overflow: hidden !important;
+            /* Ensure header/footer are visible in print */
+            .page__header,
+            .page__footer {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
         
@@ -72,11 +73,13 @@ public class PageStylesRenderer {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            padding: 4px 20px;
+            padding: 8px 20px;
             pointer-events: none;
-            background: rgba(255, 255, 255, 0.95);
-            min-height: 20px;
+            background: #ffffff;
+            min-height: 24px;
             box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .page__header-left,
@@ -86,7 +89,7 @@ public class PageStylesRenderer {
             font-weight: 500;
             flex: 1;
             min-width: 0;
-            line-height: 1.2;
+            line-height: 1.4;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -112,11 +115,13 @@ public class PageStylesRenderer {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            padding: 4px 20px;
+            padding: 8px 20px;
             pointer-events: none;
-            background: rgba(255, 255, 255, 0.95);
-            min-height: 20px;
+            background: #ffffff;
+            min-height: 24px;
             box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
         
         .page__footer-left {
@@ -125,7 +130,7 @@ public class PageStylesRenderer {
             flex: 1;
             text-align: left;
             min-width: 0;
-            line-height: 1.2;
+            line-height: 1.4;
             padding-bottom: 2px;
             display: flex;
             align-items: center;
@@ -140,13 +145,13 @@ public class PageStylesRenderer {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1px;
+            gap: 2px;
             min-width: 0;
             padding-bottom: 2px;
         }
         
         .page__footer-center-line {
-            line-height: 1.2;
+            line-height: 1.4;
         }
         
         .page__footer-right {
@@ -155,7 +160,7 @@ public class PageStylesRenderer {
             flex: 1;
             text-align: right;
             min-width: 0;
-            line-height: 1.2;
+            line-height: 1.4;
             padding-bottom: 2px;
             display: flex;
             align-items: center;

@@ -20,9 +20,6 @@ export function createInitialDocument(): DocumentModel {
     pageSize: defaultPageSize(),
     sections: [section],
     footer: {
-      leftText: 'dummy text',
-      centerText: 'Fixed text',
-      centerSubText: 'Subtext',
       showPageNumber: true,
     },
   };

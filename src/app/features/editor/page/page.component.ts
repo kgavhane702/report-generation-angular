@@ -146,6 +146,22 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     return this.editorState.documentFooter()?.textColor || '#000000';
   }
 
+  // Per-position footer text colors (fallback to global textColor, then to black)
+  get footerLeftTextColor(): string {
+    const footer = this.editorState.documentFooter();
+    return footer?.leftTextColor || footer?.textColor || '#000000';
+  }
+
+  get footerCenterTextColor(): string {
+    const footer = this.editorState.documentFooter();
+    return footer?.centerTextColor || footer?.textColor || '#000000';
+  }
+
+  get footerRightTextColor(): string {
+    const footer = this.editorState.documentFooter();
+    return footer?.rightTextColor || footer?.textColor || '#000000';
+  }
+
   get headerLeftText(): string | undefined {
     return this.editorState.documentHeader()?.leftText;
   }
@@ -172,6 +188,22 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
 
   get headerTextColor(): string {
     return this.editorState.documentHeader()?.textColor || '#000000';
+  }
+
+  // Per-position header text colors (fallback to global textColor, then to black)
+  get headerLeftTextColor(): string {
+    const header = this.editorState.documentHeader();
+    return header?.leftTextColor || header?.textColor || '#000000';
+  }
+
+  get headerCenterTextColor(): string {
+    const header = this.editorState.documentHeader();
+    return header?.centerTextColor || header?.textColor || '#000000';
+  }
+
+  get headerRightTextColor(): string {
+    const header = this.editorState.documentHeader();
+    return header?.rightTextColor || header?.textColor || '#000000';
   }
 
   get headerShowPageNumber(): boolean {

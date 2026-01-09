@@ -29,13 +29,13 @@
         [style.max-height.px]="logoMaxHeightPx"
       />
       <img *ngIf="headerLeftImage" [src]="headerLeftImage" alt="Header left" class="page__header-image" />
-      <span *ngIf="headerLeftText" [style.color]="headerTextColor">{{ headerLeftText }}</span>
+      <span *ngIf="headerLeftText" [style.color]="headerLeftTextColor">{{ headerLeftText }}</span>
     </div>
     
     <!-- Top Center -->
     <div class="page__header-center">
       <img *ngIf="headerCenterImage" [src]="headerCenterImage" alt="Header center" class="page__header-image" />
-      <span *ngIf="headerCenterText" [style.color]="headerTextColor">{{ headerCenterText }}</span>
+      <span *ngIf="headerCenterText" [style.color]="headerCenterTextColor">{{ headerCenterText }}</span>
     </div>
     
     <!-- Top Right -->
@@ -49,8 +49,8 @@
         [style.max-height.px]="logoMaxHeightPx"
       />
       <img *ngIf="headerRightImage" [src]="headerRightImage" alt="Header right" class="page__header-image" />
-      <span *ngIf="headerRightText" [style.color]="headerTextColor">{{ headerRightText }}</span>
-      <span *ngIf="headerShowPageNumber && !headerRightText && !headerRightImage" [style.color]="headerTextColor">{{ formattedHeaderPageNumber }}</span>
+      <span *ngIf="headerRightText" [style.color]="headerRightTextColor">{{ headerRightText }}</span>
+      <span *ngIf="headerShowPageNumber" [style.color]="headerRightTextColor">{{ formattedHeaderPageNumber }}</span>
     </div>
   </div>
 
@@ -84,16 +84,16 @@
         [style.max-height.px]="logoMaxHeightPx"
       />
       <img *ngIf="footerLeftImage" [src]="footerLeftImage" alt="Footer left" class="page__footer-image" />
-      <span *ngIf="footerLeftText" [style.color]="footerTextColor">{{ footerLeftText }}</span>
+      <span *ngIf="footerLeftText" [style.color]="footerLeftTextColor">{{ footerLeftText }}</span>
     </div>
     
     <!-- Bottom Middle -->
     <div class="page__footer-center">
       <img *ngIf="footerCenterImage" [src]="footerCenterImage" alt="Footer center" class="page__footer-image" />
-      <div class="page__footer-center-line" *ngIf="footerCenterText" [style.color]="footerTextColor">
+      <div class="page__footer-center-line" *ngIf="footerCenterText" [style.color]="footerCenterTextColor">
         {{ footerCenterText }}
       </div>
-      <div class="page__footer-center-line" *ngIf="footerCenterSubText" [style.color]="footerTextColor">
+      <div class="page__footer-center-line" *ngIf="footerCenterSubText" [style.color]="footerCenterTextColor">
         {{ footerCenterSubText }}
       </div>
     </div>
@@ -109,7 +109,7 @@
         [style.max-height.px]="logoMaxHeightPx"
       />
       <img *ngIf="footerRightImage" [src]="footerRightImage" alt="Footer right" class="page__footer-image" />
-      <span *ngIf="showPageNumber" [style.color]="footerTextColor">{{ formattedPageNumber }}</span>
+      <span *ngIf="showPageNumber" [style.color]="footerRightTextColor">{{ formattedPageNumber }}</span>
     </div>
   </div>
 

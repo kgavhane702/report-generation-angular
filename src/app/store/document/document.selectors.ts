@@ -438,6 +438,7 @@ const selectDenormalizedDocument = createSelector(
       version: meta.version,
       pageSize: meta.pageSize,
       metadata: meta.metadata,
+      header: meta.header,
       footer: meta.footer,
       logo: meta.logo,
       sections,

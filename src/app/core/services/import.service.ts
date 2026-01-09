@@ -189,7 +189,24 @@ export class ImportService {
         leftText: document.footer.leftText,
         centerText: document.footer.centerText,
         centerSubText: document.footer.centerSubText,
+        leftTextColor: document.footer.leftTextColor,
+        centerTextColor: document.footer.centerTextColor,
+        rightTextColor: document.footer.rightTextColor,
+        textColor: document.footer.textColor,
         showPageNumber: document.footer.showPageNumber,
+        pageNumberFormat: document.footer.pageNumberFormat,
+      } : undefined,
+      // Preserve header configuration if present
+      header: document.header ? {
+        leftText: document.header.leftText,
+        centerText: document.header.centerText,
+        rightText: document.header.rightText,
+        leftTextColor: document.header.leftTextColor,
+        centerTextColor: document.header.centerTextColor,
+        rightTextColor: document.header.rightTextColor,
+        textColor: document.header.textColor,
+        showPageNumber: document.header.showPageNumber,
+        pageNumberFormat: document.header.pageNumberFormat,
       } : undefined,
       // Preserve logo configuration if present
       logo: document.logo ? {

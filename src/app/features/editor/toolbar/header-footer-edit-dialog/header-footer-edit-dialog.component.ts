@@ -48,10 +48,12 @@ export class HeaderFooterEditDialogComponent {
   readonly headerLeftText = signal('');
   readonly headerCenterText = signal('');
   readonly headerRightText = signal('');
-  readonly headerLeftImage = signal<string | null>(null);
-  readonly headerCenterImage = signal<string | null>(null);
-  readonly headerRightImage = signal<string | null>(null);
-  readonly headerTextColor = signal('#000000');
+  // Per-position text colors (blank means use default black)
+  readonly headerLeftTextColor = signal('');
+  readonly headerCenterTextColor = signal('');
+  readonly headerRightTextColor = signal('');
+  // Blank means "use default rendering color" (renderer falls back to black).
+  readonly headerTextColor = signal('');
   readonly headerShowPageNumber = signal(false);
   readonly headerPageNumberFormat = signal<PageNumberFormat>('arabic');
 
@@ -59,10 +61,12 @@ export class HeaderFooterEditDialogComponent {
   readonly footerLeftText = signal('');
   readonly footerCenterText = signal('');
   readonly footerCenterSubText = signal('');
-  readonly footerLeftImage = signal<string | null>(null);
-  readonly footerCenterImage = signal<string | null>(null);
-  readonly footerRightImage = signal<string | null>(null);
-  readonly footerTextColor = signal('#000000');
+  // Per-position text colors (blank means use default black)
+  readonly footerLeftTextColor = signal('');
+  readonly footerCenterTextColor = signal('');
+  readonly footerRightTextColor = signal('');
+  // Blank means "use default rendering color" (renderer falls back to black).
+  readonly footerTextColor = signal('');
   readonly footerShowPageNumber = signal(false);
   readonly footerPageNumberFormat = signal<PageNumberFormat>('arabic');
 
@@ -121,21 +125,21 @@ export class HeaderFooterEditDialogComponent {
       this.headerLeftText.set(header.leftText || '');
       this.headerCenterText.set(header.centerText || '');
       this.headerRightText.set(header.rightText || '');
-      this.headerLeftImage.set(header.leftImage || null);
-      this.headerCenterImage.set(header.centerImage || null);
-      this.headerRightImage.set(header.rightImage || null);
-      this.headerTextColor.set(header.textColor || '#000000');
-      this.headerShowPageNumber.set(header.showPageNumber || false);
+      this.headerLeftTextColor.set((header.leftTextColor || '').trim());
+      this.headerCenterTextColor.set((header.centerTextColor || '').trim());
+      this.headerRightTextColor.set((header.rightTextColor || '').trim());
+      this.headerTextColor.set((header.textColor || '').trim());
+      this.headerShowPageNumber.set(header.showPageNumber === true);
       this.headerPageNumberFormat.set(header.pageNumberFormat || 'arabic');
     } else {
       // Reset to defaults if no header exists
       this.headerLeftText.set('');
       this.headerCenterText.set('');
       this.headerRightText.set('');
-      this.headerLeftImage.set(null);
-      this.headerCenterImage.set(null);
-      this.headerRightImage.set(null);
-      this.headerTextColor.set('#000000');
+      this.headerLeftTextColor.set('');
+      this.headerCenterTextColor.set('');
+      this.headerRightTextColor.set('');
+      this.headerTextColor.set('');
       this.headerShowPageNumber.set(false);
       this.headerPageNumberFormat.set('arabic');
     }
@@ -145,21 +149,21 @@ export class HeaderFooterEditDialogComponent {
       this.footerLeftText.set(footer.leftText || '');
       this.footerCenterText.set(footer.centerText || '');
       this.footerCenterSubText.set(footer.centerSubText || '');
-      this.footerLeftImage.set(footer.leftImage || null);
-      this.footerCenterImage.set(footer.centerImage || null);
-      this.footerRightImage.set(footer.rightImage || null);
-      this.footerTextColor.set(footer.textColor || '#000000');
-      this.footerShowPageNumber.set(footer.showPageNumber || false);
+      this.footerLeftTextColor.set((footer.leftTextColor || '').trim());
+      this.footerCenterTextColor.set((footer.centerTextColor || '').trim());
+      this.footerRightTextColor.set((footer.rightTextColor || '').trim());
+      this.footerTextColor.set((footer.textColor || '').trim());
+      this.footerShowPageNumber.set(footer.showPageNumber === true);
       this.footerPageNumberFormat.set(footer.pageNumberFormat || 'arabic');
     } else {
       // Reset to defaults if no footer exists
       this.footerLeftText.set('');
       this.footerCenterText.set('');
       this.footerCenterSubText.set('');
-      this.footerLeftImage.set(null);
-      this.footerCenterImage.set(null);
-      this.footerRightImage.set(null);
-      this.footerTextColor.set('#000000');
+      this.footerLeftTextColor.set('');
+      this.footerCenterTextColor.set('');
+      this.footerRightTextColor.set('');
+      this.footerTextColor.set('');
       this.footerShowPageNumber.set(false);
       this.footerPageNumberFormat.set('arabic');
     }
@@ -192,64 +196,6 @@ export class HeaderFooterEditDialogComponent {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-  }
-
-  async onHeaderImageUpload(position: 'left' | 'center' | 'right', event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    try {
-      const base64 = await this.convertFileToBase64(file);
-      if (position === 'left') {
-        this.headerLeftImage.set(base64);
-      } else if (position === 'center') {
-        this.headerCenterImage.set(base64);
-      } else {
-        this.headerRightImage.set(base64);
-      }
-    } catch (error) {
-      console.error('Failed to convert image to base64:', error);
-    }
-  }
-
-  async onFooterImageUpload(position: 'left' | 'center' | 'right', event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-
-    try {
-      const base64 = await this.convertFileToBase64(file);
-      if (position === 'left') {
-        this.footerLeftImage.set(base64);
-      } else if (position === 'center') {
-        this.footerCenterImage.set(base64);
-      } else {
-        this.footerRightImage.set(base64);
-      }
-    } catch (error) {
-      console.error('Failed to convert image to base64:', error);
-    }
-  }
-
-  removeHeaderImage(position: 'left' | 'center' | 'right'): void {
-    if (position === 'left') {
-      this.headerLeftImage.set(null);
-    } else if (position === 'center') {
-      this.headerCenterImage.set(null);
-    } else {
-      this.headerRightImage.set(null);
-    }
-  }
-
-  removeFooterImage(position: 'left' | 'center' | 'right'): void {
-    if (position === 'left') {
-      this.footerLeftImage.set(null);
-    } else if (position === 'center') {
-      this.footerCenterImage.set(null);
-    } else {
-      this.footerRightImage.set(null);
-    }
   }
 
   onHeaderTextChange(position: 'left' | 'center' | 'right', value: string): void {
@@ -299,10 +245,10 @@ export class HeaderFooterEditDialogComponent {
       leftText: this.headerLeftText() || undefined,
       centerText: this.headerCenterText() || undefined,
       rightText: this.headerRightText() || undefined,
-      leftImage: this.headerLeftImage() || undefined,
-      centerImage: this.headerCenterImage() || undefined,
-      rightImage: this.headerRightImage() || undefined,
-      textColor: this.headerTextColor(),
+      leftTextColor: this.headerLeftTextColor().trim() || undefined,
+      centerTextColor: this.headerCenterTextColor().trim() || undefined,
+      rightTextColor: this.headerRightTextColor().trim() || undefined,
+      textColor: this.headerTextColor().trim() || undefined,
       showPageNumber: this.headerShowPageNumber(),
       pageNumberFormat: this.headerPageNumberFormat(),
     };
@@ -312,10 +258,10 @@ export class HeaderFooterEditDialogComponent {
       leftText: this.footerLeftText() || undefined,
       centerText: this.footerCenterText() || undefined,
       centerSubText: this.footerCenterSubText() || undefined,
-      leftImage: this.footerLeftImage() || undefined,
-      centerImage: this.footerCenterImage() || undefined,
-      rightImage: this.footerRightImage() || undefined,
-      textColor: this.footerTextColor(),
+      leftTextColor: this.footerLeftTextColor().trim() || undefined,
+      centerTextColor: this.footerCenterTextColor().trim() || undefined,
+      rightTextColor: this.footerRightTextColor().trim() || undefined,
+      textColor: this.footerTextColor().trim() || undefined,
       showPageNumber: this.footerShowPageNumber(),
       pageNumberFormat: this.footerPageNumberFormat(),
     };

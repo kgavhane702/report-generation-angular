@@ -537,6 +537,7 @@ function normalizeDocument(doc: DocumentModel): NormalizedDocumentState {
     version: doc.version,
     pageSize: doc.pageSize,
     metadata: doc.metadata,
+    header: doc.header,
     footer: doc.footer,
     logo: doc.logo,
   };
