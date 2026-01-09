@@ -55,6 +55,11 @@
   &:active {
     background: rgba(148, 163, 184, 0.18);
   }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 .breadcrumb__list {
@@ -252,6 +257,11 @@
     background: rgba(148, 163, 184, 0.16);
     border-color: rgba(148, 163, 184, 0.5);
     color: var(--nav-text);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 }
 

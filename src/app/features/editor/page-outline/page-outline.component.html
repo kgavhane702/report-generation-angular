@@ -1,7 +1,7 @@
 <div class="page-outline">
   <div class="page-outline__header">
     <h3>Pages</h3>
-    <button type="button" (click)="addPage()" [disabled]="!activeSubsectionId()">
+    <button type="button" (click)="addPage()" [disabled]="!activeSubsectionId() || isDocumentLocked">
       + Page
     </button>
   </div>
@@ -36,6 +36,7 @@
               [class.page-outline__orientation-btn--active]="page.orientation === 'landscape' || !page.orientation"
               (click)="setPageOrientation(page.id, 'landscape', $event)"
               title="Landscape (wider)"
+              [disabled]="isDocumentLocked"
             >
               ⬌
             </button>
@@ -45,15 +46,16 @@
               [class.page-outline__orientation-btn--active]="page.orientation === 'portrait'"
               (click)="setPageOrientation(page.id, 'portrait', $event)"
               title="Portrait (taller)"
+              [disabled]="isDocumentLocked"
             >
               ⬍
             </button>
           </div>
-          <button type="button" (click)="startPageEdit(page, $event)">✎</button>
+          <button type="button" (click)="startPageEdit(page, $event)" [disabled]="isDocumentLocked">✎</button>
           <button
             type="button"
             (click)="deletePage(subsectionId, page.id, $event, pages().length)"
-            [disabled]="pages().length <= 1"
+            [disabled]="pages().length <= 1 || isDocumentLocked"
           >
             ✕
           </button>

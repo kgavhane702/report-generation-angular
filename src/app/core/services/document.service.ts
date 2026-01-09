@@ -6,6 +6,9 @@ import { Dictionary } from '@ngrx/entity';
 import {
   DocumentModel,
   PageSize,
+  HeaderConfig,
+  FooterConfig,
+  LogoConfig,
   SubsectionModel,
   SectionModel,
   HierarchySelection,
@@ -123,9 +126,19 @@ export class DocumentService {
     { initialValue: { widthMm: 254, heightMm: 190.5, dpi: 96 } }
   );
 
+  /** Document lock state (persisted in document.metadata.documentLocked) */
+  readonly documentLocked = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentLocked),
+    { initialValue: false }
+  );
+
   // ============================================
   // PUBLIC GETTERS
   // ============================================
+
+  private canEdit(): boolean {
+    return this.documentLocked() !== true;
+  }
   
   /** Get denormalized document (for export/compatibility) */
   get document(): DocumentModel {
@@ -149,6 +162,7 @@ export class DocumentService {
   // ============================================
 
   addWidget(pageId: string, widget: WidgetModel): void {
+    if (!this.canEdit()) return;
     const command = new AddWidgetCommand(
       this.store,
       pageId,
@@ -162,6 +176,7 @@ export class DocumentService {
     widgetId: string,
     mutation: Partial<WidgetModel>
   ): void {
+    if (!this.canEdit()) return;
     const previousWidget = this.widgetEntities()[widgetId];
     if (!previousWidget) {
       return;
@@ -179,6 +194,7 @@ export class DocumentService {
   }
 
   deleteWidget(pageId: string, widgetId: string, options?: { recordUndo?: boolean }): void {
+    if (!this.canEdit()) return;
     const recordUndo = options?.recordUndo !== false;
 
     const widget = this.widgetEntities()[widgetId];
@@ -216,15 +232,43 @@ export class DocumentService {
   }
 
   updateDocumentTitle(title: string): void {
+    if (!this.canEdit()) return;
     this.store.dispatch(DocumentActions.updateDocumentTitle({ title }));
   }
 
   updateDocumentMetadata(metadata: Record<string, unknown>): void {
+    if (!this.canEdit()) return;
     this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata }));
     this.saveIndicator.pulse();
   }
 
+  updateHeader(header: HeaderConfig): void {
+    if (!this.canEdit()) return;
+    this.store.dispatch(DocumentMetaActions.updateHeader({ header }));
+    this.saveIndicator.pulse();
+  }
+
+  updateFooter(footer: FooterConfig): void {
+    if (!this.canEdit()) return;
+    this.store.dispatch(DocumentMetaActions.updateFooter({ footer }));
+    this.saveIndicator.pulse();
+  }
+
+  updateLogo(logo: LogoConfig): void {
+    if (!this.canEdit()) return;
+    this.store.dispatch(DocumentMetaActions.updateLogo({ logo }));
+    this.saveIndicator.pulse();
+  }
+
+  setDocumentLocked(locked: boolean): void {
+    const current = this.documentSignal();
+    const existing = current.metadata ?? {};
+    const next = { ...existing, documentLocked: locked === true };
+    this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: next }));
+  }
+
   updatePageSize(pageSize: Partial<PageSize>): void {
+    if (!this.canEdit()) return;
     const previousPageSize = { ...this.pageSizeSignal() };
     const command = new UpdatePageSizeCommand(
       this.store,
@@ -239,6 +283,9 @@ export class DocumentService {
   // ============================================
 
   addSection(): HierarchySelection {
+    if (!this.canEdit()) {
+      return { sectionId: null, subsectionId: null, pageId: null };
+    }
     const sectionCount = this.sectionIds().length + 1;
     const sectionTitle = `Section ${sectionCount}`;
     const subsectionTitle = 'Subsection 1';
@@ -257,6 +304,7 @@ export class DocumentService {
   }
 
   deleteSection(sectionId: string): HierarchySelection | null {
+    if (!this.canEdit()) return null;
     const sectionIds = this.sectionIds();
     const index = sectionIds.indexOf(sectionId);
     if (index === -1) {
@@ -291,6 +339,7 @@ export class DocumentService {
   }
 
   renameSection(sectionId: string, title: string): void {
+    if (!this.canEdit()) return;
     const section = this.sectionEntities()[sectionId];
     if (!section) return;
 
@@ -308,6 +357,7 @@ export class DocumentService {
   // ============================================
 
   addSubsection(sectionId: string): SubsectionSelection | null {
+    if (!this.canEdit()) return null;
     const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
     const subsectionCount = subIds.length + 1;
     const subsectionTitle = `Subsection ${subsectionCount}`;
@@ -331,6 +381,7 @@ export class DocumentService {
     sectionId: string,
     subsectionId: string
   ): SubsectionSelection | null {
+    if (!this.canEdit()) return null;
     const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
     const index = subIds.indexOf(subsectionId);
     if (index === -1) {
@@ -359,6 +410,7 @@ export class DocumentService {
   }
 
   renameSubsection(subsectionId: string, title: string): void {
+    if (!this.canEdit()) return;
     const subsection = this.subsectionEntities()[subsectionId];
     if (!subsection) return;
 
@@ -376,6 +428,7 @@ export class DocumentService {
   // ============================================
 
   addPage(subsectionId: string): string | null {
+    if (!this.canEdit()) return null;
     const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
     const nextNumber = pageIds.length + 1;
     const page = createPageModel(nextNumber);
@@ -386,6 +439,7 @@ export class DocumentService {
   }
 
   deletePage(subsectionId: string, pageId: string): string | null {
+    if (!this.canEdit()) return null;
     const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
     const index = pageIds.indexOf(pageId);
     if (index === -1) {
@@ -409,6 +463,7 @@ export class DocumentService {
   }
 
   renamePage(pageId: string, title: string): void {
+    if (!this.canEdit()) return;
     const page = this.pageEntities()[pageId];
     if (!page) return;
 
@@ -425,6 +480,7 @@ export class DocumentService {
     pageId: string,
     orientation: 'portrait' | 'landscape'
   ): void {
+    if (!this.canEdit()) return;
     this.store.dispatch(
       DocumentActions.updatePageOrientation({
         pageId,
@@ -461,6 +517,7 @@ export class DocumentService {
   }
 
   pasteWidgets(pageId: string): string[] {
+    if (!this.canEdit()) return [];
     const copiedWidgets = this.clipboardService.getCopiedWidgets();
     if (copiedWidgets.length === 0) {
       return [];

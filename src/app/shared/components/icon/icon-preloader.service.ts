@@ -53,6 +53,8 @@ const PRELOAD_ICONS = [
   'download',
   'upload',
   'picture_as_pdf',
+  'lock',
+  'lock_open',
   'undo',
   'redo',
   'edit',

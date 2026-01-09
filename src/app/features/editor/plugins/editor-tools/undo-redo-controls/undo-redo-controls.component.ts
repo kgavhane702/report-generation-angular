@@ -6,11 +6,15 @@ import {
   OnDestroy,
   OnInit,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
 import { UndoRedoService } from '../../../../../core/services/undo-redo.service';
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry } from '../../../../../core/services/pending-changes-registry.service';
 import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
 import { RichTextToolbarService } from '../../../../../core/services/rich-text-editor/rich-text-toolbar.service';
+import { AppState } from '../../../../../store/app.state';
+import { DocumentSelectors } from '../../../../../store/document/document.selectors';
 
 /**
  * UndoRedoControlsComponent
@@ -25,15 +29,22 @@ import { RichTextToolbarService } from '../../../../../core/services/rich-text-e
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UndoRedoControlsComponent implements OnInit, OnDestroy {
+  private readonly store = inject(Store<AppState>);
   private readonly undoRedoService = inject(UndoRedoService);
   private readonly uiState = inject(UIStateService);
   private readonly pendingChanges = inject(PendingChangesRegistry);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly richTextToolbar = inject(RichTextToolbarService);
 
+  readonly documentLocked = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentLocked),
+    { initialValue: false }
+  );
+
   // Capture-phase handler to override native contenteditable undo/redo for table cells.
   // This prevents the browser's per-element undo stack from desyncing the document-level history.
   private readonly handleUndoRedoCapture = (event: KeyboardEvent): void => {
+    if (this.documentLocked()) return;
     const key = event.key?.toLowerCase?.() ?? '';
     if (!(event.ctrlKey || event.metaKey)) return;
     if (event.altKey) return;
@@ -117,6 +128,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
+    if (this.documentLocked()) return;
     const normalizedKey = event.key?.toLowerCase?.() ?? '';
     const isShortcutKey = normalizedKey === 'z' || normalizedKey === 'y';
     const shouldHandle = this.shouldHandleGlobalShortcut(event);
@@ -139,6 +151,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   }
 
   async undo(): Promise<void> {
+    if (this.documentLocked()) return;
     const editingWidgetId = this.uiState.editingWidgetId();
 
     // While editing a table cell, use DOCUMENT undo (so it can undo across multiple cells)
@@ -170,6 +183,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   }
 
   async redo(): Promise<void> {
+    if (this.documentLocked()) return;
     const editingWidgetId = this.uiState.editingWidgetId();
     if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
       if (this.documentCanRedo()) {

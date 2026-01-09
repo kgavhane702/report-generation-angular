@@ -1,7 +1,7 @@
 <div class="breadcrumb">
   <div class="breadcrumb__header">
     <span>Navigation</span>
-    <button type="button" (click)="addSection()">+ Section</button>
+    <button type="button" (click)="addSection()" [disabled]="isDocumentLocked">+ Section</button>
   </div>
 
   <div class="breadcrumb__tree" role="tree" aria-label="Sections, subsections, and pages">
@@ -42,16 +42,16 @@
         <ng-template #sectionLabel>
           <span class="breadcrumb__label" [title]="section.title">{{ section.title }}</span>
           <span class="breadcrumb__actions">
-            <button type="button" class="breadcrumb__btn" (click)="addSubsectionFor(section.id, $event)" title="Add subsection">
+            <button type="button" class="breadcrumb__btn" (click)="addSubsectionFor(section.id, $event)" title="Add subsection" [disabled]="isDocumentLocked">
               +Sub
             </button>
-            <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section">
+            <button type="button" (click)="startSectionEdit(section, $event)" title="Rename section" [disabled]="isDocumentLocked">
               <app-icon name="edit" [size]="14"></app-icon>
             </button>
             <button
               type="button"
               (click)="deleteSection(section.id, $event)"
-              [disabled]="sections.length <= 1"
+              [disabled]="sections.length <= 1 || isDocumentLocked"
               title="Delete section"
             >
               ✕
@@ -98,16 +98,16 @@
             <ng-template #subsectionLabel>
               <span class="breadcrumb__label" [title]="subsection.title">{{ subsection.title }}</span>
               <span class="breadcrumb__actions">
-                <button type="button" class="breadcrumb__btn" (click)="addPageFor(subsection.id, $event)" title="Add page">
+                <button type="button" class="breadcrumb__btn" (click)="addPageFor(subsection.id, $event)" title="Add page" [disabled]="isDocumentLocked">
                   +Page
                 </button>
-                <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection">
+                <button type="button" (click)="startSubsectionEdit(subsection, $event)" title="Rename subsection" [disabled]="isDocumentLocked">
                   <app-icon name="edit" [size]="14"></app-icon>
                 </button>
                 <button
                   type="button"
                   (click)="deleteSubsection(section.id, subsection.id, $event)"
-                  [disabled]="subsectionsForSection(section.id).length <= 1"
+                  [disabled]="subsectionsForSection(section.id).length <= 1 || isDocumentLocked"
                   title="Delete subsection"
                 >
                   ✕
@@ -157,6 +157,7 @@
                       [class.breadcrumb__orientation-btn--active]="page.orientation === 'landscape' || !page.orientation"
                       (click)="setPageOrientation(page.id, 'landscape', $event)"
                       title="Landscape"
+                      [disabled]="isDocumentLocked"
                     >
                       ⬌
                     </button>
@@ -166,17 +167,18 @@
                       [class.breadcrumb__orientation-btn--active]="page.orientation === 'portrait'"
                       (click)="setPageOrientation(page.id, 'portrait', $event)"
                       title="Portrait"
+                      [disabled]="isDocumentLocked"
                     >
                       ⬍
                     </button>
                   </span>
-                  <button type="button" (click)="startPageEdit(page, $event)" title="Rename page">
+                  <button type="button" (click)="startPageEdit(page, $event)" title="Rename page" [disabled]="isDocumentLocked">
                     <app-icon name="edit" [size]="14"></app-icon>
                   </button>
                   <button
                     type="button"
                     (click)="deletePage(subsection.id, page.id, $event)"
-                    [disabled]="pagesForSubsection(subsection.id).length <= 1"
+                    [disabled]="pagesForSubsection(subsection.id).length <= 1 || isDocumentLocked"
                     title="Delete page"
                   >
                     ✕

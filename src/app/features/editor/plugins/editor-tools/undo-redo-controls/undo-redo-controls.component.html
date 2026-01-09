@@ -2,7 +2,7 @@
   <button
     type="button"
     class="undo-redo-controls__button"
-    [disabled]="!documentCanUndo()"
+    [disabled]="!documentCanUndo() || documentLocked()"
     (pointerdown)="$event.preventDefault(); $event.stopPropagation()"
     (mousedown)="$event.preventDefault(); $event.stopPropagation()"
     (click)="undo()"
@@ -14,7 +14,7 @@
   <button
     type="button"
     class="undo-redo-controls__button"
-    [disabled]="!documentCanRedo()"
+    [disabled]="!documentCanRedo() || documentLocked()"
     (pointerdown)="$event.preventDefault(); $event.stopPropagation()"
     (mousedown)="$event.preventDefault(); $event.stopPropagation()"
     (click)="redo()"

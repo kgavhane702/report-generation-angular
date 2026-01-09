@@ -19,6 +19,10 @@ export class PageOutlineComponent {
   private readonly documentService = inject(DocumentService);
   private readonly store = inject(Store<AppState>);
 
+  get isDocumentLocked(): boolean {
+    return this.documentService.documentLocked() === true;
+  }
+
   /** Global sequential page number by pageId (1-based) */
   private readonly globalPageNumberByPageId = toSignal(
     this.store.select(DocumentSelectors.selectGlobalPageNumberByPageId),
@@ -44,6 +48,9 @@ export class PageOutlineComponent {
   }
 
   addPage(): void {
+    if (this.isDocumentLocked) {
+      return;
+    }
     const subsectionId = this.activeSubsectionId();
     if (!subsectionId) {
       return;
@@ -60,11 +67,18 @@ export class PageOutlineComponent {
 
   startPageEdit(page: PageEntity, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) {
+      return;
+    }
     this.editingPageId = page.id;
     this.editingPageValue = page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
   }
 
   savePageTitle(pageId: string): void {
+    if (this.isDocumentLocked) {
+      this.editingPageId = null;
+      return;
+    }
     const value = this.editingPageValue.trim();
     if (value) {
       this.documentService.renamePage(pageId, value);
@@ -78,6 +92,9 @@ export class PageOutlineComponent {
 
   deletePage(subsectionId: string, pageId: string, event: MouseEvent, totalPages: number): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) {
+      return;
+    }
     if (totalPages <= 1) {
       return;
     }
@@ -101,6 +118,9 @@ export class PageOutlineComponent {
     event: MouseEvent
   ): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) {
+      return;
+    }
     this.documentService.updatePageOrientation(pageId, orientation);
   }
   

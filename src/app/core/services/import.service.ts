@@ -155,6 +155,8 @@ export class ImportService {
    * Normalize document to ensure all required fields are present
    */
   private normalizeDocument(document: DocumentModel): DocumentModel {
+    // Import always starts UNLOCKED. Lock/unlock is a manual state for the current document in the editor.
+    const metadata = { ...(document.metadata || {}), documentLocked: false };
     return {
       id: document.id,
       title: document.title || 'Imported Document',
@@ -181,7 +183,7 @@ export class ImportService {
           })),
         })),
       })),
-      metadata: document.metadata || {},
+      metadata,
       // Preserve footer configuration if present
       footer: document.footer ? {
         leftText: document.footer.leftText,

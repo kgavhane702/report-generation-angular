@@ -67,6 +67,11 @@
   cursor: pointer;
 }
 
+.editor-toolbar__save-indicator-inner--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .editor-toolbar__save-indicator-icon {
   &--saved {
     color: #059669;
@@ -255,6 +260,15 @@
   }
 }
 
+.editor-toolbar__document-name-label--disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+
+  &:hover {
+    background-color: transparent;
+  }
+}
+
 .editor-toolbar__document-name-edit {
   display: inline-flex;
   align-items: center;
@@ -274,6 +288,11 @@
   &:hover {
     background-color: transparent;
     color: #334155;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
 
@@ -363,6 +382,23 @@ app-undo-redo-controls {
       color: #2563eb;
     }
   }
+}
+
+// Wrapper for toolbar components that don't expose a native `disabled` input
+// (e.g. dropdown components). When disabled, it blocks pointer events.
+.editor-toolbar__disabled-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.editor-toolbar__disabled-wrap--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+// Keep wrapper hover/cursor feedback, but prevent the actual child controls from receiving events.
+.editor-toolbar__disabled-wrap--disabled > * {
+  pointer-events: none;
 }
 
 // Removed fallback "boxed button" styling inside the toolbar.

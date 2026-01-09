@@ -6,6 +6,7 @@
     [attr.aria-expanded]="menuOpen()"
     aria-haspopup="menu"
     title="Document layout (page size preset)"
+    [disabled]="documentLocked()"
   >
     <span class="page-layout-selector__label">{{ currentLabel() }}</span>
     <span class="page-layout-selector__chev" aria-hidden="true">▾</span>

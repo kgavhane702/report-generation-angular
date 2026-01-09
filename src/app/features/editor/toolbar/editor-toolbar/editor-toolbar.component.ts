@@ -63,6 +63,12 @@ export class EditorToolbarComponent implements AfterViewInit {
     this.store.select(DocumentSelectors.selectDocumentTitle),
     { initialValue: 'Untitled Document' }
   );
+
+  /** Document lock state (persisted in document metadata) */
+  readonly documentLocked = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentLocked),
+    { initialValue: false }
+  );
   
   /** Denormalized document for export */
   readonly document$ = this.store.select(DocumentSelectors.selectDenormalizedDocument);
@@ -112,6 +118,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   @ViewChild(HeaderFooterEditDialogComponent) headerFooterDialog?: HeaderFooterEditDialogComponent;
 
   addWidget(type: WidgetType): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     const pageId = this.editorState.activePageId();
 
     if (!pageId) {
@@ -126,6 +136,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   openImageInsertDialog(): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     if (this.imageInsertInProgress()) return;
     this.imageInsertDialogOpen.set(true);
     this.imageInsertFile.set(null);
@@ -156,6 +170,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async confirmImageInsert(): Promise<void> {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     const file = this.imageInsertFile();
     if (!file || this.imageInsertInProgress()) return;
 
@@ -267,6 +285,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   onTableInsert(dimensions: TableDimensions): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     const pageId = this.editorState.activePageId();
 
     if (!pageId) {
@@ -280,10 +302,18 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   onTableImportExcel(file: File): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     this.tableFileImport.importFile(file);
   }
 
   onTableImportUrl(config: TableHttpDataSourceConfig): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     this.tableFileImport.importFromUrl(config);
   }
 
@@ -306,6 +336,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportDocument(): Promise<void> {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Export is disabled.', 'Locked');
+      return;
+    }
     if (this.exportDisabled()) {
       this.notify.warning(
         'Please wait: import/remote loading is still in progress.',
@@ -329,6 +363,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   async exportToClipboard(): Promise<void> {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Export is disabled.', 'Locked');
+      return;
+    }
     if (this.exportDisabled()) {
       this.notify.warning(
         'Please wait: import/remote loading is still in progress.',
@@ -448,6 +486,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   openHeaderFooterDialog(): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     this.headerFooterDialog?.openDialog();
   }
 
@@ -498,6 +540,9 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   onSaveIndicatorKeydown(event: KeyboardEvent): void {
+    if (this.documentLocked()) {
+      return;
+    }
     // Make the save indicator (a span) keyboard-accessible.
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -505,7 +550,18 @@ export class EditorToolbarComponent implements AfterViewInit {
     }
   }
 
+  onSaveIndicatorClick(): void {
+    if (this.documentLocked()) {
+      return;
+    }
+    void this.saveNow();
+  }
+
   async saveNow(): Promise<void> {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Saving is disabled.', 'Locked');
+      return;
+    }
     if (this.manualSaveInProgress()) return;
     this.manualSaveInProgress.set(true);
     // Always show the same saving/saved animation as normal edits (even if nothing to flush).
@@ -519,6 +575,10 @@ export class EditorToolbarComponent implements AfterViewInit {
   }
 
   startEditingDocumentName(): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
     this.documentNameValue = this.documentTitle() || '';
     this.isEditingDocumentName = true;
     
@@ -533,6 +593,12 @@ export class EditorToolbarComponent implements AfterViewInit {
 
   saveDocumentName(): void {
     if (this.isEditingDocumentName) {
+      if (this.documentLocked()) {
+        this.isEditingDocumentName = false;
+        this.documentNameValue = '';
+        this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+        return;
+      }
       const trimmedValue = this.documentNameValue.trim();
       this.documentService.updateDocumentTitle(trimmedValue || 'Untitled Document');
       this.isEditingDocumentName = false;
@@ -543,6 +609,16 @@ export class EditorToolbarComponent implements AfterViewInit {
   cancelEditingDocumentName(): void {
     this.isEditingDocumentName = false;
     this.documentNameValue = '';
+  }
+
+  toggleDocumentLock(): void {
+    const nextLocked = !this.documentLocked();
+    this.documentService.setDocumentLocked(nextLocked);
+    // Clear any in-progress widget editing state when locking for a clean UX.
+    if (nextLocked) {
+      this.uiState.stopEditing();
+      this.draftState.discardAllDrafts();
+    }
   }
 
 }

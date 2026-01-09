@@ -49,6 +49,12 @@ const selectDocumentMetadata = createSelector(
   (meta) => meta.metadata ?? {}
 );
 
+/** Document lock flag stored in free-form metadata (defaults to false) */
+const selectDocumentLocked = createSelector(
+  selectDocumentMetadata,
+  (metadata) => metadata['documentLocked'] === true
+);
+
 /** Layout preset id stored in metadata (defaults to PPT preset) */
 const selectPageLayoutPresetId = createSelector(
   selectDocumentMetadata,
@@ -451,6 +457,7 @@ export const DocumentSelectors = {
   // Document meta
   selectDocumentMeta,
   selectDocumentMetadata,
+  selectDocumentLocked,
   selectDocumentTitle,
   selectPageSize,
   selectDocumentHeader,

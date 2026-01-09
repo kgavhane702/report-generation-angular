@@ -20,6 +20,10 @@ export class EditorBreadcrumbComponent {
   protected readonly editorState = inject(EditorStateService);
   private readonly store = inject(Store<AppState>);
 
+  get isDocumentLocked(): boolean {
+    return this.documentService.documentLocked() === true;
+  }
+
   // Expanded/collapsed state (independent from active selection)
   private readonly expandedSectionIds = signal<Set<string>>(new Set());
   private readonly expandedSubsectionIds = signal<Set<string>>(new Set());
@@ -256,6 +260,7 @@ export class EditorBreadcrumbComponent {
   }
 
   addSection(): void {
+    if (this.isDocumentLocked) return;
     const ids = this.documentService.addSection();
 
     // Do not change current active selection when adding a new section.
@@ -273,6 +278,7 @@ export class EditorBreadcrumbComponent {
 
   addSubsectionFor(sectionId: string, event?: MouseEvent): void {
     event?.stopPropagation();
+    if (this.isDocumentLocked) return;
 
     const ids = this.documentService.addSubsection(sectionId);
     if (!ids?.subsectionId) return;
@@ -292,6 +298,7 @@ export class EditorBreadcrumbComponent {
 
   addPageFor(subsectionId: string, event?: MouseEvent): void {
     event?.stopPropagation();
+    if (this.isDocumentLocked) return;
 
     // Keep the current page active when adding a new page.
     // Only fall back to the new page if nothing is currently active (edge case).
@@ -304,11 +311,16 @@ export class EditorBreadcrumbComponent {
 
   startSectionEdit(section: SectionEntity, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     this.editingSectionId = section.id;
     this.editingSectionValue = section.title;
   }
 
   saveSectionTitle(sectionId: string): void {
+    if (this.isDocumentLocked) {
+      this.editingSectionId = null;
+      return;
+    }
     const value = this.editingSectionValue.trim();
     if (value) {
       this.documentService.renameSection(sectionId, value);
@@ -322,6 +334,7 @@ export class EditorBreadcrumbComponent {
 
   deleteSection(sectionId: string, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     if (this.sections.length <= 1) {
       return;
     }
@@ -339,11 +352,16 @@ export class EditorBreadcrumbComponent {
 
   startSubsectionEdit(subsection: SubsectionEntity, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     this.editingSubsectionId = subsection.id;
     this.editingSubsectionValue = subsection.title;
   }
 
   saveSubsectionTitle(subsectionId: string): void {
+    if (this.isDocumentLocked) {
+      this.editingSubsectionId = null;
+      return;
+    }
     const value = this.editingSubsectionValue.trim();
     if (value) {
       this.documentService.renameSubsection(subsectionId, value);
@@ -357,6 +375,7 @@ export class EditorBreadcrumbComponent {
 
   deleteSubsection(sectionId: string, subsectionId: string, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     const subsections = this.subsectionsForSection(sectionId);
     if (subsections.length <= 1) {
       return;
@@ -372,11 +391,16 @@ export class EditorBreadcrumbComponent {
 
   startPageEdit(page: PageEntity, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     this.editingPageId = page.id;
     this.editingPageValue = page.title ?? `Page ${this.getGlobalPageNumber(page.id)}`;
   }
 
   savePageTitle(pageId: string): void {
+    if (this.isDocumentLocked) {
+      this.editingPageId = null;
+      return;
+    }
     const value = this.editingPageValue.trim();
     if (value) {
       this.documentService.renamePage(pageId, value);
@@ -390,6 +414,7 @@ export class EditorBreadcrumbComponent {
 
   deletePage(subsectionId: string, pageId: string, event: MouseEvent): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     const pages = this.pagesForSubsection(subsectionId);
     if (pages.length <= 1) {
       return;
@@ -415,6 +440,7 @@ export class EditorBreadcrumbComponent {
     event: MouseEvent
   ): void {
     event.stopPropagation();
+    if (this.isDocumentLocked) return;
     this.documentService.updatePageOrientation(pageId, orientation);
   }
 

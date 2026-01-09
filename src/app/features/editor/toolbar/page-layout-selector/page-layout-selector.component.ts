@@ -10,6 +10,7 @@ import {
 import { CommonModule } from '@angular/common';
 
 import { PageLayoutService } from '../../../../core/page-layout/page-layout.service';
+import { DocumentService } from '../../../../core/services/document.service';
 
 @Component({
   selector: 'app-page-layout-selector',
@@ -22,13 +23,16 @@ import { PageLayoutService } from '../../../../core/page-layout/page-layout.serv
 export class PageLayoutSelectorComponent {
   private readonly el = inject(ElementRef<HTMLElement>);
   private readonly pageLayout = inject(PageLayoutService);
+  private readonly documentService = inject(DocumentService);
 
   readonly menuOpen = signal(false);
   readonly presets = this.pageLayout.presets;
   readonly current = this.pageLayout.preset;
   readonly currentLabel = computed(() => this.current().label);
+  readonly documentLocked = this.documentService.documentLocked;
 
   toggleMenu(): void {
+    if (this.documentLocked()) return;
     this.menuOpen.update(v => !v);
   }
 
@@ -37,6 +41,7 @@ export class PageLayoutSelectorComponent {
   }
 
   selectPreset(id: any): void {
+    if (this.documentLocked()) return;
     // id is strongly typed in config; keep template simple.
     this.pageLayout.setPreset(id);
     this.closeMenu();

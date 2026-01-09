@@ -27,6 +27,11 @@
     box-shadow: 0 0 0 2px rgba(0, 58, 155, 0.28);
     background: rgba(148, 163, 184, 0.12);
   }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .page-layout-selector__label {

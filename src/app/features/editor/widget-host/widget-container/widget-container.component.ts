@@ -108,6 +108,32 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Subscription to widget data
    */
   private widgetSubscription?: Subscription;
+
+  // Capture-phase guard: when document is locked, block pointer/click interactions that would
+  // start edits (table resizers, text focus, etc.), while still allowing hover/mousemove for tooltips.
+  private readonly handleLockedPointerDownCapture = (event: PointerEvent): void => {
+    if (!this.isDocumentLocked) return;
+    // Still allow selecting the widget for inspection/outline.
+    if (!this.isSelected) {
+      this.uiState.selectWidget(this.widgetId);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  private readonly handleLockedClickCapture = (event: MouseEvent): void => {
+    if (!this.isDocumentLocked) return;
+    // Prevent click from triggering any widget-internal edit actions.
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  private readonly handleLockedDblClickCapture = (event: MouseEvent): void => {
+    if (!this.isDocumentLocked) return;
+    // Prevent double-click handlers (e.g., chart config dialogs) while locked.
+    event.preventDefault();
+    event.stopPropagation();
+  };
   
   /**
    * Computed signal that merges persisted data with any draft changes
@@ -187,6 +213,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   get isSelected(): boolean {
     return this.uiState.activeWidgetId() === this.widgetId;
   }
+
+  get isDocumentLocked(): boolean {
+    return this.documentService.documentLocked() === true;
+  }
   
   get isEditing(): boolean {
     return this.uiState.isEditing(this.widgetId);
@@ -241,6 +271,11 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // ============================================
   
   ngOnInit(): void {
+    // Capture listeners must be attached to stop events BEFORE they reach inner widget elements.
+    this.hostRef.nativeElement.addEventListener('pointerdown', this.handleLockedPointerDownCapture, { capture: true });
+    this.hostRef.nativeElement.addEventListener('click', this.handleLockedClickCapture, { capture: true });
+    this.hostRef.nativeElement.addEventListener('dblclick', this.handleLockedDblClickCapture, { capture: true });
+
     // Subscribe to widget data using granular selector
     // This ONLY emits when THIS widget's data changes in the store
     this.widgetSubscription = this.store
@@ -272,6 +307,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   }
   
   ngOnDestroy(): void {
+    this.hostRef.nativeElement.removeEventListener('pointerdown', this.handleLockedPointerDownCapture, true);
+    this.hostRef.nativeElement.removeEventListener('click', this.handleLockedClickCapture, true);
+    this.hostRef.nativeElement.removeEventListener('dblclick', this.handleLockedDblClickCapture, true);
+
     // Clean up subscription
     this.widgetSubscription?.unsubscribe();
 
@@ -304,6 +343,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * cdkDragDisabled becomes false before CDK Drag processes the event.
    */
   onDragHandlePointerDown(event: PointerEvent): void {
+    if (this.isDocumentLocked) {
+      // View/select only: allow selection but block drag.
+      if (!this.isSelected) {
+        this.uiState.selectWidget(this.widgetId);
+      }
+      return;
+    }
     // CRITICAL FIX: Exit editing mode immediately if currently editing
     // This ensures cdkDragDisabled becomes false before CDK Drag processes the event
     // The editing state would normally clear after a 150ms blur timeout, but we need
@@ -417,6 +463,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // ============================================
   
   onResizePointerDown(event: PointerEvent, handle: ResizeHandle): void {
+    if (this.isDocumentLocked) {
+      return;
+    }
     if (!this.isSelected) {
       return;
     }
@@ -613,6 +662,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   onDeleteClick(event: MouseEvent | PointerEvent): void {
     event.stopPropagation();
     event.preventDefault();
+
+    if (this.isDocumentLocked) {
+      return;
+    }
     
     // Discard any drafts for this widget
     this.draftState.discardDraft(this.widgetId);

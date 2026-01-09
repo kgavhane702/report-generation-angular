@@ -448,6 +448,8 @@
       type="button"
       class="header-footer-dialog__button header-footer-dialog__button--primary"
       (click)="save()"
+      [disabled]="documentLocked()"
+      [title]="documentLocked() ? 'Document is locked' : 'Save'"
     >
       Save
     </button>

@@ -12,7 +12,7 @@ import { AppModalComponent } from '../../../../shared/components/modal/app-modal
 import { ColorPickerComponent, ColorOption } from '../../../../shared/components/color-picker/color-picker.component';
 import { AppIconComponent } from '../../../../shared/components/icon/icon.component';
 import { HeaderConfig, FooterConfig, LogoConfig } from '../../../../models/document.model';
-import { DocumentMetaActions } from '../../../../store/document/document.actions';
+import { DocumentService } from '../../../../core/services/document.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 
@@ -35,6 +35,11 @@ type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 })
 export class HeaderFooterEditDialogComponent {
   private readonly store = inject(Store<AppState>);
+  private readonly documentService = inject(DocumentService);
+  readonly documentLocked = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentLocked),
+    { initialValue: false }
+  );
 
   readonly open = signal(false);
   readonly activeTab = signal<TabType>('header');
@@ -323,9 +328,10 @@ export class HeaderFooterEditDialogComponent {
       maxHeightPx: this.logoMaxHeightPx() ?? undefined,
     };
 
-    this.store.dispatch(DocumentMetaActions.updateHeader({ header }));
-    this.store.dispatch(DocumentMetaActions.updateFooter({ footer }));
-    this.store.dispatch(DocumentMetaActions.updateLogo({ logo }));
+    // Centralized lock guard lives in DocumentService; UI also disables Save while locked.
+    this.documentService.updateHeader(header);
+    this.documentService.updateFooter(footer);
+    this.documentService.updateLogo(logo);
 
     this.closeDialog();
   }

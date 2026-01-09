@@ -7,7 +7,7 @@
     [attr.data-widget-id]="widgetId"
     cdkDrag
     [cdkDragConstrainPosition]="constrainDragPosition"
-    [cdkDragDisabled]="isEditing || isResizing"
+    [cdkDragDisabled]="isEditing || isResizing || isDocumentLocked"
     (cdkDragStarted)="onDragStarted($event)"
     (cdkDragMoved)="onDragMoved($event)"
     (cdkDragEnded)="onDragEnded($event)"
@@ -84,7 +84,7 @@
       </ng-container>
     </div>
 
-    <ng-container *ngIf="isSelected">
+    <ng-container *ngIf="isSelected && !isDocumentLocked">
       <button
         class="widget-container__resize widget-container__resize--right"
         type="button"
@@ -132,6 +132,7 @@
     </ng-container>
 
     <button
+      *ngIf="!isDocumentLocked"
       class="widget-container__delete"
       type="button"
       (mousedown)="onDeleteClick($event)"

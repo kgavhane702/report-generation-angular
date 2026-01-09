@@ -97,6 +97,9 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
   // Computed signals to determine if toolbars should be shown
   readonly showWidgetToolbar = computed(() => {
+    if (this.documentService.documentLocked()) {
+      return false;
+    }
     const widget = this.editorState.activeWidget();
     return (
       widget?.type === 'text' ||
