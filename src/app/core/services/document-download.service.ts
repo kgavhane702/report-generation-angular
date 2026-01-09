@@ -22,8 +22,7 @@ export class DocumentDownloadService {
   private readonly apiUrl = '/api/document/export';
 
   async requestDownloadBlob(
-    documentModel: DocumentModel,
-    format: DocumentDownloadFormat = 'pdf'
+    documentModel: DocumentModel
   ): Promise<Observable<Blob>> {
     // Run URL table/text preloading and chart capture in parallel.
     // - URL preloading is network-bound (backend calls)
@@ -40,7 +39,8 @@ export class DocumentDownloadService {
     const merged = applyExportedChartImages(documentWithUrlData, chartExportDoc);
     const documentWithLogo = await convertDocumentLogo(merged);
 
-    const url = `${this.apiUrl}?format=${encodeURIComponent(format)}`;
+    // Frontend currently supports PDF only.
+    const url = `${this.apiUrl}?format=pdf`;
     return this.http.post<Blob>(
       url,
       { document: documentWithLogo },
@@ -51,14 +51,11 @@ export class DocumentDownloadService {
     );
   }
 
-  async download(
-    documentModel: DocumentModel,
-    format: DocumentDownloadFormat = 'pdf'
-  ): Promise<void> {
-    const label = format.toUpperCase();
+  async download(documentModel: DocumentModel): Promise<void> {
+    const label = 'PDF';
     this.exportUi.start(`Generating ${label}…`);
     try {
-      const download$ = await this.requestDownloadBlob(documentModel, format);
+      const download$ = await this.requestDownloadBlob(documentModel);
       this.exportUi.updateMessage(`Generating ${label}…`);
 
       const blob = await firstValueFrom(download$);
@@ -69,7 +66,7 @@ export class DocumentDownloadService {
       link.href = url;
       link.download = `${(documentModel.title || 'document')
         .replace(/[^a-z0-9]/gi, '-')
-        .toLowerCase()}-${Date.now()}.${this.getExtension(format)}`;
+        .toLowerCase()}-${Date.now()}.pdf`;
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);
@@ -79,14 +76,11 @@ export class DocumentDownloadService {
     }
   }
 
-  async createObjectUrl(
-    documentModel: DocumentModel,
-    format: DocumentDownloadFormat = 'pdf'
-  ): Promise<string> {
-    const label = format.toUpperCase();
+  async createObjectUrl(documentModel: DocumentModel): Promise<string> {
+    const label = 'PDF';
     this.exportUi.start(`Generating ${label}…`);
     try {
-      const download$ = await this.requestDownloadBlob(documentModel, format);
+      const download$ = await this.requestDownloadBlob(documentModel);
       this.exportUi.updateMessage(`Generating ${label}…`);
 
       const blob = await firstValueFrom(download$);
@@ -95,19 +89,6 @@ export class DocumentDownloadService {
       return window.URL.createObjectURL(blob);
     } finally {
       this.exportUi.stop();
-    }
-  }
-
-  private getExtension(format: DocumentDownloadFormat): string {
-    switch (format) {
-      case 'pdf':
-        return 'pdf';
-      case 'docx':
-        return 'docx';
-      case 'pptx':
-        return 'pptx';
-      default:
-        return 'bin';
     }
   }
 }

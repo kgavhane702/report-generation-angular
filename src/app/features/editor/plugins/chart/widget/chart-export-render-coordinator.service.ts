@@ -38,6 +38,8 @@ export class ChartExportRenderCoordinatorService {
       this.logger.debug('[ChartExportCoordinator] Marked rendered (stable):', widgetId);
     };
 
+    const exportTimeoutMs = 20_000;
+
     // ECharts: wait for "finished"
     if (chartInstance?.on && chartInstance?.off) {
       const handler = () => {
@@ -46,8 +48,19 @@ export class ChartExportRenderCoordinatorService {
       };
       chartInstance.on('finished', handler);
 
-      // Fail-safe: don't hang export forever
-      window.setTimeout(() => markDone(), 1500);
+      // Fail-safe: do NOT mark rendered early (can cause partial captures).
+      // Instead, mark as error so export can continue and the registry can unblock.
+      window.setTimeout(() => {
+        try {
+          chartInstance.off('finished', handler);
+        } catch {
+          // ignore
+        }
+        if (done) return;
+        done = true;
+        this.renderRegistry.markError(widgetId, `Export render timeout after ${exportTimeoutMs}ms`);
+        this.logger.warn('[ChartExportCoordinator] Export render timeout:', widgetId);
+      }, exportTimeoutMs);
       return;
     }
 

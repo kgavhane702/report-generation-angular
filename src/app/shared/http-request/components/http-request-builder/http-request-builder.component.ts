@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, EventEmitter, Input, OnChanges, OnInit, Output, SimpleChanges, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 
 import { AppTabComponent } from '../../../components/tabs/app-tab/app-tab.component';
@@ -21,6 +22,8 @@ type KvForm = FormGroup<{
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HttpRequestBuilderComponent implements OnInit, OnChanges {
+  private readonly destroyRef = inject(DestroyRef);
+
   @Input() value: HttpRequestSpec | null = null;
   @Input() disabled = false;
   @Output() valueChange = new EventEmitter<HttpRequestSpec>();
@@ -67,10 +70,12 @@ export class HttpRequestBuilderComponent implements OnInit, OnChanges {
       this.addHeader();
     }
 
-    this.form.valueChanges.subscribe(() => {
-      if (this.disabled) return;
-      this.valueChange.emit(this.toSpec());
-    });
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.disabled) return;
+        this.valueChange.emit(this.toSpec());
+      });
 
     if (this.disabled) {
       this.form.disable({ emitEvent: false });

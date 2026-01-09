@@ -45,7 +45,7 @@ export class DocumentDownloadMenuComponent {
 
     try {
       const t0 = performance.now();
-      await this.documentDownload.download(document, 'pdf');
+      await this.documentDownload.download(document);
       const ms = Math.round(performance.now() - t0);
       this.notify.success(`PDF generated successfully (${ms}ms)!`, 'Download ready');
     } catch (error) {

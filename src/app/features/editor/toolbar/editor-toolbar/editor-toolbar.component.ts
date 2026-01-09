@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, ApplicationRef, NgZone, ViewChild, ElementRef, AfterViewInit, OnDestroy, computed, signal } from '@angular/core';
+import { firstValueFrom, take } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 
@@ -409,16 +410,34 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     this.fileInput.click();
   }
 
+  private waitForNextFrame(frames = 1): Promise<void> {
+    const count = Math.max(1, Math.floor(frames || 1));
+    return new Promise((resolve) => {
+      let left = count;
+      const step = () => {
+        left--;
+        if (left <= 0) return resolve();
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  private async waitForZoneStable(): Promise<void> {
+    // Prefer deterministic stabilization over arbitrary timeouts.
+    // `onStable` fires after all current microtasks/macrotasks have completed inside Angular zone.
+    await firstValueFrom(this.ngZone.onStable.pipe(take(1)));
+  }
+
   private async forceChartsReRender(): Promise<void> {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    this.ngZone.run(() => {
-      this.appRef.tick();
-    });
-    await new Promise(resolve => setTimeout(resolve, 300));
-    this.ngZone.run(() => {
-      this.appRef.tick();
-    });
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Previously this used fixed setTimeout delays which can be flaky across machines.
+    // Instead: tick + wait for zone stabilization + a couple frames so chart widgets can mount and render.
+    this.ngZone.run(() => this.appRef.tick());
+    await this.waitForZoneStable();
+    await this.waitForNextFrame(2);
+    this.ngZone.run(() => this.appRef.tick());
+    await this.waitForZoneStable();
+    await this.waitForNextFrame(2);
   }
 
   async importDocument(file: File): Promise<void> {
@@ -452,14 +471,14 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
         // Replace document in store
         this.documentService.replaceDocument(result.document);
 
-        // Reset navigation to first section/subsection/page
-        // Use setTimeout to allow store to update first
-        setTimeout(() => {
-          this.ngZone.run(() => {
-            this.editorState.resetNavigation();
-            this.appRef.tick();
-          });
-        }, 100);
+        // Reset navigation to first section/subsection/page (deterministically).
+        // Yield at least one microtask so store selectors propagate, then tick and stabilize.
+        await Promise.resolve();
+        this.ngZone.run(() => {
+          this.editorState.resetNavigation();
+          this.appRef.tick();
+        });
+        await this.waitForZoneStable();
 
         await this.forceChartsReRender();
         // Give URL auto-load a chance to start (it may kick in right after store replace),
@@ -514,7 +533,7 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
 
     try {
       const t0 = performance.now();
-      await this.documentDownload.download(document, 'pdf');
+      await this.documentDownload.download(document);
       const ms = Math.round(performance.now() - t0);
       this.notify.success(`PDF generated successfully (${ms}ms)!`, 'PDF ready');
     } catch (error) {
