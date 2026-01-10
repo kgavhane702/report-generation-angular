@@ -106,4 +106,146 @@
   font-weight: 600;
 }
 
+.tcrd__tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tcrd__row--space {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tcrd__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tcrd__subhead {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.tcrd__hint {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tcrd__divider {
+  height: 1px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tcrd__rule-row,
+.tcrd__rs-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.tcrd__rule-row-main,
+.tcrd__rs-main {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tcrd__rule-row-title,
+.tcrd__rs-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.tcrd__rule-row-meta,
+.tcrd__rs-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tcrd__rule-row-actions,
+.tcrd__rs-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tcrd__rs-expand {
+  margin: -6px 0 8px 0;
+  padding: 10px 12px;
+  border-left: 3px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 0 8px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tcrd__rs-rule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.tcrd__rs-rule-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tcrd__rs-rule-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.tcrd__rs-rule-meta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tcrd__rs-rule-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tcrd__rule-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.tcrd__empty {
+  font-size: 13px;
+  color: #6b7280;
+  padding: 8px 0;
+}
+
+.tcrd__howto-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #111827;
+}
+
 

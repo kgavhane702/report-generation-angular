@@ -5,118 +5,263 @@
 
   <ng-container appModalBody>
     <div class="tcrd">
-      <div class="tcrd__row">
-        <label class="tcrd__label">
-          Column
-          <select class="tcrd__select" [ngModel]="selectedColumnKey" (ngModelChange)="onColumnKeyChange($event)">
-            <option *ngFor="let c of columns()" [ngValue]="c.key">{{ c.name }}</option>
-          </select>
-        </label>
-
-        <label class="tcrd__check">
-          <input type="checkbox" [(ngModel)]="rulesEnabled" />
-          <span>Enabled</span>
-        </label>
-      </div>
-
-      <div class="tcrd__rules">
-        <div *ngFor="let r of rulesDraft; let i = index" class="tcrd__rule">
-          <div class="tcrd__rule-top">
-            <label class="tcrd__check">
-              <input type="checkbox" [(ngModel)]="r.enabled" />
-              <span>Rule</span>
-            </label>
-
-            <label class="tcrd__label">
-              When
-              <select class="tcrd__select" [(ngModel)]="r.when.op">
-                <option *ngFor="let op of ruleOperators" [ngValue]="op.value">{{ op.label }}</option>
-              </select>
-            </label>
-
-            <label
-              class="tcrd__label"
-              *ngIf="r.when.op !== 'isEmpty' && r.when.op !== 'isNotEmpty' && r.when.op !== 'between' && r.when.op !== 'notBetween' && r.when.op !== 'betweenDates'"
-            >
-              Value
-              <input class="tcrd__input" type="text" [(ngModel)]="r.when.value" placeholder="Value" />
-            </label>
-
-            <ng-container *ngIf="r.when.op === 'between' || r.when.op === 'notBetween' || r.when.op === 'betweenDates'">
+      <app-tabs ariaLabel="Column rules tabs" [stickyHeader]="true" [(activeIndex)]="activeTabIndex">
+        <!-- Tab 1: Add/Edit rule -->
+        <app-tab label="Add rule">
+          <div class="tcrd__tab">
+            <div class="tcrd__row">
               <label class="tcrd__label">
-                Min
-                <input class="tcrd__input" type="text" [(ngModel)]="r.when.min" placeholder="Min" />
+                Column
+                <select class="tcrd__select" [ngModel]="selectedColumnKey" (ngModelChange)="onColumnKeyChange($event)">
+                  <option *ngFor="let c of columnOptionsCache" [ngValue]="c.key">{{ c.name }}</option>
+                </select>
               </label>
-              <label class="tcrd__label">
-                Max
-                <input class="tcrd__input" type="text" [(ngModel)]="r.when.max" placeholder="Max" />
+
+              <label class="tcrd__check">
+                <input type="checkbox" [ngModel]="rulesEnabled" (ngModelChange)="onRuleSetEnabledChange($event)" />
+                <span>Enabled</span>
               </label>
+
+              <button type="button" class="tcrd__btn" (click)="startNewRule()">Add new rule</button>
+            </div>
+
+            <div class="tcrd__section">
+              <div class="tcrd__subhead">Existing rules</div>
+              <div *ngIf="rulesDraft.length === 0" class="tcrd__hint">No rules yet for this column.</div>
+
+              <div *ngFor="let r of rulesDraft" class="tcrd__rule-row">
+                <label class="tcrd__check">
+                  <input
+                    type="checkbox"
+                    [ngModel]="r.enabled !== false"
+                    (ngModelChange)="r.enabled = $event; onRuleDraftChanged()"
+                  />
+                  <span>Rule</span>
+                </label>
+
+                <div class="tcrd__rule-row-main">
+                  <div class="tcrd__rule-row-title">
+                    {{ operatorLabel(r.when.op) }}
+                    <span *ngIf="r.when.op === 'between' || r.when.op === 'notBetween' || r.when.op === 'betweenDates'">
+                      ({{ r.when.min || '—' }} → {{ r.when.max || '—' }})
+                    </span>
+                    <span *ngIf="r.when.op !== 'between' && r.when.op !== 'notBetween' && r.when.op !== 'betweenDates' && r.when.value">
+                      ({{ r.when.value }})
+                    </span>
+                  </div>
+                  <div class="tcrd__rule-row-meta">
+                    Priority {{ r.priority ?? 0 }}<span *ngIf="r.stopIfTrue"> · stop</span>
+                  </div>
+                </div>
+
+                <div class="tcrd__rule-row-actions">
+                  <button type="button" class="tcrd__btn" (click)="beginEditRule(r.id)">Edit</button>
+                  <button type="button" class="tcrd__btn tcrd__btn--danger" (click)="deleteRule(r.id)">Delete</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="tcrd__divider"></div>
+
+            <div class="tcrd__section">
+              <div class="tcrd__subhead">{{ editingRuleId ? 'Edit rule' : 'Add rule' }}</div>
+
+              <div class="tcrd__rule">
+                <div class="tcrd__rule-top">
+                  <label class="tcrd__check">
+                    <input type="checkbox" [(ngModel)]="ruleFormDraft.enabled" />
+                    <span>Rule enabled</span>
+                  </label>
+
+                  <label class="tcrd__label">
+                    Priority
+                    <input class="tcrd__input" type="number" [(ngModel)]="ruleFormDraft.priority" />
+                  </label>
+
+                  <label class="tcrd__label">
+                    When
+                    <select class="tcrd__select" [ngModel]="ruleFormDraft.when.op" (ngModelChange)="onRuleOpChanged($event)">
+                      <option *ngFor="let op of ruleOperators" [ngValue]="op.value">{{ op.label }}</option>
+                    </select>
+                  </label>
+
+                  <label
+                    class="tcrd__label"
+                    *ngIf="
+                      ruleFormDraft.when.op !== 'isEmpty' &&
+                      ruleFormDraft.when.op !== 'isNotEmpty' &&
+                      ruleFormDraft.when.op !== 'between' &&
+                      ruleFormDraft.when.op !== 'notBetween' &&
+                      ruleFormDraft.when.op !== 'betweenDates' &&
+                      ruleFormDraft.when.op !== 'inList' &&
+                      ruleFormDraft.when.op !== 'notInList'
+                    "
+                  >
+                    Value
+                    <input class="tcrd__input" type="text" [(ngModel)]="ruleFormDraft.when.value" placeholder="Value" />
+                  </label>
+
+                  <label class="tcrd__label" *ngIf="ruleFormDraft.when.op === 'inList' || ruleFormDraft.when.op === 'notInList'">
+                    Values (comma separated)
+                    <input class="tcrd__input" type="text" [(ngModel)]="ruleFormListText" placeholder="a, b, c" />
+                  </label>
+
+                  <ng-container
+                    *ngIf="ruleFormDraft.when.op === 'between' || ruleFormDraft.when.op === 'notBetween' || ruleFormDraft.when.op === 'betweenDates'"
+                  >
+                    <label class="tcrd__label">
+                      Min
+                      <input class="tcrd__input" type="text" [(ngModel)]="ruleFormDraft.when.min" placeholder="Min" />
+                    </label>
+                    <label class="tcrd__label">
+                      Max
+                      <input class="tcrd__input" type="text" [(ngModel)]="ruleFormDraft.when.max" placeholder="Max" />
+                    </label>
+                  </ng-container>
+
+                  <label class="tcrd__check">
+                    <input type="checkbox" [(ngModel)]="ruleFormDraft.stopIfTrue" />
+                    <span>Stop if true</span>
+                  </label>
+                </div>
+
+                <div class="tcrd__rule-bottom">
+                  <label class="tcrd__label">
+                    Bg
+                    <input type="color" [(ngModel)]="ruleFormDraft.then.backgroundColor" />
+                  </label>
+                  <label class="tcrd__label">
+                    Text
+                    <input type="color" [(ngModel)]="ruleFormDraft.then.textColor" />
+                  </label>
+
+                  <label class="tcrd__check">
+                    <input
+                      type="checkbox"
+                      [checked]="ruleFormDraft.then.fontWeight === 'bold'"
+                      (change)="ruleFormDraft.then.fontWeight = $any($event.target).checked ? 'bold' : undefined"
+                    />
+                    <span>Bold</span>
+                  </label>
+                  <label class="tcrd__check">
+                    <input
+                      type="checkbox"
+                      [checked]="ruleFormDraft.then.fontStyle === 'italic'"
+                      (change)="ruleFormDraft.then.fontStyle = $any($event.target).checked ? 'italic' : undefined"
+                    />
+                    <span>Italic</span>
+                  </label>
+                  <label class="tcrd__check">
+                    <input
+                      type="checkbox"
+                      [checked]="ruleFormDraft.then.textDecoration === 'underline'"
+                      (change)="ruleFormDraft.then.textDecoration = $any($event.target).checked ? 'underline' : undefined"
+                    />
+                    <span>Underline</span>
+                  </label>
+                  <label class="tcrd__check">
+                    <input
+                      type="checkbox"
+                      [checked]="ruleFormDraft.then.textDecoration === 'line-through'"
+                      (change)="ruleFormDraft.then.textDecoration = $any($event.target).checked ? 'line-through' : undefined"
+                    />
+                    <span>Strike</span>
+                  </label>
+
+                  <label class="tcrd__label tcrd__label--wide">
+                    Class
+                    <input class="tcrd__input" type="text" [(ngModel)]="ruleFormDraft.then.cellClass" placeholder="Optional CSS class" />
+                  </label>
+                  <label class="tcrd__label tcrd__label--wide">
+                    Tooltip
+                    <input class="tcrd__input" type="text" [(ngModel)]="ruleFormDraft.then.tooltip" placeholder="Optional tooltip" />
+                  </label>
+                </div>
+
+                <div class="tcrd__rule-actions">
+                  <button type="button" class="tcrd__btn" (click)="startNewRule()">Add new rule</button>
+                  <button type="button" class="tcrd__btn tcrd__btn--primary" (click)="submitRuleForm()">
+                    {{ editingRuleId ? 'Update rule' : 'Add rule' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </app-tab>
+
+        <!-- Tab 2: Added rules -->
+        <app-tab label="Added rules">
+          <div class="tcrd__tab">
+            <div class="tcrd__row tcrd__row--space">
+              <div class="tcrd__hint">All saved rule-sets across columns.</div>
+              <button type="button" class="tcrd__btn tcrd__btn--primary" (click)="openAddRuleTabForColumn()">Create rules for column…</button>
+            </div>
+
+            <div *ngIf="ruleSetsListCache.length === 0" class="tcrd__empty">No column rules yet.</div>
+
+            <ng-container *ngFor="let rs of ruleSetsListCache">
+              <div class="tcrd__rs-row">
+                <label class="tcrd__check">
+                  <input type="checkbox" [ngModel]="rs.enabled" (ngModelChange)="onRuleSetEnabledToggleFromList(rs.key, $event)" />
+                  <span>Enabled</span>
+                </label>
+
+                <div class="tcrd__rs-main">
+                  <div class="tcrd__rs-title">{{ rs.displayName }}</div>
+                  <div class="tcrd__rs-meta">{{ rs.targetLabel }} · {{ rs.rulesCount }} rule(s)</div>
+                </div>
+
+                <div class="tcrd__rs-actions">
+                  <button type="button" class="tcrd__btn" (click)="toggleRuleSetExpanded(rs.key)">
+                    {{ isRuleSetExpanded(rs.key) ? 'Collapse' : 'Expand' }}
+                  </button>
+                  <button type="button" class="tcrd__btn" (click)="editRuleSetFromList(rs.key)">Edit</button>
+                  <button type="button" class="tcrd__btn tcrd__btn--danger" (click)="deleteRuleSetFromList(rs.key)">Delete</button>
+                </div>
+              </div>
+
+              <div *ngIf="isRuleSetExpanded(rs.key)" class="tcrd__rs-expand">
+                <div *ngIf="expandedRuleSetRules(rs.key).length === 0" class="tcrd__hint">No rules.</div>
+
+                <div *ngFor="let r of expandedRuleSetRules(rs.key)" class="tcrd__rs-rule">
+                  <div class="tcrd__rs-rule-main">
+                    <div class="tcrd__rs-rule-title">
+                      {{ operatorLabel(r.when.op) }}
+                      <span *ngIf="r.when.op === 'between' || r.when.op === 'notBetween' || r.when.op === 'betweenDates'">
+                        ({{ r.when.min || '—' }} → {{ r.when.max || '—' }})
+                      </span>
+                      <span *ngIf="r.when.op !== 'between' && r.when.op !== 'notBetween' && r.when.op !== 'betweenDates' && r.when.value">
+                        ({{ r.when.value }})
+                      </span>
+                    </div>
+                    <div class="tcrd__rs-rule-meta">
+                      Priority {{ r.priority ?? 0 }}<span *ngIf="r.stopIfTrue"> · stop</span>
+                    </div>
+                  </div>
+
+                  <div class="tcrd__rs-rule-actions">
+                    <button type="button" class="tcrd__btn" (click)="editRuleFromRuleSet(rs.key, r.id)">Edit</button>
+                  </div>
+                </div>
+              </div>
             </ng-container>
-
-            <label class="tcrd__check">
-              <input type="checkbox" [(ngModel)]="r.stopIfTrue" />
-              <span>Stop</span>
-            </label>
-
-            <button type="button" class="tcrd__btn tcrd__btn--danger" (click)="removeRule(i)">Remove</button>
           </div>
+        </app-tab>
 
-          <div class="tcrd__rule-bottom">
-            <label class="tcrd__label">
-              Bg
-              <input type="color" [(ngModel)]="r.then.backgroundColor" />
-            </label>
-            <label class="tcrd__label">
-              Text
-              <input type="color" [(ngModel)]="r.then.textColor" />
-            </label>
-
-            <label class="tcrd__check">
-              <input
-                type="checkbox"
-                [checked]="r.then.fontWeight === 'bold'"
-                (change)="r.then.fontWeight = $any($event.target).checked ? 'bold' : undefined"
-              />
-              <span>Bold</span>
-            </label>
-            <label class="tcrd__check">
-              <input
-                type="checkbox"
-                [checked]="r.then.fontStyle === 'italic'"
-                (change)="r.then.fontStyle = $any($event.target).checked ? 'italic' : undefined"
-              />
-              <span>Italic</span>
-            </label>
-            <label class="tcrd__check">
-              <input
-                type="checkbox"
-                [checked]="r.then.textDecoration === 'underline'"
-                (change)="r.then.textDecoration = $any($event.target).checked ? 'underline' : undefined"
-              />
-              <span>Underline</span>
-            </label>
-            <label class="tcrd__check">
-              <input
-                type="checkbox"
-                [checked]="r.then.textDecoration === 'line-through'"
-                (change)="r.then.textDecoration = $any($event.target).checked ? 'line-through' : undefined"
-              />
-              <span>Strike</span>
-            </label>
-
-            <label class="tcrd__label tcrd__label--wide">
-              Class
-              <input class="tcrd__input" type="text" [(ngModel)]="r.then.cellClass" placeholder="Optional CSS class" />
-            </label>
-            <label class="tcrd__label tcrd__label--wide">
-              Tooltip
-              <input class="tcrd__input" type="text" [(ngModel)]="r.then.tooltip" placeholder="Optional tooltip" />
-            </label>
+        <!-- Tab 3: How to use -->
+        <app-tab label="How to use">
+          <div class="tcrd__tab tcrd__howto">
+            <div class="tcrd__subhead">How column rules work</div>
+            <ul class="tcrd__howto-list">
+              <li>Select a column, then add rules. Rules are evaluated against each cell’s text value.</li>
+              <li><b>Whole column</b> rules apply to the top-level column; <b>Leaf</b> rules apply to a specific split-leaf column.</li>
+              <li>Rules run in <b>priority</b> order (lower runs first). If <b>Stop if true</b> is enabled, later rules in that rule-set won’t run.</li>
+              <li>Header rows are excluded (rules apply only to body rows).</li>
+              <li>Exports (PDF) read the same <code>columnRules</code> from the document.</li>
+            </ul>
           </div>
-        </div>
-
-        <button type="button" class="tcrd__btn tcrd__btn--primary" (click)="addRule()">Add rule</button>
-      </div>
+        </app-tab>
+      </app-tabs>
     </div>
   </ng-container>
 
