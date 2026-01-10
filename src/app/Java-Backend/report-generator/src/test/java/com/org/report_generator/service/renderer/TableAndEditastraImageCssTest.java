@@ -56,6 +56,85 @@ class TableAndEditastraImageCssTest {
     }
 
     @Test
+    void tableRenderAppliesColumnConditionalFormattingWholeColumn() {
+        TableWidgetRenderer renderer = new TableWidgetRenderer();
+
+        ObjectNode props = JsonNodeFactory.instance.objectNode();
+        ArrayNode rules = props.putArray("columnRules");
+
+        ObjectNode rs = rules.addObject();
+        rs.put("enabled", true);
+        ObjectNode target = rs.putObject("target");
+        target.put("kind", "whole");
+        target.put("topColIndex", 0);
+        ArrayNode rsRules = rs.putArray("rules");
+        ObjectNode rule = rsRules.addObject();
+        rule.put("enabled", true);
+        rule.put("priority", 0);
+        ObjectNode when = rule.putObject("when");
+        when.put("op", "equals");
+        when.put("value", "X");
+        ObjectNode then = rule.putObject("then");
+        then.put("backgroundColor", "#abc123");
+        then.put("textColor", "#00ff00");
+        then.put("fontWeight", "bold");
+        then.put("tooltip", "Matched");
+
+        ArrayNode rows = props.putArray("rows");
+        ObjectNode row = rows.addObject();
+        row.put("id", "r1");
+        ArrayNode cells = row.putArray("cells");
+        ObjectNode cell = cells.addObject();
+        cell.put("id", "c1");
+        cell.put("contentHtml", "X");
+        cell.putNull("merge");
+        cell.putNull("coveredBy");
+
+        String out = renderer.render(props, "");
+        assertTrue(out.contains("background-color: #abc123"), "Expected conditional background color to be applied");
+        assertTrue(out.contains("color: #00ff00"), "Expected conditional text color to be applied");
+        assertTrue(out.contains("font-weight: bold"), "Expected conditional font weight to be applied");
+        assertTrue(out.contains("title=\"Matched\""), "Expected conditional tooltip to be applied");
+    }
+
+    @Test
+    void tableRenderDoesNotApplyConditionalFormattingToHeaderRows() {
+        TableWidgetRenderer renderer = new TableWidgetRenderer();
+
+        ObjectNode props = JsonNodeFactory.instance.objectNode();
+        props.put("headerRow", true);
+        props.put("headerRowCount", 1);
+        ArrayNode rules = props.putArray("columnRules");
+
+        ObjectNode rs = rules.addObject();
+        rs.put("enabled", true);
+        ObjectNode target = rs.putObject("target");
+        target.put("kind", "whole");
+        target.put("topColIndex", 0);
+        ArrayNode rsRules = rs.putArray("rules");
+        ObjectNode rule = rsRules.addObject();
+        rule.put("enabled", true);
+        ObjectNode when = rule.putObject("when");
+        when.put("op", "equals");
+        when.put("value", "X");
+        ObjectNode then = rule.putObject("then");
+        then.put("backgroundColor", "#abc123");
+
+        ArrayNode rows = props.putArray("rows");
+        ObjectNode row = rows.addObject();
+        row.put("id", "r1");
+        ArrayNode cells = row.putArray("cells");
+        ObjectNode cell = cells.addObject();
+        cell.put("id", "c1");
+        cell.put("contentHtml", "X");
+        cell.putNull("merge");
+        cell.putNull("coveredBy");
+
+        String out = renderer.render(props, "");
+        assertFalse(out.contains("background-color: #abc123"), "Expected header row to NOT receive conditional formatting");
+    }
+
+    @Test
     void editastraRenderPreservesDataImageAndWrapperHtml() {
         EditastraWidgetRenderer renderer = new EditastraWidgetRenderer();
 

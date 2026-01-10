@@ -1,8 +1,14 @@
 package com.org.report_generator.service.renderer;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.web.util.HtmlUtils;
 
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.*;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Renderer for table widgets (table-widget) matching the frontend table model:
@@ -296,9 +302,17 @@ public class TableWidgetRenderer {
 
         // Read section options (headerRow, firstColumn, totalRow, lastColumn)
         boolean headerRow = props.path("headerRow").asBoolean(false);
+        int headerRowCount = 0;
+        if (headerRow) {
+            int raw = props.path("headerRowCount").asInt(1);
+            headerRowCount = Math.max(1, raw);
+        }
         boolean firstColumn = props.path("firstColumn").asBoolean(false);
         boolean totalRow = props.path("totalRow").asBoolean(false);
         boolean lastColumn = props.path("lastColumn").asBoolean(false);
+
+        // Column conditional formatting rules (persisted in props.columnRules)
+        ConditionalFormattingEngine cond = new ConditionalFormattingEngine(props.path("columnRules"));
 
         // Mark URL-based tables so the PDF pipeline can apply runtime auto-fit scaling before rendering.
         boolean isUrlTable = "http".equalsIgnoreCase(props.path("dataSource").path("kind").asText(""));
@@ -357,7 +371,8 @@ public class TableWidgetRenderer {
                     int colSpan = mergeNode.path("colSpan").asInt(1);
 
                     // Determine if this cell is in a special section
-                    boolean isHeaderRow = headerRow && rowIndex == 0;
+                    boolean isHeaderRow = headerRow && rowIndex < headerRowCount;
+                    boolean allowConditional = rowIndex >= headerRowCount;
                     boolean isTotalRow = totalRow && rowIndex == rowCount - 1 && rowCount > 1;
                     // For merged cells: first column if starts at 0, last column if ends at colCount-1
                     boolean isFirstCol = firstColumn && colIndex == 0;
@@ -374,7 +389,18 @@ public class TableWidgetRenderer {
                     html.append(">");
 
                     // Apply section styling based on position
-                    html.append(renderCellInner(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol));
+                    html.append(renderCellInner(
+                        cellNode,
+                        isHeaderRow,
+                        isFirstCol,
+                        isTotalRow,
+                        isLastCol,
+                        allowConditional,
+                        rowIndex,
+                        colIndex,
+                        cond,
+                        null
+                    ));
                     html.append("</td>");
                     
                     colIndex += colSpan;
@@ -390,7 +416,18 @@ public class TableWidgetRenderer {
         return html.toString();
     }
 
-    private String renderCellInner(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
+    private String renderCellInner(
+        JsonNode cellNode,
+        boolean isHeaderRow,
+        boolean isFirstCol,
+        boolean isTotalRow,
+        boolean isLastCol,
+        boolean allowConditional,
+        int rowIndex,
+        int topColIndex,
+        ConditionalFormattingEngine cond,
+        int[] leafPath
+    ) {
         JsonNode splitNode = cellNode.path("split");
         if (!splitNode.isMissingNode() && splitNode.isObject()) {
             int rows = Math.max(1, splitNode.path("rows").asInt(1));
@@ -429,6 +466,10 @@ public class TableWidgetRenderer {
 
                     int r = i / cols;
                     int c = i % cols;
+                    int[] childLeafPath = leafPath;
+                    if (cols > 1) {
+                        childLeafPath = appendLeafPath(leafPath, c);
+                    }
 
                     JsonNode mergeNode = child.path("merge");
                     int rowSpan = mergeNode.path("rowSpan").asInt(1);
@@ -448,8 +489,18 @@ public class TableWidgetRenderer {
                     sb.append("\">");
 
                     // Recurse so nested split grids render correctly (split-inside-split).
-                    // For split cells, they're nested so they don't get section styling (pass false for all)
-                    sb.append(renderCellInner(child, false, false, false, false));
+                    sb.append(renderCellInner(
+                        child,
+                        isHeaderRow,
+                        isFirstCol,
+                        isTotalRow,
+                        isLastCol,
+                        allowConditional,
+                        rowIndex,
+                        topColIndex,
+                        cond,
+                        childLeafPath
+                    ));
                     sb.append("</div>");
                 }
             }
@@ -458,13 +509,25 @@ public class TableWidgetRenderer {
             return sb.toString();
         }
 
-        return renderCellSurface(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
+        return renderCellSurface(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol, allowConditional, rowIndex, topColIndex, cond, leafPath);
     }
 
-    private String renderCellSurface(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
+    private String renderCellSurface(
+        JsonNode cellNode,
+        boolean isHeaderRow,
+        boolean isFirstCol,
+        boolean isTotalRow,
+        boolean isLastCol,
+        boolean allowConditional,
+        int rowIndex,
+        int topColIndex,
+        ConditionalFormattingEngine cond,
+        int[] leafPath
+    ) {
+        ConditionalThen then = allowConditional ? cond.getConditionalThenForCell(rowIndex, topColIndex, leafPath, cellNode) : null;
         String verticalAlign = getVerticalAlign(cellNode, isHeaderRow);
-        String surfaceStyle = buildSurfaceStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
-        String contentStyle = buildContentStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol);
+        String surfaceStyle = buildSurfaceStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol, then);
+        String contentStyle = buildContentStyle(cellNode, isHeaderRow, isFirstCol, isTotalRow, isLastCol, then);
 
         String content = "";
         JsonNode contentNode = cellNode.path("contentHtml");
@@ -476,7 +539,14 @@ public class TableWidgetRenderer {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("<div class=\"table-widget__cell-surface\"");
+        sb.append("<div class=\"table-widget__cell-surface");
+        if (then != null && then.cellClass != null && !then.cellClass.isBlank()) {
+            sb.append(" ").append(escapeHtmlAttribute(then.cellClass.trim()));
+        }
+        sb.append("\"");
+        if (then != null && then.tooltip != null && !then.tooltip.isBlank()) {
+            sb.append(" title=\"").append(escapeHtmlAttribute(then.tooltip)).append("\"");
+        }
         if (!verticalAlign.isEmpty()) {
             sb.append(" data-vertical-align=\"").append(escapeHtmlAttribute(verticalAlign)).append("\"");
         }
@@ -555,7 +625,7 @@ public class TableWidgetRenderer {
         return style.toString();
     }
 
-    private String buildSurfaceStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
+    private String buildSurfaceStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol, ConditionalThen then) {
         JsonNode styleNode = cellNode.path("style");
         boolean hasStyleNode = !styleNode.isMissingNode() && !styleNode.isNull() && styleNode.isObject();
 
@@ -568,30 +638,38 @@ public class TableWidgetRenderer {
 
         // Apply section background colors (header row wins over column, total row wins over column)
         String backgroundColor = hasStyleNode ? styleNode.path("backgroundColor").asText("") : "";
+        backgroundColor = normalizeCssColor(backgroundColor);
+        String condBackground = then != null ? normalizeCssColor(then.backgroundColor) : "";
+
+        if (backgroundColor.isBlank() && !condBackground.isBlank()) {
+            style.append("background-color: ").append(condBackground).append(";");
+            return style.toString();
+        }
+
         if (isHeaderRow) {
             // Header row: #e5e7eb (overrides user background unless explicitly set)
-            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+            if (backgroundColor.isBlank()) {
                 style.append("background-color: #e5e7eb;");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }
         } else if (isTotalRow) {
             // Total row: #eef2f7 (only if no user background)
-            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+            if (backgroundColor.isBlank()) {
                 style.append("background-color: #eef2f7;");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }
         } else if (isFirstCol || isLastCol) {
             // First/Last column: #f1f5f9 (only if no user background and not in header/total row)
-            if (backgroundColor.isBlank() || "transparent".equalsIgnoreCase(backgroundColor)) {
+            if (backgroundColor.isBlank()) {
                 style.append("background-color: #f1f5f9;");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }
         } else {
             // Regular cell
-            if (!backgroundColor.isBlank() && !"transparent".equalsIgnoreCase(backgroundColor)) {
+            if (!backgroundColor.isBlank()) {
                 style.append("background-color: ").append(backgroundColor).append(";");
             } else {
                 style.append("background-color: transparent;");
@@ -601,7 +679,7 @@ public class TableWidgetRenderer {
         return style.toString();
     }
 
-    private String buildContentStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol) {
+    private String buildContentStyle(JsonNode cellNode, boolean isHeaderRow, boolean isFirstCol, boolean isTotalRow, boolean isLastCol, ConditionalThen then) {
         // Content div should NOT carry background-color (surface handles it).
         JsonNode styleNode = cellNode.path("style");
         boolean hasStyleNode = !styleNode.isMissingNode() && !styleNode.isNull() && styleNode.isObject();
@@ -625,30 +703,37 @@ public class TableWidgetRenderer {
 
         // Apply section font-weight (bold for header row, total row, first/last column)
         String fontWeight = hasStyleNode ? styleNode.path("fontWeight").asText("") : "";
-        if (isHeaderRow || isTotalRow || isFirstCol || isLastCol) {
-            // Section styling: bold unless user explicitly set a different weight
-            if (fontWeight.isBlank()) {
-                style.append("font-weight: bold;");
-            } else {
-                style.append("font-weight: ").append(fontWeight).append(";");
-            }
-        } else if (!fontWeight.isBlank()) {
+        String condFontWeight = then != null ? (then.fontWeight == null ? "" : then.fontWeight) : "";
+        if (!fontWeight.isBlank()) {
             style.append("font-weight: ").append(fontWeight).append(";");
+        } else if (!condFontWeight.isBlank()) {
+            style.append("font-weight: ").append(condFontWeight).append(";");
+        } else if (isHeaderRow || isTotalRow || isFirstCol || isLastCol) {
+            style.append("font-weight: bold;");
         }
 
         String fontStyle = hasStyleNode ? styleNode.path("fontStyle").asText("") : "";
+        String condFontStyle = then != null ? (then.fontStyle == null ? "" : then.fontStyle) : "";
         if (!fontStyle.isBlank()) {
             style.append("font-style: ").append(fontStyle).append(";");
+        } else if (!condFontStyle.isBlank()) {
+            style.append("font-style: ").append(condFontStyle).append(";");
         }
 
         String textDecoration = hasStyleNode ? styleNode.path("textDecoration").asText("") : "";
+        String condTextDecoration = then != null ? (then.textDecoration == null ? "" : then.textDecoration) : "";
         if (!textDecoration.isBlank()) {
             style.append("text-decoration: ").append(textDecoration).append(";");
+        } else if (!condTextDecoration.isBlank()) {
+            style.append("text-decoration: ").append(condTextDecoration).append(";");
         }
 
         String textColor = hasStyleNode ? styleNode.path("color").asText("") : "";
+        String condTextColor = then != null ? normalizeCssColor(then.textColor) : "";
         if (!textColor.isBlank()) {
             style.append("color: ").append(textColor).append(";");
+        } else if (!condTextColor.isBlank()) {
+            style.append("color: ").append(condTextColor).append(";");
         }
 
         String textHighlight = hasStyleNode ? styleNode.path("textHighlightColor").asText("") : "";
@@ -657,6 +742,382 @@ public class TableWidgetRenderer {
         }
 
         return style.toString();
+    }
+
+    private static String normalizeCssColor(String c) {
+        if (c == null) return "";
+        String s = c.trim();
+        if (s.isEmpty()) return "";
+        if ("transparent".equalsIgnoreCase(s)) return "";
+        return s;
+    }
+
+    private static int[] appendLeafPath(int[] base, int nextColIndex) {
+        if (base == null || base.length == 0) {
+            return new int[]{nextColIndex};
+        }
+        int[] out = Arrays.copyOf(base, base.length + 1);
+        out[base.length] = nextColIndex;
+        return out;
+    }
+
+    /**
+     * Minimal backend implementation of the frontend table conditional formatting rules.
+     * Applied at render-time for exports (PDF) so backend output matches editor behavior.
+     */
+    private static final class ConditionalFormattingEngine {
+        private static final Pattern TAGS = Pattern.compile("<[^>]+>");
+        private static final Pattern WS = Pattern.compile("\\s+");
+
+        private final Map<String, String> htmlTextCache = new HashMap<>();
+        private final Map<Integer, List<RuleSet>> ruleSetsByTopCol = new HashMap<>();
+
+        ConditionalFormattingEngine(JsonNode columnRulesNode) {
+            if (columnRulesNode == null || columnRulesNode.isMissingNode() || columnRulesNode.isNull() || !columnRulesNode.isArray()) {
+                return;
+            }
+            for (JsonNode rsNode : columnRulesNode) {
+                if (rsNode == null || rsNode.isNull() || !rsNode.isObject()) continue;
+                boolean enabled = rsNode.path("enabled").asBoolean(true);
+                if (!enabled) continue;
+                JsonNode rulesNode = rsNode.path("rules");
+                if (!rulesNode.isArray() || rulesNode.size() == 0) continue;
+
+                Target target = Target.from(rsNode.path("target"));
+                if (target == null) continue;
+
+                List<Rule> rules = new ArrayList<>();
+                for (JsonNode rNode : rulesNode) {
+                    if (rNode == null || rNode.isNull() || !rNode.isObject()) continue;
+                    boolean ruleEnabled = rNode.path("enabled").asBoolean(true);
+                    if (!ruleEnabled) continue;
+                    int priority = rNode.path("priority").asInt(0);
+                    boolean stopIfTrue = rNode.path("stopIfTrue").asBoolean(false);
+
+                    When when = When.from(rNode.path("when"));
+                    if (when == null || when.op == null || when.op.isBlank()) continue;
+
+                    Then then = Then.from(rNode.path("then"));
+                    if (then == null) then = new Then(null, null, null, null, null, null, null);
+
+                    rules.add(new Rule(priority, when, then, stopIfTrue));
+                }
+                if (rules.isEmpty()) continue;
+                rules.sort(Comparator.comparingInt(a -> a.priority));
+
+                RuleSet rs = new RuleSet(target, rules);
+                ruleSetsByTopCol.computeIfAbsent(target.topColIndex, _k -> new ArrayList<>()).add(rs);
+            }
+        }
+
+        ConditionalThen getConditionalThenForCell(int rowIndex, int topColIndex, int[] leafPath, JsonNode cellNode) {
+            List<RuleSet> candidates = ruleSetsByTopCol.get(topColIndex);
+            if (candidates == null || candidates.isEmpty()) return null;
+
+            String cellText = htmlToText(cellNode.path("contentHtml").asText(""));
+            ConditionalThen out = new ConditionalThen();
+
+            // Whole-column targets first, then leaf targets (leaf can override).
+            applyMatchingRuleSets(out, candidates, "whole", leafPath, cellText);
+            applyMatchingRuleSets(out, candidates, "leaf", leafPath, cellText);
+
+            return out.isEmpty() ? null : out;
+        }
+
+        private void applyMatchingRuleSets(ConditionalThen out, List<RuleSet> candidates, String kind, int[] leafPath, String cellText) {
+            for (RuleSet rs : candidates) {
+                if (!kind.equals(rs.target.kind)) continue;
+                if ("leaf".equals(rs.target.kind)) {
+                    // If the rendered cell is a split leaf, it must match the configured leafPath.
+                    // If it's unsplit (leafPath == null), allow leaf rules to apply (apply_whole behavior).
+                    if (leafPath != null && !Arrays.equals(leafPath, rs.target.leafPath)) continue;
+                }
+
+                for (Rule rule : rs.rules) {
+                    if (evaluateRule(rule.when, cellText)) {
+                        out.merge(rule.then);
+                        if (rule.stopIfTrue) break;
+                    }
+                }
+            }
+        }
+
+        private boolean evaluateRule(When when, String cellText) {
+            if (when == null || when.op == null) return false;
+
+            String text = cellText == null ? "" : cellText;
+            String valueRaw = when.value == null ? "" : when.value;
+            boolean ignoreCase = when.ignoreCase;
+
+            String textLower = text.toLowerCase(Locale.ROOT);
+            String valueLower = valueRaw.toLowerCase(Locale.ROOT);
+
+            return switch (when.op) {
+                case "isEmpty" -> text.trim().isEmpty();
+                case "isNotEmpty" -> !text.trim().isEmpty();
+                case "equals" -> ignoreCase ? textLower.equals(valueLower) : text.equals(valueRaw);
+                case "notEquals" -> ignoreCase ? !textLower.equals(valueLower) : !text.equals(valueRaw);
+                case "equalsIgnoreCase" -> textLower.equals(valueLower);
+                case "contains" -> ignoreCase ? textLower.contains(valueLower) : text.contains(valueRaw);
+                case "notContains" -> ignoreCase ? !textLower.contains(valueLower) : !text.contains(valueRaw);
+                case "startsWith" -> ignoreCase ? textLower.startsWith(valueLower) : text.startsWith(valueRaw);
+                case "endsWith" -> ignoreCase ? textLower.endsWith(valueLower) : text.endsWith(valueRaw);
+                case "inList" -> {
+                    String[] list = when.values != null && when.values.length > 0 ? when.values : splitList(valueRaw);
+                    String cur = ignoreCase ? textLower : text;
+                    boolean ok = false;
+                    for (String x : list) {
+                        if (x == null) continue;
+                        String t = x.trim();
+                        if (t.isEmpty()) continue;
+                        if (ignoreCase) t = t.toLowerCase(Locale.ROOT);
+                        if (cur.equals(t)) {
+                            ok = true;
+                            break;
+                        }
+                    }
+                    yield ok;
+                }
+                case "notInList" -> {
+                    String[] list = when.values != null && when.values.length > 0 ? when.values : splitList(valueRaw);
+                    String cur = ignoreCase ? textLower : text;
+                    boolean ok = true;
+                    for (String x : list) {
+                        if (x == null) continue;
+                        String t = x.trim();
+                        if (t.isEmpty()) continue;
+                        if (ignoreCase) t = t.toLowerCase(Locale.ROOT);
+                        if (cur.equals(t)) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    yield ok;
+                }
+                case "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual", "between", "notBetween" -> {
+                    Double n = parseNumber(text);
+                    if (n == null) yield false;
+                    if ("between".equals(when.op) || "notBetween".equals(when.op)) {
+                        Double a = parseNumber(when.min);
+                        Double b = parseNumber(when.max);
+                        if (a == null || b == null) yield false;
+                        double lo = Math.min(a, b);
+                        double hi = Math.max(a, b);
+                        boolean in = n >= lo && n <= hi;
+                        yield "between".equals(when.op) ? in : !in;
+                    } else {
+                        Double cmp = parseNumber(valueRaw);
+                        if (cmp == null) yield false;
+                        yield switch (when.op) {
+                            case "greaterThan" -> n > cmp;
+                            case "greaterThanOrEqual" -> n >= cmp;
+                            case "lessThan" -> n < cmp;
+                            case "lessThanOrEqual" -> n <= cmp;
+                            default -> false;
+                        };
+                    }
+                }
+                case "before", "after", "on", "betweenDates" -> {
+                    Long d = parseDateMs(text);
+                    if (d == null) yield false;
+                    if ("betweenDates".equals(when.op)) {
+                        Long a = parseDateMs(when.min);
+                        Long b = parseDateMs(when.max);
+                        if (a == null || b == null) yield false;
+                        long lo = Math.min(a, b);
+                        long hi = Math.max(a, b);
+                        yield d >= lo && d <= hi;
+                    } else {
+                        Long cmp = parseDateMs(valueRaw);
+                        if (cmp == null) yield false;
+                        if ("before".equals(when.op)) yield d < cmp;
+                        if ("after".equals(when.op)) yield d > cmp;
+                        // "on": same local date
+                        LocalDate da = Instant.ofEpochMilli(d).atZone(ZoneId.systemDefault()).toLocalDate();
+                        LocalDate db = Instant.ofEpochMilli(cmp).atZone(ZoneId.systemDefault()).toLocalDate();
+                        yield da.equals(db);
+                    }
+                }
+                default -> false;
+            };
+        }
+
+        private String htmlToText(String html) {
+            String key = html == null ? "" : html;
+            String cached = htmlTextCache.get(key);
+            if (cached != null) return cached;
+            String s = HtmlUtils.htmlUnescape(key);
+            // Very small, dependency-free approximation (good enough for rule comparisons).
+            s = TAGS.matcher(s).replaceAll(" ");
+            s = WS.matcher(s).replaceAll(" ").trim();
+            htmlTextCache.put(key, s);
+            return s;
+        }
+
+        private static String[] splitList(String raw) {
+            if (raw == null) return new String[0];
+            String[] parts = raw.split(",");
+            List<String> out = new ArrayList<>();
+            for (String p : parts) {
+                if (p == null) continue;
+                String t = p.trim();
+                if (!t.isEmpty()) out.add(t);
+            }
+            return out.toArray(new String[0]);
+        }
+
+        private static Double parseNumber(String text) {
+            if (text == null) return null;
+            String t = text.trim();
+            if (t.isEmpty()) return null;
+            String normalized = t
+                .replaceAll("[$€£¥₹,%]", "")
+                .replaceAll("\\s+", "")
+                .replace(",", "");
+            try {
+                double n = Double.parseDouble(normalized);
+                return Double.isFinite(n) ? n : null;
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        private static Long parseDateMs(String text) {
+            if (text == null) return null;
+            String t = text.trim();
+            if (t.isEmpty()) return null;
+
+            // Try a few common formats (similar to JS Date.parse permissiveness).
+            List<DateTimeFormatter> fmts = List.of(
+                DateTimeFormatter.ISO_INSTANT,
+                DateTimeFormatter.ISO_OFFSET_DATE_TIME,
+                DateTimeFormatter.ISO_ZONED_DATE_TIME,
+                DateTimeFormatter.ISO_LOCAL_DATE_TIME,
+                DateTimeFormatter.ISO_LOCAL_DATE,
+                DateTimeFormatter.ofPattern("M/d/uuuu"),
+                DateTimeFormatter.ofPattern("M/d/uu"),
+                DateTimeFormatter.ofPattern("d/M/uuuu"),
+                DateTimeFormatter.ofPattern("d/M/uu"),
+                DateTimeFormatter.ofPattern("uuuu-M-d"),
+                DateTimeFormatter.ofPattern("uuuu/M/d")
+            );
+
+            for (DateTimeFormatter f : fmts) {
+                try {
+                    if (f == DateTimeFormatter.ISO_INSTANT) {
+                        return Instant.parse(t).toEpochMilli();
+                    }
+                    if (f == DateTimeFormatter.ISO_OFFSET_DATE_TIME) {
+                        return OffsetDateTime.parse(t, f).toInstant().toEpochMilli();
+                    }
+                    if (f == DateTimeFormatter.ISO_ZONED_DATE_TIME) {
+                        return ZonedDateTime.parse(t, f).toInstant().toEpochMilli();
+                    }
+
+                    // Local date/time patterns: interpret in system default zone.
+                    try {
+                        LocalDateTime ldt = LocalDateTime.parse(t, f);
+                        return ldt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    } catch (DateTimeParseException ignore) {
+                        LocalDate ld = LocalDate.parse(t, f);
+                        return ld.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    }
+                } catch (DateTimeParseException ignored) {
+                    // continue
+                }
+            }
+            return null;
+        }
+
+        private record RuleSet(Target target, List<Rule> rules) {}
+
+        private record Rule(int priority, When when, Then then, boolean stopIfTrue) {}
+
+        private record Target(String kind, int topColIndex, int[] leafPath) {
+            static Target from(JsonNode node) {
+                if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) return null;
+                String kind = node.path("kind").asText("");
+                int top = node.path("topColIndex").asInt(-1);
+                if (top < 0) return null;
+                if ("leaf".equals(kind)) {
+                    JsonNode lp = node.path("leafPath");
+                    if (lp.isArray() && lp.size() > 0) {
+                        int[] arr = new int[lp.size()];
+                        for (int i = 0; i < lp.size(); i++) arr[i] = lp.get(i).asInt(0);
+                        return new Target("leaf", top, arr);
+                    }
+                    // If leafPath is missing/empty, treat as whole (matches frontend behavior).
+                    return new Target("whole", top, null);
+                }
+                return new Target("whole", top, null);
+            }
+        }
+
+        private record When(String op, String value, String min, String max, String[] values, boolean ignoreCase) {
+            static When from(JsonNode node) {
+                if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) return null;
+                String op = node.path("op").asText("");
+                String value = node.path("value").asText("");
+                String min = node.path("min").asText("");
+                String max = node.path("max").asText("");
+                boolean ignoreCase = node.path("ignoreCase").asBoolean(true);
+                String[] valuesArr = null;
+                JsonNode valuesNode = node.path("values");
+                if (valuesNode.isArray() && valuesNode.size() > 0) {
+                    valuesArr = new String[valuesNode.size()];
+                    for (int i = 0; i < valuesNode.size(); i++) {
+                        valuesArr[i] = valuesNode.get(i).asText("");
+                    }
+                }
+                return new When(op, value, min, max, valuesArr, ignoreCase);
+            }
+        }
+
+        private record Then(String cellClass, String backgroundColor, String textColor, String fontWeight, String fontStyle, String textDecoration, String tooltip) {
+            static Then from(JsonNode node) {
+                if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) return null;
+                return new Then(
+                    node.path("cellClass").asText(""),
+                    node.path("backgroundColor").asText(""),
+                    node.path("textColor").asText(""),
+                    node.path("fontWeight").asText(""),
+                    node.path("fontStyle").asText(""),
+                    node.path("textDecoration").asText(""),
+                    node.path("tooltip").asText("")
+                );
+            }
+        }
+    }
+
+    private static final class ConditionalThen {
+        String cellClass;
+        String tooltip;
+        String backgroundColor;
+        String textColor;
+        String fontWeight;
+        String fontStyle;
+        String textDecoration;
+
+        boolean isEmpty() {
+            return (cellClass == null || cellClass.isBlank())
+                && (tooltip == null || tooltip.isBlank())
+                && (backgroundColor == null || backgroundColor.isBlank())
+                && (textColor == null || textColor.isBlank())
+                && (fontWeight == null || fontWeight.isBlank())
+                && (fontStyle == null || fontStyle.isBlank())
+                && (textDecoration == null || textDecoration.isBlank());
+        }
+
+        void merge(ConditionalFormattingEngine.Then then) {
+            if (then == null) return;
+            if (then.cellClass() != null && !then.cellClass().isBlank()) this.cellClass = then.cellClass();
+            if (then.tooltip() != null && !then.tooltip().isBlank()) this.tooltip = then.tooltip();
+            if (then.backgroundColor() != null && !then.backgroundColor().isBlank()) this.backgroundColor = then.backgroundColor();
+            if (then.textColor() != null && !then.textColor().isBlank()) this.textColor = then.textColor();
+            if (then.fontWeight() != null && !then.fontWeight().isBlank()) this.fontWeight = then.fontWeight();
+            if (then.fontStyle() != null && !then.fontStyle().isBlank()) this.fontStyle = then.fontStyle();
+            if (then.textDecoration() != null && !then.textDecoration().isBlank()) this.textDecoration = then.textDecoration();
+        }
     }
 
     private String buildBorderStyle(JsonNode cellNode, boolean isTotalRow) {
