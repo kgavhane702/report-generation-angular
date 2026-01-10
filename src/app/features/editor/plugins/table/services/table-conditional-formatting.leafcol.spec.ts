@@ -170,10 +170,7 @@ describe('Split-leaf column rules', () => {
 
     const columnRules: any[] = [
       {
-        columnKey: 'leafcol:0:0',
-        columnName: 'd > a',
-        fallbackColIndex: 0,
-        leafColPath: '0',
+        target: { kind: 'leaf', topColIndex: 0, leafPath: [0] },
         enabled: true,
         matchMode: 'any',
         rules: [
@@ -252,6 +249,55 @@ describe('Split-leaf column rules', () => {
     expect(cols.some((c) => (c.name ?? '').includes(' > 11'))).toBe(false);
     expect(cols.some((c) => (c.name ?? '').includes(' > 12'))).toBe(false);
     expect(cols.some((c) => (c.name ?? '').includes(' > 20'))).toBe(false);
+  });
+
+  it('does not promote header depth from a body merge when the body row values live in a split (10 / 20)', () => {
+    const dlg = new TableColumnRulesDialogComponent();
+    dlg.props = {
+      headerRow: true,
+      headerRowCount: 1,
+      rows: [
+        // Row 0: header group "a" spanning 2 columns
+        {
+          id: 'h0',
+          cells: [
+            { id: 'a', contentHtml: '<div>a</div>', merge: { rowSpan: 1, colSpan: 2 } },
+            { id: 'a_covered', contentHtml: '', coveredBy: { row: 0, col: 0 } },
+          ],
+        },
+        // Row 1: BODY row, with a split numeric value "10 / 20" and a merge anchor elsewhere on the row
+        {
+          id: 'r1',
+          cells: [
+            {
+              id: 'r1c0',
+              contentHtml: '',
+              split: {
+                rows: 1,
+                cols: 2,
+                cells: [
+                  { id: '10', contentHtml: '<div>10</div>' },
+                  { id: '20', contentHtml: '<div>20</div>' },
+                ],
+              },
+            },
+            {
+              id: 'r1c1',
+              contentHtml: '',
+              // merge anchor in a body row (can happen after user merges body cells)
+              merge: { rowSpan: 1, colSpan: 1 },
+            },
+          ],
+        },
+      ],
+      columnFractions: [0.5, 0.5],
+      rowFractions: [0.5, 0.5],
+      showBorders: true,
+    } as any;
+
+    const cols = dlg.columns();
+    expect(cols.some((c) => (c.name ?? '').includes('10'))).toBe(false);
+    expect(cols.some((c) => (c.name ?? '').includes('20'))).toBe(false);
   });
 });
 

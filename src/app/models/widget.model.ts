@@ -240,43 +240,21 @@ export interface TableConditionRule {
   stopIfTrue?: boolean;
 }
 
+/**
+ * Structured target for a column rule-set.
+ *
+ * - `whole`: applies to the whole top-level column (and also to unsplit body cells).
+ * - `leaf`: applies to a specific split-leaf column inside a top-level column.\n+ *
+ * `leafPath` encodes ONLY the column indices encountered across nested splits where `cols > 1`.\n+ * (It does not include row indices from the widget leaf-id path.)
+ */
+export type TableColumnTarget =
+  | { kind: 'whole'; topColIndex: number }
+  | { kind: 'leaf'; topColIndex: number; leafPath: number[] };
+
 export interface TableColumnRuleSet {
-  /**
-   * Stable identifier for the column.
-   * v2: prefer a key derived from the header name (normalized), so rules can follow columns by name.
-   * Fallback: `col:{index}` when header name is empty.
-   *
-   * v3 (split-leaf columns): may also be a stable leaf key like `leafcol:{topColIndex}:{leafColPath}`.
-   */
-  columnKey: string;
+  target: TableColumnTarget;
   /** Optional display name captured when the rule set is saved. */
-  columnName?: string;
-  /**
-   * Optional leaf-column selector inside a top-level column when the column is split into multiple leaf columns.
-   *
-   * This is NOT the same as the leaf cell's full `path` (which includes row indices in row-major order).
-   * `leafColPath` encodes ONLY the column indices encountered across nested splits where `cols > 1`.
-   *
-   * Examples:
-   * - 2x2 header split (rows=2, cols=2): left leaf column => "0", right leaf column => "1"
-   * - Vertical split (rows=2, cols=1) then nested 1x2: left leaf column => "0", right leaf column => "1"
-   */
-  leafColPath?: string;
-  /**
-   * Optional fallback 0-based index used when the column key/name cannot be resolved.
-   * Useful for URL schema drift or duplicate header names.
-   */
-  fallbackColIndex?: number;
-  /**
-   * Optional fallback for leaf selector in case the split structure changes.
-   * Kept for future migration robustness; current resolver prefers `leafColPath` when present.
-   */
-  fallbackLeafColPath?: string;
-  /**
-   * Backwards compatibility: older saved documents may store `colIndex` directly.
-   * Newer saves should rely on `columnKey` + `fallbackColIndex`.
-   */
-  colIndex?: number;
+  displayName?: string;
   enabled?: boolean;
   /** Future: allow rule-group semantics. v1 evaluator still applies rules by priority/order. */
   matchMode?: 'all' | 'any';
