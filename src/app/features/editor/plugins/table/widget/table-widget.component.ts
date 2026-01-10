@@ -141,10 +141,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   // Column conditional rules (delegated to service)
   // ==========================
 
-  getConditionalCellSurfaceClass(rowIndex: number, colIndex: number, _path: string, cell: TableCell): string | null {
+  getConditionalCellSurfaceClass(rowIndex: number, colIndex: number, path: string, cell: TableCell): string | null {
     return this.condFormatSvc.getConditionalCellSurfaceClass(
       rowIndex,
       colIndex,
+      path,
       cell,
       this.tableProps.columnRules,
       this.localRows(),
@@ -152,10 +153,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     );
   }
 
-  getConditionalCellSurfaceStyle(rowIndex: number, colIndex: number, _path: string, cell: TableCell): Partial<TableCellStyle> {
+  getConditionalCellSurfaceStyle(rowIndex: number, colIndex: number, path: string, cell: TableCell): Partial<TableCellStyle> {
     return this.condFormatSvc.getConditionalCellSurfaceStyle(
       rowIndex,
       colIndex,
+      path,
       cell,
       this.tableProps.columnRules,
       this.localRows(),
@@ -163,10 +165,11 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     );
   }
 
-  getConditionalTooltip(rowIndex: number, colIndex: number, _path: string, cell: TableCell): string | null {
+  getConditionalTooltip(rowIndex: number, colIndex: number, path: string, cell: TableCell): string | null {
     return this.condFormatSvc.getConditionalTooltip(
       rowIndex,
       colIndex,
+      path,
       cell,
       this.tableProps.columnRules,
       this.localRows(),
@@ -1159,12 +1162,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     let inferred = 1;
 
     // Safe inference for hierarchical headers (JSON import builds real header merges).
-    // Count consecutive top rows (up to 4) that contain explicit header metadata (merge/coveredBy/split).
+    // Count consecutive top rows (up to 4) that contain explicit header metadata (MERGE ANCHORS only).
+    //
+    // IMPORTANT:
+    // Do NOT treat `coveredBy` as header metadata. A merge that starts in the header can span down into
+    // body rows, which would incorrectly inflate header depth and cause body values (10/20/145...) to
+    // appear in header-derived naming/rules.
+    //
+    // IMPORTANT: `split` is NOT a safe signal of multi-row headers. Splits can exist in body rows too,
+    // and split grids encode their own depth within a single top-level row.
     const maxRows = Math.min(4, safeRows.length);
     const rowHasMeta = (r: number): boolean => {
       const row = safeRows[r];
       const cells = Array.isArray(row?.cells) ? row.cells : [];
-      return cells.some((c: any) => !!c?.merge || !!c?.coveredBy || !!c?.split);
+      return cells.some((c: any) => !!c?.merge && !c?.coveredBy);
     };
 
     if (rowHasMeta(0)) {
@@ -6122,6 +6133,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         owner.contentHtml = mergedHtml;
       }
 
+      // Normalize coverage to avoid any "leftover" cells rendering after complex merge/split sequences.
+      // This is especially important when composing split grids across previously-merged parents.
+      this.rebuildTopLevelCoveredBy(next);
+      if (anchor.split) {
+        this.rebuildSplitCoveredBy(anchor);
+      }
+
       return next;
     });
 
@@ -6328,6 +6346,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         }
       }
 
+      // Normalize coverage for the whole table (prevents duplicates if any stale coveredBy remains).
+      this.rebuildTopLevelCoveredBy(next);
+
       return next;
     });
 
@@ -6434,6 +6455,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const parent = nextBase;
         parent.split = undefined;
         parent.contentHtml = mergedHtml;
+      } else {
+        // Normalize split coverage to avoid any "leftover" sub-cells rendering after chained merges.
+        this.rebuildSplitCoveredBy(nextOwner);
       }
 
       return next;
