@@ -1163,6 +1163,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // Safe inference for hierarchical headers (JSON import builds real header merges).
     // Count consecutive top rows (up to 4) that contain explicit header metadata (MERGE ANCHORS only).
+    // Also consider merge.rowSpan to capture multi-level headers where the leaf header row has no merges
+    // (e.g. address > geo > lat/lng). In those cases, row0/row1 contain merges and row0/row1 leaf headers
+    // often have rowSpan that implies the full header depth.
     //
     // IMPORTANT:
     // Do NOT treat `coveredBy` as header metadata. A merge that starts in the header can span down into
@@ -1180,11 +1183,21 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     if (rowHasMeta(0)) {
       let depth = 0;
+      let spanDepth = 0;
       for (let r = 0; r < maxRows; r++) {
         if (!rowHasMeta(r)) break;
         depth = r + 1;
+
+        const row = safeRows[r];
+        const cells = Array.isArray(row?.cells) ? row.cells : [];
+        for (const c of cells as any[]) {
+          if (!c || !c.merge || c.coveredBy) continue;
+          const rs = Math.max(1, Math.trunc(c.merge.rowSpan ?? 1));
+          // `r` is 0-based, rowSpan is count → depth is r + rowSpan
+          spanDepth = Math.max(spanDepth, r + rs);
+        }
       }
-      inferred = Math.max(inferred, depth);
+      inferred = Math.max(inferred, depth, spanDepth);
     }
 
     // Back-compat heuristic (Excel-style): grouped header row + leaf header row.
@@ -3102,37 +3115,81 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (event.key === 'Tab') {
       event.preventDefault();
       this.syncCellContent();
-      
-      const rows = this.localRows();
-      let nextRowIndex = rowIndex;
-      let nextCellIndex = cellIndex;
-      
-      if (event.shiftKey) {
-        // Move backwards
-        nextCellIndex--;
-        if (nextCellIndex < 0) {
-          nextRowIndex--;
-          if (nextRowIndex >= 0) {
-            nextCellIndex = rows[nextRowIndex].cells.length - 1;
-          }
-        }
-      } else {
-        // Move forwards
-        nextCellIndex++;
-        if (nextCellIndex >= rows[rowIndex].cells.length) {
-          nextRowIndex++;
-          nextCellIndex = 0;
-        }
-      }
-      
-      if (nextRowIndex >= 0 && nextRowIndex < rows.length) {
-        const nextCellContent = this.tableContainer?.nativeElement
-          .querySelector(`[data-cell="${nextRowIndex}-${nextCellIndex}"] .table-widget__cell-editor`) as HTMLElement;
-        if (nextCellContent) {
-          nextCellContent.focus();
-        }
-      }
+      const currentLeafId = this.composeLeafId(rowIndex, cellIndex, (leafPath ?? '').toString());
+      const dir = event.shiftKey ? -1 : 1;
+      const nextLeafId = this.getNextLeafIdForTab(currentLeafId, dir);
+      if (!nextLeafId) return;
+      const el = this.resolveLeafEditorElement(nextLeafId, null);
+      el?.focus();
     }
+  }
+
+  private getNextLeafIdForTab(currentLeafId: string, dir: 1 | -1): string | null {
+    const rows = this.localRows();
+    const parsed = this.parseLeafId(currentLeafId);
+    if (!parsed) return null;
+
+    const getRowOrder = (r: number): string[] => {
+      const row = rows?.[r];
+      if (!row || !Array.isArray(row.cells)) return [];
+      const out: string[] = [];
+      for (let c = 0; c < row.cells.length; c++) {
+        const base = row.cells[c] as any;
+        if (!base || base.coveredBy) continue;
+        if (base.split) {
+          const paths = this.collectLeafPathsForCell(base);
+          for (const p of paths) out.push(this.formatLeafId(r, c, p));
+        } else {
+          out.push(this.formatLeafId(r, c, []));
+        }
+      }
+      return out;
+    };
+
+    const rowOrder = getRowOrder(parsed.row);
+    let idx = rowOrder.indexOf(currentLeafId);
+    if (idx < 0) {
+      const normalized = this.mapLeafIdThroughMerge(currentLeafId);
+      if (normalized) idx = rowOrder.indexOf(normalized);
+    }
+
+    if (idx >= 0) {
+      const nextIdx = idx + dir;
+      if (nextIdx >= 0 && nextIdx < rowOrder.length) return rowOrder[nextIdx];
+    }
+
+    if (dir === 1) {
+      for (let r = parsed.row + 1; r < rows.length; r++) {
+        const o = getRowOrder(r);
+        if (o.length > 0) return o[0];
+      }
+      return null;
+    }
+
+    for (let r = parsed.row - 1; r >= 0; r--) {
+      const o = getRowOrder(r);
+      if (o.length > 0) return o[o.length - 1];
+    }
+    return null;
+  }
+
+  private collectLeafPathsForCell(cell: TableCell): number[][] {
+    const out: number[][] = [];
+    const walk = (cur: any, prefix: number[], depth: number): void => {
+      if (!cur || depth > 10) return;
+      const split = cur.split as { cells?: any[] } | undefined;
+      if (!split || !Array.isArray(split.cells)) {
+        out.push(prefix);
+        return;
+      }
+      for (let i = 0; i < split.cells.length; i++) {
+        const child = split.cells[i];
+        if (!child || child.coveredBy) continue;
+        walk(child, [...prefix, i], depth + 1);
+      }
+    };
+    walk(cell as any, [], 0);
+    return out;
   }
 
   trackByRowId(index: number, row: TableRow): string {
@@ -3969,14 +4026,20 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const leafEl = el.closest('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
     if (leafEl) return leafEl.getAttribute('data-leaf') ?? null;
 
-    // 2) Click on empty space inside a split sub-cell (e.g. above/below vertically-aligned content)
+    // 2) Hit on a leaf container (preferred: full hitbox)
+    const leafContainer =
+      (el.closest('.table-widget__sub-cell[data-leaf]') as HTMLElement | null) ||
+      (el.closest('.table-widget__cell[data-leaf]') as HTMLElement | null);
+    if (leafContainer) return leafContainer.getAttribute('data-leaf') ?? null;
+
+    // 3) Click on empty space inside a split sub-cell (e.g. above/below vertically-aligned content)
     const subCell = el.closest('.table-widget__sub-cell') as HTMLElement | null;
     if (subCell) {
       const leaf = subCell.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
       return leaf?.getAttribute('data-leaf') ?? null;
     }
 
-    // 3) Click on empty space inside a normal cell
+    // 4) Click on empty space inside a normal cell
     const cell = el.closest('.table-widget__cell') as HTMLElement | null;
     if (cell) {
       const leaf = cell.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
@@ -3999,7 +4062,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const y2 = Math.max(start.y, end.y);
 
     const selection = new Set<string>();
-    const leaves = container.querySelectorAll('.table-widget__cell-editor[data-leaf]') as NodeListOf<HTMLElement>;
+    // Prefer full leaf hitboxes (cell/subcell containers) instead of editor bounds (can be tiny/empty).
+    const leaves = container.querySelectorAll(
+      '.table-widget__cell[data-leaf], .table-widget__sub-cell[data-leaf]'
+    ) as NodeListOf<HTMLElement>;
     leaves.forEach((el) => {
       const rect = el.getBoundingClientRect();
       const intersects = rect.right >= x1 && rect.left <= x2 && rect.bottom >= y1 && rect.top <= y2;
@@ -4025,9 +4091,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const y2 = Math.max(start.y, end.y);
 
     const selection = new Set<string>();
-    const subLeaves = container.querySelectorAll(
-      '.table-widget__cell-editor--subcell[data-leaf]'
-    ) as NodeListOf<HTMLElement>;
+    // Prefer sub-cell containers for reliable intersection (editors can be small when empty).
+    const subLeaves = container.querySelectorAll('.table-widget__sub-cell[data-leaf]') as NodeListOf<HTMLElement>;
 
     subLeaves.forEach((el) => {
       const rect = el.getBoundingClientRect();

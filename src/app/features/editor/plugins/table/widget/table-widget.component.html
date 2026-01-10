@@ -45,6 +45,7 @@
         class="table-widget__cell"
         [class.table-widget__cell--selected]="isCellSelected(rowIndex, rc.colIndex)"
         [attr.data-cell]="rowIndex + '-' + rc.colIndex"
+        [attr.data-leaf]="rc.cell.split ? null : composeLeafId(rowIndex, rc.colIndex, '')"
         [style.gridRowStart]="rowIndex + 1"
         [style.gridColumnStart]="rc.colIndex + 1"
         [style.gridRowEnd]="'span ' + (rc.cell.merge?.rowSpan || 1)"
@@ -186,6 +187,7 @@
       <div
         *ngFor="let item of getRenderableSplitCells(cell); trackBy: trackByRenderableSplitCell"
         class="table-widget__sub-cell"
+        [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, appendPath(path, item.index))"
         [style.gridRowStart]="item.row + 1"
         [style.gridColumnStart]="item.col + 1"
         [style.gridRowEnd]="'span ' + (item.cell.merge?.rowSpan || 1)"
