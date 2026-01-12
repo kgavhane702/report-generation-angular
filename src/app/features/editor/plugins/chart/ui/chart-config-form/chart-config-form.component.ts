@@ -206,7 +206,33 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       this.detectedImportFormat = null;
     }
 
+    this.updateImportFormDisabledState();
     this.cdr.markForCheck();
+  }
+
+  private updateImportFormDisabledState(): void {
+    if (this.importInProgress) {
+      // Disable all import form controls when importing
+      this.importForm.get('sheetIndex')?.disable();
+      this.importForm.get('delimiter')?.disable();
+      this.importForm.get('headerRowIndex')?.disable();
+      this.importForm.get('categoryColumnIndex')?.disable();
+      this.importForm.get('aggregation')?.disable();
+    } else {
+      // Enable controls based on conditions
+      this.importForm.get('sheetIndex')?.enable();
+      this.importForm.get('delimiter')?.enable();
+      this.importForm.get('headerRowIndex')?.enable();
+      
+      // categoryColumnIndex should be disabled if no preview yet
+      if (!this.importPreview) {
+        this.importForm.get('categoryColumnIndex')?.disable();
+      } else {
+        this.importForm.get('categoryColumnIndex')?.enable();
+      }
+      
+      this.importForm.get('aggregation')?.enable();
+    }
   }
 
   ngOnInit(): void {
@@ -680,6 +706,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
     this.importInProgress = true;
     this.importError = null;
+    this.updateImportFormDisabledState();
     this.cdr.markForCheck();
 
     if (this.importSourceMode === 'file') {
@@ -744,6 +771,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       next: (resp) => {
         this.importInProgress = false;
         this.importPreviewSubscription = undefined;
+        this.updateImportFormDisabledState();
 
         if (!resp?.success || !resp.data) {
           this.importError = resp?.error?.message || 'Chart import failed';
@@ -774,6 +802,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
       error: (err) => {
         this.importInProgress = false;
         this.importPreviewSubscription = undefined;
+        this.updateImportFormDisabledState();
         // eslint-disable-next-line no-console
         console.error('Chart import failed', err);
         const msg =

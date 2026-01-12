@@ -81,7 +81,6 @@
                     class="chart-config-dialog__input"
                     formControlName="sheetIndex"
                     min="0"
-                    [disabled]="importInProgress"
                   />
                 </div>
                 <div class="chart-config-dialog__section" *ngIf="detectedImportFormat === ImportFormat.CSV">
@@ -92,7 +91,6 @@
                     class="chart-config-dialog__input"
                     formControlName="delimiter"
                     placeholder=","
-                    [disabled]="importInProgress"
                   />
                 </div>
               </div>
@@ -128,7 +126,6 @@
                       class="chart-config-dialog__input"
                       formControlName="sheetIndex"
                       min="0"
-                      [disabled]="importInProgress"
                     />
                   </div>
                 </div>
@@ -141,7 +138,6 @@
                     class="chart-config-dialog__input"
                     formControlName="delimiter"
                     placeholder=","
-                    [disabled]="importInProgress"
                   />
                 </div>
 
@@ -172,10 +168,9 @@
                     id="headerRowIndex"
                     type="number"
                     class="chart-config-dialog__input"
-                    formControlName="headerRowIndex"
-                    min="0"
-                    [disabled]="importInProgress"
-                  />
+                      formControlName="headerRowIndex"
+                      min="0"
+                    />
                 </div>
               </div>
 
@@ -186,7 +181,6 @@
                     id="categoryColumnIndex"
                     class="chart-config-dialog__select"
                     formControlName="categoryColumnIndex"
-                    [disabled]="!importPreview || importInProgress"
                   >
                     <option *ngFor="let col of previewColumnIndexes" [value]="col">
                       {{ previewColumnLabel(col) }}
@@ -196,7 +190,7 @@
 
                 <div class="chart-config-dialog__section">
                   <label class="chart-config-dialog__label" for="aggregation">Aggregation (duplicates)</label>
-                  <select id="aggregation" class="chart-config-dialog__select" formControlName="aggregation" [disabled]="importInProgress">
+                  <select id="aggregation" class="chart-config-dialog__select" formControlName="aggregation">
                     <option *ngFor="let agg of aggregationOptions" [value]="agg">{{ agg }}</option>
                   </select>
                 </div>
