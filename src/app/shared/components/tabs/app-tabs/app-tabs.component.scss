@@ -17,6 +17,8 @@
   z-index: 50;
   /* Keep it visually consistent when stuck over content */
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+  /* Ensure solid white background to prevent content showing through */
+  background: #ffffff;
 }
 
 .app-tabs__tab {
