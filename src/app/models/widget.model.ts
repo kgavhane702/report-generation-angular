@@ -217,6 +217,20 @@ export interface TableConditionWhen {
   ignoreCase?: boolean;
 }
 
+export type TableConditionLogic = 'and' | 'or';
+
+/**
+ * Group multiple conditions into a single rule expression.
+ * - logic='and' -> all conditions must match
+ * - logic='or'  -> any condition may match
+ */
+export interface TableConditionGroup {
+  logic: TableConditionLogic;
+  conditions: TableConditionWhen[];
+}
+
+export type TableRuleWhen = TableConditionWhen | TableConditionGroup;
+
 export interface TableConditionThen {
   /** Optional CSS class name to apply to the cell surface. */
   cellClass?: string;
@@ -234,7 +248,7 @@ export interface TableConditionRule {
   enabled?: boolean;
   /** Lower numbers run first (default 0). */
   priority?: number;
-  when: TableConditionWhen;
+  when: TableRuleWhen;
   then: TableConditionThen;
   /** If true and matched, stop evaluating further rules for this column. */
   stopIfTrue?: boolean;

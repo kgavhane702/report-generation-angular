@@ -794,8 +794,8 @@ public class TableWidgetRenderer {
                     int priority = rNode.path("priority").asInt(0);
                     boolean stopIfTrue = rNode.path("stopIfTrue").asBoolean(false);
 
-                    When when = When.from(rNode.path("when"));
-                    if (when == null || when.op == null || when.op.isBlank()) continue;
+                    WhenExpr when = WhenGroup.from(rNode.path("when"));
+                    if (when == null) continue;
 
                     Then then = Then.from(rNode.path("then"));
                     if (then == null) then = new Then(null, null, null, null, null, null, null);
@@ -842,7 +842,29 @@ public class TableWidgetRenderer {
             }
         }
 
-        private boolean evaluateRule(When when, String cellText) {
+        private boolean evaluateRule(WhenExpr when, String cellText) {
+            if (when == null) return false;
+
+            if (when instanceof WhenGroup wg) {
+                List<WhenSingle> conds = wg.conditions;
+                if (conds == null || conds.isEmpty()) return false;
+                if ("or".equals(wg.logic)) {
+                    for (WhenSingle c : conds) {
+                        if (evaluateRule(c, cellText)) return true;
+                    }
+                    return false;
+                }
+                // default AND
+                for (WhenSingle c : conds) {
+                    if (!evaluateRule(c, cellText)) return false;
+                }
+                return true;
+            }
+
+            return evaluateRule((WhenSingle) when, cellText);
+        }
+
+        private boolean evaluateRule(WhenSingle when, String cellText) {
             if (when == null || when.op == null) return false;
 
             String text = cellText == null ? "" : cellText;
@@ -1031,7 +1053,7 @@ public class TableWidgetRenderer {
 
         private record RuleSet(Target target, List<Rule> rules) {}
 
-        private record Rule(int priority, When when, Then then, boolean stopIfTrue) {}
+        private record Rule(int priority, WhenExpr when, Then then, boolean stopIfTrue) {}
 
         private record Target(String kind, int topColIndex, int[] leafPath) {
             static Target from(JsonNode node) {
@@ -1053,8 +1075,10 @@ public class TableWidgetRenderer {
             }
         }
 
-        private record When(String op, String value, String min, String max, String[] values, boolean ignoreCase) {
-            static When from(JsonNode node) {
+        private sealed interface WhenExpr permits WhenSingle, WhenGroup {}
+
+        private record WhenSingle(String op, String value, String min, String max, String[] values, boolean ignoreCase) implements WhenExpr {
+            static WhenSingle from(JsonNode node) {
                 if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) return null;
                 String op = node.path("op").asText("");
                 String value = node.path("value").asText("");
@@ -1069,7 +1093,26 @@ public class TableWidgetRenderer {
                         valuesArr[i] = valuesNode.get(i).asText("");
                     }
                 }
-                return new When(op, value, min, max, valuesArr, ignoreCase);
+                return new WhenSingle(op, value, min, max, valuesArr, ignoreCase);
+            }
+        }
+
+        private record WhenGroup(String logic, List<WhenSingle> conditions) implements WhenExpr {
+            static WhenExpr from(JsonNode node) {
+                if (node == null || node.isMissingNode() || node.isNull() || !node.isObject()) return null;
+                JsonNode conds = node.path("conditions");
+                if (conds.isArray()) {
+                    List<WhenSingle> out = new ArrayList<>();
+                    for (JsonNode c : conds) {
+                        WhenSingle w = WhenSingle.from(c);
+                        if (w != null && w.op != null && !w.op.isBlank()) out.add(w);
+                    }
+                    if (out.isEmpty()) return null;
+                    String logic = node.path("logic").asText("and");
+                    logic = "or".equalsIgnoreCase(logic) ? "or" : "and";
+                    return new WhenGroup(logic, out);
+                }
+                return WhenSingle.from(node);
             }
         }
 

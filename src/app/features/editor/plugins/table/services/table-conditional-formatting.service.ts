@@ -6,6 +6,7 @@ import type {
   TableColumnRuleSet,
   TableConditionRule,
   TableConditionThen,
+  TableConditionWhen,
   TableRow,
 } from '../../../../../models/widget.model';
 
@@ -90,12 +91,21 @@ export class TableConditionalFormattingService {
   // Rule evaluation
   // ─────────────────────────────────────────────────────────────────
 
-  evaluateRuleMatch(rule: TableConditionRule, cell: TableCell): boolean {
-    if (!rule || rule.enabled === false) return false;
-    const when = rule.when;
+  private isWhenGroup(when: any): when is { logic: 'and' | 'or'; conditions: any[] } {
+    return !!when && typeof when === 'object' && Array.isArray((when as any).conditions);
+  }
+
+  private normalizeListValues(when: TableConditionWhen): string[] {
+    const valueRaw = (when.value ?? '').toString();
+    const list = Array.isArray((when as any).values)
+      ? ((when as any).values as string[])
+      : valueRaw.split(',').map((x) => x.trim()).filter(Boolean);
+    return list;
+  }
+
+  private evaluateWhen(when: TableConditionWhen, v: CellComparableValue): boolean {
     if (!when || !when.op) return false;
 
-    const v = this.getCellComparableValue(cell);
     const valueRaw = (when.value ?? '').toString();
     const valueLower = valueRaw.toLowerCase();
     const ignoreCase = when.ignoreCase !== false;
@@ -120,17 +130,13 @@ export class TableConditionalFormattingService {
       case 'endsWith':
         return ignoreCase ? v.textLower.endsWith(valueLower) : v.text.endsWith(valueRaw);
       case 'inList': {
-        const list = Array.isArray(when.values)
-          ? when.values
-          : valueRaw.split(',').map((x) => x.trim()).filter(Boolean);
+        const list = this.normalizeListValues(when);
         const set = ignoreCase ? list.map((x) => x.toLowerCase()) : list;
         const cur = ignoreCase ? v.textLower : v.text;
         return set.includes(cur);
       }
       case 'notInList': {
-        const list = Array.isArray(when.values)
-          ? when.values
-          : valueRaw.split(',').map((x) => x.trim()).filter(Boolean);
+        const list = this.normalizeListValues(when);
         const set = ignoreCase ? list.map((x) => x.toLowerCase()) : list;
         const cur = ignoreCase ? v.textLower : v.text;
         return !set.includes(cur);
@@ -186,6 +192,26 @@ export class TableConditionalFormattingService {
       default:
         return false;
     }
+  }
+
+  evaluateRuleMatch(rule: TableConditionRule, cell: TableCell): boolean {
+    if (!rule || rule.enabled === false) return false;
+
+    const whenAny: any = (rule as any).when;
+    if (!whenAny) return false;
+
+    const v = this.getCellComparableValue(cell);
+
+    if (this.isWhenGroup(whenAny)) {
+      const logic: 'and' | 'or' = whenAny.logic === 'or' ? 'or' : 'and';
+      const conds: TableConditionWhen[] = Array.isArray(whenAny.conditions) ? whenAny.conditions : [];
+      if (conds.length === 0) return false;
+      return logic === 'and'
+        ? conds.every((c) => this.evaluateWhen(c, v))
+        : conds.some((c) => this.evaluateWhen(c, v));
+    }
+
+    return this.evaluateWhen(whenAny as TableConditionWhen, v);
   }
 
   // ─────────────────────────────────────────────────────────────────

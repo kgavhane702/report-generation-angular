@@ -11,6 +11,10 @@ import type {
   TableColumnRuleSet,
   TableConditionOperator,
   TableConditionRule,
+  TableConditionWhen,
+  TableConditionLogic,
+  TableConditionGroup,
+  TableRuleWhen,
 } from '../../../../../../models/widget.model';
 
 type ColumnOption = { index: number; name: string; key: string; leafPath: number[] | null };
@@ -61,8 +65,8 @@ export class TableColumnRulesDialogComponent {
 
   editingRuleId: string | null = null;
   ruleFormDraft: TableConditionRule = this.makeDefaultRule();
-  /** UI-only list input for inList/notInList operators (stored as comma-separated text). */
-  ruleFormListText = '';
+  ruleFormLogic: TableConditionLogic = 'and';
+  ruleFormConditions: TableConditionWhen[] = [this.makeDefaultCondition()];
 
   readonly ruleOperators: Array<{ value: TableConditionOperator; label: string }> = [
     { value: 'isEmpty', label: 'Is empty' },
@@ -210,6 +214,7 @@ export class TableColumnRulesDialogComponent {
     this.rulesEnabled = !!next;
     this.syncCurrentColumnDraftIntoAll();
     this.recomputeRuleSetsCache();
+    this.emitImmediateSave();
   }
 
   editRuleSetFromList(key: string): void {
@@ -268,6 +273,7 @@ export class TableColumnRulesDialogComponent {
     }
 
     this.recomputeRuleSetsCache();
+    this.emitImmediateSave();
   }
 
   onRuleSetEnabledToggleFromList(key: string, enabled: boolean): void {
@@ -288,41 +294,133 @@ export class TableColumnRulesDialogComponent {
     }
 
     this.recomputeRuleSetsCache();
+    this.emitImmediateSave();
   }
 
   onRuleDraftChanged(): void {
     this.syncCurrentColumnDraftIntoAll();
     this.recomputeRuleSetsCache();
+    this.emitImmediateSave();
   }
 
   startNewRule(): void {
     this.editingRuleId = null;
     this.ruleFormDraft = this.makeDefaultRule();
-    this.ruleFormListText = '';
+    this.ruleFormLogic = 'and';
+    this.ruleFormConditions = [this.makeDefaultCondition()];
   }
 
   beginEditRule(ruleId: string): void {
     const r = (this.rulesDraft || []).find((x) => x?.id === ruleId) ?? null;
     if (!r) return;
     this.editingRuleId = ruleId;
-    this.ruleFormDraft = {
-      ...r,
-      when: { ...(r.when as any) },
-      then: { ...(r.then as any) },
-    };
-    const op = this.ruleFormDraft.when?.op as any;
-    if (op === 'inList' || op === 'notInList') {
-      const values = (this.ruleFormDraft.when as any).values;
-      this.ruleFormListText = Array.isArray(values) && values.length ? values.join(', ') : ((this.ruleFormDraft.when as any).value ?? '').toString();
+    this.ruleFormDraft = { ...r, then: { ...(r.then as any) } } as any;
+
+    const whenAny: any = (r as any).when;
+    if (this.isWhenGroup(whenAny)) {
+      this.ruleFormLogic = (whenAny.logic === 'or' ? 'or' : 'and') as TableConditionLogic;
+      this.ruleFormConditions = (Array.isArray(whenAny.conditions) ? whenAny.conditions : []).map((c: any) => ({ ...(c as any) })) as any;
     } else {
-      this.ruleFormListText = '';
+      this.ruleFormLogic = 'and';
+      this.ruleFormConditions = whenAny ? ([{ ...(whenAny as any) }] as any) : [this.makeDefaultCondition()];
     }
+  }
+
+  addCondition(): void {
+    this.ruleFormConditions = [...(this.ruleFormConditions || []), this.makeDefaultCondition()];
+  }
+
+  removeCondition(idx: number): void {
+    const arr = [...(this.ruleFormConditions || [])];
+    arr.splice(idx, 1);
+    this.ruleFormConditions = arr.length ? arr : [this.makeDefaultCondition()];
+  }
+
+  onConditionOpChanged(idx: number, op: TableConditionOperator): void {
+    const arr = [...(this.ruleFormConditions || [])];
+    const cur: any = arr[idx] ?? {};
+    arr[idx] = { ...(cur as any), op };
+    // Clear operand fields when op changes.
+    if (op === 'isEmpty' || op === 'isNotEmpty') {
+      delete (arr[idx] as any).value;
+      delete (arr[idx] as any).min;
+      delete (arr[idx] as any).max;
+      delete (arr[idx] as any).values;
+    }
+    if (op === 'between' || op === 'notBetween' || op === 'betweenDates') {
+      delete (arr[idx] as any).value;
+      delete (arr[idx] as any).values;
+    }
+    if (op !== 'inList' && op !== 'notInList') {
+      delete (arr[idx] as any).values;
+    }
+    this.ruleFormConditions = arr;
+  }
+
+  isDateOperator(op: TableConditionOperator | undefined | null): boolean {
+    return op === 'before' || op === 'after' || op === 'on' || op === 'betweenDates';
   }
 
   operatorLabel(op: TableConditionOperator | string | undefined | null): string {
     const v = (op ?? '').toString() as any;
     const found = this.ruleOperators.find((x) => x.value === v);
     return found?.label ?? v;
+  }
+
+  /**
+   * Normalize a stored date value (ISO string like '2024-01-15' or any parseable string)
+   * to YYYY-MM-DD for HTML5 date input.
+   */
+  normalizeDateForInput(value: string | undefined | null): string {
+    if (!value) return '';
+    const s = value.toString().trim();
+    if (!s) return '';
+    // If already YYYY-MM-DD format, return as-is.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Try to parse and extract YYYY-MM-DD from a date string.
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+    return '';
+  }
+
+  /**
+   * Normalize a date input value (YYYY-MM-DD) to ISO string for storage.
+   */
+  normalizeDateFromInput(value: string | undefined | null): string {
+    if (!value) return '';
+    const s = value.toString().trim();
+    if (!s) return '';
+    // HTML5 date inputs already emit YYYY-MM-DD, so return as-is.
+    return s;
+  }
+
+  ruleSummary(rule: TableConditionRule): string {
+    const whenAny: any = (rule as any)?.when;
+    if (!whenAny) return '';
+    if (this.isWhenGroup(whenAny)) {
+      const logic = whenAny.logic === 'or' ? 'Any' : 'All';
+      const conds: any[] = Array.isArray(whenAny.conditions) ? whenAny.conditions : [];
+      const parts = conds.map((c) => this.conditionSummary(c)).filter(Boolean);
+      return `${logic}: ${parts.join(' ; ')}`;
+    }
+    return this.conditionSummary(whenAny);
+  }
+
+  private conditionSummary(whenAny: any): string {
+    const op = (whenAny?.op ?? '').toString();
+    const label = this.operatorLabel(op);
+    if (op === 'between' || op === 'notBetween' || op === 'betweenDates') {
+      const min = (whenAny?.min ?? '—').toString();
+      const max = (whenAny?.max ?? '—').toString();
+      return `${label} (${min} → ${max})`;
+    }
+    const value = (whenAny?.value ?? '').toString();
+    return value ? `${label} (${value})` : label;
   }
 
   private firstRuleForEdit(): TableConditionRule | null {
@@ -339,47 +437,79 @@ export class TableColumnRulesDialogComponent {
     }
     this.syncCurrentColumnDraftIntoAll();
     this.recomputeRuleSetsCache();
+    this.emitImmediateSave();
   }
 
   submitRuleForm(): void {
-    const next = this.normalizeRuleFromForm(this.ruleFormDraft, this.ruleFormListText);
+    const builtWhen = this.buildWhenFromForm();
+    const base: TableConditionRule = { ...(this.ruleFormDraft as any), when: builtWhen } as any;
+    const next = this.normalizeRuleFromForm(base);
     if (!next) return;
+
+    // Auto-assign/ensure unique priority.
+    const desired = Number.isFinite(next.priority as any) ? (next.priority as any) : 0;
+    const fixedPriority = this.ensureUniquePriority(desired, next.id);
+    (next as any).priority = fixedPriority;
 
     if (this.editingRuleId) {
       this.rulesDraft = (this.rulesDraft || []).map((r) => (r?.id === this.editingRuleId ? next : r));
     } else {
+      // New rules default to increasing priority if user didn't set it.
+      if (!Number.isFinite(this.ruleFormDraft.priority as any)) {
+        (next as any).priority = this.nextPriority();
+      }
       this.rulesDraft = [...(this.rulesDraft || []), next];
     }
 
     this.syncCurrentColumnDraftIntoAll();
 
-    // UX: do NOT reset the form after add/update.
-    // - After add: keep the added rule loaded so the user can immediately tweak and press Update.
-    // - After update: keep the edited rule loaded.
+    // Persist immediately (no footer Save).
+    this.emitImmediateSave();
+
+    // Keep the saved rule loaded (do not reset form).
     this.editingRuleId = next.id;
-    this.ruleFormDraft = {
-      ...next,
-      when: { ...(next.when as any) },
-      then: { ...(next.then as any) },
-    };
-    const op = this.ruleFormDraft.when?.op as any;
-    if (op === 'inList' || op === 'notInList') {
-      const values = (this.ruleFormDraft.when as any).values;
-      this.ruleFormListText = Array.isArray(values) && values.length ? values.join(', ') : ((this.ruleFormDraft.when as any).value ?? '').toString();
+    this.ruleFormDraft = { ...next, then: { ...(next.then as any) } } as any;
+    const whenAny: any = (next as any).when;
+    if (this.isWhenGroup(whenAny)) {
+      this.ruleFormLogic = (whenAny.logic === 'or' ? 'or' : 'and') as TableConditionLogic;
+      this.ruleFormConditions = (Array.isArray(whenAny.conditions) ? whenAny.conditions : []).map((c: any) => ({ ...(c as any) })) as any;
+    } else {
+      this.ruleFormLogic = 'and';
+      this.ruleFormConditions = whenAny ? ([{ ...(whenAny as any) }] as any) : [this.makeDefaultCondition()];
     }
 
     this.recomputeRuleSetsCache();
   }
 
-  onRuleOpChanged(op: TableConditionOperator): void {
-    (this.ruleFormDraft.when as any).op = op;
-    if (op === 'inList' || op === 'notInList') {
-      const values = (this.ruleFormDraft.when as any).values;
-      this.ruleFormListText = Array.isArray(values) && values.length ? values.join(', ') : ((this.ruleFormDraft.when as any).value ?? '').toString();
-    } else {
-      this.ruleFormListText = '';
-      (this.ruleFormDraft.when as any).values = undefined;
-    }
+  private isWhenGroup(when: any): when is TableConditionGroup {
+    return !!when && typeof when === 'object' && Array.isArray((when as any).conditions);
+  }
+
+  private buildWhenFromForm(): TableRuleWhen {
+    const conds = Array.isArray(this.ruleFormConditions) ? this.ruleFormConditions.filter(Boolean) : [];
+    const normalized = conds.length ? conds : [this.makeDefaultCondition()];
+    if (normalized.length === 1) return normalized[0];
+    return { logic: this.ruleFormLogic === 'or' ? 'or' : 'and', conditions: normalized };
+  }
+
+  private emitImmediateSave(): void {
+    this.save.emit(this.cloneRuleSets(this.columnRulesDraftAll));
+  }
+
+  private nextPriority(): number {
+    const ps = (this.rulesDraft || []).map((r) => (typeof r?.priority === 'number' && Number.isFinite(r.priority) ? r.priority : 0));
+    return (ps.length ? Math.max(...ps) : 0) + 1;
+  }
+
+  private ensureUniquePriority(desired: number, ruleId: string): number {
+    let p = Math.max(0, Math.trunc(Number(desired) || 0));
+    const taken = new Set(
+      (this.rulesDraft || [])
+        .filter((r) => r?.id && r.id !== ruleId)
+        .map((r) => (typeof r.priority === 'number' && Number.isFinite(r.priority) ? r.priority : 0))
+    );
+    while (taken.has(p)) p++;
+    return p;
   }
 
   onSave(): void {
@@ -434,12 +564,16 @@ export class TableColumnRulesDialogComponent {
     }
   }
 
+  private makeDefaultCondition(): TableConditionWhen {
+    return { op: 'greaterThan', value: '0' };
+  }
+
   private makeDefaultRule(): TableConditionRule {
     return {
       id: this.createRuleId(),
       enabled: true,
-      priority: 0,
-      when: { op: 'greaterThan', value: '0' },
+      priority: this.nextPriority(),
+      when: this.makeDefaultCondition() as any,
       then: { backgroundColor: '#fff59d' },
       stopIfTrue: false,
     };
@@ -456,14 +590,7 @@ export class TableColumnRulesDialogComponent {
         : { kind: 'whole' as const, topColIndex: col.index };
 
     const cleanedRules: TableConditionRule[] = (this.rulesDraft || [])
-      .map((r) => {
-        const op = r?.when?.op as any;
-        const listText =
-          op === 'inList' || op === 'notInList'
-            ? (Array.isArray((r.when as any)?.values) ? (r.when as any).values.join(',') : ((r.when as any)?.value ?? '').toString())
-            : '';
-        return this.normalizeRuleFromForm(r, listText) ?? null;
-      })
+      .map((r) => this.normalizeRuleFromForm(r) ?? null)
       .filter((x): x is TableConditionRule => !!x);
 
     const existing = Array.isArray(this.columnRulesDraftAll) ? this.columnRulesDraftAll : [];
@@ -487,27 +614,50 @@ export class TableColumnRulesDialogComponent {
     ];
   }
 
-  private normalizeRuleFromForm(rule: TableConditionRule, listText: string): TableConditionRule | null {
-    if (!rule || !rule.when || !rule.then) return null;
-    const op = rule.when?.op as TableConditionOperator;
+  private normalizeRuleFromForm(rule: TableConditionRule): TableConditionRule | null {
+    if (!rule || !(rule as any).when || !rule.then) return null;
+
+    const normalizeWhen = (whenAny: any): any => {
+      if (this.isWhenGroup(whenAny)) {
+        const logic = whenAny.logic === 'or' ? 'or' : 'and';
+        const conds = (Array.isArray(whenAny.conditions) ? whenAny.conditions : []).map((c: any) => normalizeWhen(c));
+        return { logic, conditions: conds.filter(Boolean) };
+      }
+      const op = (whenAny?.op ?? '') as TableConditionOperator;
+      const out: any = { ...(whenAny as any), op };
+      // Normalize date ops: ensure dates are in YYYY-MM-DD format for backend compatibility.
+      if (op === 'before' || op === 'after' || op === 'on') {
+        const raw = ((out.value ?? '') as any).toString().trim();
+        if (raw) {
+          out.value = this.normalizeDateFromInput(raw);
+        }
+      }
+      if (op === 'betweenDates') {
+        const rawMin = ((out.min ?? '') as any).toString().trim();
+        const rawMax = ((out.max ?? '') as any).toString().trim();
+        if (rawMin) out.min = this.normalizeDateFromInput(rawMin);
+        if (rawMax) out.max = this.normalizeDateFromInput(rawMax);
+      }
+      // Normalize list ops: parse comma-separated value into values[]
+      if (op === 'inList' || op === 'notInList') {
+        const raw = ((out.value ?? '') as any).toString();
+        out.values = raw
+          .split(',')
+          .map((x: string) => x.trim())
+          .filter(Boolean);
+      }
+      return out;
+    };
 
     const next: TableConditionRule = {
       ...rule,
       id: (rule.id ?? '').toString() || this.createRuleId(),
       enabled: rule.enabled !== false,
       priority: Number.isFinite(rule.priority as any) ? (rule.priority as any) : 0,
-      when: { ...(rule.when as any), op },
+      when: normalizeWhen((rule as any).when),
       then: { ...(rule.then as any) },
       stopIfTrue: rule.stopIfTrue === true,
     };
-
-    if (op === 'inList' || op === 'notInList') {
-      const raw = (listText ?? '').toString().trim() || ((next.when.value ?? '') as any).toString();
-      (next.when as any).values = raw
-        .split(',')
-        .map((x: string) => x.trim())
-        .filter(Boolean);
-    }
 
     return next;
   }
