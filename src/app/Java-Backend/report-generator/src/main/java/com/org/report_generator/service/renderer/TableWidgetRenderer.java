@@ -647,9 +647,9 @@ public class TableWidgetRenderer {
         }
 
         if (isHeaderRow) {
-            // Header row: #e5e7eb (overrides user background unless explicitly set)
+            // Header row: light blue (overrides user background unless explicitly set)
             if (backgroundColor.isBlank()) {
-                style.append("background-color: #e5e7eb;");
+                style.append("background-color: #dbeafe;");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }

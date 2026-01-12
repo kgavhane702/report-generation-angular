@@ -499,7 +499,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     if (isHeaderRow) {
       patch.fontWeight = 'bold';
-      patch.backgroundColor = '#e5e7eb';
+      // Header row should be a light blue (friendlier than neutral gray).
+      patch.backgroundColor = '#dbeafe';
       patch.verticalAlign = 'middle';
     }
 

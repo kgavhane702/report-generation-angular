@@ -6,9 +6,8 @@
     [class.editor-guides__line--horizontal]="g.orientation === 'horizontal'"
     [class.editor-guides__line--page]="g.kind === 'page'"
     [class.editor-guides__line--widget]="g.kind === 'widget'"
-    [style.left.px]="g.orientation === 'vertical' ? g.posPx : null"
+    [style.left.px]="g.orientation === 'vertical' ? g.posPx : g.fromPx"
     [style.top.px]="g.orientation === 'horizontal' ? g.posPx : g.fromPx"
-    [style.left.px]="g.orientation === 'horizontal' ? g.fromPx : g.posPx"
     [style.height.px]="g.orientation === 'vertical' ? (g.toPx - g.fromPx) : null"
     [style.width.px]="g.orientation === 'horizontal' ? (g.toPx - g.fromPx) : null"
   ></div>
