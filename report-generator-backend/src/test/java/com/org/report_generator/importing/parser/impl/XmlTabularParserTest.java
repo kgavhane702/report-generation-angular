@@ -140,22 +140,28 @@ class XmlTabularParserTest {
 
         TabularDataset ds = xmlParser.parse(file, new ImportOptions(null, null));
 
-        // JsonTabularParser (array-of-objects) produces: header row + data rows
-        assertThat(ds.rows()).hasSize(3);
+        // JsonTabularParser produces hierarchical headers: 2 header rows + 2 data rows
+        assertThat(ds.rows()).hasSize(4);
         assertThat(ds.rows().get(0).cells()).isNotEmpty();
 
-        String headerConcat = ds.rows().get(0).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
-        assertThat(headerConcat).contains("name");
-        assertThat(headerConcat).contains("@id");
-        assertThat(headerConcat).contains("performance.q1");
-        assertThat(headerConcat).contains("performance.q2");
+        // First header row contains parent headers (performance spans q1, q2)
+        String headerRow0 = ds.rows().get(0).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        assertThat(headerRow0).contains("name");
+        assertThat(headerRow0).contains("@id");
+        assertThat(headerRow0).contains("department");
+        assertThat(headerRow0).contains("performance");
 
-        String row1 = ds.rows().get(1).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        // Second header row contains sub-headers (q1, q2 under performance)
+        String headerRow1 = ds.rows().get(1).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        assertThat(headerRow1).contains("q1");
+        assertThat(headerRow1).contains("q2");
+
+        String row1 = ds.rows().get(2).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
         assertThat(row1).contains("Amit");
         assertThat(row1).contains("1001");
         assertThat(row1).contains("IT");
 
-        String row2 = ds.rows().get(2).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        String row2 = ds.rows().get(3).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
         assertThat(row2).contains("Rohit");
         assertThat(row2).contains("1002");
         assertThat(row2).contains("HR");
