@@ -8,6 +8,7 @@ import { AppState } from '../../store/app.state';
 import { DocumentSelectors } from '../../store/document/document.selectors';
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 import { WidgetModel } from '../../models/widget.model';
+import { getOrientedPageSizeMm, mmToPx } from '../utils/page-dimensions.util';
 
 /**
  * EditorStateService
@@ -346,6 +347,52 @@ export class EditorStateService {
 
   resetZoom(): void {
     this.uiState.resetZoom();
+  }
+
+  /**
+   * Fits the active page into the editor viewport.
+   * This is the single reusable entry point for "Fit" behavior.
+   */
+  fitToWindow(): void {
+    const canvasElement = window.document.querySelector('.editor-shell__canvas') as HTMLElement;
+    if (!canvasElement) {
+      this.setZoom(100);
+      return;
+    }
+
+    const viewportWidth = canvasElement.clientWidth;
+    const viewportHeight = canvasElement.clientHeight;
+
+    const activePage = this.activePage();
+    if (!activePage) {
+      this.setZoom(100);
+      return;
+    }
+
+    const size = this.pageSize();
+    const orientation = activePage.orientation || 'landscape';
+    const { widthMm: pageWidthMm, heightMm: pageHeightMm } = getOrientedPageSizeMm(size, orientation);
+
+    const dpi = size.dpi ?? 96;
+    const pageWidthPx = mmToPx(pageWidthMm, dpi);
+    const pageHeightPx = mmToPx(pageHeightMm, dpi);
+
+    const totalPadding = {
+      top: 32 + 32,
+      right: 48 + 40,
+      bottom: 32 + 32,
+      left: 48 + 40,
+    };
+
+    const zoom = this.calculateFitToWindowZoom(
+      pageWidthPx,
+      pageHeightPx,
+      viewportWidth,
+      viewportHeight,
+      totalPadding
+    );
+
+    this.setZoom(zoom ?? 100);
   }
 
   calculateFitToWindowZoom(

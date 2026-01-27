@@ -179,6 +179,9 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
+    // Initial zoom: fit to window (dynamic) on first render.
+    queueMicrotask(() => this.editorState.fitToWindow());
+
     // Zoom affects layout via wrapperHeight; refresh scroll metrics when zoom changes
     runInInjectionContext(this.injector, () => {
       effect(() => {
