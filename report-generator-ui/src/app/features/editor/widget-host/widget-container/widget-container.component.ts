@@ -225,6 +225,23 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   get isResizing(): boolean {
     return this.uiState.isResizing(this.widgetId);
   }
+
+  /** Signal tracking active rotation state */
+  private readonly _isRotating = signal(false);
+
+  get isRotating(): boolean {
+    return this._isRotating();
+  }
+
+  /**
+   * Returns CSS transform for widget rotation.
+   * Uses the rotation value from widget model.
+   */
+  get rotationTransform(): string {
+    const widget = this.displayWidget();
+    const rotation = widget?.rotation ?? 0;
+    return rotation !== 0 ? `rotate(${rotation}deg)` : '';
+  }
   
   get calculatedZIndex(): number {
     const baseZIndex = 2000;
@@ -500,6 +517,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   @HostListener('document:pointermove', ['$event'])
   onResizePointerMove(event: PointerEvent): void {
+    // Handle rotation move if rotating
+    if (this.isRotating) {
+      this.handleRotationMove(event);
+      return;
+    }
+
     if (!this.isResizing || !this.resizeStart || !this.activeHandle) {
       return;
     }
@@ -564,6 +587,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   @HostListener('document:pointerup', ['$event'])
   onResizePointerUp(event: PointerEvent): void {
+    // Handle rotation end if rotating
+    if (this.isRotating) {
+      this.handleRotationEnd();
+      return;
+    }
+
     if (!this.isResizing) {
       return;
     }
@@ -595,6 +624,116 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         : clamped;
 
       this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+    }
+  }
+  
+  // ============================================
+  // ROTATION HANDLING
+  // ============================================
+  
+  /** Rotation start state for tracking during the gesture */
+  private rotationStartState: {
+    centerX: number;
+    centerY: number;
+    startAngle: number;
+    initialRotation: number;
+  } | null = null;
+
+  /**
+   * Start rotation gesture on pointer down
+   */
+  onRotatePointerDown(event: PointerEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (this.isDocumentLocked) return;
+
+    const widget = this.displayWidget();
+    if (!widget) return;
+
+    // Calculate the logical center of the widget (unrotated frame center)
+    // This ensures the center doesn't shift as the widget rotates
+    const frame = this.frame;
+    const logicalCenterX = frame.x + frame.width / 2;
+    const logicalCenterY = frame.y + frame.height / 2;
+
+    // Get the page canvas element to find its position on screen
+    const pageCanvas = this.hostRef.nativeElement.closest('.page-canvas, .page__canvas');
+    const pageRect = pageCanvas ? pageCanvas.getBoundingClientRect() : { left: 0, top: 0 };
+    
+    // Account for zoom scale
+    const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    
+    // Convert logical center to screen coordinates
+    const centerX = pageRect.left + logicalCenterX * zoomScale;
+    const centerY = pageRect.top + logicalCenterY * zoomScale;
+
+    // Calculate the initial angle from center to pointer
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    const startAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+    this.rotationStartState = {
+      centerX,
+      centerY,
+      startAngle,
+      initialRotation: widget.rotation ?? 0,
+    };
+
+    this._isRotating.set(true);
+
+    // Capture pointer for smooth tracking
+    (event.target as HTMLElement).setPointerCapture(event.pointerId);
+  }
+
+  /**
+   * Track rotation during pointer move (shared with resize handler)
+   */
+  private handleRotationMove(event: PointerEvent): void {
+    if (!this.isRotating || !this.rotationStartState) return;
+
+    event.preventDefault();
+
+    const { centerX, centerY, startAngle, initialRotation } = this.rotationStartState;
+
+    // Calculate current angle from center to pointer
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+    // Calculate the delta angle
+    let deltaAngle = currentAngle - startAngle;
+
+    // Add to the initial rotation
+    let newRotation = initialRotation + deltaAngle;
+
+    // Normalize to 0-360
+    newRotation = ((newRotation % 360) + 360) % 360;
+
+    // Snap to 15-degree increments when holding Shift
+    if (event.shiftKey) {
+      newRotation = Math.round(newRotation / 15) * 15;
+    }
+
+    // Update draft with new rotation
+    this.draftState.updateDraftRotation(this.widgetId, newRotation);
+  }
+
+  /**
+   * Complete rotation on pointer up (shared with resize handler)
+   */
+  private handleRotationEnd(): void {
+    if (!this.isRotating) return;
+
+    const widget = this.displayWidget();
+    
+    // Clear rotation state
+    this._isRotating.set(false);
+    this.rotationStartState = null;
+
+    // Commit rotation to store
+    if (widget) {
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     }
   }

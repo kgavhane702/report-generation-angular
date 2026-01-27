@@ -1,0 +1,42 @@
+<div class="shape-widget-selector">
+  <button
+    type="button"
+    class="shape-widget-selector__trigger"
+    (click)="toggleDropdown()"
+    title="Insert Shape"
+  >
+    <app-icon name="shapes"></app-icon>
+    <span class="shape-widget-selector__label">Shape</span>
+    <app-icon name="caret_down_small"></app-icon>
+  </button>
+
+  <div class="shape-widget-selector__dropdown" *ngIf="isOpen()">
+    <div class="shape-widget-selector__header">Insert Shape</div>
+
+    <!-- Dynamic categories and shapes -->
+    <ng-container *ngFor="let category of categories">
+      <ng-container *ngIf="categoryHasShapes(category.id)">
+        <div class="shape-widget-selector__category">{{ category.label }}</div>
+        
+        <div class="shape-widget-selector__grid">
+          <button
+            *ngFor="let shape of getShapesForCategory(category.id)"
+            type="button"
+            class="shape-widget-selector__item"
+            (click)="select(shape, $event)"
+            [title]="shape.description || ('Insert ' + shape.label)"
+          >
+            <app-icon [name]="shape.icon" [size]="18"></app-icon>
+            <span>{{ shape.label }}</span>
+          </button>
+        </div>
+      </ng-container>
+    </ng-container>
+  </div>
+
+  <div
+    class="shape-widget-selector__backdrop"
+    *ngIf="isOpen()"
+    (click)="onBackdropClick($event)"
+  ></div>
+</div>

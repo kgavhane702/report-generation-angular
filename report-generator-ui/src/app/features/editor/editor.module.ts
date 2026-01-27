@@ -15,6 +15,7 @@ import { TextWidgetComponent } from './plugins/text/widget';
 import { ChartWidgetComponent } from './plugins/chart/widget';
 import { ImageWidgetComponent } from './plugins/image/widget';
 import { TableWidgetComponent } from './plugins/table/widget';
+import { ObjectWidgetComponent } from './plugins/object/widget';
 import { EditastraWidgetComponent } from './plugins/editastra/widget/editastra-widget.component';
 import { EditastraEditorComponent } from './plugins/editastra/editor/editastra-editor.component';
 import { ZoomControlsComponent } from './plugins/editor-tools/zoom-controls/zoom-controls.component';
@@ -22,6 +23,7 @@ import { UndoRedoControlsComponent } from './plugins/editor-tools/undo-redo-cont
 import { ChartRegistryInitializer } from './plugins/chart/engine/runtime';
 import { ChartConfigFormComponent } from './plugins/chart/ui/chart-config-form/chart-config-form.component';
 import { ChartWidgetSelectorComponent } from './plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
+import { ShapeWidgetSelectorComponent } from './plugins/object/ui/shape-widget-selector/shape-widget-selector.component';
 import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
 import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
@@ -52,6 +54,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     ChartWidgetComponent,
     ImageWidgetComponent,
     TableWidgetComponent,
+    ObjectWidgetComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
     SlideNavigatorComponent,
@@ -68,6 +71,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     AppModalComponent,
     ChartConfigFormComponent,
     ChartWidgetSelectorComponent,
+    ShapeWidgetSelectorComponent,
     WidgetToolbarComponent,
     TextWidgetColorPickerComponent,
     TableToolbarComponent,

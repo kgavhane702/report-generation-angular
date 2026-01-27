@@ -257,3 +257,64 @@
   display: block;
 }
 
+// Rotation handle - only shown for object widgets
+.widget-container__rotate {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid #10b981; // Green border
+  background: #ffffff;
+  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #10b981;
+  transition: background-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  z-index: 25; // Above resize handles
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+// Show rotation handle only when widget is selected
+.widget-container--selected .widget-container__rotate {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.widget-container__rotate:hover {
+  background: #10b981;
+  color: #ffffff;
+  transform: translateX(-50%) scale(1.15);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.35);
+  cursor: grab;
+}
+
+.widget-container__rotate:active,
+.widget-container--rotating .widget-container__rotate {
+  cursor: grabbing;
+  background: #059669;
+  color: #ffffff;
+  transform: translateX(-50%) scale(1.1);
+}
+
+.widget-container__rotate svg {
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  display: block;
+}
+
+// While rotating, show a dashed border indicator
+.widget-container--rotating {
+  border: 2px dashed rgba(16, 185, 129, 0.7) !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}

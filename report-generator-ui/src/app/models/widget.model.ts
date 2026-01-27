@@ -40,7 +40,8 @@ export type WidgetProps =
   | EditastraWidgetProps
   | ShapeWidgetProps
   | MediaWidgetProps
-  | TableWidgetProps;
+  | TableWidgetProps
+  | ObjectWidgetProps;
 
 export interface TextWidgetProps {
   contentHtml: string;
@@ -113,6 +114,34 @@ export interface ShapeStroke {
   color: string;
   width: number;
   dashArray?: string;
+}
+
+/**
+ * ObjectWidgetProps
+ *
+ * Widget for geometric shapes (rectangle, circle, ellipse, etc.).
+ * Supports fill color, stroke/border, opacity, and border radius.
+ * See shape.config.ts for all available shape types.
+ */
+export interface ObjectWidgetProps {
+  /** Shape type identifier - see SHAPE_CONFIGS in shape.config.ts */
+  shapeType: string;
+  /** SVG path for the shape (passed to backend for rendering) */
+  svgPath?: string;
+  /** Fill color (hex) */
+  fillColor?: string;
+  /** Opacity (0-100) */
+  opacity?: number;
+  /** Stroke/border configuration */
+  stroke?: ObjectStroke;
+  /** Border radius for rectangles (px) */
+  borderRadius?: number;
+}
+
+export interface ObjectStroke {
+  color: string;
+  width: number;
+  style?: 'solid' | 'dashed' | 'dotted';
 }
 
 export interface MediaWidgetProps {

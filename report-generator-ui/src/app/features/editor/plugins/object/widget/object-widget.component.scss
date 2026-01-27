@@ -1,0 +1,61 @@
+.object-widget {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+
+.object-widget__shape {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+
+  // CSS shapes (rectangle, circle, ellipse)
+  &--css {
+    // Base styling for CSS shapes
+  }
+
+  &--rectangle {
+    // Default rectangle styling
+  }
+
+  &--circle {
+    border-radius: 50%;
+  }
+
+  &--rounded {
+    border-radius: 12px;
+  }
+
+  // SVG shapes (complex polygons, arrows, stars, etc.)
+  &--svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    
+    path {
+      transition: fill 0.2s ease, stroke 0.2s ease, opacity 0.2s ease;
+      vector-effect: non-scaling-stroke;
+    }
+  }
+}
+
+// Hover effect when widget is selected
+:host-context(.widget-container--selected) {
+  .object-widget__shape {
+    &--css {
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+    }
+    
+    &--svg path {
+      filter: drop-shadow(0 0 1px rgba(59, 130, 246, 0.3));
+    }
+  }
+}
+

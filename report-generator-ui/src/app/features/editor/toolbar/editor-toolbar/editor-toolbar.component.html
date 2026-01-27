@@ -114,6 +114,13 @@
       [class.editor-toolbar__disabled-wrap--disabled]="documentLocked()"
       [attr.title]="documentLocked() ? 'Document is locked' : null"
     >
+      <app-shape-widget-selector (shapeSelected)="onShapeSelected($event)"></app-shape-widget-selector>
+    </span>
+    <span
+      class="editor-toolbar__disabled-wrap"
+      [class.editor-toolbar__disabled-wrap--disabled]="documentLocked()"
+      [attr.title]="documentLocked() ? 'Document is locked' : null"
+    >
       <app-chart-widget-selector (actionSelected)="onChartWidgetAction($event)"></app-chart-widget-selector>
     </span>
     <span

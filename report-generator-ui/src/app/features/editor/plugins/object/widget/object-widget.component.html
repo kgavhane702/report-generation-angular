@@ -1,0 +1,31 @@
+<div class="object-widget" (click)="onShapeClick()">
+  <!-- CSS-renderable shapes (rectangle, circle, ellipse, square, rounded-rectangle) -->
+  <div
+    *ngIf="isCssShape"
+    class="object-widget__shape object-widget__shape--css"
+    [ngClass]="shapeClass"
+    [style.background-color]="fillColor"
+    [style.opacity]="opacity"
+    [style.border]="borderStyle"
+    [style.border-radius]="borderRadius"
+  ></div>
+
+  <!-- SVG-renderable shapes (all complex shapes) -->
+  <svg
+    *ngIf="isSvgShape"
+    class="object-widget__shape object-widget__shape--svg"
+    [class.object-widget__shape--line]="isLineShape"
+    viewBox="0 0 100 100"
+    preserveAspectRatio="none"
+    [style.opacity]="opacity"
+  >
+    <path
+      [attr.d]="svgPath"
+      [attr.fill]="svgFill"
+      [attr.stroke]="isLineShape ? effectiveStrokeColor : (strokeWidth > 0 ? strokeColor : 'none')"
+      [attr.stroke-width]="isLineShape ? effectiveStrokeWidth : strokeWidth"
+      [attr.stroke-dasharray]="svgStrokeDasharray"
+      [attr.stroke-linecap]="isLineShape ? 'round' : 'butt'"
+    />
+  </svg>
+</div>

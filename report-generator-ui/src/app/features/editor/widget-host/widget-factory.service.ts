@@ -9,6 +9,7 @@ import {
   ImageWidgetProps,
   EditastraWidgetProps,
   TableWidgetProps,
+  ObjectWidgetProps,
   TableRow,
   WidgetProps,
 } from '../../../models/widget.model';
@@ -31,6 +32,8 @@ export class WidgetFactoryService {
         return this.createEditastraWidget();
       case 'table':
         return this.createTableWidget(props as Partial<TableWidgetProps>);
+      case 'object':
+        return this.createObjectWidget(props as Partial<ObjectWidgetProps>);
       default:
         return this.createFallbackWidget(type);
     }
@@ -100,6 +103,73 @@ export class WidgetFactoryService {
         verticalAlign: 'top',
       },
     };
+  }
+
+  private createObjectWidget(props?: Partial<ObjectWidgetProps>): WidgetModel<ObjectWidgetProps> {
+    const shapeType = props?.shapeType || 'rectangle';
+    const svgPath = this.getShapeSvgPath(shapeType);
+    return {
+      id: uuid(),
+      type: 'object',
+      position: { x: 100, y: 100 },
+      size: { width: 200, height: shapeType === 'circle' ? 200 : 150 },
+      zIndex: 1,
+      props: {
+        shapeType,
+        svgPath,
+        fillColor: props?.fillColor || '#3b82f6',
+        opacity: props?.opacity ?? 100,
+        stroke: props?.stroke || { color: '#000000', width: 0, style: 'solid' },
+        borderRadius: props?.borderRadius ?? 0,
+      },
+    };
+  }
+
+  /**
+   * Get the SVG path for a shape type.
+   * Returns empty string for CSS-renderable shapes (rectangle, circle, etc.)
+   */
+  private getShapeSvgPath(shapeType: string): string {
+    // CSS shapes don't need SVG paths
+    const cssShapes = ['rectangle', 'square', 'rounded-rectangle', 'circle', 'ellipse'];
+    if (cssShapes.includes(shapeType)) {
+      return '';
+    }
+    
+    // Import dynamically to avoid circular dependencies
+    const paths: Record<string, string> = {
+      'triangle': 'M 50 5 L 95 95 L 5 95 Z',
+      'diamond': 'M 50 5 L 95 50 L 50 95 L 5 50 Z',
+      'pentagon': 'M 50 5 L 95 38 L 79 95 L 21 95 L 5 38 Z',
+      'hexagon': 'M 25 5 L 75 5 L 100 50 L 75 95 L 25 95 L 0 50 Z',
+      'octagon': 'M 30 5 L 70 5 L 95 30 L 95 70 L 70 95 L 30 95 L 5 70 L 5 30 Z',
+      'parallelogram': 'M 20 5 L 95 5 L 80 95 L 5 95 Z',
+      'trapezoid': 'M 20 5 L 80 5 L 95 95 L 5 95 Z',
+      'line': 'M 5 50 L 95 50',
+      'arrow-right': 'M 5 40 L 60 40 L 60 20 L 95 50 L 60 80 L 60 60 L 5 60 Z',
+      'arrow-left': 'M 95 40 L 40 40 L 40 20 L 5 50 L 40 80 L 40 60 L 95 60 Z',
+      'arrow-up': 'M 40 95 L 40 40 L 20 40 L 50 5 L 80 40 L 60 40 L 60 95 Z',
+      'arrow-down': 'M 40 5 L 40 60 L 20 60 L 50 95 L 80 60 L 60 60 L 60 5 Z',
+      'arrow-double': 'M 5 50 L 25 25 L 25 40 L 75 40 L 75 25 L 95 50 L 75 75 L 75 60 L 25 60 L 25 75 Z',
+      'flowchart-process': 'M 5 5 L 95 5 L 95 95 L 5 95 Z',
+      'flowchart-decision': 'M 50 5 L 95 50 L 50 95 L 5 50 Z',
+      'flowchart-data': 'M 20 5 L 95 5 L 80 95 L 5 95 Z',
+      'flowchart-terminator': 'M 20 5 Q 5 5 5 50 Q 5 95 20 95 L 80 95 Q 95 95 95 50 Q 95 5 80 5 Z',
+      'callout-rectangle': 'M 5 5 L 95 5 L 95 70 L 50 70 L 35 95 L 35 70 L 5 70 Z',
+      'callout-rounded': 'M 15 5 Q 5 5 5 15 L 5 55 Q 5 65 15 65 L 30 65 L 35 80 L 40 65 L 85 65 Q 95 65 95 55 L 95 15 Q 95 5 85 5 Z',
+      'callout-cloud': 'M 30 20 Q 5 15 15 40 Q 0 50 15 65 Q 10 85 35 80 L 25 95 L 40 80 Q 60 90 75 75 Q 95 80 90 60 Q 100 45 85 35 Q 95 15 70 20 Q 55 5 30 20 Z',
+      'star-4': 'M 50 5 L 60 40 L 95 50 L 60 60 L 50 95 L 40 60 L 5 50 L 40 40 Z',
+      'star-5': 'M 50 5 L 61 38 L 95 38 L 68 59 L 79 95 L 50 73 L 21 95 L 32 59 L 5 38 L 39 38 Z',
+      'star-6': 'M 50 5 L 62 30 L 93 20 L 75 45 L 93 80 L 62 70 L 50 95 L 38 70 L 7 80 L 25 45 L 7 20 L 38 30 Z',
+      'star-8': 'M 50 5 L 60 25 L 85 10 L 75 35 L 95 50 L 75 65 L 85 90 L 60 75 L 50 95 L 40 75 L 15 90 L 25 65 L 5 50 L 25 35 L 15 10 L 40 25 Z',
+      'banner': 'M 5 20 L 95 20 L 85 50 L 95 80 L 5 80 L 15 50 Z',
+      'cross': 'M 35 5 L 65 5 L 65 35 L 95 35 L 95 65 L 65 65 L 65 95 L 35 95 L 35 65 L 5 65 L 5 35 L 35 35 Z',
+      'heart': 'M 50 90 Q 5 55 5 35 Q 5 10 27 10 Q 45 10 50 30 Q 55 10 73 10 Q 95 10 95 35 Q 95 55 50 90 Z',
+      'lightning': 'M 60 5 L 20 50 L 40 50 L 35 95 L 80 45 L 55 45 Z',
+      'moon': 'M 70 10 Q 30 10 30 50 Q 30 90 70 90 Q 45 80 45 50 Q 45 20 70 10 Z',
+      'cloud': 'M 25 70 Q 5 70 5 55 Q 5 40 20 40 Q 20 25 35 25 Q 45 10 60 20 Q 75 10 85 25 Q 95 30 95 45 Q 100 60 85 70 Z',
+    };
+    return paths[shapeType] || '';
   }
 
   private createTableWidget(props?: Partial<TableWidgetProps>): WidgetModel<TableWidgetProps> {

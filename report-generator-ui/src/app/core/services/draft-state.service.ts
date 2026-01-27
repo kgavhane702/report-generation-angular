@@ -182,6 +182,13 @@ export class DraftStateService {
   updateDraftProps(widgetId: string, props: Partial<WidgetProps>): void {
     this.updateDraft(widgetId, { props });
   }
+
+  /**
+   * Update only the rotation in the draft (for rotation operations)
+   */
+  updateDraftRotation(widgetId: string, rotation: number): void {
+    this.updateDraft(widgetId, { rotation });
+  }
   
   /**
    * Commit draft changes to the NgRx store

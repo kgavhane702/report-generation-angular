@@ -223,9 +223,9 @@ public class DocumentRenderService {
             style.append("z-index: ").append(widget.getZIndex()).append(";");
         }
 
-        // Optional rotation (degrees). Keep origin at top-left to match absolute positioning expectations.
+        // Optional rotation (degrees). Use center origin to match frontend behavior.
         if (widget.getRotation() != null && Double.isFinite(widget.getRotation()) && Math.abs(widget.getRotation()) > 0.00001d) {
-            style.append("transform-origin: top left;");
+            style.append("transform-origin: center center;");
             style.append("transform: rotate(").append(widget.getRotation()).append("deg);");
         }
 

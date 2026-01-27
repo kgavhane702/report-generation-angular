@@ -25,6 +25,7 @@ import { createDefaultChartData, createEmptyChartData } from '../../../../models
 import type { ChartWidgetProps } from '../../../../models/widget.model';
 import type { ChartType } from '../../../../models/chart-data.model';
 import type { ChartWidgetInsertAction } from '../../plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
+import type { ShapeConfig } from '../../plugins/object/config/shape.config';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
@@ -142,6 +143,25 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
     this.documentService.addWidget(pageId, widget);
     
     // Set the newly added widget as active
+    this.editorState.setActiveWidget(widget.id);
+  }
+
+  onShapeSelected(shapeConfig: ShapeConfig): void {
+    if (this.documentLocked()) {
+      this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
+      return;
+    }
+    const pageId = this.editorState.activePageId();
+    if (!pageId) {
+      return;
+    }
+
+    const widget = this.widgetFactory.createWidget('object', { 
+      shapeType: shapeConfig.id,
+      fillColor: shapeConfig.defaultFillColor,
+      borderRadius: shapeConfig.defaultBorderRadius,
+    });
+    this.documentService.addWidget(pageId, widget);
     this.editorState.setActiveWidget(widget.id);
   }
 

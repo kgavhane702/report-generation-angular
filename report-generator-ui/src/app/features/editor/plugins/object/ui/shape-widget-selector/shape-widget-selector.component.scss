@@ -1,0 +1,155 @@
+.shape-widget-selector {
+  position: relative;
+  display: inline-block;
+
+  &__trigger {
+    // Match editor toolbar icon-button style: flat, no rectangle border
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    height: 1.25rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: #475569;
+    font-size: inherit;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+
+    &:active {
+      background: #e2e8f0;
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0, 58, 155, 0.28);
+      background-color: rgba(148, 163, 184, 0.12);
+    }
+  }
+
+  &__label {
+    font-weight: 600;
+    font-size: inherit;
+    line-height: 1;
+  }
+
+  // Ensure icons don't introduce baseline spacing vs text
+  &__trigger app-icon,
+  &__trigger .app-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 1000;
+    background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
+    border: 0.5px solid rgba(15, 23, 42, 0.08);
+    border-radius: 3px;
+    box-shadow: 
+      0 4px 16px rgba(0, 0, 0, 0.08),
+      0 2px 8px rgba(0, 0, 0, 0.04),
+      0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+    padding: 8px 6px;
+    min-width: 280px;
+    max-width: 320px;
+    max-height: 400px;
+    overflow-y: auto;
+    animation: shapeDropdownFadeIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__header {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 4px;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid rgba(15, 23, 42, 0.06);
+  }
+
+  &__category {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    padding: 8px 6px 4px;
+    margin-top: 4px;
+
+    &:first-of-type {
+      margin-top: 0;
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 2px;
+    background: transparent;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+    position: relative;
+
+    &:hover {
+      background: linear-gradient(to right, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.08));
+      color: #0f172a;
+      transform: translateX(2px);
+    }
+
+    &:active {
+      transform: translateX(1px);
+    }
+
+    span {
+      flex: 1;
+    }
+  }
+
+  &__backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+  }
+}
+
+@keyframes shapeDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

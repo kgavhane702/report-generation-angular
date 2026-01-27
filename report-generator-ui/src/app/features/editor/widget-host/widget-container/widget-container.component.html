@@ -4,10 +4,11 @@
     class="widget-container"
     [class.widget-container--selected]="isSelected"
     [class.widget-container--resizing]="isResizing"
+    [class.widget-container--rotating]="isRotating"
     [attr.data-widget-id]="widgetId"
     cdkDrag
     [cdkDragConstrainPosition]="constrainDragPosition"
-    [cdkDragDisabled]="isEditing || isResizing || isDocumentLocked"
+    [cdkDragDisabled]="isEditing || isResizing || isRotating || isDocumentLocked"
     (cdkDragStarted)="onDragStarted($event)"
     (cdkDragMoved)="onDragMoved($event)"
     (cdkDragEnded)="onDragEnded($event)"
@@ -17,6 +18,7 @@
     [style.width.px]="frame.width"
     [style.height.px]="frame.height"
     [style.zIndex]="calculatedZIndex"
+    [style.transform]="rotationTransform"
   >
     <!-- Border drag handles - only these areas allow dragging -->
     <div 
@@ -78,6 +80,12 @@
           (propsChange)="onContentChange($event)"
         ></app-editastra-widget>
 
+        <app-object-widget
+          *ngSwitchCase="'object'"
+          [widget]="$any(widget)"
+          (propsChange)="onContentChange($event)"
+        ></app-object-widget>
+
         <div *ngSwitchDefault class="widget-container__placeholder">
           {{ widget.type }} widget
         </div>
@@ -129,6 +137,18 @@
         type="button"
         (pointerdown)="onResizePointerDown($event, 'top')"
       ></button>
+
+      <!-- Rotation handle - only for object widgets -->
+      <button
+        *ngIf="widget.type === 'object'"
+        class="widget-container__rotate"
+        type="button"
+        (pointerdown)="onRotatePointerDown($event)"
+        title="Rotate shape"
+        aria-label="Rotate shape"
+      >
+        <app-icon name="rotate" [size]="12"></app-icon>
+      </button>
     </ng-container>
 
     <button
