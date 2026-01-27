@@ -37,6 +37,8 @@ export interface ShapeConfig {
   defaultBorderRadius?: number;
   /** Whether this shape supports border radius */
   supportsBorderRadius?: boolean;
+  /** Whether this shape supports text content (editable via Editastra) */
+  supportsText?: boolean;
   /** SVG path data for custom shapes (optional) */
   svgPath?: string;
   /** Order within category for sorting */
@@ -58,6 +60,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a rectangle shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: true,
+    supportsText: true,
     defaultBorderRadius: 0,
     order: 1,
   },
@@ -69,6 +72,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a circle shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 2,
   },
   {
@@ -79,6 +83,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert an ellipse shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 3,
   },
   {
@@ -89,6 +94,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a square shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: true,
+    supportsText: true,
     defaultBorderRadius: 0,
     order: 4,
   },
@@ -100,6 +106,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a rounded rectangle shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: true,
+    supportsText: true,
     defaultBorderRadius: 12,
     order: 5,
   },
@@ -214,6 +221,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Flowchart process shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: true,
+    supportsText: true,
     order: 1,
   },
   {
@@ -223,6 +231,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'flowchart',
     description: 'Flowchart decision shape',
     defaultFillColor: '#f59e0b',
+    supportsText: true,
     order: 2,
   },
   {
@@ -232,6 +241,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'flowchart',
     description: 'Flowchart start/end shape',
     defaultFillColor: '#10b981',
+    supportsText: true,
     order: 3,
   },
   {
@@ -241,6 +251,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'flowchart',
     description: 'Flowchart data shape',
     defaultFillColor: '#8b5cf6',
+    supportsText: true,
     order: 4,
   },
 
@@ -254,6 +265,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'callouts',
     description: 'Insert a rectangle callout',
     defaultFillColor: '#fef3c7',
+    supportsText: true,
     order: 1,
   },
   {
@@ -263,6 +275,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'callouts',
     description: 'Insert a rounded callout',
     defaultFillColor: '#fef3c7',
+    supportsText: true,
     order: 2,
   },
 
@@ -303,6 +316,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'stars',
     description: 'Insert a banner shape',
     defaultFillColor: '#ef4444',
+    supportsText: true,
     order: 4,
   },
 
@@ -421,4 +435,12 @@ export function getAllShapeIds(): string[] {
  */
 export function isValidShapeId(shapeId: string): boolean {
   return SHAPE_CONFIGS.some(s => s.id === shapeId);
+}
+
+/**
+ * Check if a shape supports text content (editable via Editastra)
+ */
+export function shapeSupportsText(shapeType: string): boolean {
+  const config = getShapeConfig(shapeType);
+  return config?.supportsText === true;
 }

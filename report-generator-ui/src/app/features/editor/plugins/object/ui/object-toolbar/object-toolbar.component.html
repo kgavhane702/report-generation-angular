@@ -1,0 +1,76 @@
+<div class="object-toolbar">
+  <!-- Text formatting first (only for shapes that support text) -->
+  <ng-container *ngIf="supportsText">
+    <app-editastra-toolbar
+      class="object-toolbar__editastra"
+      renderMode="embedded"
+      [enabledForWidgetTypes]="['object']"
+      [pluginList]="textFormattingPlugins"
+    ></app-editastra-toolbar>
+
+    <div class="object-toolbar__separator"></div>
+  </ng-container>
+
+  <!-- Group: Fill Color -->
+  <div class="object-toolbar__group">
+    <app-color-picker
+      [currentColor]="fillColor"
+      [colorPalette]="fillColorPalette"
+      icon="format_color_fill"
+      title="Fill color"
+      (colorSelected)="onFillColorChange($event)"
+    ></app-color-picker>
+  </div>
+
+  <div class="object-toolbar__separator"></div>
+
+  <!-- Group: Border/Stroke -->
+  <div class="object-toolbar__group">
+    <app-border-picker
+      [value]="borderValue"
+      (valueChange)="onBorderValueChange($event)"
+    ></app-border-picker>
+  </div>
+
+  <div class="object-toolbar__separator"></div>
+
+  <!-- Group: Opacity -->
+  <div class="object-toolbar__group">
+    <span class="object-toolbar__field-label">Opacity:</span>
+    <div class="object-toolbar__input-group">
+      <input
+        #opacityInput
+        type="number"
+        min="0"
+        max="100"
+        class="object-toolbar__input object-toolbar__input--small"
+        [value]="opacity"
+        (change)="onOpacityChange($event)"
+        title="Opacity (0-100)"
+      />
+      <span class="object-toolbar__input-suffix">%</span>
+    </div>
+  </div>
+
+  <!-- Text-related layout controls (only for shapes that support text) -->
+  <ng-container *ngIf="supportsText">
+    <div class="object-toolbar__separator"></div>
+
+    <!-- Group: Padding -->
+    <div class="object-toolbar__group">
+      <span class="object-toolbar__field-label">Padding:</span>
+      <div class="object-toolbar__input-group">
+        <input
+          type="number"
+          min="0"
+          max="50"
+          class="object-toolbar__input object-toolbar__input--small"
+          [value]="padding"
+          (change)="onPaddingChange($event)"
+          title="Text padding (px)"
+        />
+        <span class="object-toolbar__input-suffix">px</span>
+      </div>
+    </div>
+  </ng-container>
+</div>

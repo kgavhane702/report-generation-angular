@@ -1,0 +1,149 @@
+.object-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  max-width: 100%;
+
+  &__group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  &__separator {
+    width: 1px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 4px;
+  }
+
+  &__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+    line-height: 1;
+
+    app-icon,
+    .app-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.06);
+      color: #1e293b;
+    }
+
+    &--active {
+      background: rgba(59, 130, 246, 0.12);
+      color: #2563eb;
+    }
+
+    &:active:not(:disabled) {
+      background: rgba(0, 0, 0, 0.1);
+      transform: scale(0.96);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__input-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__input {
+    width: 52px;
+    height: 26px;
+    padding: 0 8px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+    background: #fff;
+    color: #0f172a;
+
+    // Remove spinners so 3-digit values (e.g. 100) fit in compact inputs.
+    &[type='number']::-webkit-outer-spin-button,
+    &[type='number']::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    &[type='number'] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+
+    &--small {
+      width: 56px;
+    }
+  }
+
+  &__input-suffix {
+    font-size: 11px;
+    color: #64748b;
+    margin-left: 2px;
+  }
+
+  // Let the embedded Editastra toolbar groups/separators participate in the same flex row.
+  &__editastra {
+    display: contents;
+  }
+
+  // Compact the shared picker triggers so they match Editastra's 32px icon buttons.
+  :where(.color-picker__trigger) {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  :where(.border-picker__trigger) {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 0;
+    gap: 0;
+    justify-content: center;
+  }
+
+  // Remove the "Border" text label from the compact trigger.
+  :where(.border-picker__icon) {
+    display: none;
+  }
+
+  :where(.border-picker__preview-line) {
+    width: 22px;
+  }
+}

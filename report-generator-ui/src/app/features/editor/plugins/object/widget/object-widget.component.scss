@@ -46,6 +46,54 @@
   }
 }
 
+// ============================================
+// TEXT CONTENT OVERLAY
+// ============================================
+
+.object-widget__text-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: text;
+  
+  // Vertical alignment via data attribute
+  &[data-v-align="top"] {
+    justify-content: flex-start;
+  }
+  
+  &[data-v-align="middle"] {
+    justify-content: center;
+  }
+  
+  &[data-v-align="bottom"] {
+    justify-content: flex-end;
+  }
+}
+
+// Editor styling within shapes
+:host ::ng-deep .object-widget__editor {
+  // Minimal styling - inherits from shape
+  min-height: 1em;
+  outline: none;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  
+  // Placeholder styling
+  &:empty::before {
+    content: attr(data-placeholder);
+    color: rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    font-style: italic;
+  }
+}
+
 // Hover effect when widget is selected
 :host-context(.widget-container--selected) {
   .object-widget__shape {
@@ -58,4 +106,3 @@
     }
   }
 }
-

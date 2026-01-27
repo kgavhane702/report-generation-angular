@@ -51,18 +51,27 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         }
         
         int borderRadius = props.path("borderRadius").asInt(0);
+        
+        // Text content properties
+        String contentHtml = props.path("contentHtml").asText("");
+        String verticalAlign = props.path("verticalAlign").asText("middle");
+        String textAlign = props.path("textAlign").asText("center");
+        int padding = props.path("padding").asInt(8);
 
         // Determine render type
         if (CSS_SHAPES.contains(shapeType)) {
-            return renderCssShape(shapeType, fillColor, opacity, strokeColor, strokeWidth, strokeStyle, borderRadius, widgetStyle);
+            return renderCssShape(shapeType, fillColor, opacity, strokeColor, strokeWidth, strokeStyle, 
+                                  borderRadius, contentHtml, verticalAlign, textAlign, padding, widgetStyle);
         } else {
-            return renderSvgShape(shapeType, svgPath, fillColor, opacity, strokeColor, strokeWidth, strokeStyle, widgetStyle);
+            return renderSvgShape(shapeType, svgPath, fillColor, opacity, strokeColor, strokeWidth, strokeStyle,
+                                  contentHtml, verticalAlign, textAlign, padding, widgetStyle);
         }
     }
 
     private String renderCssShape(String shapeType, String fillColor, int opacity, 
                                    String strokeColor, int strokeWidth, String strokeStyle,
-                                   int borderRadius, String widgetStyle) {
+                                   int borderRadius, String contentHtml, String verticalAlign, 
+                                   String textAlign, int padding, String widgetStyle) {
         StringBuilder styleBuilder = new StringBuilder();
         styleBuilder.append("width: 100%; height: 100%; box-sizing: border-box; ");
         
@@ -86,20 +95,26 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
 
         String escapedWidgetStyle = escapeHtmlAttribute(widgetStyle);
         String shapeStyle = styleBuilder.toString();
+        
+        // Build text overlay if content exists
+        String textOverlay = buildTextOverlay(contentHtml, verticalAlign, textAlign, padding);
 
         return String.format(
-            "<div class=\"widget widget-object\" style=\"%s\">" +
+            "<div class=\"widget widget-object\" style=\"%s position: relative;\">" +
                 "<div class=\"widget-object__shape widget-object__shape--css\" data-shape=\"%s\" style=\"%s\"></div>" +
+                "%s" +
             "</div>",
             escapedWidgetStyle,
             escapeHtmlAttribute(shapeType),
-            escapeHtmlAttribute(shapeStyle)
+            escapeHtmlAttribute(shapeStyle),
+            textOverlay
         );
     }
 
     private String renderSvgShape(String shapeType, String svgPath, String fillColor, int opacity,
                                    String strokeColor, int strokeWidth, String strokeStyle,
-                                   String widgetStyle) {
+                                   String contentHtml, String verticalAlign, String textAlign, 
+                                   int padding, String widgetStyle) {
         // Use svgPath from props, fallback to rectangle if empty
         if (svgPath == null || svgPath.isEmpty()) {
             svgPath = "M 5 5 L 95 5 L 95 95 L 5 95 Z"; // Fallback to rectangle
@@ -138,20 +153,62 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
 
         String escapedWidgetStyle = escapeHtmlAttribute(widgetStyle);
         double opacityValue = opacity / 100.0;
+        
+        // Build text overlay if content exists
+        String textOverlay = buildTextOverlay(contentHtml, verticalAlign, textAlign, padding);
 
         return String.format(
-            "<div class=\"widget widget-object\" style=\"%s\">" +
+            "<div class=\"widget widget-object\" style=\"%s position: relative;\">" +
                 "<svg class=\"widget-object__shape widget-object__shape--svg\" " +
                     "viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" " +
                     "style=\"width: 100%%; height: 100%%; display: block; opacity: %s;\">" +
                     "<path d=\"%s\" fill=\"%s\" %s vector-effect=\"non-scaling-stroke\" />" +
                 "</svg>" +
+                "%s" +
             "</div>",
             escapedWidgetStyle,
             opacityValue,
             escapeHtmlAttribute(svgPath),
             fillAttr,
-            strokeAttr
+            strokeAttr,
+            textOverlay
+        );
+    }
+    
+    /**
+     * Build the text overlay HTML for shapes that contain text content.
+     */
+    private String buildTextOverlay(String contentHtml, String verticalAlign, String textAlign, int padding) {
+        if (contentHtml == null || contentHtml.trim().isEmpty()) {
+            return "";
+        }
+        
+        // Map vertical alignment to CSS flexbox
+        String justifyContent;
+        switch (verticalAlign) {
+            case "top":
+                justifyContent = "flex-start";
+                break;
+            case "bottom":
+                justifyContent = "flex-end";
+                break;
+            default: // middle
+                justifyContent = "center";
+                break;
+        }
+        
+        String overlayStyle = String.format(
+            "position: absolute; top: 0; left: 0; right: 0; bottom: 0; " +
+            "display: flex; flex-direction: column; justify-content: %s; " +
+            "text-align: %s; padding: %dpx; box-sizing: border-box; " +
+            "overflow: hidden; word-wrap: break-word;",
+            justifyContent, textAlign, padding
+        );
+        
+        return String.format(
+            "<div class=\"widget-object__text\" style=\"%s\">%s</div>",
+            overlayStyle,
+            contentHtml  // Don't escape - this is already sanitized HTML content
         );
     }
 

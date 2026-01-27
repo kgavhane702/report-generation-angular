@@ -28,4 +28,24 @@
       [attr.stroke-linecap]="isLineShape ? 'round' : 'butt'"
     />
   </svg>
+
+  <!-- Text content overlay for editable shapes -->
+  <div
+    *ngIf="supportsText"
+    class="object-widget__text-container"
+    [attr.data-v-align]="verticalAlign"
+    [style.padding.px]="textPadding"
+    [style.text-align]="textAlign"
+    (click)="$event.stopPropagation(); focusEditor()"
+  >
+    <app-editastra-editor
+      [html]="localHtml()"
+      [placeholder]="placeholder"
+      variant="table"
+      editorClass="object-widget__editor"
+      (editorFocus)="onEditorFocus()"
+      (editorBlur)="onEditorBlur()"
+      (htmlInput)="onEditorInput($event)"
+    ></app-editastra-editor>
+  </div>
 </div>

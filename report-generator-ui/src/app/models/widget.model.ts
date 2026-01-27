@@ -136,6 +136,19 @@ export interface ObjectWidgetProps {
   stroke?: ObjectStroke;
   /** Border radius for rectangles (px) */
   borderRadius?: number;
+  
+  // ============================================
+  // TEXT CONTENT (for editable shapes)
+  // ============================================
+  
+  /** HTML content for editable shapes (rectangles, callouts, etc.) */
+  contentHtml?: string;
+  /** Vertical alignment of text content */
+  verticalAlign?: 'top' | 'middle' | 'bottom';
+  /** Horizontal alignment of text content */
+  textAlign?: 'left' | 'center' | 'right';
+  /** Padding inside the shape for text content (px) */
+  padding?: number;
 }
 
 export interface ObjectStroke {

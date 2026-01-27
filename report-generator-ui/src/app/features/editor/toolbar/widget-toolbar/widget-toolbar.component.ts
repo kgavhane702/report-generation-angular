@@ -9,6 +9,7 @@ import { TableToolbarComponent } from '../../plugins/table/ui/table-toolbar/tabl
 import { ChartToolbarComponent } from '../../plugins/chart/ui/chart-toolbar/chart-toolbar.component';
 import { EditastraToolbarComponent } from '../../plugins/editastra/ui/editastra-toolbar/editastra-toolbar.component';
 import { ImageToolbarComponent } from '../../plugins/image/ui/image-toolbar/image-toolbar.component';
+import { ObjectToolbarComponent } from '../../plugins/object/ui/object-toolbar/object-toolbar.component';
 
 type WidgetToolbarRegistry = Partial<Record<WidgetType, Type<unknown>>>;
 
@@ -37,6 +38,7 @@ export class WidgetToolbarComponent {
     chart: ChartToolbarComponent,
     editastra: EditastraToolbarComponent,
     image: ImageToolbarComponent,
+    object: ObjectToolbarComponent,
   };
 
   readonly toolbarComponent = computed<Type<unknown> | null>(() => {
