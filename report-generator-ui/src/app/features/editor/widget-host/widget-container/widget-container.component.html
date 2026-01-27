@@ -96,45 +96,53 @@
       <button
         class="widget-container__resize widget-container__resize--right"
         type="button"
+        [style.cursor]="getResizeCursor('right')"
         (pointerdown)="onResizePointerDown($event, 'right')"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--bottom"
         type="button"
+        [style.cursor]="getResizeCursor('bottom')"
         (pointerdown)="onResizePointerDown($event, 'bottom')"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--corner"
         type="button"
+        [style.cursor]="getResizeCursor('corner')"
         (pointerdown)="onResizePointerDown($event, 'corner')"
         title="Resize (bottom-right)"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--corner-top-right"
         type="button"
+        [style.cursor]="getResizeCursor('corner-top-right')"
         (pointerdown)="onResizePointerDown($event, 'corner-top-right')"
         title="Resize (top-right)"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--corner-top-left"
         type="button"
+        [style.cursor]="getResizeCursor('corner-top-left')"
         (pointerdown)="onResizePointerDown($event, 'corner-top-left')"
         title="Resize (top-left)"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--corner-bottom-left"
         type="button"
+        [style.cursor]="getResizeCursor('corner-bottom-left')"
         (pointerdown)="onResizePointerDown($event, 'corner-bottom-left')"
         title="Resize (bottom-left)"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--left"
         type="button"
+        [style.cursor]="getResizeCursor('left')"
         (pointerdown)="onResizePointerDown($event, 'left')"
       ></button>
       <button
         class="widget-container__resize widget-container__resize--top"
         type="button"
+        [style.cursor]="getResizeCursor('top')"
         (pointerdown)="onResizePointerDown($event, 'top')"
       ></button>
 
@@ -174,5 +182,7 @@
     [style.width.px]="gf.width"
     [style.height.px]="gf.height"
     [style.zIndex]="calculatedZIndex + 50"
+    [style.transform]="rotationTransform"
+    [style.transform-origin]="'center center'"
   ></div>
 </ng-container>

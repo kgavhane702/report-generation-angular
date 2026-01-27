@@ -198,6 +198,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     positionY: number;
     minWidth: number;
     minHeight: number;
+    rotation: number; // Widget rotation in degrees at resize start
   };
   
   /** Local preview frame for smooth resize without store updates */
@@ -241,6 +242,50 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const widget = this.displayWidget();
     const rotation = widget?.rotation ?? 0;
     return rotation !== 0 ? `rotate(${rotation}deg)` : '';
+  }
+
+  /**
+   * Get rotation-aware cursor for a resize handle.
+   * The cursor changes based on the widget's rotation to always point
+   * in the correct resize direction.
+   */
+  getResizeCursor(handle: ResizeHandle): string {
+    const widget = this.displayWidget();
+    const rotation = widget?.rotation ?? 0;
+    
+    // Base cursor angles for each handle (in degrees, 0 = right/east)
+    // These are the angles at which the handle points when rotation = 0
+    const handleAngles: Record<ResizeHandle, number> = {
+      'right': 0,
+      'corner': 45,           // bottom-right, points SE
+      'bottom': 90,
+      'corner-bottom-left': 135,
+      'left': 180,
+      'corner-top-left': 225,
+      'top': 270,
+      'corner-top-right': 315,
+    };
+    
+    // Cursor options in 45-degree increments (starting from 0 = E)
+    const cursors = [
+      'ew-resize',    // 0: E-W (horizontal)
+      'nwse-resize',  // 45: NW-SE (diagonal)
+      'ns-resize',    // 90: N-S (vertical)
+      'nesw-resize',  // 135: NE-SW (diagonal)
+      'ew-resize',    // 180: E-W (horizontal)
+      'nwse-resize',  // 225: NW-SE (diagonal)
+      'ns-resize',    // 270: N-S (vertical)
+      'nesw-resize',  // 315: NE-SW (diagonal)
+    ];
+    
+    // Calculate effective angle with rotation
+    const baseAngle = handleAngles[handle];
+    const effectiveAngle = (baseAngle + rotation + 360) % 360;
+    
+    // Round to nearest 45 degrees and get cursor index
+    const cursorIndex = Math.round(effectiveAngle / 45) % 8;
+    
+    return cursors[cursorIndex];
   }
   
   get calculatedZIndex(): number {
@@ -496,6 +541,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     const widget = this.displayWidget();
     const { minWidth, minHeight } = this.computeResizeMinConstraints(widget);
+    const rotation = widget?.rotation ?? 0;
     
     this.resizeStart = {
       width: this.frame.width,
@@ -506,6 +552,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       positionY: this.frame.y,
       minWidth,
       minHeight,
+      rotation,
     };
     
     // Initialize preview frame
@@ -529,59 +576,151 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     event.preventDefault();
     
-    const deltaX = event.clientX - this.resizeStart.pointerX;
-    const deltaY = event.clientY - this.resizeStart.pointerY;
+    // Raw screen delta
+    const rawDeltaX = event.clientX - this.resizeStart.pointerX;
+    const rawDeltaY = event.clientY - this.resizeStart.pointerY;
     
-    let nextWidth = this.resizeStart.width;
-    let nextHeight = this.resizeStart.height;
-    let nextX = this.resizeStart.positionX;
-    let nextY = this.resizeStart.positionY;
+    // Transform screen delta to local widget coordinates (accounting for rotation)
+    const rotation = this.resizeStart.rotation;
+    const radians = (rotation * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    
+    // Rotate the delta vector by -rotation to get local deltas
+    const localDeltaX = rawDeltaX * cos + rawDeltaY * sin;
+    const localDeltaY = -rawDeltaX * sin + rawDeltaY * cos;
+    
+    // Original dimensions
+    const origW = this.resizeStart.width;
+    const origH = this.resizeStart.height;
+    
+    // Calculate new size based on handle (in local coordinates)
+    let deltaWidth = 0;
+    let deltaHeight = 0;
+    // Which edges move: -1 = start edge moves, 0 = neither, 1 = end edge moves
+    let xEdge = 0; // For width: -1 = left moves, 1 = right moves
+    let yEdge = 0; // For height: -1 = top moves, 1 = bottom moves
     
     switch (this.activeHandle) {
       case 'right':
-        nextWidth = this.resizeStart.width + deltaX;
+        deltaWidth = localDeltaX;
+        xEdge = 1;
         break;
       case 'bottom':
-        nextHeight = this.resizeStart.height + deltaY;
+        deltaHeight = localDeltaY;
+        yEdge = 1;
         break;
-      case 'corner':
-        nextWidth = this.resizeStart.width + deltaX;
-        nextHeight = this.resizeStart.height + deltaY;
+      case 'corner': // bottom-right
+        deltaWidth = localDeltaX;
+        deltaHeight = localDeltaY;
+        xEdge = 1;
+        yEdge = 1;
         break;
       case 'corner-top-right':
-        nextWidth = this.resizeStart.width + deltaX;
-        nextHeight = this.resizeStart.height - deltaY;
-        nextY = this.resizeStart.positionY + deltaY;
+        deltaWidth = localDeltaX;
+        deltaHeight = -localDeltaY;
+        xEdge = 1;
+        yEdge = -1;
         break;
       case 'corner-top-left':
-        nextWidth = this.resizeStart.width - deltaX;
-        nextHeight = this.resizeStart.height - deltaY;
-        nextX = this.resizeStart.positionX + deltaX;
-        nextY = this.resizeStart.positionY + deltaY;
+        deltaWidth = -localDeltaX;
+        deltaHeight = -localDeltaY;
+        xEdge = -1;
+        yEdge = -1;
         break;
       case 'corner-bottom-left':
-        nextWidth = this.resizeStart.width - deltaX;
-        nextHeight = this.resizeStart.height + deltaY;
-        nextX = this.resizeStart.positionX + deltaX;
+        deltaWidth = -localDeltaX;
+        deltaHeight = localDeltaY;
+        xEdge = -1;
+        yEdge = 1;
         break;
       case 'left':
-        nextWidth = this.resizeStart.width - deltaX;
-        nextX = this.resizeStart.positionX + deltaX;
+        deltaWidth = -localDeltaX;
+        xEdge = -1;
         break;
       case 'top':
-        nextHeight = this.resizeStart.height - deltaY;
-        nextY = this.resizeStart.positionY + deltaY;
+        deltaHeight = -localDeltaY;
+        yEdge = -1;
         break;
     }
     
+    const newW = origW + deltaWidth;
+    const newH = origH + deltaHeight;
+    
+    // Calculate position adjustment to keep the anchor point fixed.
+    // With transform-origin: center, we need to calculate how the center shifts
+    // and compensate for that in the position.
+    //
+    // When right/bottom edges move (xEdge=1, yEdge=1): center moves by delta/2
+    // When left/top edges move (xEdge=-1, yEdge=-1): center moves by -delta/2
+    // The new position needs to place the new center at the same page location as the old anchor point's projection.
+    
+    // Local center shift due to size change (in local coords)
+    // For right edge moving: new center = old center + deltaWidth/2 → shift = deltaWidth/2
+    // For left edge moving: new center = old center - deltaWidth/2 → but we want left edge fixed, 
+    //   so we need position to move so that the old left edge position = new left edge position
+    
+    // Simpler approach: calculate the anchor point (the edge that should stay fixed)
+    // in both old and new configurations, then adjust position.
+    
+    // Old center in local coords: (origW/2, origH/2)
+    // New center in local coords: (newW/2, newH/2)
+    
+    // For each handle, determine which point should stay fixed:
+    let anchorLocalX = origW / 2; // default: center
+    let anchorLocalY = origH / 2;
+    
+    if (xEdge === 1) anchorLocalX = 0;           // right moves → left stays fixed
+    else if (xEdge === -1) anchorLocalX = origW; // left moves → right stays fixed
+    
+    if (yEdge === 1) anchorLocalY = 0;           // bottom moves → top stays fixed
+    else if (yEdge === -1) anchorLocalY = origH; // top moves → bottom stays fixed
+    
+    // Where this anchor point was in page coords (relative to old center, then rotated, then + old position + old center)
+    const oldCenterX = this.resizeStart.positionX + origW / 2;
+    const oldCenterY = this.resizeStart.positionY + origH / 2;
+    
+    // Anchor offset from old center (in local coords)
+    const anchorFromOldCenterX = anchorLocalX - origW / 2;
+    const anchorFromOldCenterY = anchorLocalY - origH / 2;
+    
+    // Rotate to get page coords offset
+    const anchorPageOffsetX = anchorFromOldCenterX * cos - anchorFromOldCenterY * sin;
+    const anchorPageOffsetY = anchorFromOldCenterX * sin + anchorFromOldCenterY * cos;
+    
+    // Anchor point in page coords
+    const anchorPageX = oldCenterX + anchorPageOffsetX;
+    const anchorPageY = oldCenterY + anchorPageOffsetY;
+    
+    // Now, for the new widget, where would this same local anchor point be?
+    // New anchor in local coords from new center
+    let newAnchorLocalX = newW / 2;
+    let newAnchorLocalY = newH / 2;
+    
+    if (xEdge === 1) newAnchorLocalX = 0;
+    else if (xEdge === -1) newAnchorLocalX = newW;
+    
+    if (yEdge === 1) newAnchorLocalY = 0;
+    else if (yEdge === -1) newAnchorLocalY = newH;
+    
+    const newAnchorFromCenterX = newAnchorLocalX - newW / 2;
+    const newAnchorFromCenterY = newAnchorLocalY - newH / 2;
+    
+    const newAnchorPageOffsetX = newAnchorFromCenterX * cos - newAnchorFromCenterY * sin;
+    const newAnchorPageOffsetY = newAnchorFromCenterX * sin + newAnchorFromCenterY * cos;
+    
+    // We want: newCenterPage + newAnchorPageOffset = anchorPage
+    // So: newCenterPage = anchorPage - newAnchorPageOffset
+    const newCenterPageX = anchorPageX - newAnchorPageOffsetX;
+    const newCenterPageY = anchorPageY - newAnchorPageOffsetY;
+    
+    // New position (top-left) = newCenter - (newW/2, newH/2)
+    const nextX = newCenterPageX - newW / 2;
+    const nextY = newCenterPageY - newH / 2;
+    
     // PPT-style ghost resize:
-    // - During the drag, ONLY the ghost outline moves (never blocked by content-min constraints).
-    // - The real widget frame stays fixed to its starting size/position (no mid-gesture reflow/jumps).
-    // - On release, we apply min constraints + snapping once and commit.
-    const ghost = this.clampFrame(nextWidth, nextHeight, nextX, nextY, 1, 1);
+    const ghost = this.clampFrame(newW, newH, nextX, nextY, 1, 1);
     this._ghostFrame.set(ghost);
-    // Keep the widget frame frozen (preview stays at the starting frame from pointerdown).
-    // Guides are visual only during the gesture (no snapping / no mutation).
     this.guides.updateResize(this.pageId, this.widgetId, ghost, this.pageWidth, this.pageHeight, this.activeHandle);
   }
   
