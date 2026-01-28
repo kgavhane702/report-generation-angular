@@ -7,9 +7,16 @@
 }
 
 // Straight connector widgets (lines) should not show a rectangular border at all.
+// Also allow overflow so curved connectors can be dragged outside bounds.
 .widget-container--no-border {
   border: none !important;
   box-shadow: none !important;
+  overflow: visible;
+  
+  // Allow pointer events on content that overflows
+  .widget-container__content {
+    overflow: visible;
+  }
 }
 
 .widget-container--no-border.widget-container--selected {

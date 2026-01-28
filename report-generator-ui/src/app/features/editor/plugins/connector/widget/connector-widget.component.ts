@@ -149,6 +149,11 @@ export class ConnectorWidgetComponent {
     return Math.max(w, 2);
   }
 
+  get hitStrokeWidth(): number {
+    // Add ~2px padding on each side of the stroke for easier grabbing.
+    return this.strokeWidth + 4;
+  }
+
   get strokeStyle(): string {
     return this.connectorProps?.stroke?.style || 'solid';
   }

@@ -6,9 +6,20 @@
     preserveAspectRatio="none"
     [style.opacity]="opacity"
   >
-    <!-- Main connector path - acts as drag handle for the widget -->
+    <!-- Hit area (invisible): makes it easier to grab the line without changing visuals -->
     <path
-      cdkDragHandle
+      class="connector-widget__hit"
+      [attr.d]="svgPath"
+      fill="none"
+      stroke="transparent"
+      [attr.stroke-width]="hitStrokeWidth"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+
+    <!-- Main connector path -->
+    <path
+      class="connector-widget__stroke"
       [attr.d]="svgPath"
       fill="none"
       [attr.stroke]="strokeColor"

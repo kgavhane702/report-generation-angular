@@ -160,7 +160,7 @@ export class WidgetFactoryService {
       startPoint = { x: 0, y: 0 };
       endPoint = { x: 200, y: 0 };
     } else if (elbow.has(shapeType)) {
-      // Elbow connector: 150x100 
+      // Elbow connector: 150x100
       defaultSize = { width: 150, height: 100 };
       startPoint = { x: 0, y: 0 };
       endPoint = { x: 150, y: 100 };
@@ -168,14 +168,12 @@ export class WidgetFactoryService {
       // Curved connector - endpoints at bottom, curve goes up
       // Using bezier math: for control at top-center, the curve peak is at t=0.5
       // Peak Y = 0.25*startY + 0.5*controlY + 0.25*endY
-      // For peak at Y=0 with startY=endY=50, controlY = (0 - 0.25*50 - 0.25*50) / 0.5 = -50
-      // But we want the bounding box to just contain the curve, so:
       const curveHeight = 50;
       defaultSize = { width: 200, height: curveHeight };
       startPoint = { x: 0, y: curveHeight };
       endPoint = { x: 200, y: curveHeight };
       // Control point creates the curve - positioned so curve peak is at top
-      controlPoint = { x: 100, y: -curveHeight }; // Bezier math means this creates curve peaking at y=0
+      controlPoint = { x: 100, y: -curveHeight };
     } else {
       defaultSize = { width: 200, height: 1 };
       startPoint = { x: 0, y: 0 };

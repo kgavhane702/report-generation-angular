@@ -21,14 +21,20 @@
   display: block;
   overflow: visible;
   pointer-events: none;
-  
-  // Only the stroke itself should capture pointer events for dragging
-  path {
+
+  // Invisible hit target: slightly thicker than the real stroke.
+  .connector-widget__hit {
     pointer-events: stroke;
     cursor: move;
-    
-    &:hover {
-      filter: drop-shadow(0 0 2px rgba(0, 120, 212, 0.5));
-    }
+  }
+
+  // Visible stroke should not block events (hit path captures them).
+  .connector-widget__stroke {
+    pointer-events: none;
+  }
+
+  // When hovering the hit target, visually highlight the real stroke.
+  .connector-widget__hit:hover + .connector-widget__stroke {
+    filter: drop-shadow(0 0 2px rgba(0, 120, 212, 0.5));
   }
 }

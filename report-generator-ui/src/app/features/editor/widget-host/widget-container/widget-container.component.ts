@@ -158,6 +158,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   private activeHandle: ResizeHandle | null = null;
   private dragStartFrame: WidgetFrame | null = null;
+  private connectorStrokeDragAllowedForGesture: boolean | null = null;
 
   /**
    * CDK Drag works in screen px, but our canvas is zoomed via CSS `transform: scale(...)`.
@@ -172,6 +173,27 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     pickupPositionInElement: { x: number; y: number }
   ): { x: number; y: number } => {
     const zoomScale = Math.max(0.1, this.uiState.zoomLevel() / 100);
+
+    // Stroke-only drag for connector widgets.
+    // We decide once per drag gesture (based on the pickup point inside the element)
+    // and then either allow normal movement or freeze the widget in place.
+    const widget = this.displayWidget();
+    if (widget?.type === 'connector') {
+      if (this.connectorStrokeDragAllowedForGesture === null) {
+        const rectW = Math.max(1, (initialClientRect.width as number) || 1);
+        const rectH = Math.max(1, (initialClientRect.height as number) || 1);
+        const localX = (pickupPositionInElement.x / rectW) * widget.size.width;
+        const localY = (pickupPositionInElement.y / rectH) * widget.size.height;
+        this.connectorStrokeDragAllowedForGesture = this.isLocalPointNearConnectorStroke(
+          { x: localX, y: localY },
+          widget
+        );
+      }
+
+      if (!this.connectorStrokeDragAllowedForGesture) {
+        return { x: initialClientRect.left, y: initialClientRect.top };
+      }
+    }
 
     // CDK expects that when `constrainPosition` is provided, we return the *desired top/left*
     // (page coords) for the draggable preview/root element.
@@ -227,6 +249,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
   get dragAnywhereEnabled(): boolean {
     return this.interactionPolicy.dragHandleMode === 'anywhere';
+  }
+
+  get isConnectorWidget(): boolean {
+    return this.displayWidget()?.type === 'connector';
   }
 
   isResizeHandleVisible(handle: ResizeHandle): boolean {
@@ -705,6 +731,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   }
 
   onDragStarted(event: CdkDragStart): void {
+    this.connectorStrokeDragAllowedForGesture = null;
     // Capture starting frame so we can compute an absolute frame during drag moves.
     this.dragStartFrame = { ...this.frame };
     this.guides.start(this.pageId, this.widgetId, 'drag');
@@ -757,6 +784,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.uiState.stopDragging();
     this.guides.end(this.widgetId);
     this.dragStartFrame = null;
+    this.connectorStrokeDragAllowedForGesture = null;
     
     event.source.reset();
   }
@@ -821,8 +849,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             absEnd = newPos;
           }
           
+          // Minimal visual buffer so the *entire rendered stroke* (and arrowhead) stays inside bounds.
+          // This avoids the bad UX of large invisible padding while fixing “can’t drag near ends”.
+          const strokeWidth = props?.stroke?.width ?? 2;
+          const shapeType = String(props?.shapeType ?? '');
+          const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
+          const arrowBuffer = hasArrow ? 10 : 0; // matches ConnectorWidgetComponent arrowLength
+          const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6; // +2px extra ease
+
           // Calculate tight bounding box (using bezier math for curves)
-          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl);
+          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer);
           
           const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
           const newSize = { 
@@ -853,7 +889,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     }
   }
   
-  onWidgetPointerDown(): void {
+  onWidgetPointerDown(_event?: PointerEvent): void {
     this.uiState.selectWidget(this.widgetId);
   }
   
@@ -1310,17 +1346,99 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     });
   }
 
+  private isLocalPointNearConnectorStroke(
+    p: { x: number; y: number },
+    widget: WidgetEntity
+  ): boolean {
+    const props = widget.props as any;
+    const start = props?.startPoint;
+    const end = props?.endPoint;
+    if (!start || !end) return false;
+
+    const shapeType = String(props?.shapeType ?? 'line');
+    const control = props?.controlPoint ?? null;
+    const strokeWidth = props?.stroke?.width ?? 2;
+    const tolerance = Math.max(strokeWidth / 2, 1) + 8;
+
+    // Straight
+    const isElbow = shapeType.includes('elbow');
+    const isCurved = shapeType.includes('curved') || shapeType.startsWith('s-') || shapeType.includes('s-connector');
+
+    if (!isElbow && !isCurved) {
+      return this.distancePointToSegment(p, start, end) <= tolerance;
+    }
+
+    if (isElbow) {
+      const mid = { x: start.x, y: end.y };
+      const d = Math.min(
+        this.distancePointToSegment(p, start, mid),
+        this.distancePointToSegment(p, mid, end)
+      );
+      return d <= tolerance;
+    }
+
+    if (control) {
+      return this.distancePointToQuadratic(p, start, control, end) <= tolerance;
+    }
+
+    return this.distancePointToSegment(p, start, end) <= tolerance;
+  }
+
+  private distancePointToSegment(
+    p: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number }
+  ): number {
+    const abx = b.x - a.x;
+    const aby = b.y - a.y;
+    const apx = p.x - a.x;
+    const apy = p.y - a.y;
+    const abLen2 = abx * abx + aby * aby;
+    if (abLen2 <= 1e-6) {
+      return Math.hypot(p.x - a.x, p.y - a.y);
+    }
+    let t = (apx * abx + apy * aby) / abLen2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = a.x + t * abx;
+    const cy = a.y + t * aby;
+    return Math.hypot(p.x - cx, p.y - cy);
+  }
+
+  private distancePointToQuadratic(
+    p: { x: number; y: number },
+    p0: { x: number; y: number },
+    p1: { x: number; y: number },
+    p2: { x: number; y: number }
+  ): number {
+    const steps = 24;
+    let min = Number.POSITIVE_INFINITY;
+    let prev = p0;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const mt = 1 - t;
+      const x = mt * mt * p0.x + 2 * mt * t * p1.x + t * t * p2.x;
+      const y = mt * mt * p0.y + 2 * mt * t * p1.y + t * t * p2.y;
+      const curr = { x, y };
+      min = Math.min(min, this.distancePointToSegment(p, prev, curr));
+      prev = curr;
+    }
+    return min;
+  }
+
   /**
    * Calculate the tight bounding box for a connector.
    * For curved connectors, this calculates the actual curve bounds (not just control points).
    * 
    * For a quadratic bezier B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2, 
    * the extrema occur when dB/dt = 0, which gives t = (P0 - P1) / (P0 - 2P1 + P2)
+   * 
+   * @param strokeBuffer - Extra padding to account for stroke width (half of stroke width)
    */
   private calculateConnectorBounds(
     start: { x: number; y: number },
     end: { x: number; y: number },
-    control: { x: number; y: number } | null
+    control: { x: number; y: number } | null,
+    strokeBuffer: number = 0
   ): { minX: number; minY: number; maxX: number; maxY: number } {
     // Start with endpoints
     let minX = Math.min(start.x, end.x);
@@ -1358,7 +1476,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       }
     }
     
-    return { minX, minY, maxX, maxY };
+    // Apply stroke buffer to ensure the stroke is fully within bounds
+    return { 
+      minX: minX - strokeBuffer, 
+      minY: minY - strokeBuffer, 
+      maxX: maxX + strokeBuffer, 
+      maxY: maxY + strokeBuffer 
+    };
   }
 
   // ============================================
@@ -1508,8 +1632,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       };
     }
 
+    // Minimal visual buffer so the *entire rendered stroke* (and arrowhead) stays inside bounds.
+    const props = widget.props as any;
+    const strokeWidth = props?.stroke?.width ?? 2;
+    const shapeType = String(props?.shapeType ?? '');
+    const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
+    const arrowBuffer = hasArrow ? 10 : 0; // matches ConnectorWidgetComponent arrowLength
+    const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 3; // +2px extra ease
+
     // Compute bounding box - for curves, calculate actual curve bounds (not control point)
-    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl);
+    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer);
     
     const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
     const newSize = { 
