@@ -83,11 +83,12 @@ export function getWidgetInteractionPolicy(widget: WidgetEntity | null): WidgetI
   }
 
   // Dedicated connector widget type: no standard resize handles, uses endpoint handles instead
+  // Drag is handled by the connector path (stroke) itself, not an overlay
   if (widget.type === 'connector') {
     return {
       allowedResizeHandles: CONNECTOR_ENDPOINT_HANDLES,
       showSelectionBorder: false,
-      dragHandleMode: 'anywhere',
+      dragHandleMode: 'border-only',
     };
   }
 

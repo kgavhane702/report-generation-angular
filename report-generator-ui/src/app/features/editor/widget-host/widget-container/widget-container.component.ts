@@ -23,6 +23,7 @@ import { UIStateService } from '../../../../core/services/ui-state.service';
 import { GuidesService } from '../../../../core/services/guides.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
+import { ConnectorAnchorService, AnchorAttachment } from '../../../../core/services/connector-anchor.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
@@ -94,6 +95,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly remoteAutoLoad = inject(RemoteWidgetAutoLoadService);
   private readonly undoRedo = inject(UndoRedoService);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
+  private readonly connectorAnchorService = inject(ConnectorAnchorService);
   
   // ============================================
   // WIDGET DATA (GRANULAR SELECTOR)
@@ -287,6 +289,119 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       x: 0.25 * start.x + 0.5 * control.x + 0.25 * end.x,
       y: 0.25 * start.y + 0.5 * control.y + 0.25 * end.y,
     };
+  }
+  
+  // ============================================
+  // ANCHOR POINTS (for connector attachment)
+  // ============================================
+  
+  /**
+   * Snap threshold in pixels - when connector endpoint is within this distance,
+   * it will highlight and snap to the anchor point
+   */
+  private readonly ANCHOR_SNAP_THRESHOLD = 20;
+  
+  /**
+   * Anchor point positions - corresponds to 8 resize handle positions
+   */
+  private readonly anchorPositions: Array<{
+    position: string;
+    xPercent: number;
+    yPercent: number;
+  }> = [
+    { position: 'top', xPercent: 50, yPercent: 0 },
+    { position: 'top-right', xPercent: 100, yPercent: 0 },
+    { position: 'right', xPercent: 100, yPercent: 50 },
+    { position: 'bottom-right', xPercent: 100, yPercent: 100 },
+    { position: 'bottom', xPercent: 50, yPercent: 100 },
+    { position: 'bottom-left', xPercent: 0, yPercent: 100 },
+    { position: 'left', xPercent: 0, yPercent: 50 },
+    { position: 'top-left', xPercent: 0, yPercent: 0 },
+  ];
+  
+  /**
+   * Show anchor points when:
+   * 1. This is NOT a connector widget
+   * 2. A connector endpoint is being dragged
+   * 3. The connector being dragged is not this widget
+   */
+  get showAnchorPoints(): boolean {
+    const widget = this.displayWidget();
+    if (!widget || widget.type === 'connector') return false;
+    
+    const draggingEndpoint = this.uiState.draggingConnectorEndpoint();
+    if (!draggingEndpoint) return false;
+    
+    // Don't show anchors on the connector's own container
+    return draggingEndpoint.connectorId !== this.widgetId;
+  }
+  
+  /**
+   * Get anchor point absolute position in canvas coordinates
+   */
+  getAnchorAbsolutePosition(anchor: { xPercent: number; yPercent: number }): { x: number; y: number } {
+    const widget = this.displayWidget();
+    if (!widget) return { x: 0, y: 0 };
+    
+    return {
+      x: widget.position.x + (anchor.xPercent / 100) * widget.size.width,
+      y: widget.position.y + (anchor.yPercent / 100) * widget.size.height,
+    };
+  }
+  
+  /**
+   * Get anchor points with highlight state based on proximity to dragged endpoint
+   */
+  get anchorPoints(): Array<{
+    position: string;
+    xPercent: number;
+    yPercent: number;
+    isNearby: boolean;
+  }> {
+    const dragPos = this.uiState.connectorEndpointDragPosition();
+    
+    return this.anchorPositions.map(anchor => {
+      let isNearby = false;
+      
+      if (dragPos) {
+        const absPos = this.getAnchorAbsolutePosition(anchor);
+        const distance = Math.sqrt(
+          Math.pow(dragPos.x - absPos.x, 2) + Math.pow(dragPos.y - absPos.y, 2)
+        );
+        isNearby = distance <= this.ANCHOR_SNAP_THRESHOLD;
+      }
+      
+      return {
+        ...anchor,
+        isNearby,
+      };
+    });
+  }
+  
+  /**
+   * Find the nearest anchor point if within snap threshold.
+   * Returns the anchor position and absolute coordinates, or null if none nearby.
+   */
+  getNearestAnchor(): { position: string; x: number; y: number } | null {
+    const dragPos = this.uiState.connectorEndpointDragPosition();
+    if (!dragPos) return null;
+    
+    let nearest: { position: string; x: number; y: number; distance: number } | null = null;
+    
+    for (const anchor of this.anchorPositions) {
+      const absPos = this.getAnchorAbsolutePosition(anchor);
+      const distance = Math.sqrt(
+        Math.pow(dragPos.x - absPos.x, 2) + Math.pow(dragPos.y - absPos.y, 2)
+      );
+      
+      if (distance <= this.ANCHOR_SNAP_THRESHOLD) {
+        if (!nearest || distance < nearest.distance) {
+          nearest = { position: anchor.position, x: absPos.x, y: absPos.y, distance };
+        }
+      }
+    }
+    
+    return nearest ? { position: nearest.position, x: nearest.x, y: nearest.y } : null;
   }
   
   // ============================================
@@ -635,12 +750,107 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
     this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     
+    // Update any connectors attached to this widget
+    this.updateAttachedConnectors();
+    
     // Stop drag tracking
     this.uiState.stopDragging();
     this.guides.end(this.widgetId);
     this.dragStartFrame = null;
     
     event.source.reset();
+  }
+  
+  /**
+   * Update all connectors that are attached to this widget.
+   * Called after widget position/size changes.
+   */
+  private updateAttachedConnectors(): void {
+    const widget = this.displayWidget();
+    if (!widget || widget.type === 'connector') return;
+    
+    // Find all connectors attached to this widget
+    const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(
+      this.pageId,
+      this.widgetId
+    );
+    
+    if (attachedConnectors.length === 0) return;
+    
+    // Update each attached connector
+    for (const attached of attachedConnectors) {
+      // Get the new anchor position
+      const newPos = this.connectorAnchorService.getAnchorPositionByWidgetId(
+        this.widgetId,
+        attached.attachment.anchor
+      );
+      
+      if (!newPos) continue;
+      
+      // Get the connector widget from the store
+      const connectorWidget = this.store
+        .select(DocumentSelectors.selectWidgetById(attached.connectorId))
+        .subscribe(connector => {
+          if (!connector) return;
+          
+          const props = connector.props as any;
+          const startPoint = props?.startPoint;
+          const endPoint = props?.endPoint;
+          const controlPoint = props?.controlPoint;
+          
+          if (!startPoint || !endPoint) return;
+          
+          // Calculate absolute positions
+          let absStart = {
+            x: connector.position.x + startPoint.x,
+            y: connector.position.y + startPoint.y,
+          };
+          let absEnd = {
+            x: connector.position.x + endPoint.x,
+            y: connector.position.y + endPoint.y,
+          };
+          let absControl = controlPoint ? {
+            x: connector.position.x + controlPoint.x,
+            y: connector.position.y + controlPoint.y,
+          } : null;
+          
+          // Update the attached endpoint
+          if (attached.endpoint === 'start') {
+            absStart = newPos;
+          } else {
+            absEnd = newPos;
+          }
+          
+          // Calculate tight bounding box (using bezier math for curves)
+          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl);
+          
+          const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
+          const newSize = { 
+            width: Math.max(curveBounds.maxX - curveBounds.minX, 1), 
+            height: Math.max(curveBounds.maxY - curveBounds.minY, 1) 
+          };
+          
+          // Convert back to local coordinates
+          const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
+          const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
+          const newControlPoint = absControl ? { x: absControl.x - curveBounds.minX, y: absControl.y - curveBounds.minY } : undefined;
+          
+          // Update the connector
+          this.documentService.updateWidget(this.pageId, attached.connectorId, {
+            position: newPosition,
+            size: newSize,
+            props: {
+              ...props,
+              startPoint: newStartPoint,
+              endPoint: newEndPoint,
+              controlPoint: newControlPoint,
+            },
+          });
+        });
+      
+      // Unsubscribe immediately (we just need one read)
+      connectorWidget.unsubscribe();
+    }
   }
   
   onWidgetPointerDown(): void {
@@ -907,6 +1117,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
       this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      
+      // Update any connectors attached to this widget
+      this.updateAttachedConnectors();
     }
   }
   
@@ -1097,6 +1310,57 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Calculate the tight bounding box for a connector.
+   * For curved connectors, this calculates the actual curve bounds (not just control points).
+   * 
+   * For a quadratic bezier B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2, 
+   * the extrema occur when dB/dt = 0, which gives t = (P0 - P1) / (P0 - 2P1 + P2)
+   */
+  private calculateConnectorBounds(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    control: { x: number; y: number } | null
+  ): { minX: number; minY: number; maxX: number; maxY: number } {
+    // Start with endpoints
+    let minX = Math.min(start.x, end.x);
+    let maxX = Math.max(start.x, end.x);
+    let minY = Math.min(start.y, end.y);
+    let maxY = Math.max(start.y, end.y);
+    
+    if (control) {
+      // For quadratic bezier, find the extrema points on the curve
+      // The derivative is: B'(t) = 2(1-t)(P1-P0) + 2t(P2-P1)
+      // Setting to 0: t = (P0 - P1) / (P0 - 2*P1 + P2)
+      
+      // X extrema
+      const denomX = start.x - 2 * control.x + end.x;
+      if (Math.abs(denomX) > 0.0001) {
+        const tX = (start.x - control.x) / denomX;
+        if (tX > 0 && tX < 1) {
+          // Point on curve at tX
+          const x = (1 - tX) * (1 - tX) * start.x + 2 * (1 - tX) * tX * control.x + tX * tX * end.x;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+        }
+      }
+      
+      // Y extrema
+      const denomY = start.y - 2 * control.y + end.y;
+      if (Math.abs(denomY) > 0.0001) {
+        const tY = (start.y - control.y) / denomY;
+        if (tY > 0 && tY < 1) {
+          // Point on curve at tY
+          const y = (1 - tY) * (1 - tY) * start.y + 2 * (1 - tY) * tY * control.y + tY * tY * end.y;
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    
+    return { minX, minY, maxX, maxY };
+  }
+
   // ============================================
   // CONNECTOR ENDPOINT DRAGGING
   // ============================================
@@ -1106,6 +1370,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     startPointer: { x: number; y: number };
     startWidgetPos: { x: number; y: number };
     startEndpoints: { start: { x: number; y: number }; end: { x: number; y: number }; control: { x: number; y: number } };
+    snappedAnchor: AnchorAttachment | null; // Track current snap target
   } | null = null;
 
   onConnectorEndpointPointerDown(event: PointerEvent, endpoint: 'start' | 'end' | 'control'): void {
@@ -1129,7 +1394,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         end: { ...endPoint },
         control: { ...controlPoint },
       },
+      snappedAnchor: null,
     };
+
+    // Notify that we're dragging a connector endpoint (shows anchors on other widgets)
+    if (endpoint === 'start' || endpoint === 'end') {
+      this.uiState.startDraggingConnectorEndpoint(this.widgetId, endpoint);
+    }
 
     document.addEventListener('pointermove', this.onConnectorEndpointPointerMove);
     document.addEventListener('pointerup', this.onConnectorEndpointPointerUp);
@@ -1170,11 +1441,38 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       y: widgetY + storedControl.y,
     } : null;
 
+    // Track snap anchor for this drag
+    let snappedAnchor: AnchorAttachment | null = null;
+
     // Apply the drag delta to the dragged endpoint
     if (this.connectorDragState.endpoint === 'start') {
       absStart = { x: absStart.x + scaledDx, y: absStart.y + scaledDy };
+      // Update drag position for anchor proximity detection
+      this.uiState.updateConnectorEndpointDragPosition(absStart.x, absStart.y);
+      
+      // Check for snap to anchor
+      const nearestAnchor = this.connectorAnchorService.findNearestAnchor(
+        this.pageId, absStart, this.widgetId
+      );
+      if (nearestAnchor) {
+        // Snap to anchor position
+        absStart = { x: nearestAnchor.x, y: nearestAnchor.y };
+        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor };
+      }
     } else if (this.connectorDragState.endpoint === 'end') {
       absEnd = { x: absEnd.x + scaledDx, y: absEnd.y + scaledDy };
+      // Update drag position for anchor proximity detection
+      this.uiState.updateConnectorEndpointDragPosition(absEnd.x, absEnd.y);
+      
+      // Check for snap to anchor
+      const nearestAnchor = this.connectorAnchorService.findNearestAnchor(
+        this.pageId, absEnd, this.widgetId
+      );
+      if (nearestAnchor) {
+        // Snap to anchor position
+        absEnd = { x: nearestAnchor.x, y: nearestAnchor.y };
+        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor };
+      }
     } else if (this.connectorDragState.endpoint === 'control') {
       // User is dragging the midpoint handle (which is ON the curve at t=0.5)
       // We need to calculate where the user wants the midpoint to be
@@ -1210,32 +1508,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       };
     }
 
-    // Compute new bounding box from all points
-    const allPoints = [absStart, absEnd];
-    if (absControl) allPoints.push(absControl);
-
-    const padding = 20; // Padding for stroke and arrowheads
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of allPoints) {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x);
-      maxY = Math.max(maxY, p.y);
-    }
-
-    // Add padding
-    minX -= padding;
-    minY -= padding;
-    maxX += padding;
-    maxY += padding;
-
-    const newPosition = { x: minX, y: minY };
-    const newSize = { width: Math.max(maxX - minX, 1), height: Math.max(maxY - minY, 1) };
+    // Compute bounding box - for curves, calculate actual curve bounds (not control point)
+    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl);
+    
+    const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
+    const newSize = { 
+      width: Math.max(curveBounds.maxX - curveBounds.minX, 1), 
+      height: Math.max(curveBounds.maxY - curveBounds.minY, 1) 
+    };
 
     // Convert absolute endpoints back to local coordinates relative to new position
-    const newStartPoint = { x: absStart.x - minX, y: absStart.y - minY };
-    const newEndPoint = { x: absEnd.x - minX, y: absEnd.y - minY };
-    const newControlPoint = absControl ? { x: absControl.x - minX, y: absControl.y - minY } : undefined;
+    const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
+    const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
+    const newControlPoint = absControl ? { x: absControl.x - curveBounds.minX, y: absControl.y - curveBounds.minY } : undefined;
+
+    // Track the snapped anchor for saving on pointer up
+    this.connectorDragState.snappedAnchor = snappedAnchor;
 
     // Update the widget
     this.onConnectorGeometryChange({
@@ -1250,7 +1538,52 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   };
 
   private onConnectorEndpointPointerUp = (): void => {
+    // Save attachment info if we snapped to an anchor
+    if (this.connectorDragState?.snappedAnchor) {
+      const endpoint = this.connectorDragState.endpoint;
+      const attachment = this.connectorDragState.snappedAnchor;
+      
+      // Get current widget to update attachment props
+      const widget = this.displayWidget();
+      if (widget && (endpoint === 'start' || endpoint === 'end')) {
+        const props = widget.props as any;
+        const attachmentKey = endpoint === 'start' ? 'startAttachment' : 'endAttachment';
+        
+        // Save attachment to connector props
+        this.onConnectorGeometryChange({
+          position: widget.position,
+          size: widget.size,
+          props: {
+            ...props,
+            [attachmentKey]: attachment,
+          },
+        });
+      }
+    } else if (this.connectorDragState) {
+      // Clear attachment if not snapped to anchor
+      const endpoint = this.connectorDragState.endpoint;
+      const widget = this.displayWidget();
+      if (widget && (endpoint === 'start' || endpoint === 'end')) {
+        const props = widget.props as any;
+        const attachmentKey = endpoint === 'start' ? 'startAttachment' : 'endAttachment';
+        
+        // Clear attachment from connector props
+        if (props[attachmentKey]) {
+          this.onConnectorGeometryChange({
+            position: widget.position,
+            size: widget.size,
+            props: {
+              ...props,
+              [attachmentKey]: null,
+            },
+          });
+        }
+      }
+    }
+    
     this.connectorDragState = null;
+    // Stop showing anchors on other widgets
+    this.uiState.stopDraggingConnectorEndpoint();
     document.removeEventListener('pointermove', this.onConnectorEndpointPointerMove);
     document.removeEventListener('pointerup', this.onConnectorEndpointPointerUp);
   };

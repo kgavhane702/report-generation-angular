@@ -230,6 +230,56 @@ export class UIStateService {
   }
   
   // ============================================
+  // CONNECTOR ENDPOINT DRAGGING STATE
+  // ============================================
+  
+  /**
+   * Track when a connector endpoint is being dragged.
+   * Used to show anchor points on other widgets.
+   */
+  private readonly _draggingConnectorEndpoint = signal<{
+    connectorId: string;
+    endpoint: 'start' | 'end' | 'control';
+  } | null>(null);
+  readonly draggingConnectorEndpoint = this._draggingConnectorEndpoint.asReadonly();
+  
+  /**
+   * Current position of the dragging connector endpoint (in canvas coordinates).
+   * Used for proximity detection to anchor points.
+   */
+  private readonly _connectorEndpointDragPosition = signal<{ x: number; y: number } | null>(null);
+  readonly connectorEndpointDragPosition = this._connectorEndpointDragPosition.asReadonly();
+  
+  /**
+   * Start dragging a connector endpoint
+   */
+  startDraggingConnectorEndpoint(connectorId: string, endpoint: 'start' | 'end' | 'control'): void {
+    this._draggingConnectorEndpoint.set({ connectorId, endpoint });
+  }
+  
+  /**
+   * Update the position of the dragging connector endpoint
+   */
+  updateConnectorEndpointDragPosition(x: number, y: number): void {
+    this._connectorEndpointDragPosition.set({ x, y });
+  }
+  
+  /**
+   * Stop dragging connector endpoint
+   */
+  stopDraggingConnectorEndpoint(): void {
+    this._draggingConnectorEndpoint.set(null);
+    this._connectorEndpointDragPosition.set(null);
+  }
+  
+  /**
+   * Check if any connector endpoint is being dragged (to show anchors on widgets)
+   */
+  readonly isConnectorEndpointDragging = computed(() => 
+    this._draggingConnectorEndpoint() !== null
+  );
+  
+  // ============================================
   // ZOOM STATE
   // ============================================
   

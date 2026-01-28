@@ -16,7 +16,7 @@ import java.util.Locale;
 @Component
 public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
 
-    private static final double PADDING = 20;
+    private static final double PADDING = 0;
     private static final double ARROW_SIZE = 12;
 
     @Override
@@ -50,28 +50,54 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
         JsonNode endPointNode = props.path("endPoint");
         JsonNode controlPointNode = props.path("controlPoint");
 
-        double startX = startPointNode.path("x").asDouble(PADDING);
-        double startY = startPointNode.path("y").asDouble(PADDING);
-        double endX = endPointNode.path("x").asDouble(200 + PADDING);
-        double endY = endPointNode.path("y").asDouble(PADDING);
+        double startX = startPointNode.path("x").asDouble(0);
+        double startY = startPointNode.path("y").asDouble(0);
+        double endX = endPointNode.path("x").asDouble(200);
+        double endY = endPointNode.path("y").asDouble(0);
 
-        // Endpoints are now stored in widget-local coordinates, so viewBox is 0,0 to widget size
-        // We need to get the widget size from RenderContext or derive it from the style
-        // For export, widgetStyle already contains width/height, so we use a simple "0 0 W H" viewBox
-        // Since the endpoints include padding, we derive the viewBox from max coordinates
+        // Calculate actual bounds for viewBox
+        // For curves, we need to consider bezier curve extents, not just control points
+        double minX = Math.min(startX, endX);
+        double minY = Math.min(startY, endY);
         double maxX = Math.max(startX, endX);
         double maxY = Math.max(startY, endY);
+        
         if (controlPointNode != null && !controlPointNode.isMissingNode()) {
             double ctrlX = controlPointNode.path("x").asDouble(0);
             double ctrlY = controlPointNode.path("y").asDouble(0);
-            maxX = Math.max(maxX, ctrlX);
-            maxY = Math.max(maxY, ctrlY);
+            
+            // For quadratic bezier, find extrema: t = (P0 - P1) / (P0 - 2*P1 + P2)
+            // X extrema
+            double denomX = startX - 2 * ctrlX + endX;
+            if (Math.abs(denomX) > 0.0001) {
+                double tX = (startX - ctrlX) / denomX;
+                if (tX > 0 && tX < 1) {
+                    double x = (1 - tX) * (1 - tX) * startX + 2 * (1 - tX) * tX * ctrlX + tX * tX * endX;
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                }
+            }
+            // Y extrema
+            double denomY = startY - 2 * ctrlY + endY;
+            if (Math.abs(denomY) > 0.0001) {
+                double tY = (startY - ctrlY) / denomY;
+                if (tY > 0 && tY < 1) {
+                    double y = (1 - tY) * (1 - tY) * startY + 2 * (1 - tY) * tY * ctrlY + tY * tY * endY;
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            }
         }
-        // Add padding for the viewBox size
-        double viewBoxWidth = maxX + PADDING;
-        double viewBoxHeight = maxY + PADDING;
-        String viewBox = String.format(Locale.ROOT, "0 0 %s %s", 
-            trimNumber(viewBoxWidth), trimNumber(viewBoxHeight));
+        
+        // ViewBox should encompass the actual line extents with small buffer for stroke
+        double strokeBuffer = strokeWidth / 2.0 + 2; // Buffer for stroke width
+        double viewBoxWidth = Math.max(maxX - minX + strokeBuffer * 2, 1);
+        double viewBoxHeight = Math.max(maxY - minY + strokeBuffer * 2, 1);
+        // Offset start so stroke doesn't clip
+        double offsetX = minX - strokeBuffer;
+        double offsetY = minY - strokeBuffer;
+        String viewBox = String.format(Locale.ROOT, "%s %s %s %s", 
+            trimNumber(offsetX), trimNumber(offsetY), trimNumber(viewBoxWidth), trimNumber(viewBoxHeight));
 
         // Generate SVG path based on shape type
         String svgPath = generatePath(shapeType, startX, startY, endX, endY, controlPointNode);

@@ -6,8 +6,9 @@
     preserveAspectRatio="none"
     [style.opacity]="opacity"
   >
-    <!-- Main connector path -->
+    <!-- Main connector path - acts as drag handle for the widget -->
     <path
+      cdkDragHandle
       [attr.d]="svgPath"
       fill="none"
       [attr.stroke]="strokeColor"

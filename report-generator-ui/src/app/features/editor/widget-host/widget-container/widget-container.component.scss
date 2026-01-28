@@ -382,3 +382,28 @@
     }
   }
 }
+
+// Anchor points for connector attachment
+// Shown when dragging connector endpoints near other widgets
+.widget-container__anchor-point {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(0, 120, 212, 0.3);
+  border: 2px solid #0078d4;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  pointer-events: none; // Anchor points are visual only - snapping is calculated
+  transition: all 0.15s ease;
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1);
+
+  // Highlight when connector endpoint is nearby
+  &--highlight {
+    width: 14px;
+    height: 14px;
+    background-color: #0078d4;
+    border-color: #fff;
+    box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}

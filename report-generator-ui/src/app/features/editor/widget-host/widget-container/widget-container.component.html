@@ -225,6 +225,18 @@
     >
       <app-icon name="trash" [size]="13"></app-icon>
     </button>
+
+    <!-- Anchor points for connector attachment (shown when dragging connector endpoints) -->
+    <ng-container *ngIf="showAnchorPoints">
+      <div
+        *ngFor="let anchor of anchorPoints"
+        class="widget-container__anchor-point"
+        [class.widget-container__anchor-point--highlight]="anchor.isNearby"
+        [style.left.%]="anchor.xPercent"
+        [style.top.%]="anchor.yPercent"
+        [attr.data-anchor]="anchor.position"
+      ></div>
+    </ng-container>
   </div>
 
   <!-- Ghost resize outline (cursor-following preview) -->
