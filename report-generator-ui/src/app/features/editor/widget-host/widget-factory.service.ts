@@ -10,6 +10,7 @@ import {
   EditastraWidgetProps,
   TableWidgetProps,
   ObjectWidgetProps,
+  ConnectorWidgetProps,
   TableRow,
   WidgetProps,
 } from '../../../models/widget.model';
@@ -34,6 +35,8 @@ export class WidgetFactoryService {
         return this.createTableWidget(props as Partial<TableWidgetProps>);
       case 'object':
         return this.createObjectWidget(props as Partial<ObjectWidgetProps>);
+      case 'connector':
+        return this.createConnectorWidget(props as Partial<ConnectorWidgetProps>);
       default:
         return this.createFallbackWidget(type);
     }
@@ -138,6 +141,64 @@ export class WidgetFactoryService {
     };
   }
 
+  private createConnectorWidget(props?: Partial<ConnectorWidgetProps>): WidgetModel<ConnectorWidgetProps> {
+    const shapeType = props?.shapeType || 'line';
+
+    const horizontal = new Set(['line', 'line-arrow', 'line-arrow-double']);
+    const elbow = new Set(['elbow-connector', 'elbow-arrow']);
+    const curved = new Set(['curved-connector', 'curved-arrow', 's-connector', 's-arrow']);
+
+    // Padding included in widget size to accommodate stroke and arrowheads
+    const padding = 20;
+    let defaultSize: { width: number; height: number };
+    let startPoint: { x: number; y: number };
+    let endPoint: { x: number; y: number };
+    let controlPoint: { x: number; y: number } | undefined;
+    let arrowEnd = shapeType.includes('arrow');
+
+    if (horizontal.has(shapeType)) {
+      // Horizontal line: 200px long, centered vertically with padding
+      defaultSize = { width: 200 + padding * 2, height: padding * 2 };
+      startPoint = { x: padding, y: padding };
+      endPoint = { x: 200 + padding, y: padding };
+    } else if (elbow.has(shapeType)) {
+      // Elbow connector: 150x100 with padding
+      defaultSize = { width: 150 + padding * 2, height: 100 + padding * 2 };
+      startPoint = { x: padding, y: padding };
+      endPoint = { x: 150 + padding, y: 100 + padding };
+    } else if (curved.has(shapeType)) {
+      // Curved connector with control point above
+      const curveHeight = 50; // Height of curve above the line
+      defaultSize = { width: 200 + padding * 2, height: curveHeight + padding * 2 };
+      startPoint = { x: padding, y: curveHeight + padding };
+      endPoint = { x: 200 + padding, y: curveHeight + padding };
+      // Control point at the top center
+      controlPoint = { x: 100 + padding, y: padding };
+    } else {
+      defaultSize = { width: 200 + padding * 2, height: padding * 2 };
+      startPoint = { x: padding, y: padding };
+      endPoint = { x: 200 + padding, y: padding };
+    }
+
+    return {
+      id: uuid(),
+      type: 'connector',
+      position: { x: 100, y: 100 },
+      size: defaultSize,
+      zIndex: 1,
+      props: {
+        shapeType,
+        startPoint,
+        endPoint,
+        controlPoint,
+        fillColor: props?.fillColor || '#000000',
+        opacity: props?.opacity ?? 100,
+        stroke: props?.stroke || { color: '#000000', width: 2, style: 'solid' },
+        arrowEnd,
+      },
+    };
+  }
+
   /**
    * Get the SVG path for a shape type.
    * Returns empty string for CSS-renderable shapes (rectangle, circle, etc.)
@@ -163,6 +224,10 @@ export class WidgetFactoryService {
       'elbow-arrow': 'M 10 15 L 10 75 L 90 75 M 84 69 L 90 75 L 84 81',
       'line-arrow': 'M 0 50 L 100 50 M 92 44 L 100 50 L 92 56',
       'line-arrow-double': 'M 0 50 L 100 50 M 8 44 L 0 50 L 8 56 M 92 44 L 100 50 L 92 56',
+      'curved-connector': 'M 0 50 Q 50 10 100 50',
+      'curved-arrow': 'M 0 50 Q 50 10 100 50 M 92 44 L 100 50 L 92 56',
+      's-connector': 'M 0 20 C 30 20 70 80 100 80',
+      's-arrow': 'M 0 20 C 30 20 70 80 100 80 M 92 74 L 100 80 L 92 86',
       'arrow-right': 'M 5 40 L 60 40 L 60 20 L 95 50 L 60 80 L 60 60 L 5 60 Z',
       'arrow-left': 'M 95 40 L 40 40 L 40 20 L 5 50 L 40 80 L 40 60 L 95 60 Z',
       'arrow-up': 'M 40 95 L 40 40 L 20 40 L 50 5 L 80 40 L 60 40 L 60 95 Z',

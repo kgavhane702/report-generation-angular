@@ -230,6 +230,64 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   isResizeHandleVisible(handle: ResizeHandle): boolean {
     return isResizeHandleAllowed(this.interactionPolicy, handle);
   }
+
+  // ============================================
+  // CONNECTOR ENDPOINT PROPERTIES
+  // ============================================
+
+  get connectorStartPoint(): { x: number; y: number } | null {
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return null;
+    const props = widget.props as any;
+    return props?.startPoint || null;
+  }
+
+  get connectorEndPoint(): { x: number; y: number } | null {
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return null;
+    const props = widget.props as any;
+    return props?.endPoint || null;
+  }
+
+  /**
+   * Returns the stored bezier control point (not on curve).
+   * Used internally for calculations.
+   */
+  get connectorStoredControlPoint(): { x: number; y: number } | null {
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return null;
+    const props = widget.props as any;
+    return props?.controlPoint || null;
+  }
+
+  /**
+   * Returns the visual midpoint ON the curve (at t=0.5).
+   * This is where the draggable handle appears.
+   * For quadratic bezier: B(0.5) = 0.25*start + 0.5*control + 0.25*end
+   * Only shows for curved connectors (not straight lines).
+   */
+  get connectorMidpointHandle(): { x: number; y: number } | null {
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return null;
+    const props = widget.props as any;
+    const shapeType = props?.shapeType || '';
+    
+    // Don't show for elbow connectors
+    if (shapeType.includes('elbow')) return null;
+    
+    const start = props?.startPoint;
+    const end = props?.endPoint;
+    const control = props?.controlPoint;
+    
+    // Only show handle for curved connectors (when control point exists)
+    if (!start || !end || !control) return null;
+    
+    // Quadratic bezier midpoint at t=0.5: B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2
+    return {
+      x: 0.25 * start.x + 0.5 * control.x + 0.25 * end.x,
+      y: 0.25 * start.y + 0.5 * control.y + 0.25 * end.y,
+    };
+  }
   
   // ============================================
   // COMPUTED PROPERTIES
@@ -1017,6 +1075,185 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   onChartPropsChange(props: Partial<any>): void {
     this.onContentChange(props);
   }
+
+  /**
+   * Handle connector geometry changes (position, size, and props together)
+   * This is needed because connector endpoints affect the widget's bounding box.
+   */
+  onConnectorGeometryChange(change: { position: WidgetPosition; size: { width: number; height: number }; props: Partial<WidgetProps> }): void {
+    const currentWidget = this.displayWidget();
+    if (!currentWidget) return;
+
+    const nextProps = {
+      ...currentWidget.props,
+      ...change.props,
+    } as WidgetProps;
+
+    // Update position, size, and props together
+    this.documentService.updateWidget(this.pageId, this.widgetId, {
+      position: change.position,
+      size: change.size,
+      props: nextProps,
+    });
+  }
+
+  // ============================================
+  // CONNECTOR ENDPOINT DRAGGING
+  // ============================================
+
+  private connectorDragState: {
+    endpoint: 'start' | 'end' | 'control';
+    startPointer: { x: number; y: number };
+    startWidgetPos: { x: number; y: number };
+    startEndpoints: { start: { x: number; y: number }; end: { x: number; y: number }; control: { x: number; y: number } };
+  } | null = null;
+
+  onConnectorEndpointPointerDown(event: PointerEvent, endpoint: 'start' | 'end' | 'control'): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return;
+
+    const props = widget.props as any;
+    const startPoint = props?.startPoint || { x: 0, y: 0 };
+    const endPoint = props?.endPoint || { x: 0, y: 0 };
+    const controlPoint = props?.controlPoint || { x: 0, y: 0 };
+
+    this.connectorDragState = {
+      endpoint,
+      startPointer: { x: event.clientX, y: event.clientY },
+      startWidgetPos: { ...widget.position },
+      startEndpoints: {
+        start: { ...startPoint },
+        end: { ...endPoint },
+        control: { ...controlPoint },
+      },
+    };
+
+    document.addEventListener('pointermove', this.onConnectorEndpointPointerMove);
+    document.addEventListener('pointerup', this.onConnectorEndpointPointerUp);
+  }
+
+  private onConnectorEndpointPointerMove = (event: PointerEvent): void => {
+    if (!this.connectorDragState) return;
+
+    const widget = this.displayWidget();
+    if (!widget) return;
+
+    const dx = event.clientX - this.connectorDragState.startPointer.x;
+    const dy = event.clientY - this.connectorDragState.startPointer.y;
+
+    // Account for zoom
+    const zoom = this.uiState.zoomLevel() / 100;
+    const scaledDx = dx / zoom;
+    const scaledDy = dy / zoom;
+
+    // Convert stored local endpoints to absolute canvas coordinates
+    const widgetX = this.connectorDragState.startWidgetPos.x;
+    const widgetY = this.connectorDragState.startWidgetPos.y;
+
+    let absStart = {
+      x: widgetX + this.connectorDragState.startEndpoints.start.x,
+      y: widgetY + this.connectorDragState.startEndpoints.start.y,
+    };
+    let absEnd = {
+      x: widgetX + this.connectorDragState.startEndpoints.end.x,
+      y: widgetY + this.connectorDragState.startEndpoints.end.y,
+    };
+    
+    // Get stored bezier control point (may not exist for straight lines)
+    const storedControl = this.connectorDragState.startEndpoints.control;
+    const hasStoredControl = storedControl && (storedControl.x !== 0 || storedControl.y !== 0);
+    let absControl = hasStoredControl ? {
+      x: widgetX + storedControl.x,
+      y: widgetY + storedControl.y,
+    } : null;
+
+    // Apply the drag delta to the dragged endpoint
+    if (this.connectorDragState.endpoint === 'start') {
+      absStart = { x: absStart.x + scaledDx, y: absStart.y + scaledDy };
+    } else if (this.connectorDragState.endpoint === 'end') {
+      absEnd = { x: absEnd.x + scaledDx, y: absEnd.y + scaledDy };
+    } else if (this.connectorDragState.endpoint === 'control') {
+      // User is dragging the midpoint handle (which is ON the curve at t=0.5)
+      // We need to calculate where the user wants the midpoint to be
+      // and reverse-calculate the bezier control point from that.
+      
+      // Calculate current visual midpoint on curve (at t=0.5)
+      let currentMidpoint: { x: number; y: number };
+      if (absControl) {
+        // Quadratic bezier midpoint: B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2
+        currentMidpoint = {
+          x: 0.25 * absStart.x + 0.5 * absControl.x + 0.25 * absEnd.x,
+          y: 0.25 * absStart.y + 0.5 * absControl.y + 0.25 * absEnd.y,
+        };
+      } else {
+        // Straight line: midpoint is just average
+        currentMidpoint = {
+          x: (absStart.x + absEnd.x) / 2,
+          y: (absStart.y + absEnd.y) / 2,
+        };
+      }
+      
+      // New midpoint position (where user dragged to)
+      const newMidpoint = {
+        x: currentMidpoint.x + scaledDx,
+        y: currentMidpoint.y + scaledDy,
+      };
+      
+      // Reverse-calculate bezier control point so curve passes through newMidpoint at t=0.5
+      // Formula: control = 2 * midpoint - 0.5 * (start + end)
+      absControl = {
+        x: 2 * newMidpoint.x - 0.5 * (absStart.x + absEnd.x),
+        y: 2 * newMidpoint.y - 0.5 * (absStart.y + absEnd.y),
+      };
+    }
+
+    // Compute new bounding box from all points
+    const allPoints = [absStart, absEnd];
+    if (absControl) allPoints.push(absControl);
+
+    const padding = 20; // Padding for stroke and arrowheads
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of allPoints) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
+
+    // Add padding
+    minX -= padding;
+    minY -= padding;
+    maxX += padding;
+    maxY += padding;
+
+    const newPosition = { x: minX, y: minY };
+    const newSize = { width: Math.max(maxX - minX, 1), height: Math.max(maxY - minY, 1) };
+
+    // Convert absolute endpoints back to local coordinates relative to new position
+    const newStartPoint = { x: absStart.x - minX, y: absStart.y - minY };
+    const newEndPoint = { x: absEnd.x - minX, y: absEnd.y - minY };
+    const newControlPoint = absControl ? { x: absControl.x - minX, y: absControl.y - minY } : undefined;
+
+    // Update the widget
+    this.onConnectorGeometryChange({
+      position: newPosition,
+      size: newSize,
+      props: {
+        startPoint: newStartPoint,
+        endPoint: newEndPoint,
+        controlPoint: newControlPoint,
+      },
+    });
+  };
+
+  private onConnectorEndpointPointerUp = (): void => {
+    this.connectorDragState = null;
+    document.removeEventListener('pointermove', this.onConnectorEndpointPointerMove);
+    document.removeEventListener('pointerup', this.onConnectorEndpointPointerUp);
+  };
   
   // ============================================
   // DELETE HANDLING

@@ -80,6 +80,22 @@ const SHAPE_SVG_PATHS: Record<string, ShapeSvgConfig> = {
     path: 'M 0 50 L 100 50 M 8 44 L 0 50 L 8 56 M 92 44 L 100 50 L 92 56',
     closed: false,
   },
+  'curved-connector': {
+    path: 'M 0 50 Q 50 10 100 50',
+    closed: false,
+  },
+  'curved-arrow': {
+    path: 'M 0 50 Q 50 10 100 50 M 92 44 L 100 50 L 92 56',
+    closed: false,
+  },
+  's-connector': {
+    path: 'M 0 20 C 30 20 70 80 100 80',
+    closed: false,
+  },
+  's-arrow': {
+    path: 'M 0 20 C 30 20 70 80 100 80 M 92 74 L 100 80 L 92 86',
+    closed: false,
+  },
 
   // Arrows
   'arrow-right': {
@@ -288,7 +304,11 @@ export function isStrokeOnlyShape(shapeType: string): boolean {
     shapeType === 'elbow-connector' ||
     shapeType === 'elbow-arrow' ||
     shapeType === 'line-arrow' ||
-    shapeType === 'line-arrow-double'
+    shapeType === 'line-arrow-double' ||
+    shapeType === 'curved-connector' ||
+    shapeType === 'curved-arrow' ||
+    shapeType === 's-connector' ||
+    shapeType === 's-arrow'
   );
 }
 

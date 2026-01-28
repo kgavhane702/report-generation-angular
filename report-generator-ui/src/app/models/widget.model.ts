@@ -9,6 +9,7 @@ export type WidgetType =
   | 'shape'
   | 'media'
   | 'object'
+  | 'connector'
   | 'table';
 
 export interface WidgetModel<TProps = WidgetProps> {
@@ -41,7 +42,8 @@ export type WidgetProps =
   | ShapeWidgetProps
   | MediaWidgetProps
   | TableWidgetProps
-  | ObjectWidgetProps;
+  | ObjectWidgetProps
+  | ConnectorWidgetProps;
 
 export interface TextWidgetProps {
   contentHtml: string;
@@ -155,6 +157,38 @@ export interface ObjectStroke {
   color: string;
   width: number;
   style?: 'solid' | 'dashed' | 'dotted';
+}
+
+/**
+ * ConnectorWidgetProps
+ *
+ * Dedicated widget type for connectors/lines (PPT-like).
+ * Uses endpoint-based model instead of rectangle bounding box.
+ */
+export interface ConnectorWidgetProps {
+  /** Connector shape identifier (line, line-arrow, elbow-connector, etc.) */
+  shapeType: string;
+  /** Start point (relative to widget position, in px) */
+  startPoint: ConnectorPoint;
+  /** End point (relative to widget position, in px) */
+  endPoint: ConnectorPoint;
+  /** Control point for curved connectors (relative to widget position, in px) */
+  controlPoint?: ConnectorPoint;
+  /** Color used as the connector stroke color. */
+  fillColor?: string;
+  /** Opacity (0-100) */
+  opacity?: number;
+  /** Stroke config (width/style); color may be ignored for connectors. */
+  stroke?: ObjectStroke;
+  /** Whether to show arrow at start */
+  arrowStart?: boolean;
+  /** Whether to show arrow at end */
+  arrowEnd?: boolean;
+}
+
+export interface ConnectorPoint {
+  x: number;
+  y: number;
 }
 
 export interface MediaWidgetProps {

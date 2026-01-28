@@ -36,9 +36,42 @@ const ALL_HANDLES: ReadonlySet<ResizeHandle> = new Set([
 
 const HORIZONTAL_ONLY_HANDLES: ReadonlySet<ResizeHandle> = new Set(['left', 'right']);
 
+// Connectors use endpoint handles instead of standard resize handles
+const CONNECTOR_ENDPOINT_HANDLES: ReadonlySet<ResizeHandle> = new Set([]);
+
+// Elbow connectors are 2D, so allow resizing width/height.
+const ELBOW_HANDLES: ReadonlySet<ResizeHandle> = new Set([
+  'right',
+  'bottom',
+  'corner',
+]);
+
 const HORIZONTAL_CONNECTOR_SHAPES = new Set<string>(['line', 'line-arrow', 'line-arrow-double']);
+const ELBOW_CONNECTOR_SHAPES = new Set<string>(['elbow-connector', 'elbow-arrow']);
+const CURVED_CONNECTOR_SHAPES = new Set<string>(['curved-connector', 'curved-arrow', 's-connector', 's-arrow']);
+const CONNECTOR_SHAPES = new Set<string>([
+  ...HORIZONTAL_CONNECTOR_SHAPES,
+  ...ELBOW_CONNECTOR_SHAPES,
+  ...CURVED_CONNECTOR_SHAPES,
+]);
 
 export const HORIZONTAL_CONNECTOR_HEIGHT_PX = 36;
+
+export function isConnectorShapeType(shapeType: string | null | undefined): boolean {
+  return !!shapeType && CONNECTOR_SHAPES.has(shapeType);
+}
+
+export function isHorizontalConnectorShapeType(shapeType: string | null | undefined): boolean {
+  return !!shapeType && HORIZONTAL_CONNECTOR_SHAPES.has(shapeType);
+}
+
+export function isElbowConnectorShapeType(shapeType: string | null | undefined): boolean {
+  return !!shapeType && ELBOW_CONNECTOR_SHAPES.has(shapeType);
+}
+
+export function isCurvedConnectorShapeType(shapeType: string | null | undefined): boolean {
+  return !!shapeType && CURVED_CONNECTOR_SHAPES.has(shapeType);
+}
 
 export function getWidgetInteractionPolicy(widget: WidgetEntity | null): WidgetInteractionPolicy {
   if (!widget) {
@@ -49,15 +82,50 @@ export function getWidgetInteractionPolicy(widget: WidgetEntity | null): WidgetI
     };
   }
 
-  // Object widget connector policy
+  // Dedicated connector widget type: no standard resize handles, uses endpoint handles instead
+  if (widget.type === 'connector') {
+    return {
+      allowedResizeHandles: CONNECTOR_ENDPOINT_HANDLES,
+      showSelectionBorder: false,
+      dragHandleMode: 'anywhere',
+    };
+  }
+
+  // Legacy object-based connector shapes (for backwards compatibility)
   if (widget.type === 'object') {
     const shapeType = (widget.props as any)?.shapeType as string | undefined;
-    if (shapeType && HORIZONTAL_CONNECTOR_SHAPES.has(shapeType)) {
+    if (isHorizontalConnectorShapeType(shapeType)) {
       return {
         allowedResizeHandles: HORIZONTAL_ONLY_HANDLES,
         showSelectionBorder: false,
         dragHandleMode: 'anywhere',
         preferredHeightPx: HORIZONTAL_CONNECTOR_HEIGHT_PX,
+      };
+    }
+
+    if (isElbowConnectorShapeType(shapeType)) {
+      return {
+        allowedResizeHandles: ELBOW_HANDLES,
+        showSelectionBorder: false,
+        dragHandleMode: 'anywhere',
+      };
+    }
+
+    if (isCurvedConnectorShapeType(shapeType)) {
+      return {
+        allowedResizeHandles: ELBOW_HANDLES,
+        showSelectionBorder: false,
+        dragHandleMode: 'anywhere',
+      };
+    }
+
+    // Any other connector-like shapes can opt into no-border + drag-anywhere,
+    // even if they keep default resizing.
+    if (isConnectorShapeType(shapeType)) {
+      return {
+        allowedResizeHandles: ALL_HANDLES,
+        showSelectionBorder: false,
+        dragHandleMode: 'anywhere',
       };
     }
   }

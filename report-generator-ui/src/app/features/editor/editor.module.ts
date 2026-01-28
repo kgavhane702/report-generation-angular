@@ -17,6 +17,7 @@ import { ChartWidgetComponent } from './plugins/chart/widget';
 import { ImageWidgetComponent } from './plugins/image/widget';
 import { TableWidgetComponent } from './plugins/table/widget';
 import { ObjectWidgetComponent } from './plugins/object/widget';
+import { ConnectorWidgetComponent } from './plugins/connector/widget';
 import { EditastraWidgetComponent } from './plugins/editastra/widget/editastra-widget.component';
 import { EditastraEditorComponent } from './plugins/editastra/editor/editastra-editor.component';
 import { ZoomControlsComponent } from './plugins/editor-tools/zoom-controls/zoom-controls.component';
@@ -57,6 +58,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     ImageWidgetComponent,
     TableWidgetComponent,
     ObjectWidgetComponent,
+    ConnectorWidgetComponent,
     ZoomControlsComponent,
     UndoRedoControlsComponent,
     SlideNavigatorComponent,

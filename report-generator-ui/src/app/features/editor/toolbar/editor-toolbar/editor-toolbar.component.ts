@@ -26,6 +26,7 @@ import type { ChartWidgetProps } from '../../../../models/widget.model';
 import type { ChartType } from '../../../../models/chart-data.model';
 import type { ChartWidgetInsertAction } from '../../plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
 import type { ShapeConfig } from '../../plugins/object/config/shape.config';
+import { isConnectorShapeType } from '../../widget-host/widget-interaction-policy';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { RemoteWidgetLoadRegistryService } from '../../../../core/services/remote-widget-load-registry.service';
@@ -156,11 +157,12 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const widget = this.widgetFactory.createWidget('object', { 
+    const type: WidgetType = isConnectorShapeType(shapeConfig.id) ? 'connector' : 'object';
+    const widget = this.widgetFactory.createWidget(type, {
       shapeType: shapeConfig.id,
       fillColor: shapeConfig.defaultFillColor,
       borderRadius: shapeConfig.defaultBorderRadius,
-    });
+    } as any);
     this.documentService.addWidget(pageId, widget);
     this.editorState.setActiveWidget(widget.id);
   }

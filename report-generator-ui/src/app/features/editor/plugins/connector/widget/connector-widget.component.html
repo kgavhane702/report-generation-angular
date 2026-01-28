@@ -1,0 +1,20 @@
+<div class="connector-widget">
+  <!-- SVG connector line -->
+  <svg
+    class="connector-widget__svg"
+    [attr.viewBox]="svgViewBox"
+    preserveAspectRatio="none"
+    [style.opacity]="opacity"
+  >
+    <!-- Main connector path -->
+    <path
+      [attr.d]="svgPath"
+      fill="none"
+      [attr.stroke]="strokeColor"
+      [attr.stroke-width]="strokeWidth"
+      stroke-linecap="round"
+      [attr.stroke-linejoin]="strokeLinejoin"
+      [attr.stroke-dasharray]="strokeDasharray"
+    />
+  </svg>
+</div>

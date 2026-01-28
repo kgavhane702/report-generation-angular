@@ -339,3 +339,46 @@
   pointer-events: auto;
   cursor: move;
 }
+
+// Connector endpoint handles - positioned ABOVE drag layer
+.widget-container__connector-endpoint {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 2px solid #0078d4;
+  cursor: crosshair;
+  transform: translate(-50%, -50%);
+  z-index: 20; // Above drag-anywhere layer (z-index: 2)
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  pointer-events: auto;
+
+  &:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  &:active {
+    transform: translate(-50%, -50%) scale(1.1);
+    background-color: #0078d4;
+  }
+
+  &--start,
+  &--end {
+    border-color: #0078d4;
+  }
+
+  &--control {
+    border-color: #ff6b00;
+    background-color: #fff3e0;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+
+    &:hover {
+      background-color: #ff6b00;
+    }
+  }
+}

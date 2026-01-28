@@ -96,11 +96,48 @@
           (propsChange)="onContentChange($event)"
         ></app-object-widget>
 
+        <app-connector-widget
+          *ngSwitchCase="'connector'"
+          [widget]="$any(widget)"
+          (propsChange)="onContentChange($event)"
+        ></app-connector-widget>
+
         <div *ngSwitchDefault class="widget-container__placeholder">
           {{ widget.type }} widget
         </div>
       </ng-container>
     </div>
+
+    <!-- Connector endpoint handles - rendered ABOVE drag layer -->
+    <ng-container *ngIf="isSelected && !isDocumentLocked && widget.type === 'connector'">
+      <!-- Start endpoint handle -->
+      <div
+        class="widget-container__connector-endpoint widget-container__connector-endpoint--start"
+        [style.left.px]="connectorStartPoint?.x"
+        [style.top.px]="connectorStartPoint?.y"
+        (pointerdown)="onConnectorEndpointPointerDown($event, 'start')"
+        title="Drag to move start point"
+      ></div>
+
+      <!-- End endpoint handle -->
+      <div
+        class="widget-container__connector-endpoint widget-container__connector-endpoint--end"
+        [style.left.px]="connectorEndPoint?.x"
+        [style.top.px]="connectorEndPoint?.y"
+        (pointerdown)="onConnectorEndpointPointerDown($event, 'end')"
+        title="Drag to move end point"
+      ></div>
+
+      <!-- Midpoint handle (always on the curve - for all non-elbow connectors) -->
+      <div
+        *ngIf="connectorMidpointHandle"
+        class="widget-container__connector-endpoint widget-container__connector-endpoint--control"
+        [style.left.px]="connectorMidpointHandle.x"
+        [style.top.px]="connectorMidpointHandle.y"
+        (pointerdown)="onConnectorEndpointPointerDown($event, 'control')"
+        title="Drag to bend the line"
+      ></div>
+    </ng-container>
 
     <ng-container *ngIf="isSelected && !isDocumentLocked">
       <button
