@@ -516,6 +516,18 @@ export class DocumentService {
     }
   }
 
+  cutWidget(pageId: string, widgetId: string): void {
+    if (!this.canEdit()) return;
+    this.copyWidget(pageId, widgetId);
+    this.deleteWidget(pageId, widgetId);
+  }
+
+  cutWidgets(pageId: string, widgetIds: string[]): void {
+    if (!this.canEdit()) return;
+    this.copyWidgets(pageId, widgetIds);
+    widgetIds.forEach((id) => this.deleteWidget(pageId, id));
+  }
+
   pasteWidgets(pageId: string): string[] {
     if (!this.canEdit()) return [];
     const copiedWidgets = this.clipboardService.getCopiedWidgets();

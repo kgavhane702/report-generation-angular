@@ -18,6 +18,7 @@ import { ChartRegistryInitializer } from '../plugins/chart/engine/runtime';
 import { ExportUiStateService } from '../../../core/services/export-ui-state.service';
 import { ScrollToRequest } from '../slide-navigator/slide-navigator.component';
 import { ScrollMetricsDirective } from '../shared/scroll-metrics.directive';
+import type { ContextMenuItem } from '../../../shared/components/context-menu/context-menu.component';
 
 @Component({
   selector: 'app-editor-shell',
@@ -31,6 +32,26 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
   protected readonly exportUi = inject(ExportUiStateService);
   private readonly injector = inject(Injector);
+
+  // Canvas context menu (right-click on empty editor surface)
+  canvasMenuOpen = false;
+  canvasMenuX: number | null = null;
+  canvasMenuY: number | null = null;
+
+  get canvasContextMenuItems(): ContextMenuItem[] {
+    const hasPage = !!this.editorState.activePageId();
+    const locked = this.documentService.documentLocked() === true;
+    const canPaste = this.documentService.canPaste();
+
+    return [
+      {
+        id: 'paste',
+        label: 'Paste',
+        icon: 'paste',
+        disabled: locked || !hasPage || !canPaste,
+      },
+    ];
+  }
 
   @ViewChild('scrollMetrics', { static: true }) private scrollMetrics!: ScrollMetricsDirective;
 
@@ -95,6 +116,33 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  onCanvasContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.canvasMenuX = event.clientX;
+    this.canvasMenuY = event.clientY;
+    this.canvasMenuOpen = true;
+  }
+
+  onCanvasMenuItemSelected(actionId: string): void {
+    this.canvasMenuOpen = false;
+
+    if (actionId !== 'paste') return;
+
+    queueMicrotask(() => {
+      const pageId = this.editorState.activePageId();
+      if (!pageId) return;
+      if (this.documentService.documentLocked()) return;
+      if (!this.documentService.canPaste()) return;
+
+      const pastedWidgetIds = this.documentService.pasteWidgets(pageId);
+      if (pastedWidgetIds.length > 0) {
+        this.editorState.setActiveWidget(pastedWidgetIds[0]);
+      }
+    });
+  }
+
   // Computed signals to determine if toolbars should be shown
   readonly showWidgetToolbar = computed(() => {
     if (this.documentService.documentLocked()) {
@@ -141,6 +189,13 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       }
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.key === 'x' && !event.shiftKey) {
+      if (!isInputElement) {
+        event.preventDefault();
+        this.cutSelectedWidget();
+      }
+    }
+
     if ((event.ctrlKey || event.metaKey) && event.key === 'v' && !event.shiftKey) {
       if (!isInputElement) {
         event.preventDefault();
@@ -159,6 +214,20 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       widgetContext.pageId,
       widgetContext.widget.id
     );
+  }
+
+  private cutSelectedWidget(): void {
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) {
+      return;
+    }
+
+    this.documentService.cutWidget(
+      widgetContext.pageId,
+      widgetContext.widget.id
+    );
+
+    this.editorState.setActiveWidget(null);
   }
 
   private pasteWidgets(): void {

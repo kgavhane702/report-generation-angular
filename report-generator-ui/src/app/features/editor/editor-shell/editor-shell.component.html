@@ -66,8 +66,17 @@
       </div>
     </aside>
 
-    <main class="editor-shell__canvas">
+    <main class="editor-shell__canvas" (contextmenu)="onCanvasContextMenu($event)">
       <app-page-canvas></app-page-canvas>
+
+      <app-context-menu
+        [open]="canvasMenuOpen"
+        [x]="canvasMenuX"
+        [y]="canvasMenuY"
+        [items]="canvasContextMenuItems"
+        (openChange)="canvasMenuOpen = $event"
+        (itemSelected)="onCanvasMenuItemSelected($event)"
+      ></app-context-menu>
 
       <!-- Pinned PPT-style slide navigator (not affected by zoom) -->
       <app-fixed-right-rail *ngIf="pageIds().length > 1">

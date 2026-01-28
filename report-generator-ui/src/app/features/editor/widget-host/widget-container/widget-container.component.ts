@@ -115,6 +115,24 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         danger: true,
         disabled: this.isDocumentLocked,
       },
+      {
+        id: 'cut',
+        label: 'Cut',
+        icon: 'cut',
+        disabled: this.isDocumentLocked,
+      },
+      {
+        id: 'copy',
+        label: 'Copy',
+        icon: 'copy',
+        disabled: false,
+      },
+      {
+        id: 'paste',
+        label: 'Paste',
+        icon: 'paste',
+        disabled: this.isDocumentLocked || !this.documentService.canPaste(),
+      },
     ];
   }
   
@@ -1787,8 +1805,29 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   onContextMenuItemSelected(actionId: string): void {
     this.contextMenuOpen = false;
     
-    if (actionId === 'delete') {
-      queueMicrotask(() => this.deleteWidgetInternal());
+    switch (actionId) {
+      case 'delete':
+        queueMicrotask(() => this.deleteWidgetInternal());
+        break;
+      case 'cut':
+        queueMicrotask(() => {
+          if (this.isDocumentLocked) return;
+          this.documentService.cutWidget(this.pageId, this.widgetId);
+          this.uiState.selectWidget(null);
+        });
+        break;
+      case 'copy':
+        this.documentService.copyWidget(this.pageId, this.widgetId);
+        break;
+      case 'paste':
+        queueMicrotask(() => {
+          if (this.isDocumentLocked) return;
+          const pasted = this.documentService.pasteWidgets(this.pageId);
+          if (pasted.length > 0) {
+            this.uiState.selectWidget(pasted[0]);
+          }
+        });
+        break;
     }
   }
 
