@@ -118,6 +118,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a triangle shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 6,
   },
   {
@@ -128,6 +129,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a diamond shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 7,
   },
   {
@@ -138,6 +140,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a pentagon shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 8,
   },
   {
@@ -148,6 +151,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a hexagon shape',
     defaultFillColor: '#3b82f6',
     supportsBorderRadius: false,
+    supportsText: true,
     order: 9,
   },
   {
@@ -171,6 +175,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'arrows',
     description: 'Insert a right arrow',
     defaultFillColor: '#3b82f6',
+    supportsText: true,
     order: 1,
   },
   {
@@ -180,6 +185,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'arrows',
     description: 'Insert a left arrow',
     defaultFillColor: '#3b82f6',
+    supportsText: true,
     order: 2,
   },
   {
@@ -189,6 +195,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'arrows',
     description: 'Insert an up arrow',
     defaultFillColor: '#3b82f6',
+    supportsText: true,
     order: 3,
   },
   {
@@ -198,6 +205,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'arrows',
     description: 'Insert a down arrow',
     defaultFillColor: '#3b82f6',
+    supportsText: true,
     order: 4,
   },
   {
@@ -207,6 +215,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'arrows',
     description: 'Insert a double-headed arrow',
     defaultFillColor: '#3b82f6',
+    supportsText: true,
     order: 5,
   },
 
@@ -289,6 +298,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'stars',
     description: 'Insert a 4-point star',
     defaultFillColor: '#f59e0b',
+    supportsText: true,
     order: 1,
   },
   {
@@ -298,6 +308,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'stars',
     description: 'Insert a 5-point star',
     defaultFillColor: '#f59e0b',
+    supportsText: true,
     order: 2,
   },
   {
@@ -307,6 +318,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'stars',
     description: 'Insert a 6-point star',
     defaultFillColor: '#f59e0b',
+    supportsText: true,
     order: 3,
   },
   {
@@ -330,6 +342,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'symbols',
     description: 'Insert a cross shape',
     defaultFillColor: '#ef4444',
+    supportsText: true,
     order: 1,
   },
   {
@@ -339,6 +352,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'symbols',
     description: 'Insert a heart shape',
     defaultFillColor: '#ec4899',
+    supportsText: true,
     order: 2,
   },
   {
@@ -348,6 +362,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'symbols',
     description: 'Insert a lightning bolt',
     defaultFillColor: '#f59e0b',
+    supportsText: true,
     order: 3,
   },
   {
@@ -357,6 +372,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     category: 'symbols',
     description: 'Insert a cloud shape',
     defaultFillColor: '#60a5fa',
+    supportsText: true,
     order: 4,
   },
 ];
