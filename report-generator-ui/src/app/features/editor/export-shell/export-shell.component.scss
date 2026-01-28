@@ -1,0 +1,55 @@
+:host {
+  display: block;
+  background: #ffffff;
+}
+
+.export-shell {
+  display: block;
+  background: #ffffff;
+}
+
+// Ensure each page becomes a PDF page.
+// overflow: hidden on the page wrapper prevents content spilling to next page.
+.export-shell__page {
+  page-break-after: always;
+  break-after: page;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+// Don't add page break after the last page (avoids trailing blank page).
+.export-shell__page:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+// Hide editor-only visual guides/safe zones in export.
+:host ::ng-deep .page__safe-zone {
+  display: none !important;
+}
+
+// Hide any widget interaction affordances (drag handles, resize handles, etc.).
+:host ::ng-deep .widget-container__drag-handle,
+:host ::ng-deep .widget-container__resize,
+:host ::ng-deep .widget-container__rotate,
+:host ::ng-deep .widget-toolbar {
+  display: none !important;
+}
+
+// In export mode: make footer/header background transparent so widgets behind them are visible.
+// The actual footer TEXT is still rendered on top, but widgets placed in footer area show through.
+:host ::ng-deep .page__footer,
+:host ::ng-deep .page__header {
+  background: transparent !important;
+}
+
+// Clip page surface so content extending beyond page boundary doesn't create extra pages.
+// But widgets WITHIN the page bounds (including footer area) remain visible.
+:host ::ng-deep .page__surface {
+  overflow: hidden !important;
+}
+
+// Avoid the editor canvas background gradient.
+body.rg-export-mode {
+  background: #ffffff !important;
+}

@@ -5,6 +5,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { CKEditorModule } from '@ckeditor/ckeditor5-angular';
 
 import { EditorShellComponent } from './editor-shell/editor-shell.component';
+import { ExportShellComponent } from './export-shell/export-shell.component';
 import { EditorToolbarComponent } from './toolbar/editor-toolbar/editor-toolbar.component';
 import { EditorBreadcrumbComponent } from './breadcrumb/editor-breadcrumb.component';
 import { PageOutlineComponent } from './page-outline/page-outline.component';
@@ -44,6 +45,7 @@ import { EditorRoutingModule } from './editor-routing.module';
 @NgModule({
   declarations: [
     EditorShellComponent,
+    ExportShellComponent,
     EditorToolbarComponent,
     EditorBreadcrumbComponent,
     PageOutlineComponent,

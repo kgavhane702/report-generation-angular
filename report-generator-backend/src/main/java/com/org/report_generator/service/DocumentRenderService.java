@@ -172,16 +172,16 @@ public class DocumentRenderService {
         int estimatedCapacity = 300 + (widgetCount * 500) + 200;
         StringBuilder builder = new StringBuilder(estimatedCapacity);
         builder.append("<div class=\"page\" style=\"width: ")
-                .append(widthPx)
-                .append("px; height: ")
-                .append(heightPx)
-                .append("px; page-break-after: always; page: ")
-                .append(pageName)
-                .append(";\"><div class=\"page__surface\" style=\"width: ")
-                .append(widthPx)
-                .append("px; height: ")
-                .append(heightPx)
-                .append("px;\">");
+            .append(pageWidth)
+            .append("mm; height: ")
+            .append(pageHeight)
+            .append("mm; page-break-after: always; page: ")
+            .append(pageName)
+            .append(";\"><div class=\"page__surface\" style=\"width: ")
+            .append(pageWidth)
+            .append("mm; height: ")
+            .append(pageHeight)
+            .append("mm;\">");
 
         builder.append(renderHeader(document, page));
 
@@ -291,7 +291,8 @@ public class DocumentRenderService {
     private double mmToPx(double mm, int dpi) {
         // Round mm to 2 decimal places for cache key to avoid floating point precision issues
         String key = String.format(Locale.ROOT, "%.2f_%d", mm, dpi);
-        return mmToPxCache.computeIfAbsent(key, k -> (mm / 25.4d) * dpi);
+        // Match frontend behavior (see page-dimensions.util.ts): use integer pixel rounding.
+        return mmToPxCache.computeIfAbsent(key, k -> (double) Math.round((mm / 25.4d) * dpi));
     }
 
     private String camelToKebab(String input) {

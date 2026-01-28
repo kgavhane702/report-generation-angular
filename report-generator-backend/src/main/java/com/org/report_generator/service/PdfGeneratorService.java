@@ -101,7 +101,6 @@ public class PdfGeneratorService {
             long tAutoFit = System.nanoTime();
 
             PdfOptions options = new PdfOptions()
-                    .setFormat("A4")
                     .setPrintBackground(true)
                     .setPreferCSSPageSize(true)
                     .setMargin(new Margin().setTop("0mm").setRight("0mm").setBottom("0mm").setLeft("0mm"));
@@ -189,7 +188,8 @@ public class PdfGeneratorService {
     private double mmToPx(double mm, int dpi) {
         // Round mm to 2 decimal places for cache key to avoid floating point precision issues
         String key = String.format(Locale.ROOT, "%.2f_%d", mm, dpi);
-        return mmToPxCache.computeIfAbsent(key, k -> (mm / 25.4d) * dpi);
+        // Match frontend behavior (see page-dimensions.util.ts): use integer pixel rounding.
+        return mmToPxCache.computeIfAbsent(key, k -> (double) Math.round((mm / 25.4d) * dpi));
     }
 
     private record Viewport(int width, int height) {

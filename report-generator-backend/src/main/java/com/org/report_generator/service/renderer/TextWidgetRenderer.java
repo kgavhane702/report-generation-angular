@@ -17,12 +17,23 @@ public class TextWidgetRenderer {
             position: relative;
             word-wrap: break-word;
             overflow-wrap: break-word;
-            overflow: visible;
+            overflow: hidden;
+            box-sizing: border-box;
             color: inherit;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             font-size: 1rem;
             line-height: 1.4;
             color: #0f172a;
+        }
+        
+        .widget-text__content {
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         
         /* Ensure all inline styles from CKEditor are preserved with highest priority */
@@ -33,9 +44,12 @@ public class TextWidgetRenderer {
         /* Paragraphs - match CKEditor editable styles */
         .widget-text p {
             margin: 0;
-            padding: 0.3em 0;
+            padding: 0;
             line-height: 1.4;
-            overflow: visible;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
         
         /* Headings */
@@ -316,6 +330,21 @@ public class TextWidgetRenderer {
             }
         }
 
+        // Some widgets store editor content as plain text (with newlines) rather than HTML.
+        // In HTML rendering, newlines collapse into spaces unless we convert them into <br/>.
+        // This was causing lines that were separate in the UI to merge in the PDF when the widget is wide.
+        if (content != null) {
+            String trimmed = content.trim();
+            boolean looksLikeHtml = trimmed.startsWith("<") && trimmed.endsWith(">") || trimmed.contains("<p") || trimmed.contains("<div") || trimmed.contains("<br");
+            if (!looksLikeHtml) {
+                String escaped = escapeHtmlTextContent(content);
+                // Preserve explicit line breaks from the editor.
+                escaped = escaped.replace("\r\n", "\n").replace("\r", "\n");
+                escaped = escaped.replace("\n", "<br/>");
+                content = "<div>" + escaped + "</div>";
+            }
+        }
+
         if (content.trim().isEmpty()) {
             content = "<p></p>";
         }
@@ -329,7 +358,23 @@ public class TextWidgetRenderer {
             }
         }
 
-        return "<div class=\"widget widget-text\" style=\"" + escapeHtmlAttribute(finalStyle.toString()) + "\">" + content + "</div>";
+        // Wrap content in an inner div that enforces width constraints
+        // This ensures text wraps at the widget boundary, matching UI behavior
+        String innerStyle = "width: 100%; max-width: 100%; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box;";
+        
+        return "<div class=\"widget widget-text\" style=\"" + escapeHtmlAttribute(finalStyle.toString()) + "\">" +
+               "<div class=\"widget-text__content\" style=\"" + innerStyle + "\">" + content + "</div></div>";
+    }
+
+    private String escapeHtmlTextContent(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+        return input.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     /**

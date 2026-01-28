@@ -42,6 +42,7 @@ public class PageStylesRenderer {
             .page__surface {
                 box-shadow: none !important;
                 border: none !important;
+                overflow: hidden !important;
             }
 
             /* Ensure header/footer are visible in print */
@@ -75,7 +76,8 @@ public class PageStylesRenderer {
             align-items: flex-start;
             padding: 8px 20px;
             pointer-events: none;
-            background: #ffffff;
+            /* Transparent background so widgets in header area are visible */
+            background: transparent;
             min-height: 24px;
             box-sizing: border-box;
             -webkit-print-color-adjust: exact;
@@ -117,7 +119,8 @@ public class PageStylesRenderer {
             align-items: flex-end;
             padding: 8px 20px;
             pointer-events: none;
-            background: #ffffff;
+            /* Transparent background so widgets in footer area are visible */
+            background: transparent;
             min-height: 24px;
             box-sizing: border-box;
             -webkit-print-color-adjust: exact;
@@ -185,6 +188,13 @@ public class PageStylesRenderer {
         PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
         double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(DEFAULT_WIDTH_MM);
         double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(DEFAULT_HEIGHT_MM);
+
+        // Default page rule (Chromium may ignore named pages in some contexts; this keeps single-orientation docs correct).
+        double defaultWidth = Math.max(baseWidth, baseHeight);
+        double defaultHeight = Math.min(baseWidth, baseHeight);
+        css.append("@page { size: ")
+                .append(defaultWidth).append("mm ")
+                .append(defaultHeight).append("mm; margin: 0; }\n");
         
         for (Page page : pages) {
             String orientation = Optional.ofNullable(page.getOrientation()).orElse("landscape").toLowerCase(Locale.ROOT);

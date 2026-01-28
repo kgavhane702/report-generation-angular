@@ -1,0 +1,16 @@
+<style>{{ pageCss }}</style>
+
+<div class="export-shell" *ngIf="pages.length > 0">
+  <div
+    class="export-shell__page"
+    *ngFor="let p of pages; trackBy: trackByPageId"
+    [style.page]="p.pageName"
+  >
+    <app-page
+      [pageId]="p.pageId"
+      [subsectionId]="p.subsectionId"
+      [pageSize]="editorState.pageSize()"
+      [isActive]="false"
+    ></app-page>
+  </div>
+</div>

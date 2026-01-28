@@ -37,13 +37,8 @@ public class GlobalStylesRenderer {
         
         .widget {
             position: absolute;
-            /* Match editor behavior: no internal scrollbars; allow content to extend if it outgrows the box. */
-            overflow: visible;
-        }
-        
-        /* Text widgets need visible overflow for superscript/subscript */
-        .widget-text {
-            overflow: visible !important;
+            /* Export behavior: clip content to the widget frame (prevents hidden/clipped content from showing in PDF). */
+            overflow: hidden;
         }
         
         @media print {

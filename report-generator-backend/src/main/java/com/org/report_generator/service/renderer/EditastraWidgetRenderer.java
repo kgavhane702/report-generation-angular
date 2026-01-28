@@ -19,20 +19,23 @@ public class EditastraWidgetRenderer {
             height: 100%;
             /* Match frontend rich text widget: no box border in PDF by default. */
             border-radius: 0;
-            overflow: visible;
+            overflow: hidden;
             border: none;
             background: transparent;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             color: #0f172a;
+            box-sizing: border-box;
         }
 
         .widget-editastra__content {
             width: 100%;
+            max-width: 100%;
             height: 100%;
             box-sizing: border-box;
             display: grid;
             align-content: start;
             background: transparent;
+            overflow: hidden;
         }
 
         .widget-editastra__content[data-v-align='top'] { align-content: start; }
@@ -41,16 +44,18 @@ public class EditastraWidgetRenderer {
 
         .widget-editastra__editor {
             width: 100%;
+            max-width: 100%;
             max-height: 100%;
             padding: 10px 12px;
             outline: none;
-            overflow: visible;
+            overflow: hidden;
             white-space: pre-wrap;
             word-break: break-word;
             overflow-wrap: anywhere;
             font-size: 14px;
             line-height: 1.35;
             background: transparent;
+            box-sizing: border-box;
         }
 
         /* Lists & markers (match table cell editor output) */
