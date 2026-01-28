@@ -12,7 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { Store } from '@ngrx/store';
-import { Subscription } from 'rxjs';
+import { Subscription, take } from 'rxjs';
 import { CdkDragEnd, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 
 import { WidgetPosition, WidgetProps } from '../../../../models/widget.model';
@@ -111,6 +111,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Subscription to widget data
    */
   private widgetSubscription?: Subscription;
+  private lastLayoutSignature: string | null = null;
 
   // Capture-phase guard: when document is locked, block pointer/click interactions that would
   // start edits (table resizers, text focus, etc.), while still allowing hover/mousemove for tooltips.
@@ -569,6 +570,19 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       .subscribe(widget => {
         this.persistedWidget.set(widget);
 
+        // If a non-connector widget's layout changes (drag/resize/undo), keep attached connectors in sync.
+        // Run this async to avoid dispatching during the store subscription call stack.
+        if (widget && widget.type !== 'connector') {
+          const sig = `${widget.position?.x ?? 0},${widget.position?.y ?? 0},${widget.size?.width ?? 0},${widget.size?.height ?? 0}`;
+          const changed = sig !== this.lastLayoutSignature;
+          this.lastLayoutSignature = sig;
+
+          // Avoid syncing while the user is in an active gesture on this widget.
+          if (changed && !this.isEditing && !this.isResizing && !this.isRotating && !this.dragStartFrame) {
+            queueMicrotask(() => this.updateAttachedConnectors());
+          }
+        }
+
         // Normalize straight connector widgets to a slim height so they don't behave like big rectangles.
         // This is a system layout fix, so we do not record an undo step.
         this.maybeNormalizePreferredHeight(widget);
@@ -777,9 +791,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
     this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     
-    // Update any connectors attached to this widget
-    this.updateAttachedConnectors();
-    
     // Stop drag tracking
     this.uiState.stopDragging();
     this.guides.end(this.widgetId);
@@ -805,30 +816,39 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     if (attachedConnectors.length === 0) return;
     
-    // Update each attached connector
-    for (const attached of attachedConnectors) {
-      // Get the new anchor position
-      const newPos = this.connectorAnchorService.getAnchorPositionByWidgetId(
-        this.widgetId,
-        attached.attachment.anchor
-      );
-      
-      if (!newPos) continue;
-      
-      // Get the connector widget from the store
-      const connectorWidget = this.store
-        .select(DocumentSelectors.selectWidgetById(attached.connectorId))
-        .subscribe(connector => {
-          if (!connector) return;
-          
+    // IMPORTANT: Avoid subscribing to per-widget selectors and dispatching inside that subscription.
+    // That pattern can cause re-entrant emissions and infinite update loops (page hang).
+    // Instead, snapshot widget entities once, compute all connector updates, then dispatch a single batch.
+    this.store
+      .select(DocumentSelectors.selectWidgetEntities)
+      .pipe(take(1))
+      .subscribe(entities => {
+        const anchorDef = this.connectorAnchorService.anchorPositions.find(
+          a => a.position === attachedConnectors[0]?.attachment.anchor
+        );
+
+        const updates: WidgetEntity[] = [];
+
+        for (const attached of attachedConnectors) {
+          const connector = entities[attached.connectorId];
+          if (!connector || connector.type !== 'connector') continue;
+
+          const anchor = this.connectorAnchorService.anchorPositions.find(a => a.position === attached.attachment.anchor);
+          if (!anchor) continue;
+
+          // Compute anchor position directly from the moved widget (never stale)
+          const newPos = {
+            x: widget.position.x + (anchor.xPercent / 100) * widget.size.width,
+            y: widget.position.y + (anchor.yPercent / 100) * widget.size.height,
+          };
+
           const props = connector.props as any;
           const startPoint = props?.startPoint;
           const endPoint = props?.endPoint;
           const controlPoint = props?.controlPoint;
-          
-          if (!startPoint || !endPoint) return;
-          
-          // Calculate absolute positions
+          if (!startPoint || !endPoint) continue;
+
+          // Current absolute geometry
           let absStart = {
             x: connector.position.x + startPoint.x,
             y: connector.position.y + startPoint.y,
@@ -837,42 +857,39 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             x: connector.position.x + endPoint.x,
             y: connector.position.y + endPoint.y,
           };
-          let absControl = controlPoint ? {
-            x: connector.position.x + controlPoint.x,
-            y: connector.position.y + controlPoint.y,
-          } : null;
-          
-          // Update the attached endpoint
+          const absControl = controlPoint
+            ? { x: connector.position.x + controlPoint.x, y: connector.position.y + controlPoint.y }
+            : null;
+
+          // Apply moved anchor to the attached endpoint
           if (attached.endpoint === 'start') {
             absStart = newPos;
           } else {
             absEnd = newPos;
           }
-          
-          // Minimal visual buffer so the *entire rendered stroke* (and arrowhead) stays inside bounds.
-          // This avoids the bad UX of large invisible padding while fixing “can’t drag near ends”.
+
+          // Minimal visual buffer so stroke + arrow remain inside bounds (prevents “broken” attachment look)
           const strokeWidth = props?.stroke?.width ?? 2;
           const shapeType = String(props?.shapeType ?? '');
           const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
-          const arrowBuffer = hasArrow ? 10 : 0; // matches ConnectorWidgetComponent arrowLength
-          const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6; // +2px extra ease
+          const arrowBuffer = hasArrow ? 10 : 0;
+          const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6;
 
-          // Calculate tight bounding box (using bezier math for curves)
           const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer);
-          
           const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
-          const newSize = { 
-            width: Math.max(curveBounds.maxX - curveBounds.minX, 1), 
-            height: Math.max(curveBounds.maxY - curveBounds.minY, 1) 
+          const newSize = {
+            width: Math.max(curveBounds.maxX - curveBounds.minX, 1),
+            height: Math.max(curveBounds.maxY - curveBounds.minY, 1),
           };
-          
-          // Convert back to local coordinates
+
           const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
           const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
-          const newControlPoint = absControl ? { x: absControl.x - curveBounds.minX, y: absControl.y - curveBounds.minY } : undefined;
-          
-          // Update the connector
-          this.documentService.updateWidget(this.pageId, attached.connectorId, {
+          const newControlPoint = absControl
+            ? { x: absControl.x - curveBounds.minX, y: absControl.y - curveBounds.minY }
+            : undefined;
+
+          updates.push({
+            ...connector,
             position: newPosition,
             size: newSize,
             props: {
@@ -882,11 +899,15 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
               controlPoint: newControlPoint,
             },
           });
+        }
+
+        if (updates.length === 0) return;
+
+        // Dispatch after this subscription completes to avoid re-entrancy.
+        queueMicrotask(() => {
+          this.store.dispatch(WidgetActions.upsertMany({ widgets: updates }));
         });
-      
-      // Unsubscribe immediately (we just need one read)
-      connectorWidget.unsubscribe();
-    }
+      });
   }
   
   onWidgetPointerDown(_event?: PointerEvent): void {
@@ -1153,9 +1174,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
       this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });
-      
-      // Update any connectors attached to this widget
-      this.updateAttachedConnectors();
     }
   }
   
