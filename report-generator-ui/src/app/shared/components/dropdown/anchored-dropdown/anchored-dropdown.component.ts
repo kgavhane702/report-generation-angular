@@ -179,7 +179,18 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
       const target = event.target as Node | null;
       if (!target) return;
 
-      const panelEl = this.panelRef?.nativeElement;
+      // IMPORTANT: This dropdown is portaled to body. During the first tick after opening,
+      // `panelRef` may not be available yet even though pointer events already fire.
+      // Fall back to querying the portal host to avoid incorrectly treating an inside click
+      // as an outside click (which can swallow menu item actions).
+      const panelEl =
+        this.panelRef?.nativeElement ??
+        (this.portalHost?.querySelector?.('.anchored-dropdown') as HTMLElement | null) ??
+        undefined;
+
+      // If the panel isn't resolved yet, do not treat this as an outside click.
+      // This can happen in the first tick after opening (portal creation timing).
+      if (!panelEl) return;
       if (panelEl?.contains(target)) return;
       if (this.anchor?.contains(target)) return;
 
@@ -192,11 +203,13 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
       }
     };
 
-    document.addEventListener('pointerdown', handler, true);
+    // Use bubble phase so inner handlers can run first; this avoids edge cases where
+    // a portaled panel hasn't been resolved yet in the first capture-phase event.
+    document.addEventListener('pointerdown', handler, false);
     document.addEventListener('keydown', escHandler, true);
 
     this.removeDocListener = () => {
-      document.removeEventListener('pointerdown', handler, true);
+      document.removeEventListener('pointerdown', handler, false);
       document.removeEventListener('keydown', escHandler, true);
     };
   }

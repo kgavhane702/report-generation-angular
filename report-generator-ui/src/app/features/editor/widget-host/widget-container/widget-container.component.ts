@@ -30,6 +30,7 @@ import { WidgetEntity } from '../../../../store/document/document.state';
 import { WidgetActions } from '../../../../store/document/document.actions';
 import type { WidgetModel } from '../../../../models/widget.model';
 import { getWidgetInteractionPolicy, isResizeHandleAllowed, type WidgetInteractionPolicy } from '../widget-interaction-policy';
+import type { ContextMenuItem } from '../../../../shared/components/context-menu/context-menu.component';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -96,6 +97,26 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly undoRedo = inject(UndoRedoService);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
   private readonly connectorAnchorService = inject(ConnectorAnchorService);
+
+  // ============================================
+  // CONTEXT MENU
+  // ============================================
+
+  contextMenuOpen = false;
+  contextMenuX: number | null = null;
+  contextMenuY: number | null = null;
+
+  get contextMenuItems(): ContextMenuItem[] {
+    return [
+      {
+        id: 'delete',
+        label: 'Delete',
+        icon: 'trash',
+        danger: true,
+        disabled: this.isDocumentLocked,
+      },
+    ];
+  }
   
   // ============================================
   // WIDGET DATA (GRANULAR SELECTOR)
@@ -1746,16 +1767,42 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     event.preventDefault();
 
+    this.deleteWidgetInternal();
+  }
+
+  onWidgetContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (this.isResizing || this.isRotating) return;
+
+    // Right-click should select the widget first.
+    this.uiState.selectWidget(this.widgetId);
+
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.contextMenuOpen = true;
+  }
+
+  onContextMenuItemSelected(actionId: string): void {
+    this.contextMenuOpen = false;
+    
+    if (actionId === 'delete') {
+      queueMicrotask(() => this.deleteWidgetInternal());
+    }
+  }
+
+  private deleteWidgetInternal(): void {
     if (this.isDocumentLocked) {
       return;
     }
-    
+
     // Discard any drafts for this widget
     this.draftState.discardDraft(this.widgetId);
-    
+
     // Delete the widget
     this.documentService.deleteWidget(this.pageId, this.widgetId);
-    
+
     // Clear selection
     this.uiState.selectWidget(null);
   }

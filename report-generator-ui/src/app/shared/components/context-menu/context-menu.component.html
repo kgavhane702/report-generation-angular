@@ -1,0 +1,25 @@
+<app-anchored-dropdown
+  [open]="open"
+  [anchor]="anchorEl!"
+  [align]="'start'"
+  [offsetPx]="2"
+  [minWidthPx]="minWidthPx"
+  [maxWidthPx]="320"
+  (openChange)="onDropdownOpenChange($event)"
+>
+  <div class="context-menu" role="menu" (contextmenu)="$event.preventDefault()" (mousedown)="$event.stopPropagation()">
+    <button
+      *ngFor="let item of items"
+      type="button"
+      class="context-menu__item"
+      [class.context-menu__item--danger]="!!item.danger"
+      [disabled]="!!item.disabled"
+      role="menuitem"
+      (pointerdown)="onItemPointerDown(item, $event)"
+      (click)="onItemClick(item, $event)"
+    >
+      <app-icon *ngIf="item.icon" [name]="item.icon" [size]="14"></app-icon>
+      <span class="context-menu__label">{{ item.label }}</span>
+    </button>
+  </div>
+</app-anchored-dropdown>

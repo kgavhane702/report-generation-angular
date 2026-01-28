@@ -112,6 +112,12 @@ app-root {
   pointer-events: auto;
   overflow: auto;
   box-sizing: border-box;
+
+  // Tighter padding for context menus
+  &:has(.context-menu) {
+    padding: 0;
+    border-radius: 0.75rem;
+  }
 }
 
 // Global list styles for table cells - ensures bullets/numbers are visible

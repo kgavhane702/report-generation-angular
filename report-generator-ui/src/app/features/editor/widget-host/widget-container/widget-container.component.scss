@@ -224,57 +224,6 @@
   transform: translateX(-50%) scale(1.1);
 }
 
-.widget-container__delete {
-  position: absolute;
-  top: -14px;
-  left: calc(50% + 40px); /* Position to the right of center, avoiding top resize handle */
-  transform: translateX(-50%); /* Center the button on the calculated position */
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  background: #ffffff;
-  box-shadow: 0 3px 6px rgba(15, 23, 42, 0.25);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #dc2626;
-  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
-  z-index: 20; // Above drag handles
-  opacity: 0;
-  pointer-events: none;
-  padding: 0;
-  margin: 0;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-}
-
-.widget-container:hover .widget-container__delete,
-.widget-container--selected .widget-container__delete {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.widget-container__delete:hover {
-  background: #dc2626;
-  color: #ffffff;
-  transform: translateX(-50%) scale(1.1);
-  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
-}
-
-.widget-container__delete:active {
-  transform: translateX(-50%) scale(0.95);
-  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
-}
-
-.widget-container__delete svg {
-  width: 14px;
-  height: 14px;
-  pointer-events: none;
-  display: block;
-}
-
 // Rotation handle - only shown for object widgets
 .widget-container__rotate {
   position: absolute;

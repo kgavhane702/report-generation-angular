@@ -14,6 +14,7 @@
     (cdkDragMoved)="onDragMoved($event)"
     (cdkDragEnded)="onDragEnded($event)"
     (pointerdown)="onWidgetPointerDown($event)"
+    (contextmenu)="onWidgetContextMenu($event)"
     [style.left.px]="frame.x"
     [style.top.px]="frame.y"
     [style.width.px]="frame.width"
@@ -217,17 +218,14 @@
       </button>
     </ng-container>
 
-    <button
-      *ngIf="!isDocumentLocked"
-      class="widget-container__delete"
-      type="button"
-      (mousedown)="onDeleteClick($event)"
-      (pointerdown)="onDeleteClick($event)"
-      title="Delete widget"
-      aria-label="Delete widget"
-    >
-      <app-icon name="trash" [size]="13"></app-icon>
-    </button>
+    <app-context-menu
+      [open]="contextMenuOpen"
+      [x]="contextMenuX"
+      [y]="contextMenuY"
+      [items]="contextMenuItems"
+      (openChange)="contextMenuOpen = $event"
+      (itemSelected)="onContextMenuItemSelected($event)"
+    ></app-context-menu>
 
     <!-- Anchor points for connector attachment (shown when dragging connector endpoints) -->
     <ng-container *ngIf="showAnchorPoints">

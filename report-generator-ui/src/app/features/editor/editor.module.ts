@@ -40,6 +40,7 @@ import { AppModalComponent } from '../../shared/components/modal/app-modal/app-m
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
 import { SettingsDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
+import { ContextMenuComponent } from '../../shared/components/context-menu/context-menu.component';
 import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/document-download-menu.component';
 import { EditorRoutingModule } from './editor-routing.module';
 
@@ -87,6 +88,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     SafeHtmlPipe,
     TwSafeInnerHtmlDirective,
     AppIconComponent,
+    ContextMenuComponent,
     SettingsDialogComponent,
     DocumentDownloadMenuComponent,
   ],
