@@ -172,16 +172,16 @@ public class DocumentRenderService {
         int estimatedCapacity = 300 + (widgetCount * 500) + 200;
         StringBuilder builder = new StringBuilder(estimatedCapacity);
         builder.append("<div class=\"page\" style=\"width: ")
-            .append(pageWidth)
-            .append("mm; height: ")
-            .append(pageHeight)
-            .append("mm; page-break-after: always; page: ")
+            .append(widthPx)
+            .append("px; height: ")
+            .append(heightPx)
+            .append("px; page-break-after: always; page: ")
             .append(pageName)
             .append(";\"><div class=\"page__surface\" style=\"width: ")
-            .append(pageWidth)
-            .append("mm; height: ")
-            .append(pageHeight)
-            .append("mm;\">");
+            .append(widthPx)
+            .append("px; height: ")
+            .append(heightPx)
+            .append("px;\">");
 
         builder.append(renderHeader(document, page));
 
@@ -202,6 +202,20 @@ public class DocumentRenderService {
             return "";
         }
         String type = Optional.ofNullable(widget.getType()).orElse("").toLowerCase(Locale.ROOT);
+
+        if (logger.isDebugEnabled()) {
+            // Debug-only trace to compare UI vs PDF positions/sizes.
+            WidgetSize debugSize = widget.getSize();
+            WidgetPosition debugPos = widget.getPosition();
+            logger.debug("Widget: type={}, id={}, x={}, y={}, width={}, height={}",
+                type,
+                widget.getId(),
+                debugPos != null ? debugPos.getX() : "null",
+                debugPos != null ? debugPos.getY() : "null",
+                debugSize != null ? debugSize.getWidth() : "null",
+                debugSize != null ? debugSize.getHeight() : "null");
+        }
+        
         String style = buildWidgetStyle(widget);
         JsonNode props = widget.getProps();
         return widgetRenderers.render(type, props, style, new RenderContext(document, page));

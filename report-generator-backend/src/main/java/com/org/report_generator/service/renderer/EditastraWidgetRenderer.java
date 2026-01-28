@@ -25,6 +25,8 @@ public class EditastraWidgetRenderer {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             color: #0f172a;
             box-sizing: border-box;
+            /* Match frontend Editastra widget default (used for URL auto-fit scaling in standalone widgets). */
+            --ew-auto-fit-scale: 1;
         }
 
         .widget-editastra__content {
@@ -46,16 +48,25 @@ public class EditastraWidgetRenderer {
             width: 100%;
             max-width: 100%;
             max-height: 100%;
-            padding: 10px 12px;
             outline: none;
             overflow: hidden;
             white-space: pre-wrap;
             word-break: break-word;
             overflow-wrap: anywhere;
-            font-size: 14px;
-            line-height: 1.35;
+            /* Standalone Editastra widgets use the UI's compact table-variant rules.
+               See: editastra-editor.component.scss (.editastra-editor--table ... not(.table-widget__cell-editor...)). */
+            padding:
+                clamp(0px, calc(4px * var(--ew-auto-fit-scale, 1)), 4px)
+                clamp(0px, calc(8px * var(--ew-auto-fit-scale, 1)), 8px);
+            font-size: clamp(8px, calc(1em * var(--ew-auto-fit-scale, 1)), 1em);
+            line-height: clamp(1.0, calc(1.35 * var(--ew-auto-fit-scale, 1)), 1.35);
             background: transparent;
             box-sizing: border-box;
+        }
+
+        /* Subtle caret-friendly baseline blocks (match UI) */
+        .widget-editastra__editor > div {
+            min-height: 1em;
         }
 
         /* Lists & markers (match table cell editor output) */

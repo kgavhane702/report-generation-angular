@@ -30,7 +30,6 @@ public class PageStylesRenderer {
             background: #ffffff;
             box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08);
             padding: 0;
-            border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0;
             /* Allow visible overflow for header/footer */
             overflow: visible;

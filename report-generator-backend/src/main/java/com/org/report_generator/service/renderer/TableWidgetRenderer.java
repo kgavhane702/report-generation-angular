@@ -23,13 +23,13 @@ public class TableWidgetRenderer {
             width: 100%;
             height: 100%;
             position: relative;
-            /* Avoid clipping when UI auto-grows rows/widget during typing. */
+            /* Allow other widgets to overlap visually (table cell content is still clipped by cell overflow rules). */
             overflow: visible;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             color: #0f172a;
             /* Match frontend default typography (tables default to 14px, not browser 16px). */
             font-size: 14px;
-            line-height: 1.35;
+            line-height: 1.5;
             /* Defaults that can be overridden per-widget (e.g. showBorders=false) */
             --table-border-style: solid;
             --table-border-width: 1px;
