@@ -528,14 +528,22 @@ export class DocumentService {
     widgetIds.forEach((id) => this.deleteWidget(pageId, id));
   }
 
-  pasteWidgets(pageId: string): string[] {
+  pasteWidgets(pageId: string, options?: { at?: { x: number; y: number } }): string[] {
     if (!this.canEdit()) return [];
     const copiedWidgets = this.clipboardService.getCopiedWidgets();
     if (copiedWidgets.length === 0) {
       return [];
     }
 
-    const offset = { x: 20, y: 20 };
+    const at = options?.at;
+    const defaultOffset = { x: 20, y: 20 };
+    const minX = copiedWidgets.reduce((min, w) => Math.min(min, w.position?.x ?? 0), Number.POSITIVE_INFINITY);
+    const minY = copiedWidgets.reduce((min, w) => Math.min(min, w.position?.y ?? 0), Number.POSITIVE_INFINITY);
+
+    const offset = at
+      ? { x: at.x - minX, y: at.y - minY }
+      : defaultOffset;
+
     const pastedWidgetIds: string[] = [];
     copiedWidgets.forEach((widget) => {
       const clonedWidget = this.widgetFactory.cloneWidget(widget, offset);

@@ -37,9 +37,12 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   canvasMenuOpen = false;
   canvasMenuX: number | null = null;
   canvasMenuY: number | null = null;
+  canvasMenuTargetPageId: string | null = null;
+  canvasMenuTargetPageX: number | null = null;
+  canvasMenuTargetPageY: number | null = null;
 
   get canvasContextMenuItems(): ContextMenuItem[] {
-    const hasPage = !!this.editorState.activePageId();
+    const hasPage = !!(this.canvasMenuTargetPageId ?? this.editorState.activePageId());
     const locked = this.documentService.documentLocked() === true;
     const canPaste = this.documentService.canPaste();
 
@@ -122,6 +125,13 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
     this.canvasMenuX = event.clientX;
     this.canvasMenuY = event.clientY;
+
+    // Identify which page surface was clicked (supports multi-page continuous scroll).
+    const target = this.findPageSurfaceAtPoint(event.clientX, event.clientY);
+    this.canvasMenuTargetPageId = target?.pageId ?? this.editorState.activePageId() ?? null;
+    this.canvasMenuTargetPageX = target?.x ?? null;
+    this.canvasMenuTargetPageY = target?.y ?? null;
+
     this.canvasMenuOpen = true;
   }
 
@@ -131,16 +141,46 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     if (actionId !== 'paste') return;
 
     queueMicrotask(() => {
-      const pageId = this.editorState.activePageId();
+      const pageId = this.canvasMenuTargetPageId ?? this.editorState.activePageId();
       if (!pageId) return;
       if (this.documentService.documentLocked()) return;
       if (!this.documentService.canPaste()) return;
 
-      const pastedWidgetIds = this.documentService.pasteWidgets(pageId);
+      const at =
+        this.canvasMenuTargetPageX != null && this.canvasMenuTargetPageY != null
+          ? { x: this.canvasMenuTargetPageX, y: this.canvasMenuTargetPageY }
+          : undefined;
+
+      const pastedWidgetIds = this.documentService.pasteWidgets(pageId, { at });
       if (pastedWidgetIds.length > 0) {
         this.editorState.setActiveWidget(pastedWidgetIds[0]);
       }
     });
+  }
+
+  private findPageSurfaceAtPoint(clientX: number, clientY: number): { pageId: string; x: number; y: number } | null {
+    const surfaces = Array.from(document.querySelectorAll<HTMLElement>('.page__surface'));
+    if (surfaces.length === 0) return null;
+
+    const zoom = this.editorState.zoom();
+    const scale = Math.max(0.01, (zoom ?? 100) / 100);
+
+    for (const surface of surfaces) {
+      const rect = surface.getBoundingClientRect();
+      const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+      if (!inside) continue;
+
+      const id = surface.id || '';
+      const prefix = 'page-surface-';
+      const pageId = id.startsWith(prefix) ? id.slice(prefix.length) : this.editorState.activePageId() ?? '';
+      if (!pageId) return null;
+
+      const x = (clientX - rect.left) / scale;
+      const y = (clientY - rect.top) / scale;
+      return { pageId, x: Math.max(0, x), y: Math.max(0, y) };
+    }
+
+    return null;
   }
 
   // Computed signals to determine if toolbars should be shown
@@ -202,6 +242,13 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
         this.pasteWidgets();
       }
     }
+
+    if (!isInputElement && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        this.deleteSelectedWidget();
+      }
+    }
   }
 
   private copySelectedWidget(): void {
@@ -223,6 +270,24 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     }
 
     this.documentService.cutWidget(
+      widgetContext.pageId,
+      widgetContext.widget.id
+    );
+
+    this.editorState.setActiveWidget(null);
+  }
+
+  private deleteSelectedWidget(): void {
+    if (this.documentService.documentLocked()) {
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) {
+      return;
+    }
+
+    this.documentService.deleteWidget(
       widgetContext.pageId,
       widgetContext.widget.id
     );
