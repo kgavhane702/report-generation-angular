@@ -25,7 +25,14 @@ import { PendingChangesRegistry, type FlushableWidget } from '../../../../../cor
 import { ObjectToolbarService } from '../../../../../core/services/object-toolbar.service';
 import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
 import { EditastraEditorComponent } from '../../editastra/editor/editastra-editor.component';
-import { getShapeSvgPath, isComplexShape, getShapeRenderType, isStrokeOnlyShape, shapeSupportsText } from '../config';
+import {
+  getShapeSvgPath,
+  getShapeSvgViewBox,
+  isComplexShape,
+  getShapeRenderType,
+  isStrokeOnlyShape,
+  shapeSupportsText,
+} from '../config';
 
 @Component({
   selector: 'app-object-widget',
@@ -150,6 +157,11 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
   /** Get SVG path for complex shapes */
   get svgPath(): string {
     return getShapeSvgPath(this.shapeType);
+  }
+
+  /** Get a tight SVG viewBox so the shape fills the widget */
+  get svgViewBox(): string {
+    return getShapeSvgViewBox(this.shapeType);
   }
 
   /** Check if this is a stroke-only shape (like line) */

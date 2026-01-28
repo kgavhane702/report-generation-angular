@@ -5,6 +5,13 @@
 
 export type ShapeRenderType = 'css' | 'svg';
 
+type PathBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
 interface ShapeSvgConfig {
   /** The SVG path for the shape (normalized to 0-100 viewBox) */
   path: string;
@@ -177,6 +184,56 @@ export function getShapeSvgPath(shapeType: string): string {
   return SHAPE_SVG_PATHS[shapeType]?.path || SHAPE_SVG_PATHS['rectangle']?.path || '';
 }
 
+function computePathBounds(path: string): PathBounds | null {
+  if (!path) return null;
+
+  const matches = path.match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+  if (!matches || matches.length < 4) return null;
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i + 1 < matches.length; i += 2) {
+    const x = Number(matches[i]);
+    const y = Number(matches[i + 1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Get a tight SVG viewBox for the shape based on its path bounds.
+ * This reduces built-in padding so shapes (like arrows) fill the widget.
+ */
+export function getShapeSvgViewBox(shapeType: string): string {
+  // Stroke-only shapes like 'line' have a near-zero height bounding box.
+  // Keep a stable default viewBox for those.
+  if (isStrokeOnlyShape(shapeType)) {
+    return '0 0 100 100';
+  }
+
+  const path = getShapeSvgPath(shapeType);
+  const bounds = computePathBounds(path);
+  if (!bounds) return '0 0 100 100';
+
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  if (width <= 0 || height <= 0) return '0 0 100 100';
+
+  return `${bounds.minX} ${bounds.minY} ${width} ${height}`;
+}
+
 /**
  * Get the full SVG config for a shape
  */
@@ -235,6 +292,8 @@ export function generateShapeSvg(
     return '';
   }
 
+  const viewBox = getShapeSvgViewBox(shapeType);
+
   let strokeDasharray = '';
   if (strokeStyle === 'dashed') strokeDasharray = 'stroke-dasharray="8,4"';
   else if (strokeStyle === 'dotted') strokeDasharray = 'stroke-dasharray="2,2"';
@@ -245,7 +304,7 @@ export function generateShapeSvg(
 
   return `
     <svg xmlns="http://www.w3.org/2000/svg" 
-         viewBox="0 0 100 100" 
+         viewBox="${viewBox}" 
          width="${width}" 
          height="${height}" 
          preserveAspectRatio="none"

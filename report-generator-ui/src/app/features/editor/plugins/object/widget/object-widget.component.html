@@ -15,7 +15,7 @@
     *ngIf="isSvgShape"
     class="object-widget__shape object-widget__shape--svg"
     [class.object-widget__shape--line]="isLineShape"
-    viewBox="0 0 100 100"
+    [attr.viewBox]="svgViewBox"
     preserveAspectRatio="none"
     [style.opacity]="opacity"
   >

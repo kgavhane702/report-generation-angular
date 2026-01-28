@@ -5,6 +5,11 @@ import com.org.report_generator.render.widgets.RenderContext;
 import com.org.report_generator.render.widgets.WidgetRenderer;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
 
 /**
@@ -16,6 +21,9 @@ import java.util.Set;
  */
 @Component
 public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
+
+    private static final String DEFAULT_VIEWBOX = "0 0 100 100";
+    private static final Pattern SVG_NUMBER_PATTERN = Pattern.compile("(-?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)");
 
     /** Shapes that can be rendered with pure CSS */
     private static final Set<String> CSS_SHAPES = Set.of(
@@ -123,6 +131,8 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         // Check if this is a stroke-only shape (like line)
         boolean isLineShape = "line".equals(shapeType);
 
+        String viewBox = isLineShape ? DEFAULT_VIEWBOX : computeViewBox(svgPath);
+
         // Build stroke dasharray
         String strokeDasharray = "";
         if ("dashed".equals(strokeStyle)) {
@@ -160,19 +170,71 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         return String.format(
             "<div class=\"widget widget-object\" style=\"%s\">" +
                 "<svg class=\"widget-object__shape widget-object__shape--svg\" " +
-                    "viewBox=\"0 0 100 100\" preserveAspectRatio=\"none\" " +
+                    "viewBox=\"%s\" preserveAspectRatio=\"none\" " +
                     "style=\"width: 100%%; height: 100%%; display: block; opacity: %s;\">" +
                     "<path d=\"%s\" fill=\"%s\" %s vector-effect=\"non-scaling-stroke\" />" +
                 "</svg>" +
                 "%s" +
             "</div>",
             escapedWidgetStyle,
+            escapeHtmlAttribute(viewBox),
             opacityValue,
             escapeHtmlAttribute(svgPath),
             fillAttr,
             strokeAttr,
             textOverlay
         );
+    }
+
+    private String computeViewBox(String svgPath) {
+        if (svgPath == null || svgPath.isBlank()) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        Matcher matcher = SVG_NUMBER_PATTERN.matcher(svgPath);
+        List<Double> numbers = new ArrayList<>();
+        while (matcher.find()) {
+            try {
+                numbers.add(Double.valueOf(matcher.group(1)));
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed numbers
+            }
+        }
+
+        if (numbers.size() < 4) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+
+        for (int i = 0; i + 1 < numbers.size(); i += 2) {
+            double x = numbers.get(i);
+            double y = numbers.get(i + 1);
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+
+        double width = maxX - minX;
+        double height = maxY - minY;
+        if (!(width > 0) || !(height > 0)) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        return String.format(Locale.ROOT, "%s %s %s %s",
+                trimNumber(minX), trimNumber(minY), trimNumber(width), trimNumber(height));
+    }
+
+    private String trimNumber(double v) {
+        // Keep HTML stable and readable; these shapes are integer-ish.
+        if (v == Math.rint(v)) {
+            return Long.toString(Math.round(v));
+        }
+        return String.format(Locale.ROOT, "%.4f", v);
     }
     
     /**
