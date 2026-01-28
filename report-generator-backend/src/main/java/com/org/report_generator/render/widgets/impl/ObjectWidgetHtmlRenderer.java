@@ -128,10 +128,12 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
             svgPath = "M 5 5 L 95 5 L 95 95 L 5 95 Z"; // Fallback to rectangle
         }
 
-        // Check if this is a stroke-only shape (like line)
-        boolean isLineShape = "line".equals(shapeType);
+        // Check if this is a stroke-only shape (connectors)
+        boolean isStrokeOnly = isStrokeOnlyShapeType(shapeType);
 
-        String viewBox = isLineShape ? DEFAULT_VIEWBOX : computeViewBox(svgPath);
+        // For stroke-only connectors, compute a horizontal-tight viewBox so endpoints touch widget edges
+        // without mutating stored svgPath strings.
+        String viewBox = isStrokeOnly ? computeStrokeOnlyViewBox(shapeType, svgPath) : computeViewBox(shapeType, svgPath);
 
         // Build stroke dasharray
         String strokeDasharray = "";
@@ -144,7 +146,7 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         String strokeAttr;
         String fillAttr;
         
-        if (isLineShape) {
+        if (isStrokeOnly) {
             // Line: use fillColor as stroke, no fill
             int effectiveStrokeWidth = Math.max(strokeWidth > 0 ? strokeWidth : 2, 2);
             strokeAttr = String.format("stroke=\"%s\" stroke-width=\"%d\" stroke-linecap=\"round\" %s", 
@@ -186,7 +188,59 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         );
     }
 
-    private String computeViewBox(String svgPath) {
+    private boolean isStrokeOnlyShapeType(String shapeType) {
+        return "line".equals(shapeType)
+                || "elbow-connector".equals(shapeType)
+                || "elbow-arrow".equals(shapeType)
+                || "line-arrow".equals(shapeType)
+                || "line-arrow-double".equals(shapeType);
+    }
+
+    private String computeStrokeOnlyViewBox(String shapeType, String svgPath) {
+        if (svgPath == null || svgPath.isBlank()) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        // Only tighten horizontally for straight line connectors.
+        // Elbow connectors are 2D and should keep a stable viewBox.
+        boolean isStraight = "line".equals(shapeType) || "line-arrow".equals(shapeType) || "line-arrow-double".equals(shapeType);
+        if (!isStraight) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        Matcher matcher = SVG_NUMBER_PATTERN.matcher(svgPath);
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        boolean sawAny = false;
+        int idx = 0;
+        while (matcher.find()) {
+            double v;
+            try {
+                v = Double.parseDouble(matcher.group(1));
+            } catch (NumberFormatException ignored) {
+                idx++;
+                continue;
+            }
+
+            // Numbers are x,y pairs in our stored paths.
+            if (idx % 2 == 0) {
+                minX = Math.min(minX, v);
+                maxX = Math.max(maxX, v);
+                sawAny = true;
+            }
+            idx++;
+        }
+
+        if (!sawAny || !Double.isFinite(minX) || !Double.isFinite(maxX) || !(maxX > minX)) {
+            return DEFAULT_VIEWBOX;
+        }
+
+        // Keep Y stable (0..100) so stroke thickness and vertical centering remain predictable,
+        // but tighten X so endpoints map to widget edges.
+        return String.format(Locale.ROOT, "%s 0 %s 100", trimNumber(minX), trimNumber(maxX - minX));
+    }
+
+    private String computeViewBox(String shapeType, String svgPath) {
         if (svgPath == null || svgPath.isBlank()) {
             return DEFAULT_VIEWBOX;
         }
@@ -225,8 +279,20 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
             return DEFAULT_VIEWBOX;
         }
 
+        // Tight viewBox: shape should touch widget edges.
+        double finalMinX = minX;
+        double finalMinY = minY;
+        double finalMaxX = maxX;
+        double finalMaxY = maxY;
+
+        double finalW = finalMaxX - finalMinX;
+        double finalH = finalMaxY - finalMinY;
+        if (!(finalW > 0) || !(finalH > 0)) {
+            return DEFAULT_VIEWBOX;
+        }
+
         return String.format(Locale.ROOT, "%s %s %s %s",
-                trimNumber(minX), trimNumber(minY), trimNumber(width), trimNumber(height));
+                trimNumber(finalMinX), trimNumber(finalMinY), trimNumber(finalW), trimNumber(finalH));
     }
 
     private String trimNumber(double v) {

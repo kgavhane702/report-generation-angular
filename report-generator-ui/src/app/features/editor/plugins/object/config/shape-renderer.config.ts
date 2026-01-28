@@ -58,7 +58,26 @@ const SHAPE_SVG_PATHS: Record<string, ShapeSvgConfig> = {
 
   // Line
   line: {
-    path: 'M 5 50 L 95 50',
+    path: 'M 0 50 L 100 50',
+    closed: false,
+  },
+
+  // Connectors (stroke-only)
+  'elbow-connector': {
+    path: 'M 10 15 L 10 75 L 90 75',
+    closed: false,
+  },
+  'elbow-arrow': {
+    // Elbow with arrow head at the end
+    path: 'M 10 15 L 10 75 L 90 75 M 84 69 L 90 75 L 84 81',
+    closed: false,
+  },
+  'line-arrow': {
+    path: 'M 0 50 L 100 50 M 92 44 L 100 50 L 92 56',
+    closed: false,
+  },
+  'line-arrow-double': {
+    path: 'M 0 50 L 100 50 M 8 44 L 0 50 L 8 56 M 92 44 L 100 50 L 92 56',
     closed: false,
   },
 
@@ -231,7 +250,19 @@ export function getShapeSvgViewBox(shapeType: string): string {
   const height = bounds.maxY - bounds.minY;
   if (width <= 0 || height <= 0) return '0 0 100 100';
 
-  return `${bounds.minX} ${bounds.minY} ${width} ${height}`;
+  // Tight viewBox: shape should touch the widget edges.
+  const pad = 0;
+
+  const minX = bounds.minX - pad;
+  const minY = bounds.minY - pad;
+  const maxX = bounds.maxX + pad;
+  const maxY = bounds.maxY + pad;
+
+  const vbW = maxX - minX;
+  const vbH = maxY - minY;
+  if (!(vbW > 0) || !(vbH > 0)) return '0 0 100 100';
+
+  return `${minX} ${minY} ${vbW} ${vbH}`;
 }
 
 /**
@@ -252,7 +283,13 @@ export function isShapePathClosed(shapeType: string): boolean {
  * Check if a shape is stroke-only (like a line)
  */
 export function isStrokeOnlyShape(shapeType: string): boolean {
-  return shapeType === 'line';
+  return (
+    shapeType === 'line' ||
+    shapeType === 'elbow-connector' ||
+    shapeType === 'elbow-arrow' ||
+    shapeType === 'line-arrow' ||
+    shapeType === 'line-arrow-double'
+  );
 }
 
 /**

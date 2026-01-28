@@ -5,6 +5,7 @@
     [class.widget-container--selected]="isSelected"
     [class.widget-container--resizing]="isResizing"
     [class.widget-container--rotating]="isRotating"
+    [class.widget-container--no-border]="!showSelectionBorder"
     [attr.data-widget-id]="widgetId"
     cdkDrag
     [cdkDragConstrainPosition]="constrainDragPosition"
@@ -20,6 +21,14 @@
     [style.zIndex]="calculatedZIndex"
     [style.transform]="rotationTransform"
   >
+    <!-- For straight connector widgets, allow dragging by clicking anywhere (PPT-like). -->
+    <div
+      *ngIf="dragAnywhereEnabled"
+      class="widget-container__drag-anywhere"
+      cdkDragHandle
+      (pointerdown)="onDragHandlePointerDown($event)"
+    ></div>
+
     <!-- Border drag handles - only these areas allow dragging -->
     <div 
       class="widget-container__drag-handle widget-container__drag-handle--top" 
@@ -95,18 +104,21 @@
 
     <ng-container *ngIf="isSelected && !isDocumentLocked">
       <button
+        *ngIf="isResizeHandleVisible('right')"
         class="widget-container__resize widget-container__resize--right"
         type="button"
         [style.cursor]="getResizeCursor('right')"
         (pointerdown)="onResizePointerDown($event, 'right')"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('bottom')"
         class="widget-container__resize widget-container__resize--bottom"
         type="button"
         [style.cursor]="getResizeCursor('bottom')"
         (pointerdown)="onResizePointerDown($event, 'bottom')"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('corner')"
         class="widget-container__resize widget-container__resize--corner"
         type="button"
         [style.cursor]="getResizeCursor('corner')"
@@ -114,6 +126,7 @@
         title="Resize (bottom-right)"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('corner-top-right')"
         class="widget-container__resize widget-container__resize--corner-top-right"
         type="button"
         [style.cursor]="getResizeCursor('corner-top-right')"
@@ -121,6 +134,7 @@
         title="Resize (top-right)"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('corner-top-left')"
         class="widget-container__resize widget-container__resize--corner-top-left"
         type="button"
         [style.cursor]="getResizeCursor('corner-top-left')"
@@ -128,6 +142,7 @@
         title="Resize (top-left)"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('corner-bottom-left')"
         class="widget-container__resize widget-container__resize--corner-bottom-left"
         type="button"
         [style.cursor]="getResizeCursor('corner-bottom-left')"
@@ -135,12 +150,14 @@
         title="Resize (bottom-left)"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('left')"
         class="widget-container__resize widget-container__resize--left"
         type="button"
         [style.cursor]="getResizeCursor('left')"
         (pointerdown)="onResizePointerDown($event, 'left')"
       ></button>
       <button
+        *ngIf="isResizeHandleVisible('top')"
         class="widget-container__resize widget-container__resize--top"
         type="button"
         [style.cursor]="getResizeCursor('top')"

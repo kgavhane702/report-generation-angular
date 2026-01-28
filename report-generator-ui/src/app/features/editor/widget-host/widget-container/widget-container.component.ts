@@ -28,6 +28,7 @@ import { DocumentSelectors } from '../../../../store/document/document.selectors
 import { WidgetEntity } from '../../../../store/document/document.state';
 import { WidgetActions } from '../../../../store/document/document.actions';
 import type { WidgetModel } from '../../../../models/widget.model';
+import { getWidgetInteractionPolicy, isResizeHandleAllowed, type WidgetInteractionPolicy } from '../widget-interaction-policy';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -205,6 +206,30 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly _previewFrame = signal<WidgetFrame | null>(null);
   /** Ghost frame for resize previews (unclamped cursor-following outline) */
   private readonly _ghostFrame = signal<WidgetFrame | null>(null);
+
+  // ============================================
+  // WIDGET INTERACTION POLICY
+  // ============================================
+
+  private readonly _interactionPolicy = computed<WidgetInteractionPolicy>(() =>
+    getWidgetInteractionPolicy(this.displayWidget())
+  );
+
+  get interactionPolicy(): WidgetInteractionPolicy {
+    return this._interactionPolicy();
+  }
+
+  get showSelectionBorder(): boolean {
+    return this.interactionPolicy.showSelectionBorder;
+  }
+
+  get dragAnywhereEnabled(): boolean {
+    return this.interactionPolicy.dragHandleMode === 'anywhere';
+  }
+
+  isResizeHandleVisible(handle: ResizeHandle): boolean {
+    return isResizeHandleAllowed(this.interactionPolicy, handle);
+  }
   
   // ============================================
   // COMPUTED PROPERTIES
@@ -345,6 +370,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       .subscribe(widget => {
         this.persistedWidget.set(widget);
 
+        // Normalize straight connector widgets to a slim height so they don't behave like big rectangles.
+        // This is a system layout fix, so we do not record an undo step.
+        this.maybeNormalizePreferredHeight(widget);
+
         // If the widget is removed (e.g., via undo), ensure we don't leave UI in a stuck "editing" state.
         // Otherwise global shortcuts like Ctrl+Y can be blocked because UIState still thinks we're editing.
         if (!widget && this.uiState.isEditing(this.widgetId)) {
@@ -366,6 +395,46 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
           }
         }
       });
+  }
+
+  private maybeNormalizePreferredHeight(widget: WidgetEntity | null): void {
+    if (!widget) return;
+    if (this.isDocumentLocked) return;
+    if (this.isEditing || this.isResizing || this.isRotating) return;
+
+    const policy = getWidgetInteractionPolicy(widget);
+    const targetH = policy.preferredHeightPx;
+    if (targetH == null) return;
+
+    const currentH = widget.size?.height ?? 0;
+    if (!Number.isFinite(currentH) || currentH <= 0) return;
+    if (Math.abs(currentH - targetH) < 0.5) return;
+
+    // Only auto-shrink overly tall widgets; don't force-grow small ones.
+    if (currentH <= targetH) return;
+
+    const currentY = widget.position?.y ?? 0;
+    const currentX = widget.position?.x ?? 0;
+    const currentW = widget.size?.width ?? 0;
+    const centerY = currentY + currentH / 2;
+
+    // Keep the visual center stable.
+    let nextY = centerY - targetH / 2;
+
+    // Clamp to page bounds (best-effort; uses current input pageHeight).
+    if (Number.isFinite(this.pageHeight) && this.pageHeight > 0) {
+      nextY = Math.max(0, Math.min(nextY, this.pageHeight - targetH));
+    }
+
+    this.store.dispatch(
+      WidgetActions.updateOne({
+        id: this.widgetId,
+        changes: {
+          position: { x: currentX, y: nextY },
+          size: { width: currentW, height: targetH },
+        },
+      })
+    );
   }
   
   ngOnDestroy(): void {
@@ -531,6 +600,11 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (!this.isSelected) {
       return;
     }
+
+    // Policy: only allow handles enabled for this widget.
+    if (!this.isResizeHandleVisible(handle)) {
+      return;
+    }
     
     event.stopPropagation();
     
@@ -642,6 +716,17 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         deltaHeight = -localDeltaY;
         yEdge = -1;
         break;
+    }
+
+    // Lock height when policy implies horizontal-only resize (e.g. straight connectors).
+    const horizontalOnly =
+      this.interactionPolicy.preferredHeightPx != null &&
+      this.interactionPolicy.allowedResizeHandles.size === 2 &&
+      this.interactionPolicy.allowedResizeHandles.has('left') &&
+      this.interactionPolicy.allowedResizeHandles.has('right');
+    if (horizontalOnly) {
+      deltaHeight = 0;
+      yEdge = 0;
     }
     
     const newW = origW + deltaWidth;
@@ -999,6 +1084,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const baseMinWidth = 20;
     const baseMinHeight = 20;
     if (!widget) return { minWidth: baseMinWidth, minHeight: baseMinHeight };
+
+    // Policy-driven min constraints.
+    const policy = getWidgetInteractionPolicy(widget);
+    if (policy.preferredHeightPx != null) {
+      return { minWidth: 40, minHeight: policy.preferredHeightPx };
+    }
 
     if (widget.type === 'text' || widget.type === 'editastra') {
       // Text-like widgets should not collapse below a caret-friendly baseline.

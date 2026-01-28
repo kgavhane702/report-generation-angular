@@ -6,6 +6,17 @@
   will-change: transform;
 }
 
+// Straight connector widgets (lines) should not show a rectangular border at all.
+.widget-container--no-border {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.widget-container--no-border.widget-container--selected {
+  border: none !important;
+  box-shadow: none !important;
+}
+
 // Ensure selected widgets always have a visible border
 .widget-container--selected {
   border: 2px solid rgba(99, 102, 241, 0.5) !important;
@@ -317,4 +328,14 @@
 .widget-container--rotating {
   border: 2px dashed rgba(16, 185, 129, 0.7) !important;
   box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+// Full-surface drag handle for straight connectors (lines).
+.widget-container__drag-anywhere {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: 2;
+  pointer-events: auto;
+  cursor: move;
 }

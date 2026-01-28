@@ -10,6 +10,7 @@
  */
 export type ShapeCategory = 
   | 'basic'
+  | 'lines'
   | 'arrows'
   | 'flowchart'
   | 'callouts'
@@ -155,14 +156,87 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     order: 9,
   },
   {
+    id: 'octagon',
+    label: 'Octagon',
+    icon: 'shapes/octagon',
+    category: 'basic',
+    description: 'Insert an octagon shape',
+    defaultFillColor: '#3b82f6',
+    supportsBorderRadius: false,
+    supportsText: true,
+    order: 10,
+  },
+  {
+    id: 'parallelogram',
+    label: 'Parallelogram',
+    icon: 'shapes/parallelogram',
+    category: 'basic',
+    description: 'Insert a parallelogram shape',
+    defaultFillColor: '#3b82f6',
+    supportsBorderRadius: false,
+    supportsText: true,
+    order: 11,
+  },
+  {
+    id: 'trapezoid',
+    label: 'Trapezoid',
+    icon: 'shapes/trapezoid',
+    category: 'basic',
+    description: 'Insert a trapezoid shape',
+    defaultFillColor: '#3b82f6',
+    supportsBorderRadius: false,
+    supportsText: true,
+    order: 12,
+  },
+  {
     id: 'line',
     label: 'Line',
     icon: 'shapes/line',
-    category: 'basic',
+    category: 'lines',
     description: 'Insert a line',
     defaultFillColor: '#000000',
     supportsBorderRadius: false,
-    order: 10,
+    order: 1,
+  },
+  {
+    id: 'elbow-connector',
+    label: 'Elbow Connector',
+    icon: 'shapes/elbow_connector',
+    category: 'lines',
+    description: 'Insert an elbow connector line',
+    defaultFillColor: '#000000',
+    supportsBorderRadius: false,
+    order: 2,
+  },
+  {
+    id: 'elbow-arrow',
+    label: 'Elbow Arrow',
+    icon: 'shapes/elbow_arrow',
+    category: 'lines',
+    description: 'Insert an elbow arrow connector',
+    defaultFillColor: '#000000',
+    supportsBorderRadius: false,
+    order: 3,
+  },
+  {
+    id: 'line-arrow',
+    label: 'Line Arrow',
+    icon: 'shapes/line_arrow',
+    category: 'lines',
+    description: 'Insert a line with arrow',
+    defaultFillColor: '#000000',
+    supportsBorderRadius: false,
+    order: 4,
+  },
+  {
+    id: 'line-arrow-double',
+    label: 'Line Arrow (Double)',
+    icon: 'shapes/line_arrow_double',
+    category: 'lines',
+    description: 'Insert a double-arrow line',
+    defaultFillColor: '#000000',
+    supportsBorderRadius: false,
+    order: 5,
   },
 
   // ============================================
@@ -287,6 +361,16 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     supportsText: true,
     order: 2,
   },
+  {
+    id: 'callout-cloud',
+    label: 'Cloud Callout',
+    icon: 'shapes/callout_cloud',
+    category: 'callouts',
+    description: 'Insert a cloud callout',
+    defaultFillColor: '#fef3c7',
+    supportsText: true,
+    order: 3,
+  },
 
   // ============================================
   // STARS & BANNERS
@@ -322,6 +406,16 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     order: 3,
   },
   {
+    id: 'star-8',
+    label: '8-Point Star',
+    icon: 'shapes/star_8',
+    category: 'stars',
+    description: 'Insert an 8-point star',
+    defaultFillColor: '#f59e0b',
+    supportsText: true,
+    order: 4,
+  },
+  {
     id: 'banner',
     label: 'Banner',
     icon: 'shapes/banner',
@@ -329,7 +423,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a banner shape',
     defaultFillColor: '#ef4444',
     supportsText: true,
-    order: 4,
+    order: 5,
   },
 
   // ============================================
@@ -366,6 +460,16 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     order: 3,
   },
   {
+    id: 'moon',
+    label: 'Moon',
+    icon: 'shapes/moon',
+    category: 'symbols',
+    description: 'Insert a moon shape',
+    defaultFillColor: '#a78bfa',
+    supportsText: true,
+    order: 4,
+  },
+  {
     id: 'cloud',
     label: 'Cloud',
     icon: 'shapes/cloud',
@@ -373,7 +477,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     description: 'Insert a cloud shape',
     defaultFillColor: '#60a5fa',
     supportsText: true,
-    order: 4,
+    order: 5,
   },
 ];
 
@@ -388,12 +492,13 @@ export interface ShapeCategoryConfig {
 
 export const SHAPE_CATEGORIES: ShapeCategoryConfig[] = [
   { id: 'basic', label: 'Basic Shapes', order: 1 },
-  { id: 'arrows', label: 'Arrows', order: 2 },
-  { id: 'flowchart', label: 'Flowchart', order: 3 },
-  { id: 'callouts', label: 'Callouts', order: 4 },
-  { id: 'stars', label: 'Stars & Banners', order: 5 },
-  { id: 'symbols', label: 'Symbols', order: 6 },
-  { id: 'custom', label: 'Custom', order: 7 },
+  { id: 'lines', label: 'Lines', order: 2 },
+  { id: 'arrows', label: 'Arrows', order: 3 },
+  { id: 'flowchart', label: 'Flowchart', order: 4 },
+  { id: 'callouts', label: 'Callouts', order: 5 },
+  { id: 'stars', label: 'Stars & Banners', order: 6 },
+  { id: 'symbols', label: 'Symbols', order: 7 },
+  { id: 'custom', label: 'Custom', order: 8 },
 ];
 
 // ============================================

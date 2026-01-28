@@ -108,11 +108,24 @@ export class WidgetFactoryService {
   private createObjectWidget(props?: Partial<ObjectWidgetProps>): WidgetModel<ObjectWidgetProps> {
     const shapeType = props?.shapeType || 'rectangle';
     const svgPath = this.getShapeSvgPath(shapeType);
+
+    const strokeOnlyShapes = new Set([
+      'line',
+      'elbow-connector',
+      'elbow-arrow',
+      'line-arrow',
+      'line-arrow-double',
+    ]);
+
+    const defaultSize = strokeOnlyShapes.has(shapeType)
+      ? { width: 260, height: shapeType === 'line' ? 36 : 90 }
+      : { width: 200, height: shapeType === 'circle' ? 200 : 150 };
+
     return {
       id: uuid(),
       type: 'object',
       position: { x: 100, y: 100 },
-      size: { width: 200, height: shapeType === 'circle' ? 200 : 150 },
+      size: defaultSize,
       zIndex: 1,
       props: {
         shapeType,
@@ -145,7 +158,11 @@ export class WidgetFactoryService {
       'octagon': 'M 30 5 L 70 5 L 95 30 L 95 70 L 70 95 L 30 95 L 5 70 L 5 30 Z',
       'parallelogram': 'M 20 5 L 95 5 L 80 95 L 5 95 Z',
       'trapezoid': 'M 20 5 L 80 5 L 95 95 L 5 95 Z',
-      'line': 'M 5 50 L 95 50',
+      'line': 'M 0 50 L 100 50',
+      'elbow-connector': 'M 10 15 L 10 75 L 90 75',
+      'elbow-arrow': 'M 10 15 L 10 75 L 90 75 M 84 69 L 90 75 L 84 81',
+      'line-arrow': 'M 0 50 L 100 50 M 92 44 L 100 50 L 92 56',
+      'line-arrow-double': 'M 0 50 L 100 50 M 8 44 L 0 50 L 8 56 M 92 44 L 100 50 L 92 56',
       'arrow-right': 'M 5 40 L 60 40 L 60 20 L 95 50 L 60 80 L 60 60 L 5 60 Z',
       'arrow-left': 'M 95 40 L 40 40 L 40 20 L 5 50 L 40 80 L 40 60 L 95 60 Z',
       'arrow-up': 'M 40 95 L 40 40 L 20 40 L 50 5 L 80 40 L 60 40 L 60 95 Z',
