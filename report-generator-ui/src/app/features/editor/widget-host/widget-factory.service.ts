@@ -164,6 +164,14 @@ export class WidgetFactoryService {
       defaultSize = { width: 150, height: 100 };
       startPoint = { x: 0, y: 0 };
       endPoint = { x: 150, y: 100 };
+
+      // Provide a default controlPoint so the existing midpoint-handle UI works.
+      // We want the default elbow to match the classic L-shape corner at (start.x, end.y).
+      const defaultMidpoint = { x: startPoint.x, y: endPoint.y };
+      controlPoint = {
+        x: 2 * defaultMidpoint.x - 0.5 * (startPoint.x + endPoint.x),
+        y: 2 * defaultMidpoint.y - 0.5 * (startPoint.y + endPoint.y),
+      };
     } else if (curved.has(shapeType)) {
       // Curved connector - endpoints at bottom, curve goes up
       // Using bezier math: for control at top-center, the curve peak is at t=0.5

@@ -184,6 +184,16 @@ export interface ConnectorWidgetProps {
   arrowStart?: boolean;
   /** Whether to show arrow at end */
   arrowEnd?: boolean;
+  /** Attachment info for start endpoint (which widget/anchor it's connected to) */
+  startAttachment?: ConnectorAnchorAttachment;
+  /** Attachment info for end endpoint (which widget/anchor it's connected to) */
+  endAttachment?: ConnectorAnchorAttachment;
+}
+
+/** Anchor attachment info stored in connector props */
+export interface ConnectorAnchorAttachment {
+  widgetId: string;
+  anchor: 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left';
 }
 
 export interface ConnectorPoint {

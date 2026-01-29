@@ -24,6 +24,7 @@ import { GuidesService } from '../../../../core/services/guides.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
 import { ConnectorAnchorService, AnchorAttachment } from '../../../../core/services/connector-anchor.service';
+import { computeElbowPoints, getAnchorDirection, type AnchorDirection } from '../../../../core/geometry/connector-elbow-routing';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
@@ -338,23 +339,69 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const widget = this.displayWidget();
     if (!widget || widget.type !== 'connector') return null;
     const props = widget.props as any;
-    const shapeType = props?.shapeType || '';
-    
-    // Don't show for elbow connectors
-    if (shapeType.includes('elbow')) return null;
+    const shapeType = props?.shapeType || ''; // Added shapeType to the connector calculation
     
     const start = props?.startPoint;
     const end = props?.endPoint;
     const control = props?.controlPoint;
     
-    // Only show handle for curved connectors (when control point exists)
-    if (!start || !end || !control) return null;
-    
-    // Quadratic bezier midpoint at t=0.5: B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2
+    if (!start || !end) return null;
+
+    const isElbow = String(shapeType).includes('elbow');
+    if (isElbow) {
+      // For elbow connectors, the handle is a *bend point* on the polyline.
+      // If control exists, we derive the handle using the same B(0.5) formula
+      // (since we store elbow control the same way as curves, for drag compatibility).
+      // If control is missing (older docs), fall back to the default L-bend.
+      if (control) {
+        return {
+          x: 0.25 * start.x + 0.5 * control.x + 0.25 * end.x,
+          y: 0.25 * start.y + 0.5 * control.y + 0.25 * end.y,
+        };
+      }
+
+      // When control is missing (older docs), compute the SAME default handle used by the elbow renderer.
+      const startDir = getAnchorDirection(props?.startAttachment?.anchor);
+      const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+      return this.computeDefaultElbowHandle(start, end, startDir, endDir);
+    }
+
+    // Curved connectors: only show handle when control exists.
+    if (!control) return null;
+
     return {
       x: 0.25 * start.x + 0.5 * control.x + 0.25 * end.x,
       y: 0.25 * start.y + 0.5 * control.y + 0.25 * end.y,
     };
+  }
+
+  private computeDefaultElbowHandle(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    startDir: AnchorDirection | null,
+    endDir: AnchorDirection | null
+  ): { x: number; y: number } {
+    // Mirrors the connector widget default: midpoint when aligned, otherwise L-bend.
+    const startHoriz = startDir === 'left' || startDir === 'right';
+    const endHoriz = endDir === 'left' || endDir === 'right';
+
+    if (!startDir && !endDir) {
+      return { x: start.x, y: end.y };
+    }
+
+    if (startHoriz && endHoriz) {
+      return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    }
+
+    if (!startHoriz && !endHoriz) {
+      return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    }
+
+    if (startHoriz && !endHoriz) {
+      return { x: end.x, y: start.y };
+    }
+
+    return { x: start.x, y: end.y };
   }
   
   // ============================================
@@ -907,14 +954,27 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             absEnd = newPos;
           }
 
+          // For elbows, ensure we always have a control point so handle/path/bounds remain consistent.
+          let effectiveAbsControl = absControl;
+          const shapeType = String(props?.shapeType ?? '');
+          const isElbow = shapeType.includes('elbow');
+          if (isElbow && !effectiveAbsControl) {
+            const startDir = getAnchorDirection(props?.startAttachment?.anchor);
+            const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+            const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
+            effectiveAbsControl = {
+              x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
+              y: 2 * defaultHandle.y - 0.5 * (absStart.y + absEnd.y),
+            };
+          }
+
           // Minimal visual buffer so stroke + arrow remain inside bounds (prevents “broken” attachment look)
           const strokeWidth = props?.stroke?.width ?? 2;
-          const shapeType = String(props?.shapeType ?? '');
           const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
           const arrowBuffer = hasArrow ? 10 : 0;
           const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6;
 
-          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer);
+          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, effectiveAbsControl, visualBuffer, String(props?.shapeType ?? ''), props);
           const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
           const newSize = {
             width: Math.max(curveBounds.maxX - curveBounds.minX, 1),
@@ -923,8 +983,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
           const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
           const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
-          const newControlPoint = absControl
-            ? { x: absControl.x - curveBounds.minX, y: absControl.y - curveBounds.minY }
+          const newControlPoint = effectiveAbsControl
+            ? { x: effectiveAbsControl.x - curveBounds.minX, y: effectiveAbsControl.y - curveBounds.minY }
             : undefined;
 
           updates.push({
@@ -1495,13 +1555,42 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     start: { x: number; y: number },
     end: { x: number; y: number },
     control: { x: number; y: number } | null,
-    strokeBuffer: number = 0
+    strokeBuffer: number = 0,
+    shapeType?: string,
+    props?: any
   ): { minX: number; minY: number; maxX: number; maxY: number } {
     // Start with endpoints
     let minX = Math.min(start.x, end.x);
     let maxX = Math.max(start.x, end.x);
     let minY = Math.min(start.y, end.y);
     let maxY = Math.max(start.y, end.y);
+
+    if (shapeType && String(shapeType).includes('elbow')) {
+      // Elbow connectors are rendered as an orthogonal polyline, not a bezier.
+      // Bounds must be computed from the polyline points, otherwise resizing/positioning becomes jumpy.
+      const pts = computeElbowPoints({
+        start,
+        end,
+        control,
+        startAnchor: props?.startAttachment?.anchor,
+        endAnchor: props?.endAttachment?.anchor,
+        stub: 30,
+      }) as Array<{ x: number; y: number }>;
+
+      for (const p of pts) {
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+      }
+
+      return {
+        minX: minX - strokeBuffer,
+        minY: minY - strokeBuffer,
+        maxX: maxX + strokeBuffer,
+        maxY: maxY + strokeBuffer,
+      };
+    }
     
     if (control) {
       // For quadratic bezier, find the extrema points on the curve
@@ -1562,9 +1651,26 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (!widget || widget.type !== 'connector') return;
 
     const props = widget.props as any;
+    const shapeType = String(props?.shapeType ?? '');
     const startPoint = props?.startPoint || { x: 0, y: 0 };
     const endPoint = props?.endPoint || { x: 0, y: 0 };
-    const controlPoint = props?.controlPoint || { x: 0, y: 0 };
+
+    // If this is an elbow connector and we don't yet have a stored control point,
+    // seed one so the existing "drag midpoint" logic works consistently.
+    // We use the same inverse formula used during dragging:
+    // control = 2*midpoint - 0.5*(start + end)
+    const hasControl = !!props?.controlPoint;
+    const isElbow = shapeType.includes('elbow');
+    const startDir = getAnchorDirection(props?.startAttachment?.anchor);
+    const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+    const defaultElbowHandle = this.computeDefaultElbowHandle(startPoint, endPoint, startDir, endDir);
+    const seededElbowControl = {
+      x: 2 * defaultElbowHandle.x - 0.5 * (startPoint.x + endPoint.x),
+      y: 2 * defaultElbowHandle.y - 0.5 * (startPoint.y + endPoint.y),
+    };
+    const controlPoint = (!hasControl && endpoint === 'control' && isElbow)
+      ? seededElbowControl
+      : (props?.controlPoint || { x: 0, y: 0 });
 
     this.connectorDragState = {
       endpoint,
@@ -1613,6 +1719,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       x: widgetX + this.connectorDragState.startEndpoints.end.x,
       y: widgetY + this.connectorDragState.startEndpoints.end.y,
     };
+
+    const props = widget.props as any;
+    const shapeType = String(props?.shapeType ?? '');
+    const isElbow = shapeType.includes('elbow');
     
     // Get stored bezier control point (may not exist for straight lines)
     const storedControl = this.connectorDragState.startEndpoints.control;
@@ -1621,6 +1731,17 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       x: widgetX + storedControl.x,
       y: widgetY + storedControl.y,
     } : null;
+
+    // For elbows, ensure we always have a control point so the handle/path/bounds stay consistent.
+    if (isElbow && !absControl) {
+      const startDir = getAnchorDirection(props?.startAttachment?.anchor);
+      const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+      const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
+      absControl = {
+        x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
+        y: 2 * defaultHandle.y - 0.5 * (absStart.y + absEnd.y),
+      };
+    }
 
     // Track snap anchor for this drag
     let snappedAnchor: AnchorAttachment | null = null;
@@ -1655,50 +1776,62 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor };
       }
     } else if (this.connectorDragState.endpoint === 'control') {
-      // User is dragging the midpoint handle (which is ON the curve at t=0.5)
-      // We need to calculate where the user wants the midpoint to be
-      // and reverse-calculate the bezier control point from that.
-      
-      // Calculate current visual midpoint on curve (at t=0.5)
-      let currentMidpoint: { x: number; y: number };
-      if (absControl) {
-        // Quadratic bezier midpoint: B(0.5) = 0.25*P0 + 0.5*P1 + 0.25*P2
-        currentMidpoint = {
-          x: 0.25 * absStart.x + 0.5 * absControl.x + 0.25 * absEnd.x,
-          y: 0.25 * absStart.y + 0.5 * absControl.y + 0.25 * absEnd.y,
+      if (isElbow) {
+        // Elbow connector: the handle is a bend point on the orthogonal polyline.
+        // We store elbow control in the same format as curves so we can reuse
+        // the existing persistence + drag math.
+        const currentHandle = absControl
+          ? {
+              x: 0.25 * absStart.x + 0.5 * absControl.x + 0.25 * absEnd.x,
+              y: 0.25 * absStart.y + 0.5 * absControl.y + 0.25 * absEnd.y,
+            }
+          : { x: absStart.x, y: absEnd.y };
+
+        const newHandle = {
+          x: currentHandle.x + scaledDx,
+          y: currentHandle.y + scaledDy,
+        };
+
+        // control = 2*handle - 0.5*(start + end)
+        absControl = {
+          x: 2 * newHandle.x - 0.5 * (absStart.x + absEnd.x),
+          y: 2 * newHandle.y - 0.5 * (absStart.y + absEnd.y),
         };
       } else {
-        // Straight line: midpoint is just average
-        currentMidpoint = {
-          x: (absStart.x + absEnd.x) / 2,
-          y: (absStart.y + absEnd.y) / 2,
+        // Curved connector: handle is ON the curve at t=0.5
+        let currentMidpoint: { x: number; y: number };
+        if (absControl) {
+          currentMidpoint = {
+            x: 0.25 * absStart.x + 0.5 * absControl.x + 0.25 * absEnd.x,
+            y: 0.25 * absStart.y + 0.5 * absControl.y + 0.25 * absEnd.y,
+          };
+        } else {
+          currentMidpoint = {
+            x: (absStart.x + absEnd.x) / 2,
+            y: (absStart.y + absEnd.y) / 2,
+          };
+        }
+
+        const newMidpoint = {
+          x: currentMidpoint.x + scaledDx,
+          y: currentMidpoint.y + scaledDy,
+        };
+
+        absControl = {
+          x: 2 * newMidpoint.x - 0.5 * (absStart.x + absEnd.x),
+          y: 2 * newMidpoint.y - 0.5 * (absStart.y + absEnd.y),
         };
       }
-      
-      // New midpoint position (where user dragged to)
-      const newMidpoint = {
-        x: currentMidpoint.x + scaledDx,
-        y: currentMidpoint.y + scaledDy,
-      };
-      
-      // Reverse-calculate bezier control point so curve passes through newMidpoint at t=0.5
-      // Formula: control = 2 * midpoint - 0.5 * (start + end)
-      absControl = {
-        x: 2 * newMidpoint.x - 0.5 * (absStart.x + absEnd.x),
-        y: 2 * newMidpoint.y - 0.5 * (absStart.y + absEnd.y),
-      };
     }
 
     // Minimal visual buffer so the *entire rendered stroke* (and arrowhead) stays inside bounds.
-    const props = widget.props as any;
     const strokeWidth = props?.stroke?.width ?? 2;
-    const shapeType = String(props?.shapeType ?? '');
     const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
     const arrowBuffer = hasArrow ? 10 : 0; // matches ConnectorWidgetComponent arrowLength
     const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 3; // +2px extra ease
 
     // Compute bounding box - for curves, calculate actual curve bounds (not control point)
-    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer);
+    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer, shapeType, props);
     
     const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
     const newSize = { 
