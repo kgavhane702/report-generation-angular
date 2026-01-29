@@ -24,6 +24,32 @@
   box-shadow: none !important;
 }
 
+// =============================================
+// CONNECTOR WIDGET PASS-THROUGH MODE
+// =============================================
+// Connector widgets should NOT block pointer events in their empty/transparent areas.
+// Only the actual SVG stroke (via pointer-events: stroke in connector-widget.scss)
+// should be clickable. This allows clicking/dragging lines that are visually behind
+// other connector bounding boxes.
+.widget-container--connector {
+  pointer-events: none;
+
+  // The content area must also be pass-through
+  .widget-container__content {
+    pointer-events: none;
+  }
+
+  // Endpoint handles must remain clickable when the connector is selected
+  .widget-container__connector-endpoint {
+    pointer-events: auto;
+  }
+
+  // Resize handles (if any) must remain clickable
+  .widget-container__resize {
+    pointer-events: auto;
+  }
+}
+
 // Ensure selected widgets always have a visible border
 .widget-container--selected {
   border: 2px solid rgba(99, 102, 241, 0.5) !important;
@@ -287,6 +313,8 @@
 }
 
 // Full-surface drag handle for straight connectors (lines).
+// NOTE: For connectors, this is now hidden (pointer-events: none via .widget-container--connector)
+// because we want clicks to pass through to lines below. The SVG stroke itself handles drag.
 .widget-container__drag-anywhere {
   position: absolute;
   inset: 0;
@@ -294,6 +322,11 @@
   z-index: 2;
   pointer-events: auto;
   cursor: move;
+}
+
+// Connector widgets: the drag-anywhere overlay must NOT block clicks
+.widget-container--connector .widget-container__drag-anywhere {
+  pointer-events: none;
 }
 
 // Connector endpoint handles - positioned ABOVE drag layer

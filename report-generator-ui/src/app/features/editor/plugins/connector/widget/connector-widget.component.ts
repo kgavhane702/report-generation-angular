@@ -22,6 +22,20 @@ import {
 export class ConnectorWidgetComponent {
   @Input({ required: true }) widget!: WidgetModel;
   @Output() propsChange = new EventEmitter<Partial<ConnectorWidgetProps>>();
+  
+  /**
+   * Emitted when the user clicks on the connector stroke (hit area).
+   * Used by widget-container to select and initiate drag.
+   */
+  @Output() strokePointerDown = new EventEmitter<PointerEvent>();
+
+  /**
+   * Handle pointerdown on the SVG stroke hit area.
+   * Emits the event so parent can handle selection/drag.
+   */
+  onStrokePointerDown(event: PointerEvent): void {
+    this.strokePointerDown.emit(event);
+  }
 
   get connectorProps(): ConnectorWidgetProps {
     return this.widget.props as ConnectorWidgetProps;

@@ -6,10 +6,12 @@
     [class.widget-container--resizing]="isResizing"
     [class.widget-container--rotating]="isRotating"
     [class.widget-container--no-border]="!showSelectionBorder"
+    [class.widget-container--connector]="widget.type === 'connector'"
     [attr.data-widget-id]="widgetId"
+    [attr.data-widget-type]="widget.type"
     cdkDrag
     [cdkDragConstrainPosition]="constrainDragPosition"
-    [cdkDragDisabled]="isEditing || isResizing || isRotating || isDocumentLocked"
+    [cdkDragDisabled]="isEditing || isResizing || isRotating || isDocumentLocked || widget.type === 'connector'"
     (cdkDragStarted)="onDragStarted($event)"
     (cdkDragMoved)="onDragMoved($event)"
     (cdkDragEnded)="onDragEnded($event)"
@@ -104,6 +106,7 @@
           *ngSwitchCase="'connector'"
           [widget]="$any(widget)"
           (propsChange)="onContentChange($event)"
+          (strokePointerDown)="onConnectorStrokePointerDown($event)"
         ></app-connector-widget>
 
         <div *ngSwitchDefault class="widget-container__placeholder">

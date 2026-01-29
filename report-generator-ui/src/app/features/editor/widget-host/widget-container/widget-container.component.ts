@@ -201,6 +201,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private dragStartFrame: WidgetFrame | null = null;
   private connectorStrokeDragAllowedForGesture: boolean | null = null;
 
+  private connectorWholeDrag:
+    | {
+        pointerId: number;
+        startPointer: { x: number; y: number };
+        startPosition: { x: number; y: number };
+      }
+    | null = null;
+
   /**
    * CDK Drag works in screen px, but our canvas is zoomed via CSS `transform: scale(...)`.
    * Without compensating, drag will feel "too slow" when zoomed out and "too fast" when zoomed in.
@@ -602,7 +610,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   get calculatedZIndex(): number {
     const baseZIndex = 2000;
     const widget = this.displayWidget();
-    return baseZIndex + (widget?.zIndex ?? 1);
+    // Selected connectors get a small z-index boost so they render on top while being dragged.
+    // For regular widgets, no boost is needed since their bounding boxes don't overlap as often.
+    const selectedBoost = (this.isSelected && widget?.type === 'connector') ? 500 : 0;
+    return baseZIndex + (widget?.zIndex ?? 1) + selectedBoost;
   }
   
   /**
@@ -743,6 +754,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     // Clean up subscription
     this.widgetSubscription?.unsubscribe();
+
+    // If a connector stroke drag is in progress, clean up listeners.
+    if (this.connectorWholeDrag) {
+      document.removeEventListener('pointermove', this.onConnectorStrokePointerMove);
+      document.removeEventListener('pointerup', this.onConnectorStrokePointerUp);
+      this.connectorWholeDrag = null;
+    }
 
     // If this widget is being destroyed while in edit mode, clear edit mode.
     // (Covers cases where the widget is removed before it can emit editingChange(false).)
@@ -1009,9 +1027,148 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       });
   }
   
-  onWidgetPointerDown(_event?: PointerEvent): void {
+  private getWidgetHitStackAtPoint(clientX: number, clientY: number): Array<{ id: string; type?: string }> {
+    const elements = (document.elementsFromPoint(clientX, clientY) ?? []) as HTMLElement[];
+    const seen = new Set<string>();
+    const result: Array<{ id: string; type?: string }> = [];
+
+    for (const el of elements) {
+      const container = (el as HTMLElement | null)?.closest?.('.widget-container') as HTMLElement | null;
+      if (!container) continue;
+      const id = container.getAttribute('data-widget-id');
+      if (!id || seen.has(id)) continue;
+
+      seen.add(id);
+      result.push({
+        id,
+        type: container.getAttribute('data-widget-type') ?? undefined,
+      });
+    }
+
+    return result;
+  }
+
+  onWidgetPointerDown(event?: PointerEvent): void {
+    if (!event) {
+      this.uiState.selectWidget(this.widgetId);
+      return;
+    }
+
+    // When multiple widgets overlap at the pointer location (common for connectors), the DOM top-most
+    // widget will receive the event. Provide a way to cycle/select items “behind” without requiring
+    // pixel-perfect clicking.
+    if (event.altKey) {
+      const hitStack = this.getWidgetHitStackAtPoint(event.clientX, event.clientY);
+      if (hitStack.length > 1) {
+        const hasConnectors = hitStack.some(h => h.type === 'connector');
+        const candidates = hasConnectors ? hitStack.filter(h => h.type === 'connector') : hitStack;
+        const candidateIds = candidates.map(c => c.id);
+
+        if (candidateIds.length > 1) {
+          const active = this.uiState.activeWidgetId();
+          const activeIdx = active ? candidateIds.indexOf(active) : -1;
+          const nextIdx = activeIdx >= 0 ? (activeIdx + 1) % candidateIds.length : 0;
+          const nextId = candidateIds[nextIdx];
+          this.uiState.selectWidget(nextId);
+
+          // Prevent CDK Drag from starting on the currently clicked (top-most) widget.
+          event.preventDefault();
+          // stopImmediatePropagation is important here because cdkDrag listens on the same element.
+          (event as unknown as { stopImmediatePropagation?: () => void }).stopImmediatePropagation?.();
+          event.stopPropagation();
+          return;
+        }
+      }
+    }
+
     this.uiState.selectWidget(this.widgetId);
   }
+
+  /**
+   * Handle pointerdown on the connector's SVG stroke (hit area).
+   * Since the connector container is pointer-events: none, clicks only reach the SVG stroke.
+   * We select the widget here, then manually start the drag by dispatching a synthetic
+   * pointer event on the widget-container element.
+   */
+  onConnectorStrokePointerDown(event: PointerEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (this.isDocumentLocked) {
+      if (!this.isSelected) this.uiState.selectWidget(this.widgetId);
+      return;
+    }
+
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') return;
+
+    // Select immediately (Canva-like)
+    this.uiState.selectWidget(this.widgetId);
+
+    // Start a native pointer drag for the whole connector.
+    this.connectorWholeDrag = {
+      pointerId: event.pointerId,
+      startPointer: { x: event.clientX, y: event.clientY },
+      startPosition: { x: widget.position.x, y: widget.position.y },
+    };
+
+    this.dragStartFrame = { ...this.frame };
+    this.guides.start(this.pageId, this.widgetId, 'drag');
+    this.uiState.startDragging(this.widgetId);
+
+    document.addEventListener('pointermove', this.onConnectorStrokePointerMove, { passive: false });
+    document.addEventListener('pointerup', this.onConnectorStrokePointerUp, { passive: false });
+  }
+
+  private onConnectorStrokePointerMove = (event: PointerEvent): void => {
+    if (!this.connectorWholeDrag) return;
+    if (event.pointerId !== this.connectorWholeDrag.pointerId) return;
+    if (!this.dragStartFrame) return;
+
+    event.preventDefault();
+
+    const zoom = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const dx = (event.clientX - this.connectorWholeDrag.startPointer.x) / zoom;
+    const dy = (event.clientY - this.connectorWholeDrag.startPointer.y) / zoom;
+
+    const nextPosition: WidgetPosition = {
+      x: this.connectorWholeDrag.startPosition.x + dx,
+      y: this.connectorWholeDrag.startPosition.y + dy,
+    };
+
+    // Smoothly update via draft (no store churn during gesture)
+    this.draftState.updateDraftPosition(this.widgetId, nextPosition);
+
+    // Update guide overlay (virtual)
+    const rawFrame: WidgetFrame = {
+      x: nextPosition.x,
+      y: nextPosition.y,
+      width: this.dragStartFrame.width,
+      height: this.dragStartFrame.height,
+    };
+    this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight);
+  };
+
+  private onConnectorStrokePointerUp = (event: PointerEvent): void => {
+    if (!this.connectorWholeDrag) return;
+    if (event.pointerId !== this.connectorWholeDrag.pointerId) return;
+
+    event.preventDefault();
+
+    document.removeEventListener('pointermove', this.onConnectorStrokePointerMove);
+    document.removeEventListener('pointerup', this.onConnectorStrokePointerUp);
+
+    this.connectorWholeDrag = null;
+
+    // Commit final draft to store (undoable)
+    if (this.draftState.hasDraft(this.widgetId)) {
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+    }
+
+    this.uiState.stopDragging();
+    this.guides.end(this.widgetId);
+    this.dragStartFrame = null;
+  };
   
   // ============================================
   // RESIZE HANDLING
