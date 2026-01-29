@@ -16,8 +16,7 @@ import java.util.Locale;
 @Component
 public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
 
-    private static final double PADDING = 0;
-    private static final double ARROW_SIZE = 12;
+    private static final double ARROW_SIZE = 10;
 
     @Override
     public String widgetType() {
@@ -45,7 +44,7 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
             strokeStyle = strokeNode.path("style").asText("solid");
         }
 
-        // Get endpoint coordinates (in widget-local coordinates)
+        // Get endpoint coordinates (in widget-local coordinates, relative to widget position)
         JsonNode startPointNode = props.path("startPoint");
         JsonNode endPointNode = props.path("endPoint");
         JsonNode controlPointNode = props.path("controlPoint");
@@ -55,49 +54,16 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
         double endX = endPointNode.path("x").asDouble(200);
         double endY = endPointNode.path("y").asDouble(0);
 
-        // Calculate actual bounds for viewBox
-        // For curves, we need to consider bezier curve extents, not just control points
-        double minX = Math.min(startX, endX);
-        double minY = Math.min(startY, endY);
-        double maxX = Math.max(startX, endX);
-        double maxY = Math.max(startY, endY);
+        // Extract widget size from widgetStyle for viewBox calculation
+        // The CSS contains "width: Xpx; height: Ypx;" - we need to parse these values
+        // to match frontend behavior where viewBox = "0 0 width height"
+        double widgetWidth = parseStyleDimension(style, "width", 200);
+        double widgetHeight = parseStyleDimension(style, "height", 100);
         
-        if (controlPointNode != null && !controlPointNode.isMissingNode()) {
-            double ctrlX = controlPointNode.path("x").asDouble(0);
-            double ctrlY = controlPointNode.path("y").asDouble(0);
-            
-            // For quadratic bezier, find extrema: t = (P0 - P1) / (P0 - 2*P1 + P2)
-            // X extrema
-            double denomX = startX - 2 * ctrlX + endX;
-            if (Math.abs(denomX) > 0.0001) {
-                double tX = (startX - ctrlX) / denomX;
-                if (tX > 0 && tX < 1) {
-                    double x = (1 - tX) * (1 - tX) * startX + 2 * (1 - tX) * tX * ctrlX + tX * tX * endX;
-                    minX = Math.min(minX, x);
-                    maxX = Math.max(maxX, x);
-                }
-            }
-            // Y extrema
-            double denomY = startY - 2 * ctrlY + endY;
-            if (Math.abs(denomY) > 0.0001) {
-                double tY = (startY - ctrlY) / denomY;
-                if (tY > 0 && tY < 1) {
-                    double y = (1 - tY) * (1 - tY) * startY + 2 * (1 - tY) * tY * ctrlY + tY * tY * endY;
-                    minY = Math.min(minY, y);
-                    maxY = Math.max(maxY, y);
-                }
-            }
-        }
-        
-        // ViewBox should encompass the actual line extents with small buffer for stroke
-        double strokeBuffer = strokeWidth / 2.0 + 2; // Buffer for stroke width
-        double viewBoxWidth = Math.max(maxX - minX + strokeBuffer * 2, 1);
-        double viewBoxHeight = Math.max(maxY - minY + strokeBuffer * 2, 1);
-        // Offset start so stroke doesn't clip
-        double offsetX = minX - strokeBuffer;
-        double offsetY = minY - strokeBuffer;
-        String viewBox = String.format(Locale.ROOT, "%s %s %s %s", 
-            trimNumber(offsetX), trimNumber(offsetY), trimNumber(viewBoxWidth), trimNumber(viewBoxHeight));
+        // ViewBox matches widget size exactly, starting at origin (0,0)
+        // This matches frontend: `0 0 ${width} ${height}`
+        String viewBox = String.format(Locale.ROOT, "0 0 %s %s", 
+            trimNumber(widgetWidth), trimNumber(widgetHeight));
 
         // Generate SVG path based on shape type
         String svgPath = generatePath(shapeType, startX, startY, endX, endY, controlPointNode);
@@ -129,7 +95,7 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
 
         return String.format(
             "<div class=\"widget widget-connector\" style=\"%s\">" +
-                "<svg class=\"widget-connector__shape\" viewBox=\"%s\" preserveAspectRatio=\"xMidYMid meet\" style=\"width: 100%%; height: 100%%; display: block; opacity: %s; overflow: visible;\">" +
+                "<svg class=\"widget-connector__shape\" viewBox=\"%s\" preserveAspectRatio=\"none\" style=\"width: 100%%; height: 100%%; display: block; opacity: %s; overflow: visible;\">" +
                     "<path d=\"%s\" fill=\"none\" %s />" +
                     "%s" +
                 "</svg>" +
@@ -239,6 +205,45 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
             return Long.toString(asLong);
         }
         return String.format(Locale.ROOT, "%.2f", v);
+    }
+
+    /**
+     * Parse a dimension (width or height) from CSS style string.
+     * Looks for patterns like "width: 123.45px;" and extracts the numeric value.
+     */
+    private double parseStyleDimension(String style, String property, double defaultValue) {
+        if (style == null || style.isEmpty()) return defaultValue;
+        
+        // Look for property: valueXXpx; pattern
+        String search = property + ":";
+        int idx = style.toLowerCase().indexOf(search.toLowerCase());
+        if (idx < 0) return defaultValue;
+        
+        int start = idx + search.length();
+        // Skip whitespace
+        while (start < style.length() && Character.isWhitespace(style.charAt(start))) {
+            start++;
+        }
+        
+        // Extract numeric value (may include decimal point)
+        int end = start;
+        while (end < style.length()) {
+            char c = style.charAt(end);
+            if (Character.isDigit(c) || c == '.' || c == '-') {
+                end++;
+            } else {
+                break;
+            }
+        }
+        
+        if (end > start) {
+            try {
+                return Double.parseDouble(style.substring(start, end));
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
     }
 
     private String escapeHtml(String input) {
