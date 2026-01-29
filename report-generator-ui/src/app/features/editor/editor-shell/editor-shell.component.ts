@@ -195,7 +195,8 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       widget?.type === 'chart' ||
       widget?.type === 'editastra' ||
       widget?.type === 'image' ||
-      widget?.type === 'object'
+      widget?.type === 'object' ||
+      widget?.type === 'connector'
     );
   });
 

@@ -10,6 +10,7 @@ import { ChartToolbarComponent } from '../../plugins/chart/ui/chart-toolbar/char
 import { EditastraToolbarComponent } from '../../plugins/editastra/ui/editastra-toolbar/editastra-toolbar.component';
 import { ImageToolbarComponent } from '../../plugins/image/ui/image-toolbar/image-toolbar.component';
 import { ObjectToolbarComponent } from '../../plugins/object/ui/object-toolbar/object-toolbar.component';
+import { ConnectorToolbarComponent } from '../../plugins/connector/ui/connector-toolbar/connector-toolbar.component';
 
 type WidgetToolbarRegistry = Partial<Record<WidgetType, Type<unknown>>>;
 
@@ -39,6 +40,7 @@ export class WidgetToolbarComponent {
     editastra: EditastraToolbarComponent,
     image: ImageToolbarComponent,
     object: ObjectToolbarComponent,
+    connector: ConnectorToolbarComponent,
   };
 
   readonly toolbarComponent = computed<Type<unknown> | null>(() => {

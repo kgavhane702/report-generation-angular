@@ -1,0 +1,12 @@
+<div class="connector-toolbar" *ngIf="props">
+  <div class="connector-toolbar__group">
+    <app-border-picker
+      label="Line Stroke"
+      title="Line stroke"
+      [showRadius]="false"
+      [colorPalette]="lineColorPalette"
+      [value]="borderValue"
+      (valueChange)="onLineStrokeChange($event)"
+    ></app-border-picker>
+  </div>
+</div>

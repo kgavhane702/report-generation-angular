@@ -2,11 +2,11 @@
   <div
     class="border-picker__trigger"
     (mousedown)="toggleDropdown($event)"
-    [attr.title]="title || 'Border'"
+    [attr.title]="title || label || 'Border'"
     [class.border-picker__trigger--disabled]="disabled"
     #trigger
   >
-    <span class="border-picker__icon">Border</span>
+    <span class="border-picker__icon">{{ label || 'Border' }}</span>
     <span
       class="border-picker__preview-line"
       [style.border-bottom]="getPreviewBorder()"
@@ -24,7 +24,7 @@
   >
     <div class="border-picker__content">
     <div class="border-picker__header">
-      <div class="border-picker__header-title">Border</div>
+      <div class="border-picker__header-title">{{ label || 'Border' }}</div>
       <div class="border-picker__header-preview">
         <span class="border-picker__header-preview-label">Preview</span>
         <span class="border-picker__header-preview-line" [style.border-bottom]="getPreviewBorder()"></span>
@@ -32,7 +32,7 @@
     </div>
 
     <div class="border-picker__row">
-      <label class="border-picker__label border-picker__label--column" title="Border width">
+      <label class="border-picker__label border-picker__label--column" title="Width">
         <span class="border-picker__label-text">Width</span>
         <input
           type="number"
@@ -44,7 +44,7 @@
         />
       </label>
 
-      <label class="border-picker__label border-picker__label--column" title="Custom color">
+      <label class="border-picker__label border-picker__label--column" title="Color">
         <span class="border-picker__label-text">Color</span>
         <input
           type="color"
@@ -54,7 +54,11 @@
         />
       </label>
 
-      <label class="border-picker__label border-picker__label--column" title="Border radius">
+      <label
+        *ngIf="showRadius"
+        class="border-picker__label border-picker__label--column"
+        title="Radius"
+      >
         <span class="border-picker__label-text">Radius</span>
         <input
           type="number"
@@ -105,7 +109,7 @@
           class="border-picker__style"
           [class.border-picker__style--active]="value.style === 'none'"
           (mousedown)="setStyle('none', $event)"
-          title="Remove custom border (falls back to default cell border)"
+          [attr.title]="'Remove custom ' + ((label || 'Border').toLowerCase()) + ' (falls back to defaults)'"
         >
           <span class="border-picker__style-line border-picker__style-line--none"></span>
           <span class="border-picker__style-text">None</span>
@@ -130,7 +134,7 @@
         </button>
       </div>
       <div class="border-picker__hint">
-        Pick <b>Transparent</b> to clear the custom border and use default borders.
+        Pick <b>Transparent</b> to clear the custom {{ (label || 'Border').toLowerCase() }}.
       </div>
     </div>
 

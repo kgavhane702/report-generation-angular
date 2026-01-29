@@ -32,6 +32,8 @@ export class BorderPickerComponent {
   @Input() disabled = false;
   @Input() title?: string;
   @Input() colorPalette: ColorOption[] = [];
+  @Input() label = 'Border';
+  @Input() showRadius = true;
 
   @Input() value: BorderValue = { color: '', width: 1, style: 'solid', borderRadius: 0 };
 
