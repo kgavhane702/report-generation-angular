@@ -85,6 +85,17 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   /** Used to suppress blur-exit when clicking toolbar/dropdowns (ported panels). */
   private isClickingInsideEditUi = false;
+
+  /** Debounced autosave while editing. */
+  private autosaveTimeoutId: number | null = null;
+  private readonly autosaveDelayMs = 650;
+
+  private resumeEditingAfterDocHistorySync = false;
+  private resumeWasFocused = false;
+  /** Saved cursor offset (character count from start) for restoration after undo. */
+  private resumeCursorOffset: number | null = null;
+  /** Whether the pending history sync is a redo (cursor goes to end) vs undo (cursor restored). */
+  private resumeIsRedo = false;
   
   // FlushableWidget interface
   get widgetId(): string {
@@ -278,6 +289,47 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['widget']) {
+      // Ignore external updates while actively editing (same principle as table/editastra widgets).
+      if (!this.isActivelyEditing) {
+        const newContent = this.contentHtml || '';
+        this.localHtml.set(newContent);
+
+        // If a document-level undo/redo happened while the editor was focused, temporarily
+        // disabled edit gating. Now restore edit mode + focus after applying the store state.
+        if (this.resumeEditingAfterDocHistorySync) {
+          this.resumeEditingAfterDocHistorySync = false;
+          this.isActivelyEditing = true;
+
+          // Reset baseline to the new store-driven state so autosave/blur don't re-emit it.
+          this.htmlAtEditStart = newContent;
+
+          const editableEl = this.editorComp?.getEditableElement() ?? null;
+          if (editableEl) {
+            // Ensure the focused surface reflects the new model immediately.
+            editableEl.innerHTML = newContent;
+            const savedOffset = this.resumeCursorOffset;
+            const isRedo = this.resumeIsRedo;
+            this.resumeCursorOffset = null;
+            this.resumeIsRedo = false;
+            requestAnimationFrame(() => {
+              if (this.resumeWasFocused) {
+                editableEl.focus();
+              }
+              if (isRedo) {
+                this.setCursorAtEnd(editableEl);
+              } else if (savedOffset !== null) {
+                this.setCursorOffsetInElement(editableEl, savedOffset);
+              } else {
+                this.setCursorAtEnd(editableEl);
+              }
+            });
+          } else {
+            this.resumeCursorOffset = null;
+            this.resumeIsRedo = false;
+          }
+        }
+      }
+
       this.checkAndActivateToolbar();
     }
   }
@@ -288,6 +340,10 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     
     if (this.blurTimeoutId !== null) {
       clearTimeout(this.blurTimeoutId);
+    }
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
     }
 
     // Deactivate toolbar if this widget was active
@@ -330,6 +386,35 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     }
   }
 
+  @HostListener('document:tw-table-pre-doc-undo', ['$event'])
+  onPreDocUndo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.editorComp) return;
+
+    const editableEl = this.editorComp.getEditableElement();
+    this.resumeWasFocused = !!(editableEl && (editableEl === document.activeElement || editableEl.contains(document.activeElement as Node)));
+    this.resumeCursorOffset = this.getCursorOffsetInElement(editableEl);
+    this.resumeIsRedo = false;
+    this.resumeEditingAfterDocHistorySync = true;
+    this.isActivelyEditing = false;
+  }
+
+  @HostListener('document:tw-table-pre-doc-redo', ['$event'])
+  onPreDocRedo(event: Event): void {
+    const ev = event as CustomEvent<{ widgetId?: string }>;
+    const widgetId = ev?.detail?.widgetId ?? null;
+    if (!widgetId || widgetId !== this.widget?.id) return;
+    if (!this.editorComp) return;
+
+    const editableEl = this.editorComp.getEditableElement();
+    this.resumeWasFocused = !!(editableEl && (editableEl === document.activeElement || editableEl.contains(document.activeElement as Node)));
+    this.resumeIsRedo = true;
+    this.resumeEditingAfterDocHistorySync = true;
+    this.isActivelyEditing = false;
+  }
+
   private checkAndActivateToolbar(): void {
     const activeWidgetId = this.uiState.activeWidgetId();
     if (activeWidgetId === this.widget.id && this.objectProps) {
@@ -343,11 +428,15 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   hasPendingChanges(): boolean {
     if (!this.isActivelyEditing) return false;
-    const current = this.localHtml();
+    const current = normalizeObjectHtmlForModel(this.localHtml());
     return current !== this.htmlAtEditStart;
   }
 
   flush(): void {
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
     if (!this.hasPendingChanges()) return;
     this.commitContent();
   }
@@ -360,8 +449,17 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     if (this.isActivelyEditing) return;
     
     this.isActivelyEditing = true;
-    this.htmlAtEditStart = this.localHtml();
+    this.htmlAtEditStart = normalizeObjectHtmlForModel(this.localHtml());
     this.editingChange.emit(true);
+
+    // If the content is empty, inject a centered empty block so the caret starts centered.
+    const editableEl = this.editorComp?.getEditableElement() ?? null;
+    if (editableEl && this.htmlAtEditStart === '') {
+      const emptyCentered = '<div style="text-align:center;"><br></div>';
+      editableEl.innerHTML = emptyCentered;
+      this.localHtml.set(emptyCentered);
+      requestAnimationFrame(() => this.setCursorAtEnd(editableEl));
+    }
 
     // Ensure the widget stays selected while editing so the widget toolbar enables.
     if (this.widget?.id) {
@@ -422,6 +520,7 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   onEditorInput(html: string): void {
     this.localHtml.set(html);
+    this.scheduleAutosaveCommit();
   }
 
   focusEditor(): void {
@@ -430,7 +529,10 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   private finishEditing(): void {
     if (!this.isActivelyEditing) return;
-    
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
     this.commitContent();
     this.isActivelyEditing = false;
     this.editingChange.emit(false);
@@ -440,13 +542,98 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
   }
 
   private commitContent(): void {
-    const currentHtml = this.localHtml();
+    const currentHtml = normalizeObjectHtmlForModel(this.localHtml());
     if (currentHtml !== this.htmlAtEditStart) {
       this.propsChange.emit({ contentHtml: currentHtml });
       this.htmlAtEditStart = currentHtml;
     }
   }
 
+  private scheduleAutosaveCommit(): void {
+    if (!this.isActivelyEditing) return;
+
+    if (this.autosaveTimeoutId !== null) {
+      clearTimeout(this.autosaveTimeoutId);
+      this.autosaveTimeoutId = null;
+    }
+
+    this.autosaveTimeoutId = window.setTimeout(() => {
+      this.autosaveTimeoutId = null;
+      this.commitContent();
+    }, this.autosaveDelayMs);
+  }
+
+  /**
+   * Get the cursor offset as a character count from the start of the element's text content.
+   */
+  private getCursorOffsetInElement(el: HTMLElement | null): number | null {
+    if (!el) return null;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return null;
+
+    const preCaretRange = document.createRange();
+    preCaretRange.selectNodeContents(el);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    return preCaretRange.toString().length;
+  }
+
+  /**
+   * Set the cursor position in an element to a specific character offset.
+   */
+  private setCursorOffsetInElement(el: HTMLElement, offset: number): void {
+    const textLength = (el.textContent ?? '').length;
+    const targetOffset = Math.max(0, Math.min(offset, textLength));
+
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    const result = this.findNodeAndOffsetForCharOffset(el, targetOffset);
+    if (!result) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+
+    const range = document.createRange();
+    range.setStart(result.node, result.offset);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  private findNodeAndOffsetForCharOffset(root: Node, targetOffset: number): { node: Node; offset: number } | null {
+    let currentOffset = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node: Text | null = walker.nextNode() as Text | null;
+
+    while (node) {
+      const nodeLength = node.length;
+      if (currentOffset + nodeLength >= targetOffset) {
+        return { node, offset: targetOffset - currentOffset };
+      }
+      currentOffset += nodeLength;
+      node = walker.nextNode() as Text | null;
+    }
+
+    return null;
+  }
+
+  private setCursorAtEnd(el: HTMLElement): void {
+    const sel = window.getSelection();
+    if (!sel) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
   // ============================================
   // SHAPE INTERACTION
   // ============================================
@@ -475,4 +662,27 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
   updateBorderRadius(borderRadius: number): void {
     this.propsChange.emit({ borderRadius });
   }
+}
+
+function normalizeObjectHtmlForModel(html: string): string {
+  const raw = (html ?? '').toString();
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  const normalized = trimmed
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (
+    normalized === '<br>' ||
+    normalized === '<div><br></div>' ||
+    normalized === '<div style="text-align:center;"><br></div>' ||
+    normalized === '<div><br></div><div><br></div>' ||
+    normalized === '<p><br></p>'
+  ) {
+    return '';
+  }
+
+  return trimmed;
 }

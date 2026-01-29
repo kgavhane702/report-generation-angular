@@ -1115,8 +1115,14 @@ export class TableToolbarService {
     const textAlign: 'left' | 'center' | 'right' | 'justify' =
       rawAlign === 'center' || rawAlign === 'right' || rawAlign === 'justify' ? (rawAlign as any) : 'left';
 
-    const surface = cell.closest('.table-widget__cell-surface');
-    const surfaceAlign = (surface?.getAttribute('data-vertical-align') || '').trim();
+    const surface =
+      cell.closest('.table-widget__cell-surface') ||
+      cell.closest('.object-widget__text-container');
+    const surfaceAlign = (
+      surface?.getAttribute('data-vertical-align') ||
+      surface?.getAttribute('data-v-align') ||
+      ''
+    ).trim();
     const verticalAlign: 'top' | 'middle' | 'bottom' =
       surfaceAlign === 'middle' || surfaceAlign === 'bottom' ? (surfaceAlign as any) : 'top';
 

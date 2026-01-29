@@ -44,6 +44,7 @@
       [placeholder]="placeholder"
       variant="table"
       editorClass="object-widget__editor"
+      [editorStyles]="{ 'text-align': textAlign }"
       (editorFocus)="onEditorFocus()"
       (editorBlur)="onEditorBlur()"
       (htmlInput)="onEditorInput($event)"

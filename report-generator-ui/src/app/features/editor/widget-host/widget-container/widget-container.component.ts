@@ -1386,21 +1386,21 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Handle connector geometry changes (position, size, and props together)
    * This is needed because connector endpoints affect the widget's bounding box.
    */
-  onConnectorGeometryChange(change: { position: WidgetPosition; size: { width: number; height: number }; props: Partial<WidgetProps> }): void {
+  onConnectorGeometryChange(
+    change: { position: WidgetPosition; size: { width: number; height: number }; props: Partial<WidgetProps> },
+    commit: boolean = true
+  ): void {
     const currentWidget = this.displayWidget();
     if (!currentWidget) return;
 
-    const nextProps = {
-      ...currentWidget.props,
-      ...change.props,
-    } as WidgetProps;
+    // Update draft during the gesture to avoid store churn.
+    this.draftState.updateDraftFrame(this.widgetId, change.position, change.size);
+    this.draftState.updateDraftProps(this.widgetId, change.props);
 
-    // Update position, size, and props together
-    this.documentService.updateWidget(this.pageId, this.widgetId, {
-      position: change.position,
-      size: change.size,
-      props: nextProps,
-    });
+    // Commit once at the end of the gesture.
+    if (commit) {
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+    }
   }
 
   private isLocalPointNearConnectorStroke(
@@ -1723,11 +1723,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         endPoint: newEndPoint,
         controlPoint: newControlPoint,
       },
-    });
+    }, false);
   };
 
   private onConnectorEndpointPointerUp = (): void => {
     // Save attachment info if we snapped to an anchor
+    let didUpdate = false;
     if (this.connectorDragState?.snappedAnchor) {
       const endpoint = this.connectorDragState.endpoint;
       const attachment = this.connectorDragState.snappedAnchor;
@@ -1746,7 +1747,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             ...props,
             [attachmentKey]: attachment,
           },
-        });
+        }, false);
+        didUpdate = true;
       }
     } else if (this.connectorDragState) {
       // Clear attachment if not snapped to anchor
@@ -1765,9 +1767,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
               ...props,
               [attachmentKey]: null,
             },
-          });
+          }, false);
+          didUpdate = true;
         }
       }
+    }
+
+    if (didUpdate || this.draftState.hasDraft(this.widgetId)) {
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     }
     
     this.connectorDragState = null;
