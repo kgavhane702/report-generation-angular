@@ -11,6 +11,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class XmlTabularParserTest {
 
@@ -308,6 +309,67 @@ class XmlTabularParserTest {
         assertThat(jan.contentHtml()).contains("Jan");
         assertThat(janA.contentHtml()).contains("120");
         assertThat(janB.contentHtml()).contains("80");
+    }
+
+    @Test
+    void genericXml_withAttributesAndText_isFlattened() throws Exception {
+        String xml = """
+                <books>
+                  <book id="b1">
+                    <title>Clean Code</title>
+                    <author>Robert C. Martin</author>
+                  </book>
+                  <book id="b2">
+                    <title>Effective Java</title>
+                    <author>Joshua Bloch</author>
+                  </book>
+                </books>
+                """;
+
+        ObjectMapper om = new ObjectMapper();
+        ImportLimitsConfig limits = new ImportLimitsConfig();
+        JsonTabularParser json = new JsonTabularParser(om, limits);
+        XmlTabularParser xmlParser = new XmlTabularParser(om, json);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "books.xml",
+                "application/xml",
+                xml.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = xmlParser.parse(file, new ImportOptions(null, null));
+
+        assertThat(ds.rows()).hasSize(3);
+        String headerRow = ds.rows().get(0).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        assertThat(headerRow).contains("@id");
+        assertThat(headerRow).contains("title");
+        assertThat(headerRow).contains("author");
+
+        String row1 = ds.rows().get(1).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        assertThat(row1).contains("Clean Code");
+        assertThat(row1).contains("b1");
+    }
+
+    @Test
+    void invalidXml_throwsHelpfulError() {
+        String xml = "<root><row></root>";
+
+        ObjectMapper om = new ObjectMapper();
+        ImportLimitsConfig limits = new ImportLimitsConfig();
+        JsonTabularParser json = new JsonTabularParser(om, limits);
+        XmlTabularParser xmlParser = new XmlTabularParser(om, json);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "bad.xml",
+                "application/xml",
+                xml.getBytes(StandardCharsets.UTF_8)
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                xmlParser.parse(file, new ImportOptions(null, null)));
+        assertThat(ex.getMessage()).contains("Invalid XML");
     }
 }
 

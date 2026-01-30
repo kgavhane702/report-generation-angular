@@ -141,44 +141,62 @@ public class PdfGeneratorService {
     }
 
     private Viewport calculateViewport(DocumentModel document) {
+        if (document == null) {
+            return new Viewport(
+                    (int) Math.round(mmToPx(DEFAULT_WIDTH_MM, DEFAULT_DPI)),
+                    (int) Math.round(mmToPx(DEFAULT_HEIGHT_MM, DEFAULT_DPI))
+            );
+        }
+        
         PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
         double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(DEFAULT_WIDTH_MM);
         double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(DEFAULT_HEIGHT_MM);
         int dpi = Optional.ofNullable(pageSize.getDpi()).orElse(DEFAULT_DPI);
 
+        List<com.org.report_generator.model.document.Page> pages = collectPages(document);
+        
+        // If no pages, return default dimensions based on page size
+        if (pages.isEmpty()) {
+            return new Viewport(
+                    (int) Math.round(mmToPx(baseWidth, dpi)),
+                    (int) Math.round(mmToPx(baseHeight, dpi))
+            );
+        }
+
         double maxWidth = baseWidth;
         double maxHeight = baseHeight;
 
-        for (com.org.report_generator.model.document.Page page : collectPages(document)) {
-            String orientation = Optional.ofNullable(page.getOrientation()).orElse("landscape").toLowerCase(Locale.ROOT);
-            double pageWidth = orientation.equals("portrait") ? Math.min(baseWidth, baseHeight) : Math.max(baseWidth, baseHeight);
-            double pageHeight = orientation.equals("portrait") ? Math.max(baseWidth, baseHeight) : Math.min(baseWidth, baseHeight);
+        for (com.org.report_generator.model.document.Page page : pages) {
+            String orientation = Optional.ofNullable(page.getOrientation())
+                    .map(o -> o.toLowerCase(Locale.ROOT))
+                    .orElse("landscape");
+            
+            boolean isPortrait = "portrait".equals(orientation);
+            double pageWidth = isPortrait ? Math.min(baseWidth, baseHeight) : Math.max(baseWidth, baseHeight);
+            double pageHeight = isPortrait ? Math.max(baseWidth, baseHeight) : Math.min(baseWidth, baseHeight);
+            
             maxWidth = Math.max(maxWidth, pageWidth);
             maxHeight = Math.max(maxHeight, pageHeight);
         }
 
-        int widthPx = (int) Math.round(mmToPx(maxWidth, dpi));
-        int heightPx = (int) Math.round(mmToPx(maxHeight, dpi));
-        return new Viewport(widthPx, heightPx);
+        return new Viewport(
+                (int) Math.round(mmToPx(maxWidth, dpi)),
+                (int) Math.round(mmToPx(maxHeight, dpi))
+        );
     }
 
     private List<com.org.report_generator.model.document.Page> collectPages(DocumentModel document) {
-        List<com.org.report_generator.model.document.Page> flattened = new ArrayList<>();
-        if (document.getSections() == null) {
-            return flattened;
+        if (document == null || document.getSections() == null) {
+            return List.of();
         }
-        for (Section section : document.getSections()) {
-            if (section == null || section.getSubsections() == null) {
-                continue;
-            }
-            for (Subsection subsection : section.getSubsections()) {
-                if (subsection == null || subsection.getPages() == null) {
-                    continue;
-                }
-                flattened.addAll(subsection.getPages());
-            }
-        }
-        return flattened;
+        
+        return document.getSections().stream()
+                .filter(section -> section != null && section.getSubsections() != null)
+                .flatMap(section -> section.getSubsections().stream())
+                .filter(subsection -> subsection != null && subsection.getPages() != null)
+                .flatMap(subsection -> subsection.getPages().stream())
+                .filter(page -> page != null)
+                .toList();
     }
 
     /**

@@ -15,14 +15,19 @@ public class PlaywrightConfig implements DisposableBean {
     private Playwright playwright;
     private Browser browser;
 
+    Playwright createPlaywright() {
+        return Playwright.create();
+    }
+
     @Bean
     public Playwright playwright() {
-        this.playwright = Playwright.create();
+        this.playwright = createPlaywright();
         return this.playwright;
     }
 
     @Bean
     public Browser browser(Playwright playwright, PlaywrightProperties props) {
+        this.playwright = playwright;
         BrowserType.LaunchOptions options = new BrowserType.LaunchOptions()
                 .setExecutablePath(Paths.get(props.getExecutablePath()))
                 .setArgs(props.getArgs());

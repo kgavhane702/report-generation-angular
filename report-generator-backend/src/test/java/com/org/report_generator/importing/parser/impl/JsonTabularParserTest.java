@@ -11,6 +11,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JsonTabularParserTest {
 
@@ -174,6 +175,161 @@ class JsonTabularParserTest {
         assertThat(janA.contentHtml()).contains("120");
         assertThat(janB.contentHtml()).contains("80");
     }
+
+          @Test
+          void arrayOfArrays_trimsEmptyRowsAndCols() throws Exception {
+        String json = """
+          [
+            ["A", "B", ""],
+            ["1", "2", ""],
+            ["", "", ""]
+          ]
+          """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "grid.json",
+          "application/json",
+          json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        assertThat(ds.rows()).hasSize(2);
+        assertThat(ds.rows().get(0).cells()).hasSize(2);
+        assertThat(ds.rows().get(0).cells().get(0).contentHtml()).contains("A");
+        assertThat(ds.rows().get(1).cells().get(1).contentHtml()).contains("2");
+          }
+
+          @Test
+          void arrayOfObjects_withNestedObjects_flattensKeys() throws Exception {
+        String json = """
+          [
+            {
+              "name": "Amit",
+              "address": { "city": "Pune", "geo": { "lat": 18.52 } }
+            },
+            {
+              "name": "Rohit",
+              "address": { "city": "Delhi", "geo": { "lat": 28.61 } }
+            }
+          ]
+          """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "nested.json",
+          "application/json",
+          json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        // Parser creates hierarchical headers for nested objects plus 2 data rows
+        assertThat(ds.rows()).hasSize(5);
+        
+        // Check header contains expected keys (may be in different rows for hierarchical structure)
+        String allHeaders = ds.rows().stream()
+            .limit(3) // First 3 rows are headers
+            .flatMap(r -> r.cells().stream())
+            .map(TabularCell::contentHtml)
+            .reduce("", String::concat);
+        assertThat(allHeaders).contains("name");
+        assertThat(allHeaders).contains("address");
+        assertThat(allHeaders).contains("city");
+        assertThat(allHeaders).contains("lat");
+
+        // Check data rows contain expected values
+        String row1 = ds.rows().get(3).cells().stream().map(TabularCell::contentHtml).reduce("", String::concat);
+        assertThat(row1).contains("Amit");
+        assertThat(row1).contains("Pune");
+        assertThat(row1).contains("18.52");
+          }
+
+          @Test
+          void columnsAndRowsObject_buildsHeaderRow() throws Exception {
+        String json = """
+          {
+            "columns": ["A", "B"],
+            "rows": [[1, 2], [3, 4]]
+          }
+          """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "columns-rows.json",
+          "application/json",
+          json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        assertThat(ds.rows()).hasSize(3);
+        assertThat(ds.rows().get(0).cells().get(0).contentHtml()).contains("A");
+        assertThat(ds.rows().get(0).cells().get(1).contentHtml()).contains("B");
+        assertThat(ds.rows().get(2).cells().get(1).contentHtml()).contains("4");
+          }
+
+          @Test
+          void apiResponseEnvelope_isUnwrapped() throws Exception {
+        String json = """
+          {
+            "success": true,
+            "data": [
+              ["A", "B"],
+              [1, 2]
+            ]
+          }
+          """;
+
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "envelope.json",
+          "application/json",
+          json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        TabularDataset ds = parser.parse(file, new ImportOptions(null, null));
+
+        assertThat(ds.rows()).hasSize(2);
+        assertThat(ds.rows().get(0).cells().get(0).contentHtml()).contains("A");
+        assertThat(ds.rows().get(1).cells().get(1).contentHtml()).contains("2");
+          }
+
+          @Test
+          void invalidJson_throwsHelpfulError() {
+        String json = "{ invalid json";
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "bad.json",
+          "application/json",
+          json.getBytes(StandardCharsets.UTF_8)
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+          parser.parse(file, new ImportOptions(null, null)));
+        assertThat(ex.getMessage()).contains("Invalid JSON");
+          }
+
+          @Test
+          void emptyFile_throwsError() {
+        JsonTabularParser parser = new JsonTabularParser(new ObjectMapper(), new ImportLimitsConfig());
+        MockMultipartFile file = new MockMultipartFile(
+          "file",
+          "empty.json",
+          "application/json",
+          new byte[0]
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+          parser.parse(file, new ImportOptions(null, null)));
+        assertThat(ex.getMessage()).contains("JSON file is required");
+          }
 }
 
 
