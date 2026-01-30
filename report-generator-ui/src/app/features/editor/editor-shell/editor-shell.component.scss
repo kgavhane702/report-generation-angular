@@ -111,6 +111,8 @@
   // Only show scrollbars when needed
   overflow-x: auto;
   overflow-y: auto;
+  // Prevent browser scroll anchoring when content/styles change
+  overflow-anchor: none;
   gap: 0;
   // Same background as canvas for consistency
   background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);

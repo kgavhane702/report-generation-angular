@@ -33,6 +33,7 @@
           <button
             *ngSwitchCase="'vAlign'"
             type="button"
+            tabindex="-1"
             class="table-toolbar__button"
             [class.table-toolbar__button--active]="formattingState.verticalAlign === $any(p).value"
             [class.table-toolbar__button--mixed]="formattingState.verticalAlign === 'mixed'"

@@ -68,7 +68,7 @@ export class EditastraEditorComponent {
   }
 
   focus(): void {
-    this.editorEl?.nativeElement?.focus();
+    this.editorEl?.nativeElement?.focus({ preventScroll: true });
   }
 
   getEditableElement(): HTMLElement | null {
