@@ -41,6 +41,9 @@ import {
   RenameSectionCommand,
   RenameSubsectionCommand,
   RenamePageCommand,
+  AddWidgetsCommand,
+  DeleteWidgetsCommand,
+  UpdateWidgetsCommand,
 } from './document-commands';
 import { WidgetFactoryService } from '../../features/editor/widget-host/widget-factory.service';
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
@@ -219,6 +222,71 @@ export class DocumentService {
       { ...widget }
     );
     this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  /**
+   * Add multiple widgets as a single undoable operation.
+   * Used for paste operations.
+   */
+  addWidgets(pageId: string, widgets: WidgetModel[]): void {
+    if (!this.canEdit()) return;
+    if (widgets.length === 0) return;
+
+    const command = new AddWidgetsCommand(this.store, pageId, widgets);
+    this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  /**
+   * Delete multiple widgets as a single undoable operation.
+   * Used for cut and multi-delete operations.
+   */
+  deleteWidgets(pageId: string, widgetIds: string[]): void {
+    if (!this.canEdit()) return;
+    if (widgetIds.length === 0) return;
+
+    const entities = this.widgetEntities();
+    const deletedWidgets = widgetIds
+      .map(id => entities[id])
+      .filter((w): w is WidgetEntity => !!w);
+
+    if (deletedWidgets.length === 0) return;
+
+    const command = new DeleteWidgetsCommand(this.store, pageId, deletedWidgets);
+    this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  /**
+   * Update multiple widgets as a single undoable operation.
+   * Used for multi-widget drag/resize operations.
+   */
+  updateWidgets(
+    updates: Array<{
+      pageId: string;
+      widgetId: string;
+      changes: Partial<WidgetModel>;
+    }>
+  ): void {
+    if (!this.canEdit()) return;
+    if (updates.length === 0) return;
+
+    const entities = this.widgetEntities();
+    const updateData = updates
+      .map(({ widgetId, changes }) => {
+        const previousWidget = entities[widgetId];
+        if (!previousWidget) return null;
+        return {
+          widgetId,
+          changes,
+          previousWidget: deepClone(previousWidget),
+        };
+      })
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+
+    if (updateData.length === 0) return;
+
+    const command = new UpdateWidgetsCommand(this.store, updateData);
+    this.undoRedoService.executeDocumentCommand(command);
+    this.saveIndicator.pulse();
   }
 
   // ============================================
@@ -525,7 +593,8 @@ export class DocumentService {
   cutWidgets(pageId: string, widgetIds: string[]): void {
     if (!this.canEdit()) return;
     this.copyWidgets(pageId, widgetIds);
-    widgetIds.forEach((id) => this.deleteWidget(pageId, id));
+    // Use batch delete for a single undo operation
+    this.deleteWidgets(pageId, widgetIds);
   }
 
   pasteWidgets(pageId: string, options?: { at?: { x: number; y: number } }): string[] {
@@ -544,14 +613,17 @@ export class DocumentService {
       ? { x: at.x - minX, y: at.y - minY }
       : defaultOffset;
 
-    const pastedWidgetIds: string[] = [];
+    // Clone all widgets first
+    const clonedWidgets: WidgetModel[] = [];
     copiedWidgets.forEach((widget) => {
       const clonedWidget = this.widgetFactory.cloneWidget(widget, offset);
-      pastedWidgetIds.push(clonedWidget.id);
-      this.addWidget(pageId, clonedWidget);
+      clonedWidgets.push(clonedWidget);
     });
 
-    return pastedWidgetIds;
+    // Use batch add for a single undo operation
+    this.addWidgets(pageId, clonedWidgets);
+
+    return clonedWidgets.map(w => w.id);
   }
 
   canPaste(): boolean {

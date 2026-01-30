@@ -968,16 +968,17 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     const newPosition: WidgetPosition = { x: finalFrame.x, y: finalFrame.y };
     
-    // Update draft and immediately commit
+    // Update draft position for the primary widget
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
-    this.draftState.commitDraft(this.widgetId, { recordUndo: true });
 
-    if (this.multiDragState) {
-      for (const id of this.multiDragState.widgetIds) {
-        if (id === this.widgetId) continue;
-        this.draftState.commitDraft(id, { recordUndo: true });
-      }
+    if (this.multiDragState && this.multiDragState.widgetIds.length > 1) {
+      // Batch commit all dragged widgets as a single undo operation
+      const allDraggedIds = this.multiDragState.widgetIds;
+      this.draftState.commitDraftsBatched(allDraggedIds, { recordUndo: true });
       this.multiDragState = null;
+    } else {
+      // Single widget drag - commit normally
+      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
     }
     
     // Stop drag tracking
@@ -1363,16 +1364,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.connectorWholeDrag = null;
 
     // Commit final draft to store (undoable)
-    if (this.draftState.hasDraft(this.widgetId)) {
-      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
-    }
-
-    if (this.multiDragState) {
-      for (const id of this.multiDragState.widgetIds) {
-        if (id === this.widgetId) continue;
-        this.draftState.commitDraft(id, { recordUndo: true });
-      }
+    if (this.multiDragState && this.multiDragState.widgetIds.length > 1) {
+      // Batch commit all dragged widgets as a single undo operation
+      const allDraggedIds = this.multiDragState.widgetIds;
+      this.draftState.commitDraftsBatched(allDraggedIds, { recordUndo: true });
       this.multiDragState = null;
+    } else {
+      // Single widget drag
+      if (this.draftState.hasDraft(this.widgetId)) {
+        this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      }
     }
 
     this.uiState.stopDragging();
@@ -2359,12 +2360,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const ids = widgetIds && widgetIds.length > 0 ? widgetIds : this.getSelectedIdsForPage();
     if (ids.length === 0) return;
 
+    // Discard any drafts for these widgets
     for (const id of ids) {
-      // Discard any drafts for this widget
       this.draftState.discardDraft(id);
+    }
 
-      // Delete the widget
-      this.documentService.deleteWidget(this.pageId, id);
+    // Use batch delete for single undo operation
+    if (ids.length > 1) {
+      this.documentService.deleteWidgets(this.pageId, ids);
+    } else {
+      this.documentService.deleteWidget(this.pageId, ids[0]);
     }
 
     // Clear selection

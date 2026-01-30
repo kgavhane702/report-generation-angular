@@ -9,6 +9,169 @@ import { Command } from './undo-redo.service';
 import { deepClone } from '../utils/deep-clone.util';
 
 /**
+ * BatchCommand
+ * 
+ * Groups multiple commands into a single undo/redo operation.
+ * Used for multi-widget operations like paste, cut, and multi-drag.
+ */
+export class BatchCommand implements Command {
+  readonly kind = 'batch' as const;
+
+  constructor(
+    private commands: Command[],
+    public description: string = 'Batch operation'
+  ) {}
+
+  execute(): void {
+    // Execute in order
+    for (const cmd of this.commands) {
+      cmd.execute();
+    }
+  }
+
+  undo(): void {
+    // Undo in reverse order
+    for (let i = this.commands.length - 1; i >= 0; i--) {
+      this.commands[i].undo();
+    }
+  }
+}
+
+/**
+ * AddWidgetsCommand
+ * 
+ * Adds multiple widgets as a single undoable operation.
+ */
+export class AddWidgetsCommand implements Command {
+  readonly kind = 'add-widgets' as const;
+
+  constructor(
+    private store: Store<AppState>,
+    private pageId: string,
+    private widgets: WidgetModel[]
+  ) {}
+
+  get widgetIds(): string[] {
+    return this.widgets.map(w => w.id);
+  }
+
+  execute(): void {
+    for (const widget of this.widgets) {
+      this.store.dispatch(
+        DocumentActions.addWidget({
+          pageId: this.pageId,
+          widget,
+        })
+      );
+    }
+  }
+
+  undo(): void {
+    // Delete in reverse order
+    for (let i = this.widgets.length - 1; i >= 0; i--) {
+      this.store.dispatch(
+        DocumentActions.deleteWidget({
+          pageId: this.pageId,
+          widgetId: this.widgets[i].id,
+        })
+      );
+    }
+  }
+
+  description = `Add ${this.widgets.length} widgets`;
+}
+
+/**
+ * DeleteWidgetsCommand
+ * 
+ * Deletes multiple widgets as a single undoable operation.
+ */
+export class DeleteWidgetsCommand implements Command {
+  readonly kind = 'delete-widgets' as const;
+
+  constructor(
+    private store: Store<AppState>,
+    private pageId: string,
+    private deletedWidgets: (WidgetModel | WidgetEntity)[]
+  ) {}
+
+  execute(): void {
+    for (const widget of this.deletedWidgets) {
+      this.store.dispatch(
+        DocumentActions.deleteWidget({
+          pageId: this.pageId,
+          widgetId: widget.id,
+        })
+      );
+    }
+  }
+
+  undo(): void {
+    // Re-add in reverse order to maintain original order
+    for (let i = this.deletedWidgets.length - 1; i >= 0; i--) {
+      const deletedWidget = this.deletedWidgets[i];
+      const widget = 'pageId' in deletedWidget 
+        ? (({ pageId, ...rest }) => rest)(deletedWidget as WidgetEntity) as WidgetModel
+        : deletedWidget;
+      
+      this.store.dispatch(
+        DocumentActions.addWidget({
+          pageId: this.pageId,
+          widget,
+        })
+      );
+    }
+  }
+
+  description = `Delete ${this.deletedWidgets.length} widgets`;
+}
+
+/**
+ * UpdateWidgetsCommand
+ * 
+ * Updates multiple widgets as a single undoable operation.
+ * Used for multi-widget drag/resize operations.
+ */
+export class UpdateWidgetsCommand implements Command {
+  readonly kind = 'update-widgets' as const;
+
+  constructor(
+    private store: Store<AppState>,
+    private updates: Array<{
+      widgetId: string;
+      changes: Partial<WidgetModel>;
+      previousWidget: WidgetModel | WidgetEntity;
+    }>
+  ) {}
+
+  execute(): void {
+    for (const { widgetId, changes } of this.updates) {
+      this.store.dispatch(
+        WidgetActions.updateOne({
+          id: widgetId,
+          changes: changes as Partial<WidgetEntity>,
+        })
+      );
+    }
+  }
+
+  undo(): void {
+    // Restore in reverse order
+    for (let i = this.updates.length - 1; i >= 0; i--) {
+      const { widgetId, previousWidget } = this.updates[i];
+      this.store.dispatch(
+        WidgetActions.updateOne({
+          id: widgetId,
+          changes: previousWidget as unknown as Partial<WidgetEntity>,
+        })
+      );
+    }
+  }
+
+  description = `Update ${this.updates.length} widgets`;
+}
+
+/**
  * AddWidgetCommand
  * 
  * OPTIMIZED: Undo removes only the specific widget instead of replacing entire document

@@ -313,7 +313,8 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
     if (selectedIds.length > 1) {
       if (!pageId) return;
-      selectedIds.forEach(id => this.documentService.deleteWidget(pageId, id));
+      // Use batch delete for single undo operation
+      this.documentService.deleteWidgets(pageId, selectedIds);
       this.uiState.clearSelection();
       return;
     }

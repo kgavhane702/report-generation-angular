@@ -291,6 +291,91 @@ export class DraftStateService {
       this.commitDraft(widgetId);
     });
   }
+
+  /**
+   * Commit multiple drafts as a single undoable operation.
+   * Used for multi-widget drag/resize operations.
+   *
+   * @param widgetIds - Array of widget IDs to commit
+   * @param options - Commit options (recordUndo should be true for batched operations)
+   */
+  commitDraftsBatched(widgetIds: string[], options?: CommitDraftOptions): void {
+    if (widgetIds.length === 0) return;
+
+    const recordUndo = options?.recordUndo === true;
+    const updates: Array<{
+      pageId: string;
+      widgetId: string;
+      changes: Partial<WidgetModel>;
+    }> = [];
+
+    for (const widgetId of widgetIds) {
+      const draft = this.draftsMap().get(widgetId);
+      if (!draft) continue;
+
+      // Build the changes object
+      const changes: Partial<WidgetEntity> = {};
+
+      if (draft.position) {
+        changes.position = draft.position;
+      }
+
+      if (draft.size) {
+        changes.size = draft.size;
+      }
+
+      if (draft.props) {
+        changes.props = draft.props as WidgetProps;
+      }
+
+      if (draft.zIndex !== undefined) {
+        changes.zIndex = draft.zIndex;
+      }
+
+      if (draft.rotation !== undefined) {
+        changes.rotation = draft.rotation;
+      }
+
+      if (draft.locked !== undefined) {
+        changes.locked = draft.locked;
+      }
+
+      if (Object.keys(changes).length === 0) continue;
+
+      const persisted = this.widgetEntities()[widgetId];
+      if (!persisted) continue;
+
+      // Merge props at commit time
+      const mergedProps = changes.props
+        ? ({ ...(persisted.props ?? {}), ...(changes.props as unknown as WidgetProps) } as WidgetProps)
+        : undefined;
+
+      updates.push({
+        pageId: persisted.pageId,
+        widgetId,
+        changes: {
+          ...changes,
+          ...(mergedProps ? { props: mergedProps } : {}),
+        } as unknown as Partial<WidgetModel>,
+      });
+
+      // Clear the draft and stop editing
+      this.discardDraft(widgetId);
+      this.stopEditing(widgetId);
+    }
+
+    if (updates.length === 0) return;
+
+    if (recordUndo) {
+      // Use batch update for a single undo operation
+      this.documentService.updateWidgets(updates);
+    } else {
+      // Dispatch individual updates without undo
+      for (const { widgetId, changes } of updates) {
+        this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes: changes as Partial<WidgetEntity> }));
+      }
+    }
+  }
   
   /**
    * Get a merged view of a widget's data
