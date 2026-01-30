@@ -13,6 +13,7 @@ import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry } from '../../../../../core/services/pending-changes-registry.service';
 import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
 import { RichTextToolbarService } from '../../../../../core/services/rich-text-editor/rich-text-toolbar.service';
+import { EditorStateService } from '../../../../../core/services/editor-state.service';
 import { AppState } from '../../../../../store/app.state';
 import { DocumentSelectors } from '../../../../../store/document/document.selectors';
 
@@ -35,6 +36,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   private readonly pendingChanges = inject(PendingChangesRegistry);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly richTextToolbar = inject(RichTextToolbarService);
+  private readonly editorState = inject(EditorStateService);
 
   readonly documentLocked = toSignal(
     this.store.select(DocumentSelectors.selectDocumentLocked),
@@ -74,14 +76,16 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
       if (isRedo) {
         if (!this.documentCanRedo()) return;
         document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-        this.undoRedoService.redoDocument();
+        const affectedPageId = this.undoRedoService.redoDocument();
+        this.navigateToAffectedPage(affectedPageId);
 
         return;
       }
 
       if (!this.documentCanUndo()) return;
       document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-      this.undoRedoService.undoDocument();
+      const affectedPageId = this.undoRedoService.undoDocument();
+      this.navigateToAffectedPage(affectedPageId);
 
       return;
     }
@@ -105,13 +109,15 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (isRedo) {
       if (!this.documentCanRedo()) return;
       document.dispatchEvent(new CustomEvent('tw-table-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-      this.undoRedoService.redoDocument();
+      const affectedPageId = this.undoRedoService.redoDocument();
+      this.navigateToAffectedPage(affectedPageId);
       return;
     }
 
     if (!this.documentCanUndo()) return;
     document.dispatchEvent(new CustomEvent('tw-table-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-    this.undoRedoService.undoDocument();
+    const affectedPageId = this.undoRedoService.undoDocument();
+    this.navigateToAffectedPage(affectedPageId);
   };
 
   ngOnInit(): void {
@@ -159,7 +165,8 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
       if (this.documentCanUndo()) {
         document.dispatchEvent(new CustomEvent('tw-table-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-        this.undoRedoService.undoDocument();
+        const affectedPageId = this.undoRedoService.undoDocument();
+        this.navigateToAffectedPage(affectedPageId);
       }
       return;
     }
@@ -169,7 +176,8 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (editingWidgetId && this.richTextToolbar.activeEditor) {
       if (this.documentCanUndo()) {
         document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-        this.undoRedoService.undoDocument();
+        const affectedPageId = this.undoRedoService.undoDocument();
+        this.navigateToAffectedPage(affectedPageId);
       }
       return;
     }
@@ -178,7 +186,8 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     await this.pendingChanges.flushAll();
 
     if (this.documentCanUndo()) {
-      this.undoRedoService.undoDocument();
+      const affectedPageId = this.undoRedoService.undoDocument();
+      this.navigateToAffectedPage(affectedPageId);
     }
   }
 
@@ -188,7 +197,8 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
       if (this.documentCanRedo()) {
         document.dispatchEvent(new CustomEvent('tw-table-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-        this.undoRedoService.redoDocument();
+        const affectedPageId = this.undoRedoService.redoDocument();
+        this.navigateToAffectedPage(affectedPageId);
       }
       return;
     }
@@ -196,14 +206,28 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (editingWidgetId && this.richTextToolbar.activeEditor) {
       if (this.documentCanRedo()) {
         document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-        this.undoRedoService.redoDocument();
+        const affectedPageId = this.undoRedoService.redoDocument();
+        this.navigateToAffectedPage(affectedPageId);
       }
       return;
     }
 
     await this.pendingChanges.flushAll();
     if (this.documentCanRedo()) {
-      this.undoRedoService.redoDocument();
+      const affectedPageId = this.undoRedoService.redoDocument();
+      this.navigateToAffectedPage(affectedPageId);
+    }
+  }
+
+  /**
+   * Navigate to the page affected by an undo/redo operation.
+   * Only navigates if the affected page is different from the current page.
+   */
+  private navigateToAffectedPage(pageId: string | null): void {
+    if (!pageId) return;
+    const currentPageId = this.editorState.activePageId();
+    if (pageId !== currentPageId) {
+      this.editorState.setActivePage(pageId);
     }
   }
 

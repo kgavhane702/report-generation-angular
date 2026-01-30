@@ -271,10 +271,11 @@ export class DocumentService {
 
     const entities = this.widgetEntities();
     const updateData = updates
-      .map(({ widgetId, changes }) => {
+      .map(({ pageId, widgetId, changes }) => {
         const previousWidget = entities[widgetId];
         if (!previousWidget) return null;
         return {
+          pageId,
           widgetId,
           changes,
           previousWidget: deepClone(previousWidget),

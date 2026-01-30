@@ -47,9 +47,14 @@ export class AddWidgetsCommand implements Command {
 
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
+    private _pageId: string,
     private widgets: WidgetModel[]
   ) {}
+
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
 
   get widgetIds(): string[] {
     return this.widgets.map(w => w.id);
@@ -59,7 +64,7 @@ export class AddWidgetsCommand implements Command {
     for (const widget of this.widgets) {
       this.store.dispatch(
         DocumentActions.addWidget({
-          pageId: this.pageId,
+          pageId: this._pageId,
           widget,
         })
       );
@@ -71,7 +76,7 @@ export class AddWidgetsCommand implements Command {
     for (let i = this.widgets.length - 1; i >= 0; i--) {
       this.store.dispatch(
         DocumentActions.deleteWidget({
-          pageId: this.pageId,
+          pageId: this._pageId,
           widgetId: this.widgets[i].id,
         })
       );
@@ -91,15 +96,20 @@ export class DeleteWidgetsCommand implements Command {
 
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
+    private _pageId: string,
     private deletedWidgets: (WidgetModel | WidgetEntity)[]
   ) {}
+
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
 
   execute(): void {
     for (const widget of this.deletedWidgets) {
       this.store.dispatch(
         DocumentActions.deleteWidget({
-          pageId: this.pageId,
+          pageId: this._pageId,
           widgetId: widget.id,
         })
       );
@@ -116,7 +126,7 @@ export class DeleteWidgetsCommand implements Command {
       
       this.store.dispatch(
         DocumentActions.addWidget({
-          pageId: this.pageId,
+          pageId: this._pageId,
           widget,
         })
       );
@@ -138,11 +148,17 @@ export class UpdateWidgetsCommand implements Command {
   constructor(
     private store: Store<AppState>,
     private updates: Array<{
+      pageId: string;
       widgetId: string;
       changes: Partial<WidgetModel>;
       previousWidget: WidgetModel | WidgetEntity;
     }>
   ) {}
+
+  /** Page ID for navigation after undo/redo (uses first update's pageId) */
+  get pageId(): string | undefined {
+    return this.updates[0]?.pageId;
+  }
 
   execute(): void {
     for (const { widgetId, changes } of this.updates) {
@@ -181,9 +197,14 @@ export class AddWidgetCommand implements Command {
 
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
+    private _pageId: string,
     private widget: WidgetModel
   ) {}
+
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
 
   get widgetId(): string {
     return this.widget.id;
@@ -200,7 +221,7 @@ export class AddWidgetCommand implements Command {
   execute(): void {
     this.store.dispatch(
       DocumentActions.addWidget({
-        pageId: this.pageId,
+        pageId: this._pageId,
         widget: this.widget,
       })
     );
@@ -209,7 +230,7 @@ export class AddWidgetCommand implements Command {
   undo(): void {
     this.store.dispatch(
       DocumentActions.deleteWidget({
-        pageId: this.pageId,
+        pageId: this._pageId,
         widgetId: this.widget.id,
       })
     );
@@ -230,16 +251,25 @@ export class UpdateWidgetCommand implements Command {
 
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
-    private widgetId: string,
+    private _pageId: string,
+    private _widgetId: string,
     private changes: Partial<WidgetModel>,
     private previousWidget: WidgetModel | WidgetEntity
   ) {}
 
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
+
+  get widgetId(): string {
+    return this._widgetId;
+  }
+
   execute(): void {
     this.store.dispatch(
       WidgetActions.updateOne({
-        id: this.widgetId,
+        id: this._widgetId,
         changes: this.changes as Partial<WidgetEntity>,
       })
     );
@@ -248,7 +278,7 @@ export class UpdateWidgetCommand implements Command {
   undo(): void {
     this.store.dispatch(
       WidgetActions.updateOne({
-        id: this.widgetId,
+        id: this._widgetId,
         changes: this.previousWidget as unknown as Partial<WidgetEntity>,
       })
     );
@@ -261,7 +291,7 @@ export class UpdateWidgetCommand implements Command {
       return false;
     }
 
-    if (next.widgetId !== this.widgetId) {
+    if (next._widgetId !== this._widgetId) {
       return false;
     }
 
@@ -309,16 +339,25 @@ export class UpdateWidgetCommand implements Command {
 export class DeleteWidgetCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
-    private widgetId: string,
+    private _pageId: string,
+    private _widgetId: string,
     private deletedWidget: WidgetModel | WidgetEntity
   ) {}
+
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
+
+  get widgetId(): string {
+    return this._widgetId;
+  }
 
   execute(): void {
     this.store.dispatch(
       DocumentActions.deleteWidget({
-        pageId: this.pageId,
-        widgetId: this.widgetId,
+        pageId: this._pageId,
+        widgetId: this._widgetId,
       })
     );
   }
@@ -331,7 +370,7 @@ export class DeleteWidgetCommand implements Command {
     
     this.store.dispatch(
       DocumentActions.addWidget({
-        pageId: this.pageId,
+        pageId: this._pageId,
         widget,
       })
     );
@@ -481,12 +520,17 @@ export class DeletePageCommand implements Command {
   constructor(
     private store: Store<AppState>,
     private subsectionId: string,
-    private pageId: string,
+    private _pageId: string,
     private deletedPage: PageModel
   ) {}
 
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
+
   execute(): void {
-    this.store.dispatch(DocumentActions.deletePage({ subsectionId: this.subsectionId, pageId: this.pageId }));
+    this.store.dispatch(DocumentActions.deletePage({ subsectionId: this.subsectionId, pageId: this._pageId }));
   }
 
   undo(): void {
@@ -550,15 +594,20 @@ export class RenameSubsectionCommand implements Command {
 export class RenamePageCommand implements Command {
   constructor(
     private store: Store<AppState>,
-    private pageId: string,
+    private _pageId: string,
     private title: string,
     private previousTitle: string
   ) {}
 
+  /** Page ID for navigation after undo/redo */
+  get pageId(): string {
+    return this._pageId;
+  }
+
   execute(): void {
     this.store.dispatch(
       DocumentActions.renamePage({
-        pageId: this.pageId,
+        pageId: this._pageId,
         title: this.title,
       })
     );
@@ -567,7 +616,7 @@ export class RenamePageCommand implements Command {
   undo(): void {
     this.store.dispatch(
       DocumentActions.renamePage({
-        pageId: this.pageId,
+        pageId: this._pageId,
         title: this.previousTitle,
       })
     );

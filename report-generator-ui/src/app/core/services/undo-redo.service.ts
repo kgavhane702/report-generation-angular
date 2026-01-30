@@ -6,6 +6,8 @@ export interface Command {
   execute(): void;
   undo(): void;
   description?: string;
+  /** The page ID affected by this command (for navigation after undo/redo) */
+  pageId?: string;
 }
 
 export interface MergeableCommand extends Command {
@@ -54,22 +56,34 @@ export class UndoRedoService {
     this.updateDocumentState();
   }
 
-  undoDocument(): void {
+  /**
+   * Undo the last document command.
+   * @returns The page ID affected by the undone command (for navigation), or null if none.
+   */
+  undoDocument(): string | null {
     const command = this.documentUndoStack.pop();
     if (command) {
       command.undo();
       this.documentRedoStack.push(command);
       this.updateDocumentState();
+      return command.pageId ?? null;
     }
+    return null;
   }
 
-  redoDocument(): void {
+  /**
+   * Redo the last undone document command.
+   * @returns The page ID affected by the redone command (for navigation), or null if none.
+   */
+  redoDocument(): string | null {
     const command = this.documentRedoStack.pop();
     if (command) {
       command.execute();
       this.documentUndoStack.push(command);
       this.updateDocumentState();
+      return command.pageId ?? null;
     }
+    return null;
   }
 
   recordZoomChange(oldZoom: number, newZoom: number, setZoomFn: (zoom: number) => void): void {
