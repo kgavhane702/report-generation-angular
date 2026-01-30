@@ -38,7 +38,7 @@
   .widget-container__content {
     // IMPORTANT: allow the connector's SVG stroke hit-path to receive pointer events.
     // The SVG itself is configured so only the stroke is interactive (not the full box).
-    pointer-events: auto;
+    pointer-events: none;
   }
 
   // Endpoint handles must remain clickable when the connector is selected
