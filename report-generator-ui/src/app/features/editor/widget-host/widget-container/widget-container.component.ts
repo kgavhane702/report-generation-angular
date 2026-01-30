@@ -11,8 +11,9 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
-import { Subscription, take } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { CdkDragEnd, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 
 import { WidgetPosition, WidgetProps } from '../../../../models/widget.model';
@@ -98,6 +99,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly undoRedo = inject(UndoRedoService);
   private readonly hostRef = inject(ElementRef<HTMLElement>);
   private readonly connectorAnchorService = inject(ConnectorAnchorService);
+  private readonly widgetEntitiesSignal = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Record<string, WidgetEntity> }
+  );
 
   // ============================================
   // CONTEXT MENU
@@ -887,6 +892,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // IMPORTANT: Guides must be "virtual" and must not interfere with CDK drag.
     // We only update the guides overlay here (no snapping / no drag position mutation).
     this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight);
+
+    // Keep any attached connectors in sync during the drag gesture.
+    this.updateAttachedConnectors({ frameOverride: rawFrame, mode: 'draft' });
   }
   
   onDragEnded(event: CdkDragEnd): void {
@@ -924,123 +932,169 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * Update all connectors that are attached to this widget.
    * Called after widget position/size changes.
    */
-  private updateAttachedConnectors(): void {
+  private updateAttachedConnectors(options?: { frameOverride?: WidgetFrame; mode?: 'draft' | 'store' }): void {
     const widget = this.displayWidget();
     if (!widget || widget.type === 'connector') return;
-    
+
+    const mode = options?.mode ?? 'store';
+    const targetFrame: WidgetFrame = options?.frameOverride ?? {
+      x: widget.position.x,
+      y: widget.position.y,
+      width: widget.size.width,
+      height: widget.size.height,
+    };
+
     // Find all connectors attached to this widget
     const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(
       this.pageId,
       this.widgetId
     );
-    
+
     if (attachedConnectors.length === 0) return;
-    
-    // IMPORTANT: Avoid subscribing to per-widget selectors and dispatching inside that subscription.
-    // That pattern can cause re-entrant emissions and infinite update loops (page hang).
-    // Instead, snapshot widget entities once, compute all connector updates, then dispatch a single batch.
-    this.store
-      .select(DocumentSelectors.selectWidgetEntities)
-      .pipe(take(1))
-      .subscribe(entities => {
-        const anchorDef = this.connectorAnchorService.anchorPositions.find(
-          a => a.position === attachedConnectors[0]?.attachment.anchor
-        );
 
-        const updates: WidgetEntity[] = [];
+    const entities = this.widgetEntitiesSignal();
+    const uniqueConnectorIds = Array.from(new Set(attachedConnectors.map(attached => attached.connectorId)));
 
-        for (const attached of attachedConnectors) {
-          const connector = entities[attached.connectorId];
-          if (!connector || connector.type !== 'connector') continue;
+    const updates: WidgetEntity[] = [];
 
-          const anchor = this.connectorAnchorService.anchorPositions.find(a => a.position === attached.attachment.anchor);
-          if (!anchor) continue;
+    const getAnchorPositionForFrame = (attachment?: AnchorAttachment | null): { x: number; y: number } | null => {
+      if (!attachment) return null;
+      const anchor = this.connectorAnchorService.anchorPositions.find(a => a.position === attachment.anchor);
+      if (!anchor) return null;
+      return {
+        x: targetFrame.x + (anchor.xPercent / 100) * targetFrame.width,
+        y: targetFrame.y + (anchor.yPercent / 100) * targetFrame.height,
+      };
+    };
 
-          // Compute anchor position directly from the moved widget (never stale)
-          const newPos = {
-            x: widget.position.x + (anchor.xPercent / 100) * widget.size.width,
-            y: widget.position.y + (anchor.yPercent / 100) * widget.size.height,
-          };
+    for (const connectorId of uniqueConnectorIds) {
+      const persisted = entities[connectorId];
+      if (!persisted || persisted.type !== 'connector') continue;
 
-          const props = connector.props as any;
-          const startPoint = props?.startPoint;
-          const endPoint = props?.endPoint;
-          const controlPoint = props?.controlPoint;
-          if (!startPoint || !endPoint) continue;
+      const connector = this.draftState.getMergedWidget(connectorId, persisted) ?? persisted;
+      const props = connector.props as any;
+      const startPoint = props?.startPoint;
+      const endPoint = props?.endPoint;
+      const controlPoint = props?.controlPoint;
+      if (!startPoint || !endPoint) continue;
 
-          // Current absolute geometry
-          let absStart = {
-            x: connector.position.x + startPoint.x,
-            y: connector.position.y + startPoint.y,
-          };
-          let absEnd = {
-            x: connector.position.x + endPoint.x,
-            y: connector.position.y + endPoint.y,
-          };
-          const absControl = controlPoint
-            ? { x: connector.position.x + controlPoint.x, y: connector.position.y + controlPoint.y }
-            : null;
+      const startAttachment = props?.startAttachment as AnchorAttachment | undefined;
+      const endAttachment = props?.endAttachment as AnchorAttachment | undefined;
+      const isStartAttachedToThis = startAttachment?.widgetId === this.widgetId;
+      const isEndAttachedToThis = endAttachment?.widgetId === this.widgetId;
 
-          // Apply moved anchor to the attached endpoint
-          if (attached.endpoint === 'start') {
-            absStart = newPos;
-          } else {
-            absEnd = newPos;
-          }
+      if (!isStartAttachedToThis && !isEndAttachedToThis) continue;
 
-          // For elbows, ensure we always have a control point so handle/path/bounds remain consistent.
-          let effectiveAbsControl = absControl;
-          const shapeType = String(props?.shapeType ?? '');
-          const isElbow = shapeType.includes('elbow');
-          if (isElbow && !effectiveAbsControl) {
-            const startDir = getAnchorDirection(props?.startAttachment?.anchor);
-            const endDir = getAnchorDirection(props?.endAttachment?.anchor);
-            const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
-            effectiveAbsControl = {
-              x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
-              y: 2 * defaultHandle.y - 0.5 * (absStart.y + absEnd.y),
-            };
-          }
+      const absStartStored = {
+        x: connector.position.x + startPoint.x,
+        y: connector.position.y + startPoint.y,
+      };
+      const absEndStored = {
+        x: connector.position.x + endPoint.x,
+        y: connector.position.y + endPoint.y,
+      };
+      const absControl = controlPoint
+        ? { x: connector.position.x + controlPoint.x, y: connector.position.y + controlPoint.y }
+        : null;
 
-          // Minimal visual buffer so stroke + arrow remain inside bounds (prevents “broken” attachment look)
-          const strokeWidth = props?.stroke?.width ?? 2;
-          const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
-          const arrowBuffer = hasArrow ? 10 : 0;
-          const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6;
+      const startAnchorPos = isStartAttachedToThis
+        ? getAnchorPositionForFrame(startAttachment)
+        : this.connectorAnchorService.getAttachedEndpointPosition(startAttachment);
+      const endAnchorPos = isEndAttachedToThis
+        ? getAnchorPositionForFrame(endAttachment)
+        : this.connectorAnchorService.getAttachedEndpointPosition(endAttachment);
 
-          const curveBounds = this.calculateConnectorBounds(absStart, absEnd, effectiveAbsControl, visualBuffer, String(props?.shapeType ?? ''), props);
-          const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
-          const newSize = {
-            width: Math.max(curveBounds.maxX - curveBounds.minX, 1),
-            height: Math.max(curveBounds.maxY - curveBounds.minY, 1),
-          };
+      const absStart = startAnchorPos ?? absStartStored;
+      const absEnd = endAnchorPos ?? absEndStored;
 
-          const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
-          const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
-          const newControlPoint = effectiveAbsControl
-            ? { x: effectiveAbsControl.x - curveBounds.minX, y: effectiveAbsControl.y - curveBounds.minY }
-            : undefined;
+      const otherAttachment = isStartAttachedToThis ? endAttachment : startAttachment;
+      const shouldMoveTogether = !otherAttachment || otherAttachment.widgetId === this.widgetId;
 
+      if (shouldMoveTogether) {
+        const attachedOldAbs = isStartAttachedToThis ? absStartStored : absEndStored;
+        const attachedNewAbs = isStartAttachedToThis ? absStart : absEnd;
+        const dx = attachedNewAbs.x - attachedOldAbs.x;
+        const dy = attachedNewAbs.y - attachedOldAbs.y;
+
+        if (dx === 0 && dy === 0) continue;
+
+        const newPosition = { x: connector.position.x + dx, y: connector.position.y + dy };
+
+        if (mode === 'draft') {
+          this.draftState.updateDraftPosition(connector.id, newPosition);
+        } else {
           updates.push({
             ...connector,
             position: newPosition,
-            size: newSize,
-            props: {
-              ...props,
-              startPoint: newStartPoint,
-              endPoint: newEndPoint,
-              controlPoint: newControlPoint,
-            },
           });
         }
+        continue;
+      }
 
-        if (updates.length === 0) return;
+      // For elbows, ensure we always have a control point so handle/path/bounds remain consistent.
+      let effectiveAbsControl = absControl;
+      const shapeType = String(props?.shapeType ?? '');
+      const isElbow = shapeType.includes('elbow');
+      if (isElbow && !effectiveAbsControl) {
+        const startDir = getAnchorDirection(props?.startAttachment?.anchor);
+        const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+        const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
+        effectiveAbsControl = {
+          x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
+          y: 2 * defaultHandle.y - 0.5 * (absStart.y + absEnd.y),
+        };
+      }
 
-        // Dispatch after this subscription completes to avoid re-entrancy.
-        queueMicrotask(() => {
-          this.store.dispatch(WidgetActions.upsertMany({ widgets: updates }));
+      // Minimal visual buffer so stroke + arrow remain inside bounds (prevents “broken” attachment look)
+      const strokeWidth = props?.stroke?.width ?? 2;
+      const hasArrow = Boolean(props?.arrowStart || props?.arrowEnd || shapeType.includes('arrow'));
+      const arrowBuffer = hasArrow ? 10 : 0;
+      const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6;
+
+      const curveBounds = this.calculateConnectorBounds(absStart, absEnd, effectiveAbsControl, visualBuffer, String(props?.shapeType ?? ''), props);
+      const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
+      const newSize = {
+        width: Math.max(curveBounds.maxX - curveBounds.minX, 1),
+        height: Math.max(curveBounds.maxY - curveBounds.minY, 1),
+      };
+
+      const newStartPoint = { x: absStart.x - curveBounds.minX, y: absStart.y - curveBounds.minY };
+      const newEndPoint = { x: absEnd.x - curveBounds.minX, y: absEnd.y - curveBounds.minY };
+      const newControlPoint = effectiveAbsControl
+        ? { x: effectiveAbsControl.x - curveBounds.minX, y: effectiveAbsControl.y - curveBounds.minY }
+        : undefined;
+
+      if (mode === 'draft') {
+        this.draftState.updateDraftFrame(connector.id, newPosition, newSize);
+        this.draftState.updateDraftProps(connector.id, {
+          startPoint: newStartPoint,
+          endPoint: newEndPoint,
+          controlPoint: newControlPoint,
         });
-      });
+      } else {
+        updates.push({
+          ...connector,
+          position: newPosition,
+          size: newSize,
+          props: {
+            ...props,
+            startPoint: newStartPoint,
+            endPoint: newEndPoint,
+            controlPoint: newControlPoint,
+          },
+        });
+      }
+    }
+
+    if (mode === 'draft' || updates.length === 0) return;
+
+    // Dispatch after this subscription completes to avoid re-entrancy.
+    queueMicrotask(() => {
+      this.store.dispatch(WidgetActions.upsertMany({ widgets: updates }));
+      for (const updated of updates) {
+        this.draftState.discardDraft(updated.id);
+      }
+    });
   }
   
   private getWidgetHitStackAtPoint(clientX: number, clientY: number): Array<{ id: string; type?: string }> {
