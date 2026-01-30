@@ -77,6 +77,7 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
 
   // Fill color palette
   readonly fillColorPalette: ColorOption[] = [
+    { value: '', label: 'Transparent' },
     { value: '#3b82f6', label: 'Blue' },
     { value: '#ef4444', label: 'Red' },
     { value: '#10b981', label: 'Green' },
@@ -121,7 +122,7 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
   }
 
   get fillColor(): string {
-    return this.props?.fillColor || '#3b82f6';
+    return this.props?.fillColor ?? '';
   }
 
   get opacity(): number {
@@ -131,8 +132,8 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
   get borderValue(): BorderValue {
     const stroke = this.props?.stroke;
     return {
-      color: stroke?.color || '#000000',
-      width: stroke?.width || 0,
+      color: stroke?.color || '#94a3b8',
+      width: stroke?.width ?? 1,
       style: stroke?.style || 'solid',
       borderRadius: this.props?.borderRadius || 0,
     };
@@ -169,8 +170,8 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
   onBorderValueChange(value: BorderValue): void {
     const updates: Partial<ObjectWidgetProps> = {
       stroke: {
-        color: value.color || '#000000',
-        width: value.width || 0,
+        color: value.color || '#94a3b8',
+        width: value.width ?? 1,
         style: (value.style as 'solid' | 'dashed' | 'dotted') || 'solid',
       },
     };

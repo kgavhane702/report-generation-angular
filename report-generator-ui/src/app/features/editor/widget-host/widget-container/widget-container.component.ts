@@ -452,9 +452,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     const draggingEndpoint = this.uiState.draggingConnectorEndpoint();
     if (!draggingEndpoint) return false;
+
+    const dragPos = this.uiState.connectorEndpointDragPosition();
+    if (!dragPos) return false;
     
     // Don't show anchors on the connector's own container
-    return draggingEndpoint.connectorId !== this.widgetId;
+    if (draggingEndpoint.connectorId === this.widgetId) return false;
+
+    // Only show anchors for widgets near the cursor while dragging an endpoint.
+    // This prevents all widgets from showing anchors at once.
+    const margin = this.ANCHOR_SNAP_THRESHOLD * 2;
+    const left = widget.position.x - margin;
+    const top = widget.position.y - margin;
+    const right = widget.position.x + widget.size.width + margin;
+    const bottom = widget.position.y + widget.size.height + margin;
+
+    return dragPos.x >= left && dragPos.x <= right && dragPos.y >= top && dragPos.y <= bottom;
   }
   
   /**
@@ -844,14 +857,17 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       this.uiState.selectWidget(this.widgetId);
     }
     
-    // Start drag tracking - CDK Drag will handle its own pointer capture
-    this.uiState.startDragging(this.widgetId);
+    // NOTE: Do NOT call startDragging() here. CDK Drag will call onDragStarted
+    // only if an actual drag gesture begins. If user just clicks, we don't want
+    // to leave isInteracting() === true.
   }
 
   onDragStarted(event: CdkDragStart): void {
     this.connectorStrokeDragAllowedForGesture = null;
     // Capture starting frame so we can compute an absolute frame during drag moves.
     this.dragStartFrame = { ...this.frame };
+    // Start drag tracking and guides only when actual drag begins
+    this.uiState.startDragging(this.widgetId);
     this.guides.start(this.pageId, this.widgetId, 'drag');
   }
 

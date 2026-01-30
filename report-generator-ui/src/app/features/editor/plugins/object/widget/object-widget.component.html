@@ -4,7 +4,7 @@
     *ngIf="isCssShape"
     class="object-widget__shape object-widget__shape--css"
     [ngClass]="shapeClass"
-    [style.background-color]="fillColor"
+    [style.background-color]="fillColor || null"
     [style.opacity]="opacity"
     [style.border]="borderStyle"
     [style.border-radius]="borderRadius"

@@ -10,7 +10,8 @@ import { DraftStateService } from './draft-state.service';
 import { UIStateService } from './ui-state.service';
 
 export type GuideOrientation = 'vertical' | 'horizontal';
-export type GuideKind = 'page' | 'widget';
+export type GuideKind = 'page' | 'widget' | 'spacing';
+export type GuideAlignType = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom';
 
 export interface GuideLine {
   orientation: GuideOrientation;
@@ -21,6 +22,22 @@ export interface GuideLine {
   /** Span end along the other axis (page coordinate px) */
   toPx: number;
   kind: GuideKind;
+  /** What type of alignment this represents */
+  alignType?: GuideAlignType;
+  /** Whether this is a center alignment (for visual emphasis) */
+  isCenter?: boolean;
+}
+
+export interface SpacingGuide {
+  orientation: 'horizontal' | 'vertical';
+  /** The gap value in pixels */
+  gapPx: number;
+  /** Position of gap indicator */
+  posPx: number;
+  /** Start of the gap region */
+  fromPx: number;
+  /** End of the gap region */
+  toPx: number;
 }
 
 export interface WidgetFrame {
@@ -30,13 +47,29 @@ export interface WidgetFrame {
   height: number;
 }
 
+interface WidgetFrameWithId extends WidgetFrame {
+  id: string;
+}
+
 export interface GuidesState {
   pageId: string;
   widgetId: string;
   mode: 'drag' | 'resize';
   resizeHandle?: string;
   guides: GuideLine[];
+  spacingGuides: SpacingGuide[];
   snappedFrame?: WidgetFrame;
+}
+
+interface AlignmentMatch {
+  targetPos: number;
+  sourceType: GuideAlignType;
+  kind: GuideKind;
+  distance: number;
+  /** The target widget frame (for segment calculation) */
+  targetFrame?: WidgetFrame;
+  /** Page dimensions for page guides */
+  pageSize?: { width: number; height: number };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -63,13 +96,20 @@ export class GuidesService {
 
   start(pageId: string, widgetId: string, mode: 'drag' | 'resize', resizeHandle?: string): void {
     if (this.uiState.guidesEnabled() === false) return;
-    this._state.set({ pageId, widgetId, mode, resizeHandle, guides: [] });
+    this._state.set({ pageId, widgetId, mode, resizeHandle, guides: [], spacingGuides: [] });
   }
 
   updateDrag(pageId: string, widgetId: string, frame: WidgetFrame, pageWidth: number, pageHeight: number): WidgetFrame {
     if (this.uiState.guidesEnabled() === false) return frame;
     const next = this.compute(pageId, widgetId, frame, pageWidth, pageHeight, 'drag');
-    this._state.set({ pageId, widgetId, mode: 'drag', guides: next.guides, snappedFrame: next.snappedFrame });
+    this._state.set({
+      pageId,
+      widgetId,
+      mode: 'drag',
+      guides: next.guides,
+      spacingGuides: next.spacingGuides,
+      snappedFrame: next.snappedFrame,
+    });
     return next.snappedFrame ?? frame;
   }
 
@@ -83,7 +123,15 @@ export class GuidesService {
   ): WidgetFrame {
     if (this.uiState.guidesEnabled() === false) return frame;
     const next = this.compute(pageId, widgetId, frame, pageWidth, pageHeight, 'resize', resizeHandle);
-    this._state.set({ pageId, widgetId, mode: 'resize', resizeHandle, guides: next.guides, snappedFrame: next.snappedFrame });
+    this._state.set({
+      pageId,
+      widgetId,
+      mode: 'resize',
+      resizeHandle,
+      guides: next.guides,
+      spacingGuides: next.spacingGuides,
+      snappedFrame: next.snappedFrame,
+    });
     return next.snappedFrame ?? frame;
   }
 
@@ -102,67 +150,110 @@ export class GuidesService {
     pageHeight: number,
     mode: 'drag' | 'resize',
     resizeHandle?: string
-  ): { guides: GuideLine[]; snappedFrame?: WidgetFrame } {
+  ): { guides: GuideLine[]; spacingGuides: SpacingGuide[]; snappedFrame?: WidgetFrame } {
     const threshold = this.uiState.guidesSnapThresholdPx();
     const snapEnabled = this.uiState.guidesSnapEnabled();
 
     const others = this.getOtherWidgetFrames(pageId, widgetId);
 
-    const targetsX: Array<{ x: number; kind: GuideKind }> = [
-      { x: 0, kind: 'page' },
-      { x: pageWidth / 2, kind: 'page' },
-      { x: pageWidth, kind: 'page' },
-    ];
-    const targetsY: Array<{ y: number; kind: GuideKind }> = [
-      { y: 0, kind: 'page' },
-      { y: pageHeight / 2, kind: 'page' },
-      { y: pageHeight, kind: 'page' },
-    ];
+    // Build targets with their source frames for segment calculation
+    const targetsX = this.buildXTargets(pageWidth, pageHeight, others);
+    const targetsY = this.buildYTargets(pageWidth, pageHeight, others);
 
-    for (const o of others) {
-      targetsX.push({ x: o.x, kind: 'widget' }, { x: o.x + o.width / 2, kind: 'widget' }, { x: o.x + o.width, kind: 'widget' });
-      targetsY.push({ y: o.y, kind: 'widget' }, { y: o.y + o.height / 2, kind: 'widget' }, { y: o.y + o.height, kind: 'widget' });
-    }
-
+    // Source edges of the moving widget
     const left = frame.x;
     const right = frame.x + frame.width;
     const cx = frame.x + frame.width / 2;
-
     const top = frame.y;
     const bottom = frame.y + frame.height;
     const cy = frame.y + frame.height / 2;
 
-    const bestX = findBestAlignment(
+    // Find ALL matches within threshold (not just best)
+    const xMatches = this.findAllAlignments(
       [
         { pos: left, type: 'left' as const },
         { pos: cx, type: 'center' as const },
         { pos: right, type: 'right' as const },
       ],
-      targetsX.map((t) => ({ pos: t.x, kind: t.kind })),
+      targetsX,
       threshold
     );
 
-    const bestY = findBestAlignment(
+    const yMatches = this.findAllAlignments(
       [
         { pos: top, type: 'top' as const },
         { pos: cy, type: 'middle' as const },
         { pos: bottom, type: 'bottom' as const },
       ],
-      targetsY.map((t) => ({ pos: t.y, kind: t.kind })),
+      targetsY,
       threshold
     );
 
+    // Build guide lines with proper segments
     const guides: GuideLine[] = [];
-    if (bestX) {
-      guides.push({ orientation: 'vertical', posPx: bestX.targetPos, fromPx: 0, toPx: pageHeight, kind: bestX.kind });
-    }
-    if (bestY) {
-      guides.push({ orientation: 'horizontal', posPx: bestY.targetPos, fromPx: 0, toPx: pageWidth, kind: bestY.kind });
+
+    for (const match of xMatches) {
+      const segment = this.computeVerticalSegment(frame, match, pageHeight);
+      guides.push({
+        orientation: 'vertical',
+        posPx: match.targetPos,
+        fromPx: segment.from,
+        toPx: segment.to,
+        kind: match.kind,
+        alignType: match.sourceType,
+        isCenter: match.sourceType === 'center',
+      });
     }
 
-    if (!snapEnabled) return { guides };
+    for (const match of yMatches) {
+      const segment = this.computeHorizontalSegment(frame, match, pageWidth);
+      guides.push({
+        orientation: 'horizontal',
+        posPx: match.targetPos,
+        fromPx: segment.from,
+        toPx: segment.to,
+        kind: match.kind,
+        alignType: match.sourceType,
+        isCenter: match.sourceType === 'middle',
+      });
+    }
 
-    // Snap logic: for drag we snap the whole frame; for resize we snap the affected edge when possible.
+    // Compute spacing guides (equal gaps)
+    const spacingGuides = this.computeSpacingGuides(frame, others, threshold);
+
+    if (!snapEnabled) return { guides, spacingGuides };
+
+    // Snap to the best (closest) match per axis.
+    // IMPORTANT: during resize we ONLY snap the actively resized edge(s).
+    // Snapping a center/middle alignment while resizing can collapse width/height or feel "blocked".
+    const bestX = (() => {
+      if (xMatches.length === 0) return null;
+      if (mode !== 'resize') return xMatches.reduce((a, b) => (a.distance < b.distance ? a : b));
+
+      const h = resizeHandle ?? '';
+      const allowed = new Set<GuideAlignType>();
+      if (h.includes('left')) allowed.add('left');
+      if (h.includes('right')) allowed.add('right');
+
+      const candidates = xMatches.filter((m) => allowed.has(m.sourceType));
+      if (candidates.length === 0) return null;
+      return candidates.reduce((a, b) => (a.distance < b.distance ? a : b));
+    })();
+
+    const bestY = (() => {
+      if (yMatches.length === 0) return null;
+      if (mode !== 'resize') return yMatches.reduce((a, b) => (a.distance < b.distance ? a : b));
+
+      const h = resizeHandle ?? '';
+      const allowed = new Set<GuideAlignType>();
+      if (h.includes('top')) allowed.add('top');
+      if (h.includes('bottom')) allowed.add('bottom');
+
+      const candidates = yMatches.filter((m) => allowed.has(m.sourceType));
+      if (candidates.length === 0) return null;
+      return candidates.reduce((a, b) => (a.distance < b.distance ? a : b));
+    })();
+
     let snapped: WidgetFrame | undefined;
     if (mode === 'drag') {
       let x = frame.x;
@@ -179,18 +270,268 @@ export class GuidesService {
       }
       snapped = { ...frame, x, y };
     } else {
-      // Minimal resize snapping: snap the edge being dragged to the guide target.
       snapped = snapResize(frame, bestX?.targetPos, bestY?.targetPos, resizeHandle);
     }
 
-    return { guides, snappedFrame: snapped };
+    return { guides, spacingGuides, snappedFrame: snapped };
   }
 
-  private getOtherWidgetFrames(pageId: string, excludeWidgetId: string): WidgetFrame[] {
+  private buildXTargets(
+    pageWidth: number,
+    pageHeight: number,
+    others: WidgetFrameWithId[]
+  ): Array<{ pos: number; kind: GuideKind; type: GuideAlignType; frame?: WidgetFrame; pageSize?: { width: number; height: number } }> {
+    const targets: Array<{ pos: number; kind: GuideKind; type: GuideAlignType; frame?: WidgetFrame; pageSize?: { width: number; height: number } }> = [
+      { pos: 0, kind: 'page', type: 'left', pageSize: { width: pageWidth, height: pageHeight } },
+      { pos: pageWidth / 2, kind: 'page', type: 'center', pageSize: { width: pageWidth, height: pageHeight } },
+      { pos: pageWidth, kind: 'page', type: 'right', pageSize: { width: pageWidth, height: pageHeight } },
+    ];
+
+    for (const o of others) {
+      targets.push(
+        { pos: o.x, kind: 'widget', type: 'left', frame: o },
+        { pos: o.x + o.width / 2, kind: 'widget', type: 'center', frame: o },
+        { pos: o.x + o.width, kind: 'widget', type: 'right', frame: o }
+      );
+    }
+
+    return targets;
+  }
+
+  private buildYTargets(
+    pageWidth: number,
+    pageHeight: number,
+    others: WidgetFrameWithId[]
+  ): Array<{ pos: number; kind: GuideKind; type: GuideAlignType; frame?: WidgetFrame; pageSize?: { width: number; height: number } }> {
+    const targets: Array<{ pos: number; kind: GuideKind; type: GuideAlignType; frame?: WidgetFrame; pageSize?: { width: number; height: number } }> = [
+      { pos: 0, kind: 'page', type: 'top', pageSize: { width: pageWidth, height: pageHeight } },
+      { pos: pageHeight / 2, kind: 'page', type: 'middle', pageSize: { width: pageWidth, height: pageHeight } },
+      { pos: pageHeight, kind: 'page', type: 'bottom', pageSize: { width: pageWidth, height: pageHeight } },
+    ];
+
+    for (const o of others) {
+      targets.push(
+        { pos: o.y, kind: 'widget', type: 'top', frame: o },
+        { pos: o.y + o.height / 2, kind: 'widget', type: 'middle', frame: o },
+        { pos: o.y + o.height, kind: 'widget', type: 'bottom', frame: o }
+      );
+    }
+
+    return targets;
+  }
+
+  private findAllAlignments<TSource extends { pos: number; type: GuideAlignType }>(
+    sources: TSource[],
+    targets: Array<{ pos: number; kind: GuideKind; type: GuideAlignType; frame?: WidgetFrame; pageSize?: { width: number; height: number } }>,
+    threshold: number
+  ): AlignmentMatch[] {
+    const matches: AlignmentMatch[] = [];
+    const seen = new Set<string>(); // Dedupe by targetPos + sourceType
+
+    for (const s of sources) {
+      for (const t of targets) {
+        const dist = Math.abs(s.pos - t.pos);
+        if (dist <= threshold) {
+          const key = `${t.pos.toFixed(1)}_${s.type}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            matches.push({
+              targetPos: t.pos,
+              sourceType: s.type,
+              kind: t.kind,
+              distance: dist,
+              targetFrame: t.frame,
+              pageSize: t.pageSize,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by distance (closest first), then by kind (widget before page for priority)
+    matches.sort((a, b) => {
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      if (a.kind === 'widget' && b.kind === 'page') return -1;
+      if (a.kind === 'page' && b.kind === 'widget') return 1;
+      return 0;
+    });
+
+    return matches;
+  }
+
+  /**
+   * Compute the vertical segment span (top to bottom) for a vertical guide line.
+   * For stacked widgets, this spans across both widgets including the gap between them.
+   */
+  private computeVerticalSegment(
+    movingFrame: WidgetFrame,
+    match: AlignmentMatch,
+    pageHeight: number
+  ): { from: number; to: number } {
+    if (match.kind === 'page') {
+      // Page guides span full height
+      return { from: 0, to: pageHeight };
+    }
+
+    if (!match.targetFrame) {
+      return { from: 0, to: pageHeight };
+    }
+
+    const target = match.targetFrame;
+
+    // Calculate the span to connect both widgets visually
+    const movingTop = movingFrame.y;
+    const movingBottom = movingFrame.y + movingFrame.height;
+    const targetTop = target.y;
+    const targetBottom = target.y + target.height;
+
+    const from = Math.min(movingTop, targetTop);
+    const to = Math.max(movingBottom, targetBottom);
+
+    // Ensure minimum visible length (at least 50px or the span, whichever is greater)
+    const minLength = 50;
+    const length = to - from;
+    if (length < minLength) {
+      const center = (from + to) / 2;
+      return { 
+        from: Math.max(0, center - minLength / 2), 
+        to: Math.min(pageHeight, center + minLength / 2) 
+      };
+    }
+
+    return { from: Math.max(0, from), to: Math.min(pageHeight, to) };
+  }
+
+  /**
+   * Compute the horizontal segment span (left to right) for a horizontal guide line.
+   * For side-by-side widgets, this spans across both widgets including the gap between them.
+   */
+  private computeHorizontalSegment(
+    movingFrame: WidgetFrame,
+    match: AlignmentMatch,
+    pageWidth: number
+  ): { from: number; to: number } {
+    if (match.kind === 'page') {
+      // Page guides span full width
+      return { from: 0, to: pageWidth };
+    }
+
+    if (!match.targetFrame) {
+      return { from: 0, to: pageWidth };
+    }
+
+    const target = match.targetFrame;
+
+    const movingLeft = movingFrame.x;
+    const movingRight = movingFrame.x + movingFrame.width;
+    const targetLeft = target.x;
+    const targetRight = target.x + target.width;
+
+    // Span from leftmost edge to rightmost edge of both widgets
+    const from = Math.min(movingLeft, targetLeft);
+    const to = Math.max(movingRight, targetRight);
+
+    // Ensure minimum visible length (at least 50px or the span, whichever is greater)
+    const minLength = 50;
+    const length = to - from;
+    if (length < minLength) {
+      const center = (from + to) / 2;
+      return { 
+        from: Math.max(0, center - minLength / 2), 
+        to: Math.min(pageWidth, center + minLength / 2) 
+      };
+    }
+
+    return { from: Math.max(0, from), to: Math.min(pageWidth, to) };
+  }
+
+  /**
+   * Compute spacing guides for equal horizontal/vertical gaps.
+   */
+  private computeSpacingGuides(
+    frame: WidgetFrame,
+    others: WidgetFrameWithId[],
+    threshold: number
+  ): SpacingGuide[] {
+    const spacingGuides: SpacingGuide[] = [];
+
+    if (others.length < 2) return spacingGuides;
+
+    // Horizontal spacing: find widgets to the left and right
+    const leftNeighbors = others
+      .filter((o) => o.x + o.width <= frame.x)
+      .sort((a, b) => (b.x + b.width) - (a.x + a.width)); // closest first
+
+    const rightNeighbors = others
+      .filter((o) => o.x >= frame.x + frame.width)
+      .sort((a, b) => a.x - b.x); // closest first
+
+    // Check for equal horizontal spacing
+    if (leftNeighbors.length > 0 && rightNeighbors.length > 0) {
+      const leftGap = frame.x - (leftNeighbors[0].x + leftNeighbors[0].width);
+      const rightGap = rightNeighbors[0].x - (frame.x + frame.width);
+
+      if (Math.abs(leftGap - rightGap) <= threshold && leftGap > 0 && rightGap > 0) {
+        const avgGap = (leftGap + rightGap) / 2;
+        // Left gap indicator
+        spacingGuides.push({
+          orientation: 'horizontal',
+          gapPx: avgGap,
+          posPx: frame.y + frame.height / 2,
+          fromPx: leftNeighbors[0].x + leftNeighbors[0].width,
+          toPx: frame.x,
+        });
+        // Right gap indicator
+        spacingGuides.push({
+          orientation: 'horizontal',
+          gapPx: avgGap,
+          posPx: frame.y + frame.height / 2,
+          fromPx: frame.x + frame.width,
+          toPx: rightNeighbors[0].x,
+        });
+      }
+    }
+
+    // Vertical spacing: find widgets above and below
+    const topNeighbors = others
+      .filter((o) => o.y + o.height <= frame.y)
+      .sort((a, b) => (b.y + b.height) - (a.y + a.height));
+
+    const bottomNeighbors = others
+      .filter((o) => o.y >= frame.y + frame.height)
+      .sort((a, b) => a.y - b.y);
+
+    if (topNeighbors.length > 0 && bottomNeighbors.length > 0) {
+      const topGap = frame.y - (topNeighbors[0].y + topNeighbors[0].height);
+      const bottomGap = bottomNeighbors[0].y - (frame.y + frame.height);
+
+      if (Math.abs(topGap - bottomGap) <= threshold && topGap > 0 && bottomGap > 0) {
+        const avgGap = (topGap + bottomGap) / 2;
+        spacingGuides.push({
+          orientation: 'vertical',
+          gapPx: avgGap,
+          posPx: frame.x + frame.width / 2,
+          fromPx: topNeighbors[0].y + topNeighbors[0].height,
+          toPx: frame.y,
+        });
+        spacingGuides.push({
+          orientation: 'vertical',
+          gapPx: avgGap,
+          posPx: frame.x + frame.width / 2,
+          fromPx: frame.y + frame.height,
+          toPx: bottomNeighbors[0].y,
+        });
+      }
+    }
+
+    return spacingGuides;
+  }
+
+  private getOtherWidgetFrames(pageId: string, excludeWidgetId: string): WidgetFrameWithId[] {
     const ids = this.widgetIdsByPageId()?.[pageId] ?? [];
     const entities = this.widgetEntities();
 
-    const out: WidgetFrame[] = [];
+    const out: WidgetFrameWithId[] = [];
     for (const id of ids) {
       if (id === excludeWidgetId) continue;
       const persisted = entities[id] ?? null;
@@ -199,30 +540,10 @@ export class GuidesService {
       const p = merged.position;
       const s = merged.size;
       if (!p || !s) continue;
-      out.push({ x: p.x, y: p.y, width: s.width, height: s.height });
+      out.push({ id, x: p.x, y: p.y, width: s.width, height: s.height });
     }
     return out;
   }
-}
-
-function findBestAlignment<TSource extends { pos: number; type: any }, TTarget extends { pos: number; kind: GuideKind }>(
-  sources: TSource[],
-  targets: TTarget[],
-  threshold: number
-): { targetPos: number; sourceType: TSource['type']; kind: GuideKind } | null {
-  let best: { dist: number; targetPos: number; sourceType: TSource['type']; kind: GuideKind } | null = null;
-
-  for (const s of sources) {
-    for (const t of targets) {
-      const dist = Math.abs(s.pos - t.pos);
-      if (dist <= threshold) {
-        if (!best || dist < best.dist) {
-          best = { dist, targetPos: t.pos, sourceType: s.type, kind: t.kind };
-        }
-      }
-    }
-  }
-  return best ? { targetPos: best.targetPos, sourceType: best.sourceType, kind: best.kind } : null;
 }
 
 function snapResize(frame: WidgetFrame, snapX: number | undefined, snapY: number | undefined, handle?: string): WidgetFrame {

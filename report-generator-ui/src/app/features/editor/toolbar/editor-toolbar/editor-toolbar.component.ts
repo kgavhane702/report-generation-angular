@@ -157,10 +157,12 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const type: WidgetType = isConnectorShapeType(shapeConfig.id) ? 'connector' : 'object';
+    const isConnector = isConnectorShapeType(shapeConfig.id);
+    const type: WidgetType = isConnector ? 'connector' : 'object';
     const widget = this.widgetFactory.createWidget(type, {
       shapeType: shapeConfig.id,
-      fillColor: shapeConfig.defaultFillColor,
+      // Default all object fills to transparent; connectors keep their explicit defaults.
+      fillColor: isConnector ? shapeConfig.defaultFillColor : '',
       borderRadius: shapeConfig.defaultBorderRadius,
     } as any);
     this.documentService.addWidget(pageId, widget);

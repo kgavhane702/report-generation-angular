@@ -27,6 +27,7 @@ export class ConnectorToolbarComponent {
 
   // Palette consistent with other toolbars.
   readonly lineColorPalette: ColorOption[] = [
+    { value: '#94a3b8', label: 'Light Slate (Default)' },
     { value: '#3b82f6', label: 'Blue' },
     { value: '#ef4444', label: 'Red' },
     { value: '#10b981', label: 'Green' },
@@ -50,8 +51,8 @@ export class ConnectorToolbarComponent {
 
     return {
       // For connectors, the rendered color comes from `fillColor`.
-      color: p?.fillColor || '#3b82f6',
-      width: stroke?.width ?? 2,
+      color: p?.fillColor || '#94a3b8',
+      width: stroke?.width ?? 1,
       style: (stroke?.style as any) || 'solid',
       borderRadius: 0,
     };
@@ -67,10 +68,10 @@ export class ConnectorToolbarComponent {
     this.documentService.updateWidget(pageId, widget.id, {
       props: {
         ...currentProps,
-        fillColor: value.color || '#3b82f6',
+        fillColor: value.color || '#94a3b8',
         stroke: {
-          ...(currentProps.stroke ?? { color: '#000000', width: 2, style: 'solid' }),
-          width: value.width ?? 2,
+          ...(currentProps.stroke ?? { color: '#94a3b8', width: 1, style: 'solid' }),
+          width: value.width ?? 1,
           style: (value.style as any) || 'solid',
         },
       } as ConnectorWidgetProps,

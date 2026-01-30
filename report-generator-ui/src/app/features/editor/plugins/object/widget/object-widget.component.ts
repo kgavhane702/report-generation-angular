@@ -111,7 +111,8 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
   }
 
   get fillColor(): string {
-    return this.objectProps?.fillColor || '#3b82f6';
+    // Empty string represents transparent (matches ColorPicker behavior).
+    return this.objectProps?.fillColor ?? '';
   }
 
   get opacity(): number {
@@ -193,7 +194,7 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
   get effectiveStrokeColor(): string {
     if (this.isLineShape) {
       // For lines, use fill color as the stroke color
-      return this.fillColor;
+      return this.fillColor || '#000000';
     }
     return this.strokeColor;
   }
@@ -203,7 +204,8 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     if (this.isLineShape) {
       return 'none';
     }
-    return this.fillColor;
+    // SVG default fill is black, so explicitly use transparent when unset.
+    return this.fillColor || 'transparent';
   }
 
   /** Get stroke dasharray for SVG */
@@ -240,7 +242,8 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   /** Get placeholder text */
   get placeholder(): string {
-    return 'Click to add text';
+    // No placeholder for object widgets.
+    return '';
   }
 
   // ============================================

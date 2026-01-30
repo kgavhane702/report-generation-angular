@@ -133,9 +133,11 @@ export class WidgetFactoryService {
       props: {
         shapeType,
         svgPath,
-        fillColor: props?.fillColor || '#3b82f6',
+        // Empty string represents transparent (matches ColorPicker behavior).
+        fillColor: props?.fillColor ?? '',
         opacity: props?.opacity ?? 100,
-        stroke: props?.stroke || { color: '#000000', width: 0, style: 'solid' },
+        // Default to a subtle border so transparent objects are still visible.
+        stroke: props?.stroke || { color: '#94a3b8', width: 1, style: 'solid' },
         borderRadius: props?.borderRadius ?? 0,
       },
     };
@@ -199,9 +201,10 @@ export class WidgetFactoryService {
         startPoint,
         endPoint,
         controlPoint,
-        fillColor: props?.fillColor || '#000000',
+        // Use same subtle color as object widget borders for consistency.
+        fillColor: props?.fillColor || '#94a3b8',
         opacity: props?.opacity ?? 100,
-        stroke: props?.stroke || { color: '#000000', width: 2, style: 'solid' },
+        stroke: props?.stroke || { color: '#94a3b8', width: 1, style: 'solid' },
         arrowEnd,
       },
     };

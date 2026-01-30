@@ -298,7 +298,7 @@ export class ConnectorWidgetComponent {
   }
 
   get strokeColor(): string {
-    return this.connectorProps?.fillColor || '#3b82f6';
+    return this.connectorProps?.stroke?.color || this.connectorProps?.fillColor || '#94a3b8';
   }
 
   get strokeLinejoin(): string {

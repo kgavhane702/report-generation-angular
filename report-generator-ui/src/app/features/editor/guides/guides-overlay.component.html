@@ -1,16 +1,42 @@
 <div class="editor-guides" aria-hidden="true">
+  <!-- Alignment guide lines -->
   <div
-    *ngFor="let g of activeGuides()"
+    *ngFor="let g of activeGuides(); trackBy: trackGuide"
     class="editor-guides__line"
     [class.editor-guides__line--vertical]="g.orientation === 'vertical'"
     [class.editor-guides__line--horizontal]="g.orientation === 'horizontal'"
     [class.editor-guides__line--page]="g.kind === 'page'"
     [class.editor-guides__line--widget]="g.kind === 'widget'"
+    [class.editor-guides__line--center]="g.isCenter"
     [style.left.px]="g.orientation === 'vertical' ? g.posPx : g.fromPx"
     [style.top.px]="g.orientation === 'horizontal' ? g.posPx : g.fromPx"
     [style.height.px]="g.orientation === 'vertical' ? (g.toPx - g.fromPx) : null"
     [style.width.px]="g.orientation === 'horizontal' ? (g.toPx - g.fromPx) : null"
   ></div>
+
+  <!-- Spacing guide indicators (equal gaps) -->
+  <ng-container *ngFor="let s of spacingGuides(); trackBy: trackSpacing">
+    <!-- Horizontal spacing line -->
+    <div
+      *ngIf="s.orientation === 'horizontal'"
+      class="editor-guides__spacing editor-guides__spacing--horizontal"
+      [style.left.px]="s.fromPx"
+      [style.top.px]="s.posPx"
+      [style.width.px]="s.toPx - s.fromPx"
+    >
+      <span class="editor-guides__spacing-label">{{ s.gapPx | number:'1.0-0' }}</span>
+    </div>
+    <!-- Vertical spacing line -->
+    <div
+      *ngIf="s.orientation === 'vertical'"
+      class="editor-guides__spacing editor-guides__spacing--vertical"
+      [style.left.px]="s.posPx"
+      [style.top.px]="s.fromPx"
+      [style.height.px]="s.toPx - s.fromPx"
+    >
+      <span class="editor-guides__spacing-label">{{ s.gapPx | number:'1.0-0' }}</span>
+    </div>
+  </ng-container>
 </div>
 
 

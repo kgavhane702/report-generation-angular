@@ -142,8 +142,8 @@ export class UIStateService {
   private readonly _guidesEnabled = signal<boolean>(true);
   readonly guidesEnabled = this._guidesEnabled.asReadonly();
 
-  // IMPORTANT: default snapping OFF to avoid any regressions in drag/drop & resize behavior.
-  private readonly _guidesSnapEnabled = signal<boolean>(false);
+  // Snapping enabled by default for improved alignment experience
+  private readonly _guidesSnapEnabled = signal<boolean>(true);
   readonly guidesSnapEnabled = this._guidesSnapEnabled.asReadonly();
 
   private readonly _guidesSnapThresholdPx = signal<number>(6);
