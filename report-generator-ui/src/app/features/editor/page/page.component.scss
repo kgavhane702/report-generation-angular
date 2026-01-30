@@ -201,3 +201,11 @@
   display: none;
 }
 
+.page__selection-rect {
+  position: absolute;
+  border: 1px dashed rgba(99, 102, 241, 0.9);
+  background: rgba(99, 102, 241, 0.12);
+  z-index: 1200;
+  pointer-events: none;
+}
+

@@ -4,6 +4,7 @@
   [style.width.px]="widthPx"
   [style.height.px]="heightPx"
   [attr.id]="surfaceId"
+  (pointerdown)="onSurfacePointerDown($event)"
 >
   <app-guides-overlay [pageId]="pageId" [widthPx]="widthPx" [heightPx]="heightPx"></app-guides-overlay>
 
@@ -70,6 +71,15 @@
     [pageWidth]="widthPx"
     [pageHeight]="heightPx"
   ></app-widget-container>
+
+  <div
+    *ngIf="selectionRect() as rect"
+    class="page__selection-rect"
+    [style.left.px]="rect.x"
+    [style.top.px]="rect.y"
+    [style.width.px]="rect.width"
+    [style.height.px]="rect.height"
+  ></div>
 
   <!-- Fixed Footer Elements at Bottom -->
   <div class="page__footer" *ngIf="footerLeftText || footerCenterText || footerCenterSubText || footerLeftImage || footerCenterImage || footerRightImage || showPageNumber || (logoUrl && (logoPosition === 'bottom-left' || logoPosition === 'bottom-right'))">

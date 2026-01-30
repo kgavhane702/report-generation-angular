@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   HostBinding,
+  HostListener,
   Input,
   OnInit,
   OnDestroy,
@@ -10,14 +11,16 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
 
 import { PageSize } from '../../../models/document.model';
 import { EditorStateService } from '../../../core/services/editor-state.service';
+import { UIStateService } from '../../../core/services/ui-state.service';
 import { AppState } from '../../../store/app.state';
 import { DocumentSelectors } from '../../../store/document/document.selectors';
-import { PageEntity } from '../../../store/document/document.state';
+import { PageEntity, WidgetEntity } from '../../../store/document/document.state';
 import { formatPageNumber, PageNumberFormat } from '../../../core/utils/page-number-formatter.util';
 import { LogoConfig } from '../../../models/document.model';
 import { getOrientedPageSizeMm, mmToPx } from '../../../core/utils/page-dimensions.util';
@@ -50,6 +53,11 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   
   private readonly store = inject(Store<AppState>);
   private readonly editorState = inject(EditorStateService);
+  private readonly uiState = inject(UIStateService);
+  private readonly widgetEntitiesSignal = toSignal(
+    this.store.select(DocumentSelectors.selectWidgetEntities),
+    { initialValue: {} as Record<string, WidgetEntity> }
+  );
 
   @HostBinding('class.page') hostClass = true;
 
@@ -79,6 +87,19 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   private widgetIdsSubscription?: Subscription;
   private pageDataSubscription?: Subscription;
   private pageNumberSubscription?: Subscription;
+
+  // ============================================
+  // DRAG SELECTION
+  // ============================================
+
+  private selectionPointerId: number | null = null;
+  private selectionStart: { x: number; y: number } | null = null;
+  private selectionEnd: { x: number; y: number } | null = null;
+  private selectionAdditive = false;
+  private selectionBase = new Set<string>();
+  private lastSelectionIds: string[] = [];
+  private readonly _selectionRect = signal<{ x: number; y: number; width: number; height: number } | null>(null);
+  readonly selectionRect = this._selectionRect.asReadonly();
 
   // ============================================
   // COMPUTED PROPERTIES
@@ -288,6 +309,118 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   // ============================================
+  // DRAG SELECTION HANDLERS
+  // ============================================
+
+  onSurfacePointerDown(event: PointerEvent): void {
+    if (event.button !== 0) return;
+
+    if (this.uiState.isInteracting()) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.widget-container')) return;
+    if (target?.closest('.context-menu')) return;
+
+    const surface = this.getSurfaceElement();
+    if (!surface) return;
+
+    const zoom = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const rect = surface.getBoundingClientRect();
+    const x = Math.max(0, Math.min(this.widthPx, (event.clientX - rect.left) / zoom));
+    const y = Math.max(0, Math.min(this.heightPx, (event.clientY - rect.top) / zoom));
+
+    this.selectionPointerId = event.pointerId;
+    this.selectionStart = { x, y };
+    this.selectionEnd = { x, y };
+    this.selectionAdditive = event.shiftKey || event.ctrlKey || event.metaKey;
+    this.selectionBase = this.selectionAdditive ? new Set(this.uiState.selectedWidgetIds()) : new Set();
+    this.lastSelectionIds = [];
+
+    this._selectionRect.set({ x, y, width: 0, height: 0 });
+
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  @HostListener('document:pointermove', ['$event'])
+  onSurfacePointerMove(event: PointerEvent): void {
+    if (this.selectionPointerId == null || event.pointerId !== this.selectionPointerId) return;
+    if (!this.selectionStart) return;
+
+    const surface = this.getSurfaceElement();
+    if (!surface) return;
+
+    const zoom = Math.max(0.1, this.uiState.zoomLevel() / 100);
+    const rect = surface.getBoundingClientRect();
+    const x = Math.max(0, Math.min(this.widthPx, (event.clientX - rect.left) / zoom));
+    const y = Math.max(0, Math.min(this.heightPx, (event.clientY - rect.top) / zoom));
+
+    this.selectionEnd = { x, y };
+
+    const x1 = Math.min(this.selectionStart.x, x);
+    const y1 = Math.min(this.selectionStart.y, y);
+    const x2 = Math.max(this.selectionStart.x, x);
+    const y2 = Math.max(this.selectionStart.y, y);
+
+    this._selectionRect.set({ x: x1, y: y1, width: x2 - x1, height: y2 - y1 });
+
+    const entities = this.widgetEntitiesSignal();
+    const selected = new Set<string>();
+    for (const id of this.widgetIds()) {
+      const widget = entities[id];
+      if (!widget) continue;
+      const left = widget.position.x;
+      const top = widget.position.y;
+      const right = left + widget.size.width;
+      const bottom = top + widget.size.height;
+
+      const intersects = right >= x1 && left <= x2 && bottom >= y1 && top <= y2;
+      if (intersects) {
+        selected.add(id);
+      }
+    }
+
+    const combined = new Set(this.selectionBase);
+    selected.forEach(id => combined.add(id));
+    const nextIds = Array.from(combined);
+    this.lastSelectionIds = nextIds;
+    this.uiState.selectMultiple(nextIds);
+  }
+
+  @HostListener('document:pointerup', ['$event'])
+  onSurfacePointerUp(event: PointerEvent): void {
+    if (this.selectionPointerId == null || event.pointerId !== this.selectionPointerId) return;
+
+    const start = this.selectionStart;
+    const end = this.selectionEnd;
+
+    this.selectionPointerId = null;
+    this.selectionStart = null;
+    this.selectionEnd = null;
+    this._selectionRect.set(null);
+
+    if (!start || !end) {
+      return;
+    }
+
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < 2 && !this.selectionAdditive) {
+      this.uiState.clearSelection();
+      return;
+    }
+
+    if (this.lastSelectionIds.length === 0) {
+      this.uiState.clearSelection();
+      return;
+    }
+
+    this.uiState.selectMultiple(this.lastSelectionIds);
+  }
+
+  // ============================================
   // HELPERS
   // ============================================
 
@@ -316,6 +449,10 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
       .subscribe((num) => {
         this._globalPageNumber.set(num);
       });
+  }
+
+  private getSurfaceElement(): HTMLElement | null {
+    return document.getElementById(this.surfaceId) as HTMLElement | null;
   }
   
   // Note: sizing logic is centralized in `getOrientedPageSizeMm` to match backend export.

@@ -205,6 +205,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private activeHandle: ResizeHandle | null = null;
   private dragStartFrame: WidgetFrame | null = null;
   private connectorStrokeDragAllowedForGesture: boolean | null = null;
+  private multiDragState: {
+    widgetIds: string[];
+    startPositions: Map<string, { x: number; y: number }>;
+  } | null = null;
 
   private connectorWholeDrag:
     | {
@@ -549,7 +553,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   @HostBinding('class.widget-container--selected')
   get isSelected(): boolean {
-    return this.uiState.activeWidgetId() === this.widgetId;
+    return this.uiState.isWidgetSelected(this.widgetId);
   }
 
   get isDocumentLocked(): boolean {
@@ -858,9 +862,26 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     }
     
     // Select widget if not already selected
+    if (event.ctrlKey || event.metaKey) {
+      this.uiState.toggleSelection(this.widgetId);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (event.shiftKey) {
+      this.uiState.addToSelection(this.widgetId);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    // If widget is already selected, do NOT clear selection - allow group drag
+    // Only select this widget alone if it's not currently selected
     if (!this.isSelected) {
       this.uiState.selectWidget(this.widgetId);
     }
+    // else: widget is selected, preserve multi-selection for group drag
     
     // NOTE: Do NOT call startDragging() here. CDK Drag will call onDragStarted
     // only if an actual drag gesture begins. If user just clicks, we don't want
@@ -871,6 +892,24 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.connectorStrokeDragAllowedForGesture = null;
     // Capture starting frame so we can compute an absolute frame during drag moves.
     this.dragStartFrame = { ...this.frame };
+    this.multiDragState = null;
+
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    if (selectedIds.length > 1 && selectedIds.includes(this.widgetId)) {
+      const entities = this.widgetEntitiesSignal();
+      const startPositions = new Map<string, { x: number; y: number }>();
+      for (const id of selectedIds) {
+        const persisted = entities[id];
+        if (!persisted || persisted.pageId !== this.pageId) continue;
+        const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
+        startPositions.set(id, { x: merged.position.x, y: merged.position.y });
+      }
+
+      const widgetIds = selectedIds.filter(id => startPositions.has(id));
+      if (widgetIds.length > 1) {
+        this.multiDragState = { widgetIds, startPositions };
+      }
+    }
     // Start drag tracking and guides only when actual drag begins
     this.uiState.startDragging(this.widgetId);
     this.guides.start(this.pageId, this.widgetId, 'drag');
@@ -893,8 +932,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // We only update the guides overlay here (no snapping / no drag position mutation).
     this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight);
 
+    // Build set of widgets being dragged for connector logic
+    const draggingWidgetIds = new Set<string>([this.widgetId]);
+    if (this.multiDragState) {
+      const dx = p?.x ?? 0;
+      const dy = p?.y ?? 0;
+      for (const id of this.multiDragState.widgetIds) {
+        draggingWidgetIds.add(id);
+        if (id === this.widgetId) continue;
+        const start = this.multiDragState.startPositions.get(id);
+        if (!start) continue;
+        this.draftState.updateDraftPosition(id, { x: start.x + dx, y: start.y + dy });
+      }
+    }
+
     // Keep any attached connectors in sync during the drag gesture.
-    this.updateAttachedConnectors({ frameOverride: rawFrame, mode: 'draft' });
+    this.updateAttachedConnectors({ frameOverride: rawFrame, mode: 'draft', draggingWidgetIds });
   }
   
   onDragEnded(event: CdkDragEnd): void {
@@ -918,6 +971,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Update draft and immediately commit
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
     this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+
+    if (this.multiDragState) {
+      for (const id of this.multiDragState.widgetIds) {
+        if (id === this.widgetId) continue;
+        this.draftState.commitDraft(id, { recordUndo: true });
+      }
+      this.multiDragState = null;
+    }
     
     // Stop drag tracking
     this.uiState.stopDragging();
@@ -931,8 +992,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   /**
    * Update all connectors that are attached to this widget.
    * Called after widget position/size changes.
+   * @param options.draggingWidgetIds - Set of widget IDs currently being dragged together (multi-drag)
    */
-  private updateAttachedConnectors(options?: { frameOverride?: WidgetFrame; mode?: 'draft' | 'store' }): void {
+  private updateAttachedConnectors(options?: { frameOverride?: WidgetFrame; mode?: 'draft' | 'store'; draggingWidgetIds?: Set<string> }): void {
     const widget = this.displayWidget();
     if (!widget || widget.type === 'connector') return;
 
@@ -1008,9 +1070,21 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const absEnd = endAnchorPos ?? absEndStored;
 
       const otherAttachment = isStartAttachedToThis ? endAttachment : startAttachment;
-      const shouldMoveTogether = !otherAttachment || otherAttachment.widgetId === this.widgetId;
+      // Move connector as a unit if:
+      // 1. Other end is not attached to any widget, OR
+      // 2. Other end is attached to THIS widget (both ends on same widget), OR
+      // 3. Other end is attached to a widget that's ALSO being dragged (multi-drag)
+      const otherWidgetId = otherAttachment?.widgetId;
+      const otherIsBeingDragged = otherWidgetId && options?.draggingWidgetIds?.has(otherWidgetId);
+      const shouldMoveTogether = !otherAttachment || otherWidgetId === this.widgetId || otherIsBeingDragged;
 
       if (shouldMoveTogether) {
+        // When both ends are being dragged (multi-drag), only update from the start-attached widget
+        // to avoid double-updating the connector position
+        if (otherIsBeingDragged && !isStartAttachedToThis) {
+          continue; // Let the widget attached to the start handle this connector
+        }
+
         const attachedOldAbs = isStartAttachedToThis ? absStartStored : absEndStored;
         const attachedNewAbs = isStartAttachedToThis ? absStart : absEnd;
         const dx = attachedNewAbs.x - attachedOldAbs.x;
@@ -1151,7 +1225,25 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       }
     }
 
-    this.uiState.selectWidget(this.widgetId);
+    if (event.ctrlKey || event.metaKey) {
+      this.uiState.toggleSelection(this.widgetId);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (event.shiftKey) {
+      this.uiState.addToSelection(this.widgetId);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    // If widget is already selected, preserve multi-selection for group drag
+    // Only select this widget alone if it's not currently selected
+    if (!this.isSelected) {
+      this.uiState.selectWidget(this.widgetId);
+    }
   }
 
   /**
@@ -1172,8 +1264,21 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const widget = this.displayWidget();
     if (!widget || widget.type !== 'connector') return;
 
-    // Select immediately (Canva-like)
-    this.uiState.selectWidget(this.widgetId);
+    if (event.ctrlKey || event.metaKey) {
+      this.uiState.toggleSelection(this.widgetId);
+      return;
+    }
+
+    if (event.shiftKey) {
+      this.uiState.addToSelection(this.widgetId);
+      return;
+    }
+
+    // If widget is already selected, preserve multi-selection for group drag
+    // Only select this widget alone if it's not currently selected
+    if (!this.isSelected) {
+      this.uiState.selectWidget(this.widgetId);
+    }
 
     // Start a native pointer drag for the whole connector.
     this.connectorWholeDrag = {
@@ -1181,6 +1286,24 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       startPointer: { x: event.clientX, y: event.clientY },
       startPosition: { x: widget.position.x, y: widget.position.y },
     };
+
+    this.multiDragState = null;
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    if (selectedIds.length > 1 && selectedIds.includes(this.widgetId)) {
+      const entities = this.widgetEntitiesSignal();
+      const startPositions = new Map<string, { x: number; y: number }>();
+      for (const id of selectedIds) {
+        const persisted = entities[id];
+        if (!persisted || persisted.pageId !== this.pageId) continue;
+        const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
+        startPositions.set(id, { x: merged.position.x, y: merged.position.y });
+      }
+
+      const widgetIds = selectedIds.filter(id => startPositions.has(id));
+      if (widgetIds.length > 1) {
+        this.multiDragState = { widgetIds, startPositions };
+      }
+    }
 
     this.dragStartFrame = { ...this.frame };
     this.guides.start(this.pageId, this.widgetId, 'drag');
@@ -1209,6 +1332,15 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Smoothly update via draft (no store churn during gesture)
     this.draftState.updateDraftPosition(this.widgetId, nextPosition);
 
+    if (this.multiDragState) {
+      for (const id of this.multiDragState.widgetIds) {
+        if (id === this.widgetId) continue;
+        const start = this.multiDragState.startPositions.get(id);
+        if (!start) continue;
+        this.draftState.updateDraftPosition(id, { x: start.x + dx, y: start.y + dy });
+      }
+    }
+
     // Update guide overlay (virtual)
     const rawFrame: WidgetFrame = {
       x: nextPosition.x,
@@ -1233,6 +1365,14 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Commit final draft to store (undoable)
     if (this.draftState.hasDraft(this.widgetId)) {
       this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+    }
+
+    if (this.multiDragState) {
+      for (const id of this.multiDragState.widgetIds) {
+        if (id === this.widgetId) continue;
+        this.draftState.commitDraft(id, { recordUndo: true });
+      }
+      this.multiDragState = null;
     }
 
     this.uiState.stopDragging();
@@ -2161,8 +2301,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     if (this.isResizing || this.isRotating) return;
 
-    // Right-click should select the widget first.
-    this.uiState.selectWidget(this.widgetId);
+    // Right-click should select the widget first (unless it's already part of a multi-selection).
+    if (!this.isSelected) {
+      this.uiState.selectWidget(this.widgetId);
+    }
 
     this.contextMenuX = event.clientX;
     this.contextMenuY = event.clientY;
@@ -2171,46 +2313,67 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
   onContextMenuItemSelected(actionId: string): void {
     this.contextMenuOpen = false;
-    
+    const selectedIds = this.getSelectedIdsForPage();
+    const isMulti = selectedIds.length > 1;
+
     switch (actionId) {
       case 'delete':
-        queueMicrotask(() => this.deleteWidgetInternal());
+        queueMicrotask(() => this.deleteWidgetInternal(selectedIds));
         break;
       case 'cut':
         queueMicrotask(() => {
           if (this.isDocumentLocked) return;
-          this.documentService.cutWidget(this.pageId, this.widgetId);
-          this.uiState.selectWidget(null);
+          if (isMulti) {
+            this.documentService.cutWidgets(this.pageId, selectedIds);
+          } else {
+            this.documentService.cutWidget(this.pageId, selectedIds[0]);
+          }
+          this.uiState.clearSelection();
         });
         break;
       case 'copy':
-        this.documentService.copyWidget(this.pageId, this.widgetId);
+        if (isMulti) {
+          this.documentService.copyWidgets(this.pageId, selectedIds);
+        } else {
+          this.documentService.copyWidget(this.pageId, selectedIds[0]);
+        }
         break;
       case 'paste':
         queueMicrotask(() => {
           if (this.isDocumentLocked) return;
           const pasted = this.documentService.pasteWidgets(this.pageId);
           if (pasted.length > 0) {
-            this.uiState.selectWidget(pasted[0]);
+            // Select all pasted widgets
+            this.uiState.selectMultiple(pasted);
           }
         });
         break;
     }
   }
 
-  private deleteWidgetInternal(): void {
+  private deleteWidgetInternal(widgetIds?: string[]): void {
     if (this.isDocumentLocked) {
       return;
     }
 
-    // Discard any drafts for this widget
-    this.draftState.discardDraft(this.widgetId);
+    const ids = widgetIds && widgetIds.length > 0 ? widgetIds : this.getSelectedIdsForPage();
+    if (ids.length === 0) return;
 
-    // Delete the widget
-    this.documentService.deleteWidget(this.pageId, this.widgetId);
+    for (const id of ids) {
+      // Discard any drafts for this widget
+      this.draftState.discardDraft(id);
+
+      // Delete the widget
+      this.documentService.deleteWidget(this.pageId, id);
+    }
 
     // Clear selection
-    this.uiState.selectWidget(null);
+    this.uiState.clearSelection();
+  }
+
+  private getSelectedIdsForPage(): string[] {
+    const selected = Array.from(this.uiState.selectedWidgetIds());
+    return selected.length > 0 ? selected : [this.widgetId];
   }
   
   // ============================================

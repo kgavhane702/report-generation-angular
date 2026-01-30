@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 
 import { EditorStateService } from '../../../core/services/editor-state.service';
+import { UIStateService } from '../../../core/services/ui-state.service';
 import { DocumentService } from '../../../core/services/document.service';
 import { ChartRegistryInitializer } from '../plugins/chart/engine/runtime';
 import { ExportUiStateService } from '../../../core/services/export-ui-state.service';
@@ -28,6 +29,7 @@ import type { ContextMenuItem } from '../../../shared/components/context-menu/co
 })
 export class EditorShellComponent implements AfterViewInit, OnDestroy {
   protected readonly editorState = inject(EditorStateService);
+  private readonly uiState = inject(UIStateService);
   private readonly documentService = inject(DocumentService);
   private readonly chartRegistryInitializer = inject(ChartRegistryInitializer);
   protected readonly exportUi = inject(ExportUiStateService);
@@ -153,7 +155,8 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
 
       const pastedWidgetIds = this.documentService.pasteWidgets(pageId, { at });
       if (pastedWidgetIds.length > 0) {
-        this.editorState.setActiveWidget(pastedWidgetIds[0]);
+        // Select all pasted widgets (also sets first as active)
+        this.uiState.selectMultiple(pastedWidgetIds);
       }
     });
   }
@@ -253,27 +256,49 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
   }
 
   private copySelectedWidget(): void {
-    const widgetContext = this.editorState.activeWidgetContext();
-    if (!widgetContext) {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    const pageId = this.editorState.activePageId();
+
+    if (selectedIds.length > 1) {
+      if (!pageId) return;
+      this.documentService.copyWidgets(pageId, selectedIds);
       return;
     }
 
-    this.documentService.copyWidget(
-      widgetContext.pageId,
-      widgetContext.widget.id
-    );
+    if (selectedIds.length === 1) {
+      if (!pageId) return;
+      this.documentService.copyWidget(pageId, selectedIds[0]);
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) return;
+
+    this.documentService.copyWidget(widgetContext.pageId, widgetContext.widget.id);
   }
 
   private cutSelectedWidget(): void {
-    const widgetContext = this.editorState.activeWidgetContext();
-    if (!widgetContext) {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    const pageId = this.editorState.activePageId();
+
+    if (selectedIds.length > 1) {
+      if (!pageId) return;
+      this.documentService.cutWidgets(pageId, selectedIds);
+      this.uiState.clearSelection();
       return;
     }
 
-    this.documentService.cutWidget(
-      widgetContext.pageId,
-      widgetContext.widget.id
-    );
+    if (selectedIds.length === 1) {
+      if (!pageId) return;
+      this.documentService.cutWidget(pageId, selectedIds[0]);
+      this.uiState.clearSelection();
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) return;
+
+    this.documentService.cutWidget(widgetContext.pageId, widgetContext.widget.id);
 
     this.editorState.setActiveWidget(null);
   }
@@ -283,15 +308,27 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    const widgetContext = this.editorState.activeWidgetContext();
-    if (!widgetContext) {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    const pageId = this.editorState.activePageId();
+
+    if (selectedIds.length > 1) {
+      if (!pageId) return;
+      selectedIds.forEach(id => this.documentService.deleteWidget(pageId, id));
+      this.uiState.clearSelection();
       return;
     }
 
-    this.documentService.deleteWidget(
-      widgetContext.pageId,
-      widgetContext.widget.id
-    );
+    if (selectedIds.length === 1) {
+      if (!pageId) return;
+      this.documentService.deleteWidget(pageId, selectedIds[0]);
+      this.uiState.clearSelection();
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) return;
+
+    this.documentService.deleteWidget(widgetContext.pageId, widgetContext.widget.id);
 
     this.editorState.setActiveWidget(null);
   }
@@ -310,7 +347,8 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     const pastedWidgetIds = this.documentService.pasteWidgets(pageId);
 
     if (pastedWidgetIds.length > 0) {
-      this.editorState.setActiveWidget(pastedWidgetIds[0]);
+      // Select all pasted widgets (also sets first as active)
+      this.uiState.selectMultiple(pastedWidgetIds);
     }
   }
 
