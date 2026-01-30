@@ -189,43 +189,7 @@ export class GuidesService {
       threshold
     );
 
-    // Build guide lines with proper segments
-    const guides: GuideLine[] = [];
-
-    for (const match of xMatches) {
-      const segment = this.computeVerticalSegment(frame, match, pageHeight);
-      guides.push({
-        orientation: 'vertical',
-        posPx: match.targetPos,
-        fromPx: segment.from,
-        toPx: segment.to,
-        kind: match.kind,
-        alignType: match.sourceType,
-        isCenter: match.sourceType === 'center',
-      });
-    }
-
-    for (const match of yMatches) {
-      const segment = this.computeHorizontalSegment(frame, match, pageWidth);
-      guides.push({
-        orientation: 'horizontal',
-        posPx: match.targetPos,
-        fromPx: segment.from,
-        toPx: segment.to,
-        kind: match.kind,
-        alignType: match.sourceType,
-        isCenter: match.sourceType === 'middle',
-      });
-    }
-
-    // Compute spacing guides (equal gaps)
-    const spacingGuides = this.computeSpacingGuides(frame, others, threshold);
-
-    if (!snapEnabled) return { guides, spacingGuides };
-
-    // Snap to the best (closest) match per axis.
-    // IMPORTANT: during resize we ONLY snap the actively resized edge(s).
-    // Snapping a center/middle alignment while resizing can collapse width/height or feel "blocked".
+    // Pick a single best match per axis (for clean, non-noisy guides)
     const bestX = (() => {
       if (xMatches.length === 0) return null;
       if (mode !== 'resize') return xMatches.reduce((a, b) => (a.distance < b.distance ? a : b));
@@ -254,6 +218,43 @@ export class GuidesService {
       return candidates.reduce((a, b) => (a.distance < b.distance ? a : b));
     })();
 
+    // Build guide lines with proper segments
+    const guides: GuideLine[] = [];
+
+    if (bestX) {
+      const segment = this.computeVerticalSegment(frame, bestX, pageHeight);
+      guides.push({
+        orientation: 'vertical',
+        posPx: bestX.targetPos,
+        fromPx: segment.from,
+        toPx: segment.to,
+        kind: bestX.kind,
+        alignType: bestX.sourceType,
+        isCenter: bestX.sourceType === 'center',
+      });
+    }
+
+    if (bestY) {
+      const segment = this.computeHorizontalSegment(frame, bestY, pageWidth);
+      guides.push({
+        orientation: 'horizontal',
+        posPx: bestY.targetPos,
+        fromPx: segment.from,
+        toPx: segment.to,
+        kind: bestY.kind,
+        alignType: bestY.sourceType,
+        isCenter: bestY.sourceType === 'middle',
+      });
+    }
+
+    // Compute spacing guides (equal gaps)
+    const spacingGuides = this.computeSpacingGuides(frame, others, threshold);
+
+    if (!snapEnabled) return { guides, spacingGuides };
+
+    // Snap to the best (closest) match per axis.
+    // IMPORTANT: during resize we ONLY snap the actively resized edge(s).
+    // Snapping a center/middle alignment while resizing can collapse width/height or feel "blocked".
     let snapped: WidgetFrame | undefined;
     if (mode === 'drag') {
       let x = frame.x;
