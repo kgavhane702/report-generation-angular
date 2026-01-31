@@ -83,8 +83,14 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         StringBuilder styleBuilder = new StringBuilder();
         styleBuilder.append("width: 100%; height: 100%; box-sizing: border-box; ");
         
-        // Apply fill color with opacity
-        styleBuilder.append(String.format("background-color: %s; ", fillColor));
+        // Apply fill color with opacity - handle transparent/none cases
+        boolean isTransparent = fillColor == null || fillColor.isEmpty() 
+            || "transparent".equalsIgnoreCase(fillColor) || "none".equalsIgnoreCase(fillColor);
+        if (isTransparent) {
+            styleBuilder.append("background-color: transparent; ");
+        } else {
+            styleBuilder.append(String.format("background-color: %s; ", fillColor));
+        }
         styleBuilder.append(String.format("opacity: %s; ", opacity / 100.0));
         
         // Apply stroke/border
@@ -146,6 +152,10 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         String strokeAttr;
         String fillAttr;
         
+        // Check if fill should be transparent
+        boolean isTransparentFill = fillColor == null || fillColor.isEmpty() 
+            || "transparent".equalsIgnoreCase(fillColor) || "none".equalsIgnoreCase(fillColor);
+        
         if (isStrokeOnly) {
             // Line: use fillColor as stroke, no fill
             int effectiveStrokeWidth = Math.max(strokeWidth > 0 ? strokeWidth : 2, 2);
@@ -160,7 +170,7 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
             } else {
                 strokeAttr = "stroke=\"none\"";
             }
-            fillAttr = escapeHtmlAttribute(fillColor);
+            fillAttr = isTransparentFill ? "none" : escapeHtmlAttribute(fillColor);
         }
 
         String escapedWidgetStyle = escapeHtmlAttribute(widgetStyle);
