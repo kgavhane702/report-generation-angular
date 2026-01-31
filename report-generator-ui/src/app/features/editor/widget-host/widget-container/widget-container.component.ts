@@ -899,6 +899,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       for (const id of selectedIds) {
         const persisted = entities[id];
         if (!persisted || persisted.pageId !== this.pageId) continue;
+        
+        // IMPORTANT: Exclude connectors from multi-drag position updates.
+        // Connectors attached to dragged widgets are moved via updateAttachedConnectors().
+        // If we include them here, they would be moved TWICE (once directly, once via attachment logic),
+        // causing them to move incorrectly (double the intended distance).
+        if (persisted.type === 'connector') continue;
+        
         const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
         startPositions.set(id, { x: merged.position.x, y: merged.position.y });
       }
