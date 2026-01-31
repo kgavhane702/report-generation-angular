@@ -972,7 +972,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (this.multiDragState && this.multiDragState.widgetIds.length > 1) {
       // Batch commit all dragged widgets as a single undo operation
       const allDraggedIds = this.multiDragState.widgetIds;
-      this.draftState.commitDraftsBatched(allDraggedIds, { recordUndo: true });
+      
+      // Collect connector IDs that have drafts (created during drag via updateAttachedConnectors).
+      // These must be committed along with the widgets, otherwise connector positions break.
+      const connectorDraftIds = new Set<string>();
+      for (const draggedId of allDraggedIds) {
+        const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(this.pageId, draggedId);
+        for (const { connectorId } of attachedConnectors) {
+          if (this.draftState.getDraft(connectorId)) {
+            connectorDraftIds.add(connectorId);
+          }
+        }
+      }
+      
+      // Include connector drafts in the batch commit
+      const allIdsToCommit = [...allDraggedIds, ...connectorDraftIds];
+      this.draftState.commitDraftsBatched(allIdsToCommit, { recordUndo: true });
       this.multiDragState = null;
     } else {
       // Single widget drag - commit normally
@@ -994,7 +1009,45 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
    * @param options.draggingWidgetIds - Set of widget IDs currently being dragged together (multi-drag)
    */
   private updateAttachedConnectors(options?: { frameOverride?: WidgetFrame; mode?: 'draft' | 'store'; draggingWidgetIds?: Set<string> }): void {
-    const widget = this.displayWidget();
+    const draggingIds = options?.draggingWidgetIds;
+
+    if (!draggingIds || draggingIds.size <= 1) {
+      this.updateAttachedConnectorsForWidget(this.widgetId, options);
+      return;
+    }
+
+    const entities = this.widgetEntitiesSignal();
+    for (const id of draggingIds) {
+      const persisted = entities[id];
+      if (!persisted || persisted.pageId !== this.pageId) continue;
+
+      const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
+      if (!merged || merged.type === 'connector') continue;
+
+      const frameOverride: WidgetFrame = id === this.widgetId && options?.frameOverride
+        ? options.frameOverride
+        : {
+            x: merged.position.x,
+            y: merged.position.y,
+            width: merged.size.width,
+            height: merged.size.height,
+          };
+
+      this.updateAttachedConnectorsForWidget(id, {
+        ...options,
+        frameOverride,
+      });
+    }
+  }
+
+  private updateAttachedConnectorsForWidget(
+    widgetId: string,
+    options?: { frameOverride?: WidgetFrame; mode?: 'draft' | 'store'; draggingWidgetIds?: Set<string> }
+  ): void {
+    const entities = this.widgetEntitiesSignal();
+    const persistedWidget = entities[widgetId];
+    if (!persistedWidget) return;
+    const widget = this.draftState.getMergedWidget(widgetId, persistedWidget) ?? persistedWidget;
     if (!widget || widget.type === 'connector') return;
 
     const mode = options?.mode ?? 'store';
@@ -1008,23 +1061,36 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // Find all connectors attached to this widget
     const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(
       this.pageId,
-      this.widgetId
+      widgetId
     );
 
     if (attachedConnectors.length === 0) return;
 
-    const entities = this.widgetEntitiesSignal();
     const uniqueConnectorIds = Array.from(new Set(attachedConnectors.map(attached => attached.connectorId)));
 
     const updates: WidgetEntity[] = [];
 
-    const getAnchorPositionForFrame = (attachment?: AnchorAttachment | null): { x: number; y: number } | null => {
+    const getAnchorPositionForAttachment = (attachment?: AnchorAttachment | null): { x: number; y: number } | null => {
       if (!attachment) return null;
       const anchor = this.connectorAnchorService.anchorPositions.find(a => a.position === attachment.anchor);
       if (!anchor) return null;
+
+      const persisted = entities[attachment.widgetId];
+      if (!persisted || persisted.type === 'connector') return null;
+
+      const merged = this.draftState.getMergedWidget(attachment.widgetId, persisted) ?? persisted;
+      const frame = attachment.widgetId === widgetId
+        ? targetFrame
+        : {
+            x: merged.position.x,
+            y: merged.position.y,
+            width: merged.size.width,
+            height: merged.size.height,
+          };
+
       return {
-        x: targetFrame.x + (anchor.xPercent / 100) * targetFrame.width,
-        y: targetFrame.y + (anchor.yPercent / 100) * targetFrame.height,
+        x: frame.x + (anchor.xPercent / 100) * frame.width,
+        y: frame.y + (anchor.yPercent / 100) * frame.height,
       };
     };
 
@@ -1041,8 +1107,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
       const startAttachment = props?.startAttachment as AnchorAttachment | undefined;
       const endAttachment = props?.endAttachment as AnchorAttachment | undefined;
-      const isStartAttachedToThis = startAttachment?.widgetId === this.widgetId;
-      const isEndAttachedToThis = endAttachment?.widgetId === this.widgetId;
+      const isStartAttachedToThis = startAttachment?.widgetId === widgetId;
+      const isEndAttachedToThis = endAttachment?.widgetId === widgetId;
 
       if (!isStartAttachedToThis && !isEndAttachedToThis) continue;
 
@@ -1058,12 +1124,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         ? { x: connector.position.x + controlPoint.x, y: connector.position.y + controlPoint.y }
         : null;
 
-      const startAnchorPos = isStartAttachedToThis
-        ? getAnchorPositionForFrame(startAttachment)
-        : this.connectorAnchorService.getAttachedEndpointPosition(startAttachment);
-      const endAnchorPos = isEndAttachedToThis
-        ? getAnchorPositionForFrame(endAttachment)
-        : this.connectorAnchorService.getAttachedEndpointPosition(endAttachment);
+      const startAnchorPos = getAnchorPositionForAttachment(startAttachment);
+      const endAnchorPos = getAnchorPositionForAttachment(endAttachment);
 
       const absStart = startAnchorPos ?? absStartStored;
       const absEnd = endAnchorPos ?? absEndStored;
@@ -1075,7 +1137,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       // 3. Other end is attached to a widget that's ALSO being dragged (multi-drag)
       const otherWidgetId = otherAttachment?.widgetId;
       const otherIsBeingDragged = otherWidgetId && options?.draggingWidgetIds?.has(otherWidgetId);
-      const shouldMoveTogether = !otherAttachment || otherWidgetId === this.widgetId || otherIsBeingDragged;
+      const shouldMoveTogether = !otherAttachment || otherWidgetId === widgetId || otherIsBeingDragged;
 
       if (shouldMoveTogether) {
         // When both ends are being dragged (multi-drag), only update from the start-attached widget
