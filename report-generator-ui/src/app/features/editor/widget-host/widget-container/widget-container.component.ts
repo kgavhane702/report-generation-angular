@@ -1666,6 +1666,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const ghost = this.clampFrame(newW, newH, nextX, nextY, 1, 1);
     this._ghostFrame.set(ghost);
     this.guides.updateResize(this.pageId, this.widgetId, ghost, this.pageWidth, this.pageHeight, this.activeHandle);
+
+    // Keep attached connectors in sync during resize gesture (draft mode)
+    this.updateAttachedConnectors({ frameOverride: ghost, mode: 'draft' });
   }
   
   @HostListener('document:pointerup', ['$event'])
@@ -1707,7 +1710,25 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         : clamped;
 
       this.draftState.updateDraftFrame(this.widgetId, { x: finalFrame.x, y: finalFrame.y }, { width: finalFrame.width, height: finalFrame.height });
-      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      
+      // Update attached connectors with the final frame and collect their draft IDs for batch commit
+      this.updateAttachedConnectors({ frameOverride: finalFrame, mode: 'draft' });
+      
+      // Collect connector IDs that have drafts (created during resize via updateAttachedConnectors)
+      const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(this.pageId, this.widgetId);
+      const connectorDraftIds: string[] = [];
+      for (const { connectorId } of attachedConnectors) {
+        if (this.draftState.getDraft(connectorId)) {
+          connectorDraftIds.push(connectorId);
+        }
+      }
+      
+      // Batch commit widget and all connector drafts as a single undo operation
+      if (connectorDraftIds.length > 0) {
+        this.draftState.commitDraftsBatched([this.widgetId, ...connectorDraftIds], { recordUndo: true });
+      } else {
+        this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      }
     }
   }
   
