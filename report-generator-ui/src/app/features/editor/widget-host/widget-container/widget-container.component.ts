@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  HostBinding,
   HostListener,
   Input,
   OnInit,
@@ -551,7 +550,6 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   // COMPUTED PROPERTIES
   // ============================================
   
-  @HostBinding('class.widget-container--selected')
   get isSelected(): boolean {
     return this.uiState.isWidgetSelected(this.widgetId);
   }

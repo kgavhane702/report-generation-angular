@@ -4,9 +4,8 @@ import { ChangeDetectionStrategy, Component, HostBinding, Input } from '@angular
  * FixedRightRailComponent
  *
  * Reusable fixed-position right rail pinned to the editor viewport area,
- * accounting for the toolbar + optional widget toolbar height via CSS vars:
+ * accounting for the toolbar height via CSS vars:
  * - --editor-toolbar-height
- * - --editor-widget-toolbar-height
  * - --editor-rail-width
  */
 @Component({

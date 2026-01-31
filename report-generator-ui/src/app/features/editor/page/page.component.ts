@@ -347,6 +347,9 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     if (this.selectionPointerId == null || event.pointerId !== this.selectionPointerId) return;
     if (!this.selectionStart) return;
 
+    // Prevent default browser behavior (text selection, scrolling, etc.)
+    event.preventDefault();
+
     const surface = this.getSurfaceElement();
     if (!surface) return;
 
@@ -383,8 +386,16 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     const combined = new Set(this.selectionBase);
     selected.forEach(id => combined.add(id));
     const nextIds = Array.from(combined);
-    this.lastSelectionIds = nextIds;
-    this.uiState.selectMultiple(nextIds);
+    
+    // Only update selection if it actually changed (prevents unnecessary signal updates)
+    const selectionChanged = 
+      nextIds.length !== this.lastSelectionIds.length ||
+      nextIds.some((id, i) => id !== this.lastSelectionIds[i]);
+    
+    if (selectionChanged) {
+      this.lastSelectionIds = nextIds;
+      this.uiState.selectMultiple(nextIds);
+    }
   }
 
   @HostListener('document:pointerup', ['$event'])

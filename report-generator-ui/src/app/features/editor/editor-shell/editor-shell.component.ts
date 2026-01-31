@@ -191,6 +191,14 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     if (this.documentService.documentLocked()) {
       return false;
     }
+    
+    // Don't show widget toolbar when multiple widgets are selected
+    // (multi-selection has no single-widget context for the toolbar)
+    const selectedCount = this.uiState.selectedWidgetIds().size;
+    if (selectedCount > 1) {
+      return false;
+    }
+    
     const widget = this.editorState.activeWidget();
     return (
       widget?.type === 'text' ||
