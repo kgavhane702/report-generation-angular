@@ -1231,11 +1231,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const otherAttachment = isStartAttachedToThis ? endAttachment : startAttachment;
       // Move connector as a unit if:
       // 1. Other end is not attached to any widget, OR
-      // 2. Other end is attached to THIS widget (both ends on same widget), OR
-      // 3. Other end is attached to a widget that's ALSO being dragged (multi-drag)
+      // 2. Other end is attached to a widget that's ALSO being dragged (multi-drag)
       const otherWidgetId = otherAttachment?.widgetId;
       const otherIsBeingDragged = otherWidgetId && options?.draggingWidgetIds?.has(otherWidgetId);
-      const shouldMoveTogether = !otherAttachment || otherWidgetId === widgetId || otherIsBeingDragged;
+      const shouldMoveTogether = !otherAttachment || otherIsBeingDragged;
 
       if (shouldMoveTogether) {
         // When both ends are being dragged (multi-drag), only update from the start-attached widget
