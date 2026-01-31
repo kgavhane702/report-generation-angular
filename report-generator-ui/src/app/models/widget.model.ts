@@ -194,6 +194,10 @@ export interface ConnectorWidgetProps {
 export interface ConnectorAnchorAttachment {
   widgetId: string;
   anchor: 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left';
+  /**
+   * Optional effective exit direction (rotation-aware) for elbow routing.
+   */
+  dir?: 'up' | 'down' | 'left' | 'right';
 }
 
 export interface ConnectorPoint {

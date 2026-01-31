@@ -15,7 +15,7 @@ import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
 import { CdkDragEnd, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 
-import { WidgetPosition, WidgetProps } from '../../../../models/widget.model';
+import { WidgetPosition, WidgetProps, ObjectWidgetProps } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { DraftStateService } from '../../../../core/services/draft-state.service';
@@ -24,7 +24,7 @@ import { GuidesService } from '../../../../core/services/guides.service';
 import { RemoteWidgetAutoLoadService } from '../../../../core/services/remote-widget-auto-load.service';
 import { UndoRedoService } from '../../../../core/services/undo-redo.service';
 import { ConnectorAnchorService, AnchorAttachment } from '../../../../core/services/connector-anchor.service';
-import { computeElbowPoints, getAnchorDirection, type AnchorDirection } from '../../../../core/geometry/connector-elbow-routing';
+import { computeElbowPoints, getAttachmentDirection, type AnchorDirection } from '../../../../core/geometry/connector-elbow-routing';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
@@ -32,6 +32,7 @@ import { WidgetActions } from '../../../../store/document/document.actions';
 import type { WidgetModel } from '../../../../models/widget.model';
 import { getWidgetInteractionPolicy, isResizeHandleAllowed, type WidgetInteractionPolicy } from '../widget-interaction-policy';
 import type { ContextMenuItem } from '../../../../shared/components/context-menu/context-menu.component';
+import { getShapeAnchors, ShapeAnchorPoint, getDefaultAnchors } from '../../plugins/object/config/shape-anchor.config';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -377,8 +378,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       }
 
       // When control is missing (older docs), compute the SAME default handle used by the elbow renderer.
-      const startDir = getAnchorDirection(props?.startAttachment?.anchor);
-      const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+      const startDir = getAttachmentDirection(props?.startAttachment);
+      const endDir = getAttachmentDirection(props?.endAttachment);
       return this.computeDefaultElbowHandle(start, end, startDir, endDir);
     }
 
@@ -431,22 +432,36 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly ANCHOR_SNAP_THRESHOLD = 20;
   
   /**
-   * Anchor point positions - corresponds to 8 resize handle positions
+   * Default anchor point positions (for rectangular shapes).
+   * For shape-specific anchors, use getShapeAwareAnchors() instead.
    */
   private readonly anchorPositions: Array<{
     position: string;
     xPercent: number;
     yPercent: number;
-  }> = [
-    { position: 'top', xPercent: 50, yPercent: 0 },
-    { position: 'top-right', xPercent: 100, yPercent: 0 },
-    { position: 'right', xPercent: 100, yPercent: 50 },
-    { position: 'bottom-right', xPercent: 100, yPercent: 100 },
-    { position: 'bottom', xPercent: 50, yPercent: 100 },
-    { position: 'bottom-left', xPercent: 0, yPercent: 100 },
-    { position: 'left', xPercent: 0, yPercent: 50 },
-    { position: 'top-left', xPercent: 0, yPercent: 0 },
-  ];
+  }> = getDefaultAnchors();
+  
+  /**
+   * Get shape-aware anchor points for the current widget.
+   * Returns anchors positioned on the actual shape geometry rather than the bounding box.
+   */
+  private getShapeAwareAnchors(): Array<{
+    position: string;
+    xPercent: number;
+    yPercent: number;
+  }> {
+    const widget = this.displayWidget();
+    if (!widget) return this.anchorPositions;
+    
+    if (widget.type === 'object') {
+      const props = widget.props as ObjectWidgetProps;
+      const shapeType = props?.shapeType || 'rectangle';
+      return getShapeAnchors(shapeType);
+    }
+    
+    // For non-object widgets (tables, charts, etc.), use default rectangular anchors
+    return this.anchorPositions;
+  }
   
   /**
    * Show anchor points when:
@@ -479,20 +494,52 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   }
   
   /**
-   * Get anchor point absolute position in canvas coordinates
+   * Get anchor point absolute position in canvas coordinates.
+   * Accounts for widget rotation by rotating the anchor point around the widget center.
    */
   getAnchorAbsolutePosition(anchor: { xPercent: number; yPercent: number }): { x: number; y: number } {
     const widget = this.displayWidget();
     if (!widget) return { x: 0, y: 0 };
     
+    // Calculate the unrotated position
+    const localX = (anchor.xPercent / 100) * widget.size.width;
+    const localY = (anchor.yPercent / 100) * widget.size.height;
+    
+    // Get widget center
+    const centerX = widget.size.width / 2;
+    const centerY = widget.size.height / 2;
+    
+    // Get rotation in radians
+    const rotation = widget.rotation ?? 0;
+    
+    if (rotation === 0) {
+      // No rotation, return simple calculation
+      return {
+        x: widget.position.x + localX,
+        y: widget.position.y + localY,
+      };
+    }
+    
+    const rad = (rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    
+    // Translate to center, rotate, translate back
+    const dx = localX - centerX;
+    const dy = localY - centerY;
+    
+    const rotatedX = dx * cos - dy * sin + centerX;
+    const rotatedY = dx * sin + dy * cos + centerY;
+    
     return {
-      x: widget.position.x + (anchor.xPercent / 100) * widget.size.width,
-      y: widget.position.y + (anchor.yPercent / 100) * widget.size.height,
+      x: widget.position.x + rotatedX,
+      y: widget.position.y + rotatedY,
     };
   }
   
   /**
-   * Get anchor points with highlight state based on proximity to dragged endpoint
+   * Get anchor points with highlight state based on proximity to dragged endpoint.
+   * Uses shape-specific anchor positions for object widgets.
    */
   get anchorPoints(): Array<{
     position: string;
@@ -501,8 +548,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     isNearby: boolean;
   }> {
     const dragPos = this.uiState.connectorEndpointDragPosition();
+    const shapeAnchors = this.getShapeAwareAnchors();
     
-    return this.anchorPositions.map(anchor => {
+    return shapeAnchors.map(anchor => {
       let isNearby = false;
       
       if (dragPos) {
@@ -523,14 +571,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   /**
    * Find the nearest anchor point if within snap threshold.
    * Returns the anchor position and absolute coordinates, or null if none nearby.
+   * Uses shape-specific anchor positions for object widgets.
    */
   getNearestAnchor(): { position: string; x: number; y: number } | null {
     const dragPos = this.uiState.connectorEndpointDragPosition();
     if (!dragPos) return null;
     
+    const shapeAnchors = this.getShapeAwareAnchors();
     let nearest: { position: string; x: number; y: number; distance: number } | null = null;
     
-    for (const anchor of this.anchorPositions) {
+    for (const anchor of shapeAnchors) {
       const absPos = this.getAnchorAbsolutePosition(anchor);
       const distance = Math.sqrt(
         Math.pow(dragPos.x - absPos.x, 2) + Math.pow(dragPos.y - absPos.y, 2)
@@ -687,10 +737,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       .subscribe(widget => {
         this.persistedWidget.set(widget);
 
-        // If a non-connector widget's layout changes (drag/resize/undo), keep attached connectors in sync.
+        // If a non-connector widget's layout changes (drag/resize/undo/rotate), keep attached connectors in sync.
         // Run this async to avoid dispatching during the store subscription call stack.
         if (widget && widget.type !== 'connector') {
-          const sig = `${widget.position?.x ?? 0},${widget.position?.y ?? 0},${widget.size?.width ?? 0},${widget.size?.height ?? 0}`;
+          const sig = `${widget.position?.x ?? 0},${widget.position?.y ?? 0},${widget.size?.width ?? 0},${widget.size?.height ?? 0},${widget.rotation ?? 0}`;
           const changed = sig !== this.lastLayoutSignature;
           this.lastLayoutSignature = sig;
 
@@ -1079,13 +1129,17 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     const getAnchorPositionForAttachment = (attachment?: AnchorAttachment | null): { x: number; y: number } | null => {
       if (!attachment) return null;
-      const anchor = this.connectorAnchorService.anchorPositions.find(a => a.position === attachment.anchor);
-      if (!anchor) return null;
 
       const persisted = entities[attachment.widgetId];
       if (!persisted || persisted.type === 'connector') return null;
 
       const merged = this.draftState.getMergedWidget(attachment.widgetId, persisted) ?? persisted;
+      
+      // Get shape-specific anchors for the attached widget
+      const anchors = this.connectorAnchorService.getAnchorsForWidget(merged);
+      const anchor = anchors.find(a => a.position === attachment.anchor);
+      if (!anchor) return null;
+
       const frame = attachment.widgetId === widgetId
         ? targetFrame
         : {
@@ -1095,10 +1149,44 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             height: merged.size.height,
           };
 
+      // Calculate the unrotated local position
+      const localX = (anchor.xPercent / 100) * frame.width;
+      const localY = (anchor.yPercent / 100) * frame.height;
+      
+      // Get widget center and rotation
+      const centerX = frame.width / 2;
+      const centerY = frame.height / 2;
+      const rotation = merged.rotation ?? 0;
+      
+      if (rotation === 0) {
+        return {
+          x: frame.x + localX,
+          y: frame.y + localY,
+        };
+      }
+      
+      // Apply rotation around center
+      const rad = (rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dx = localX - centerX;
+      const dy = localY - centerY;
+      
       return {
-        x: frame.x + (anchor.xPercent / 100) * frame.width,
-        y: frame.y + (anchor.yPercent / 100) * frame.height,
+        x: frame.x + (dx * cos - dy * sin + centerX),
+        y: frame.y + (dx * sin + dy * cos + centerY),
       };
+    };
+
+    const normalizeAttachmentDirection = (attachment?: AnchorAttachment | null): AnchorAttachment | null => {
+      if (!attachment) return null;
+
+      const persisted = entities[attachment.widgetId];
+      if (!persisted || persisted.type === 'connector') return attachment;
+
+      const merged = this.draftState.getMergedWidget(attachment.widgetId, persisted) ?? persisted;
+      const dir = this.connectorAnchorService.getAnchorDirectionForWidget(merged, attachment.anchor);
+      return dir ? { ...attachment, dir } : attachment;
     };
 
     for (const connectorId of uniqueConnectorIds) {
@@ -1133,6 +1221,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
       const startAnchorPos = getAnchorPositionForAttachment(startAttachment);
       const endAnchorPos = getAnchorPositionForAttachment(endAttachment);
+
+      const normalizedStartAttachment = normalizeAttachmentDirection(startAttachment);
+      const normalizedEndAttachment = normalizeAttachmentDirection(endAttachment);
 
       const absStart = startAnchorPos ?? absStartStored;
       const absEnd = endAnchorPos ?? absEndStored;
@@ -1178,8 +1269,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const shapeType = String(props?.shapeType ?? '');
       const isElbow = shapeType.includes('elbow');
       if (isElbow && !effectiveAbsControl) {
-        const startDir = getAnchorDirection(props?.startAttachment?.anchor);
-        const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+        const startDir = getAttachmentDirection(props?.startAttachment);
+        const endDir = getAttachmentDirection(props?.endAttachment);
         const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
         effectiveAbsControl = {
           x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
@@ -1212,6 +1303,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
           startPoint: newStartPoint,
           endPoint: newEndPoint,
           controlPoint: newControlPoint,
+          ...(normalizedStartAttachment ? { startAttachment: normalizedStartAttachment } : {}),
+          ...(normalizedEndAttachment ? { endAttachment: normalizedEndAttachment } : {}),
         });
       } else {
         updates.push({
@@ -1223,6 +1316,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
             startPoint: newStartPoint,
             endPoint: newEndPoint,
             controlPoint: newControlPoint,
+            ...(normalizedStartAttachment ? { startAttachment: normalizedStartAttachment } : {}),
+            ...(normalizedEndAttachment ? { endAttachment: normalizedEndAttachment } : {}),
           },
         });
       }
@@ -1822,6 +1917,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     // Update draft with new rotation
     this.draftState.updateDraftRotation(this.widgetId, newRotation);
+    
+    // Keep attached connectors in sync during rotation
+    this.updateAttachedConnectors({ mode: 'draft' });
   }
 
   /**
@@ -1836,9 +1934,23 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this._isRotating.set(false);
     this.rotationStartState = null;
 
-    // Commit rotation to store
+    // Collect connector IDs that have drafts from rotation
+    const connectorDraftIds = new Set<string>();
+    const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(this.pageId, this.widgetId);
+    for (const { connectorId } of attachedConnectors) {
+      if (this.draftState.hasDraft(connectorId)) {
+        connectorDraftIds.add(connectorId);
+      }
+    }
+
+    // Commit rotation and any connector drafts to store
     if (widget) {
-      this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      if (connectorDraftIds.size > 0) {
+        // Include connector drafts in the batch commit
+        this.draftState.commitDraftsBatched([this.widgetId, ...connectorDraftIds], { recordUndo: true });
+      } else {
+        this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+      }
     }
   }
   
@@ -2028,8 +2140,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         start,
         end,
         control,
-        startAnchor: props?.startAttachment?.anchor,
-        endAnchor: props?.endAttachment?.anchor,
+        startAttachment: props?.startAttachment,
+        endAttachment: props?.endAttachment,
         stub: 30,
       }) as Array<{ x: number; y: number }>;
 
@@ -2117,8 +2229,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // control = 2*midpoint - 0.5*(start + end)
     const hasControl = !!props?.controlPoint;
     const isElbow = shapeType.includes('elbow');
-    const startDir = getAnchorDirection(props?.startAttachment?.anchor);
-    const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+    const startDir = getAttachmentDirection(props?.startAttachment);
+    const endDir = getAttachmentDirection(props?.endAttachment);
     const defaultElbowHandle = this.computeDefaultElbowHandle(startPoint, endPoint, startDir, endDir);
     const seededElbowControl = {
       x: 2 * defaultElbowHandle.x - 0.5 * (startPoint.x + endPoint.x),
@@ -2190,8 +2302,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     // For elbows, ensure we always have a control point so the handle/path/bounds stay consistent.
     if (isElbow && !absControl) {
-      const startDir = getAnchorDirection(props?.startAttachment?.anchor);
-      const endDir = getAnchorDirection(props?.endAttachment?.anchor);
+      const startDir = getAttachmentDirection(props?.startAttachment);
+      const endDir = getAttachmentDirection(props?.endAttachment);
       const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
       absControl = {
         x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
@@ -2215,7 +2327,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       if (nearestAnchor) {
         // Snap to anchor position
         absStart = { x: nearestAnchor.x, y: nearestAnchor.y };
-        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor };
+        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor, dir: nearestAnchor.dir };
       }
     } else if (this.connectorDragState.endpoint === 'end') {
       absEnd = { x: absEnd.x + scaledDx, y: absEnd.y + scaledDy };
@@ -2229,7 +2341,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       if (nearestAnchor) {
         // Snap to anchor position
         absEnd = { x: nearestAnchor.x, y: nearestAnchor.y };
-        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor };
+        snappedAnchor = { widgetId: nearestAnchor.widgetId, anchor: nearestAnchor.anchor, dir: nearestAnchor.dir };
       }
     } else if (this.connectorDragState.endpoint === 'control') {
       if (isElbow) {

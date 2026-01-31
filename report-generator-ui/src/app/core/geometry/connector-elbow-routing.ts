@@ -26,6 +26,25 @@ export function getAnchorDirection(anchor: ConnectorAnchorAttachment['anchor'] |
   }
 }
 
+export function getAttachmentDirection(
+  attachment: ConnectorAnchorAttachment | null | undefined
+): AnchorDirection | null {
+  if (!attachment) return null;
+  if (attachment.dir) return attachment.dir;
+  return getAnchorDirection(attachment.anchor);
+}
+
+export function getAnchorDirectionWithRotation(
+  anchor: ConnectorAnchorAttachment['anchor'] | undefined,
+  rotation: number
+): AnchorDirection | null {
+  const baseAngle = anchorToAngle(anchor);
+  if (baseAngle === null) return null;
+
+  const rotated = normalizeAngle(baseAngle + rotation);
+  return angleToAxisDirection(rotated);
+}
+
 export function computeElbowHandleFromControl(
   start: ConnectorPoint,
   end: ConnectorPoint,
@@ -44,14 +63,20 @@ export function computeElbowPoints(params: {
   control: ConnectorPoint | null;
   startAnchor?: ConnectorAnchorAttachment['anchor'];
   endAnchor?: ConnectorAnchorAttachment['anchor'];
+  startAttachment?: ConnectorAnchorAttachment | null;
+  endAttachment?: ConnectorAnchorAttachment | null;
   stub?: number;
 }): ConnectorPoint[] {
   const { start, end, control } = params;
   const STUB = params.stub ?? 30;
 
   const handle = computeElbowHandleFromControl(start, end, control);
-  const startDir = getAnchorDirection(params.startAnchor);
-  const endDir = getAnchorDirection(params.endAnchor);
+  const startDir = params.startAttachment
+    ? getAttachmentDirection(params.startAttachment)
+    : getAnchorDirection(params.startAnchor);
+  const endDir = params.endAttachment
+    ? getAttachmentDirection(params.endAttachment)
+    : getAnchorDirection(params.endAnchor);
 
   const startStub = startDir ? offsetPoint(start, startDir, STUB) : start;
   const endStub = endDir ? offsetPoint(end, endDir, STUB) : end;
@@ -94,6 +119,43 @@ export function computeElbowPoints(params: {
   }
 
   return pickBestElbowCandidate(candidates);
+}
+
+function anchorToAngle(anchor: ConnectorAnchorAttachment['anchor'] | undefined): number | null {
+  if (!anchor) return null;
+  switch (anchor) {
+    case 'right':
+      return 0;
+    case 'bottom-right':
+      return 45;
+    case 'bottom':
+      return 90;
+    case 'bottom-left':
+      return 135;
+    case 'left':
+      return 180;
+    case 'top-left':
+      return 225;
+    case 'top':
+      return 270;
+    case 'top-right':
+      return 315;
+    default:
+      return null;
+  }
+}
+
+function normalizeAngle(angle: number): number {
+  const normalized = angle % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function angleToAxisDirection(angle: number): AnchorDirection {
+  const a = normalizeAngle(angle);
+  if (a >= 315 || a < 45) return 'right';
+  if (a < 135) return 'down';
+  if (a < 225) return 'left';
+  return 'up';
 }
 
 function axisPrefs(preferred: AxisPreference): AxisPreference[] {

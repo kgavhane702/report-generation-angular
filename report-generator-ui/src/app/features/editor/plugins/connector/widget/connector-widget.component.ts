@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 
 import type { ConnectorWidgetProps, ConnectorPoint, WidgetModel } from '../../../../../models/widget.model';
-import { computeElbowHandleFromControl, computeElbowPoints, getAnchorDirection } from '../../../../../core/geometry/connector-elbow-routing';
+import { computeElbowHandleFromControl, computeElbowPoints, getAttachmentDirection } from '../../../../../core/geometry/connector-elbow-routing';
 import {
   isElbowConnectorShapeType,
   isCurvedConnectorShapeType,
@@ -77,8 +77,8 @@ export class ConnectorWidgetComponent {
     // Use anchor-aware default if attachments exist, otherwise classic L-bend.
     const start = this.startPoint;
     const end = this.endPoint;
-    const startDir = getAnchorDirection(this.connectorProps?.startAttachment?.anchor);
-    const endDir = getAnchorDirection(this.connectorProps?.endAttachment?.anchor);
+    const startDir = getAttachmentDirection(this.connectorProps?.startAttachment);
+    const endDir = getAttachmentDirection(this.connectorProps?.endAttachment);
 
     // Compute a sensible default handle based on anchor directions.
     const defaultHandle = this.computeDefaultElbowHandle(start, end, startDir, endDir);
@@ -99,8 +99,8 @@ export class ConnectorWidgetComponent {
   private computeDefaultElbowHandle(
     start: ConnectorPoint,
     end: ConnectorPoint,
-    startDir: ReturnType<typeof getAnchorDirection>,
-    endDir: ReturnType<typeof getAnchorDirection>
+    startDir: ReturnType<typeof getAttachmentDirection>,
+    endDir: ReturnType<typeof getAttachmentDirection>
   ): ConnectorPoint {
     const STUB = 30; // Minimum distance to go in exit direction before turning
 
@@ -187,8 +187,8 @@ export class ConnectorWidgetComponent {
       start,
       end,
       control,
-      startAnchor: this.connectorProps?.startAttachment?.anchor,
-      endAnchor: this.connectorProps?.endAttachment?.anchor,
+      startAttachment: this.connectorProps?.startAttachment,
+      endAttachment: this.connectorProps?.endAttachment,
       stub: 30,
     });
 

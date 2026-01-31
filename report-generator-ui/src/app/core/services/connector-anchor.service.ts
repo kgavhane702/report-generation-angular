@@ -6,12 +6,17 @@ import { Dictionary } from '@ngrx/entity';
 import { AppState } from '../../store/app.state';
 import { DocumentSelectors } from '../../store/document/document.selectors';
 import { WidgetEntity } from '../../store/document/document.state';
+import { getShapeAnchors, ShapeAnchorPoint, getDefaultAnchors } from '../../features/editor/plugins/object/config/shape-anchor.config';
+import { ObjectWidgetProps, type ConnectorAnchorAttachment } from '../../models/widget.model';
+import { DraftStateService } from './draft-state.service';
+import { getAnchorDirectionWithRotation, type AnchorDirection } from '../geometry/connector-elbow-routing';
 
 /**
- * Anchor point position on a widget
+ * Anchor point position on a widget.
+ * Position can be standard positions (top, right, etc.) or custom positions for specific shapes.
  */
 export interface AnchorPoint {
-  position: 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left';
+  position: string;
   xPercent: number;
   yPercent: number;
 }
@@ -21,7 +26,8 @@ export interface AnchorPoint {
  */
 export interface AnchorAttachment {
   widgetId: string;
-  anchor: AnchorPoint['position'];
+  anchor: ConnectorAnchorAttachment['anchor'];
+  dir?: AnchorDirection;
 }
 
 /**
@@ -29,10 +35,11 @@ export interface AnchorAttachment {
  */
 export interface NearestAnchorResult {
   widgetId: string;
-  anchor: AnchorPoint['position'];
+  anchor: ConnectorAnchorAttachment['anchor'];
   x: number;
   y: number;
   distance: number;
+  dir?: AnchorDirection;
 }
 
 /**
@@ -46,6 +53,7 @@ export interface NearestAnchorResult {
 })
 export class ConnectorAnchorService {
   private readonly store = inject(Store<AppState>);
+  private readonly draftState = inject(DraftStateService);
   
   /**
    * Snap threshold in pixels
@@ -53,18 +61,32 @@ export class ConnectorAnchorService {
   readonly SNAP_THRESHOLD = 20;
   
   /**
-   * All 8 anchor positions on a widget
+   * Default 8 anchor positions on a widget (for rectangular shapes).
+   * For shape-specific anchors, use getAnchorsForWidget() instead.
    */
-  readonly anchorPositions: AnchorPoint[] = [
-    { position: 'top', xPercent: 50, yPercent: 0 },
-    { position: 'top-right', xPercent: 100, yPercent: 0 },
-    { position: 'right', xPercent: 100, yPercent: 50 },
-    { position: 'bottom-right', xPercent: 100, yPercent: 100 },
-    { position: 'bottom', xPercent: 50, yPercent: 100 },
-    { position: 'bottom-left', xPercent: 0, yPercent: 100 },
-    { position: 'left', xPercent: 0, yPercent: 50 },
-    { position: 'top-left', xPercent: 0, yPercent: 0 },
-  ];
+  readonly anchorPositions: AnchorPoint[] = getDefaultAnchors();
+  
+  /**
+   * Get shape-specific anchor points for a widget.
+   * Returns anchors positioned on the actual shape geometry rather than the bounding box.
+   */
+  getAnchorsForWidget(widget: WidgetEntity): AnchorPoint[] {
+    if (widget.type === 'object') {
+      const props = widget.props as ObjectWidgetProps;
+      const shapeType = props?.shapeType || 'rectangle';
+      return getShapeAnchors(shapeType) as AnchorPoint[];
+    }
+    // For non-object widgets (tables, charts, etc.), use default rectangular anchors
+    return this.anchorPositions;
+  }
+
+  /**
+   * Get the effective anchor exit direction for a widget, accounting for rotation.
+   * Used by elbow routing to choose a sensible stub direction.
+   */
+  getAnchorDirectionForWidget(widget: WidgetEntity, anchor: string): AnchorDirection | null {
+    return getAnchorDirectionWithRotation(anchor as any, widget.rotation ?? 0);
+  }
   
   /** Widget entities */
   private readonly widgetEntities = toSignal(
@@ -79,30 +101,70 @@ export class ConnectorAnchorService {
   );
   
   /**
-   * Get absolute position of an anchor on a widget
+   * Get absolute position of an anchor on a widget.
+   * Accounts for widget rotation by rotating the anchor point around the widget center.
    */
   getAnchorAbsolutePosition(widget: WidgetEntity, anchor: AnchorPoint): { x: number; y: number } {
+    // Calculate the unrotated position
+    const localX = (anchor.xPercent / 100) * widget.size.width;
+    const localY = (anchor.yPercent / 100) * widget.size.height;
+    
+    // Get widget center
+    const centerX = widget.size.width / 2;
+    const centerY = widget.size.height / 2;
+    
+    // Get rotation in radians
+    const rotation = widget.rotation ?? 0;
+    
+    if (rotation === 0) {
+      // No rotation, return simple calculation
+      return {
+        x: widget.position.x + localX,
+        y: widget.position.y + localY,
+      };
+    }
+    
+    const rad = (rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    
+    // Translate to center, rotate, translate back
+    const dx = localX - centerX;
+    const dy = localY - centerY;
+    
+    const rotatedX = dx * cos - dy * sin + centerX;
+    const rotatedY = dx * sin + dy * cos + centerY;
+    
     return {
-      x: widget.position.x + (anchor.xPercent / 100) * widget.size.width,
-      y: widget.position.y + (anchor.yPercent / 100) * widget.size.height,
+      x: widget.position.x + rotatedX,
+      y: widget.position.y + rotatedY,
     };
   }
   
   /**
-   * Get absolute position of a specific anchor on a widget by ID
+   * Get absolute position of a specific anchor on a widget by ID.
+   * Uses shape-specific anchors for object widgets.
+   * Uses draft-aware widget data to account for widgets being dragged/rotated.
    */
-  getAnchorPositionByWidgetId(widgetId: string, anchorPosition: AnchorPoint['position']): { x: number; y: number } | null {
-    const widget = this.widgetEntities()[widgetId];
-    if (!widget) return null;
+  getAnchorPositionByWidgetId(widgetId: string, anchorPosition: string): { x: number; y: number } | null {
+    const persisted = this.widgetEntities()[widgetId];
+    if (!persisted) return null;
     
-    const anchor = this.anchorPositions.find(a => a.position === anchorPosition);
+    // Use draft-aware widget data
+    const widget = this.draftState.getMergedWidget(widgetId, persisted) ?? persisted;
+    
+    // Get shape-specific anchors for this widget
+    const anchors = this.getAnchorsForWidget(widget);
+    const anchor = anchors.find(a => a.position === anchorPosition);
     if (!anchor) return null;
     
     return this.getAnchorAbsolutePosition(widget, anchor);
   }
   
   /**
-   * Find the nearest anchor point across all widgets on a page
+   * Find the nearest anchor point across all widgets on a page.
+   * Uses shape-specific anchor points for each widget.
+   * Uses draft-aware widget data to account for widgets being dragged/rotated.
    * @param pageId The page to search on
    * @param position The current position of the connector endpoint
    * @param excludeWidgetId Widget to exclude (the connector itself)
@@ -121,15 +183,22 @@ export class ConnectorAnchorService {
       // Skip the connector itself
       if (widgetId === excludeWidgetId) continue;
       
-      const widget = entities[widgetId];
-      if (!widget) continue;
+      const persisted = entities[widgetId];
+      if (!persisted) continue;
       
       // Skip other connectors
-      if (widget.type === 'connector') continue;
+      if (persisted.type === 'connector') continue;
+      
+      // Use draft-aware widget data to account for widgets being dragged/rotated
+      const widget = this.draftState.getMergedWidget(widgetId, persisted) ?? persisted;
+      
+      // Get shape-specific anchor points for this widget
+      const anchors = this.getAnchorsForWidget(widget);
       
       // Check all anchor points on this widget
-      for (const anchor of this.anchorPositions) {
+      for (const anchor of anchors) {
         const anchorPos = this.getAnchorAbsolutePosition(widget, anchor);
+        const anchorDir = this.getAnchorDirectionForWidget(widget, anchor.position);
         const distance = Math.sqrt(
           Math.pow(position.x - anchorPos.x, 2) + Math.pow(position.y - anchorPos.y, 2)
         );
@@ -138,10 +207,11 @@ export class ConnectorAnchorService {
           if (!nearest || distance < nearest.distance) {
             nearest = {
               widgetId,
-              anchor: anchor.position,
+              anchor: anchor.position as ConnectorAnchorAttachment['anchor'],
               x: anchorPos.x,
               y: anchorPos.y,
               distance,
+              dir: anchorDir ?? undefined,
             };
           }
         }
@@ -174,9 +244,11 @@ export class ConnectorAnchorService {
     const results: Array<{ connectorId: string; endpoint: 'start' | 'end'; attachment: AnchorAttachment }> = [];
     
     for (const widgetId of widgetIds) {
-      const widget = entities[widgetId];
-      if (!widget || widget.type !== 'connector') continue;
-      
+      const persisted = entities[widgetId];
+      if (!persisted || persisted.type !== 'connector') continue;
+
+      // Use draft-aware connector data so attachments set during drag are respected
+      const widget = this.draftState.getMergedWidget(widgetId, persisted) ?? persisted;
       const props = widget.props as any;
       
       // Check start attachment
