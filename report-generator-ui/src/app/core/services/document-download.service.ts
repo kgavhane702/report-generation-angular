@@ -52,7 +52,7 @@ export class DocumentDownloadService {
   }
 
   async download(documentModel: DocumentModel, format: DocumentDownloadFormat = 'pdf'): Promise<void> {
-    const label = format === 'docx' ? 'Word Document' : 'PDF';
+    const label = format === 'pptx' ? 'PowerPoint' : format === 'docx' ? 'Word Document' : 'PDF';
     this.exportUi.start(`Generating ${label}…`);
     try {
       const download$ = await this.requestDownloadBlob(documentModel, format);
@@ -64,7 +64,7 @@ export class DocumentDownloadService {
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
-      const ext = format === 'docx' ? 'docx' : 'pdf';
+      const ext = format === 'pptx' ? 'pptx' : format === 'docx' ? 'docx' : 'pdf';
       link.download = `${(documentModel.title || 'document')
         .replace(/[^a-z0-9]/gi, '-')
         .toLowerCase()}-${Date.now()}.${ext}`;

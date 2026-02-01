@@ -31,6 +31,7 @@ export class DocumentDownloadMenuComponent {
 
   readonly buttonTitle = computed(() => (this.disabled ? 'Download disabled while export is busy' : 'Download PDF'));
   readonly docxButtonTitle = computed(() => (this.disabled ? 'Download disabled while export is busy' : 'Download Word (DOCX)'));
+  readonly pptxButtonTitle = computed(() => (this.disabled ? 'Download disabled while export is busy' : 'Download PowerPoint (PPTX)'));
 
   async downloadPdf(): Promise<void> {
     if (this.disabled) return;
@@ -42,7 +43,12 @@ export class DocumentDownloadMenuComponent {
     await this.doDownload('docx');
   }
 
-  private async doDownload(format: 'pdf' | 'docx') {
+  async downloadPptx(): Promise<void> {
+    if (this.disabled) return;
+    await this.doDownload('pptx');
+  }
+
+  private async doDownload(format: 'pdf' | 'docx' | 'pptx') {
     // Ensure all widget edits are committed before exporting.
     await this.pendingChangesRegistry.flushAll();
 

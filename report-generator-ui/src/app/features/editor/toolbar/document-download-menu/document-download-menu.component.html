@@ -18,7 +18,18 @@
     [title]="docxButtonTitle()"
     style="margin-left: 4px;"
   >
-    <app-icon name="description" [size]="18"></app-icon>
+    <app-icon name="file_docx" [size]="18"></app-icon>
+  </button>
+  <button
+    type="button"
+    class="document-download-menu__button"
+    [class.document-download-menu__button--disabled]="disabled"
+    (click)="downloadPptx()"
+    [disabled]="disabled"
+    [title]="pptxButtonTitle()"
+    style="margin-left: 4px;"
+  >
+    <app-icon name="file_pptx" [size]="18"></app-icon>
   </button>
 </div>
 
