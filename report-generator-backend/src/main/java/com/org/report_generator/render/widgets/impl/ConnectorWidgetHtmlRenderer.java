@@ -679,11 +679,26 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
         return sb.toString();
     }
 
+    /**
+     * Get the effective anchor direction for a connector attachment.
+     * First checks for the rotation-aware 'dir' field (set by frontend when widget is rotated),
+     * then falls back to computing direction from the 'anchor' position.
+     */
     private String getAnchorDirection(JsonNode props, String attachmentKey) {
         if (props == null) return null;
         JsonNode attachment = props.path(attachmentKey);
         if (attachment == null || attachment.isMissingNode()) return null;
         
+        // First check for explicit direction (rotation-aware, set by frontend)
+        String dir = attachment.path("dir").asText(null);
+        if (dir != null && !dir.isEmpty()) {
+            // Validate it's a known direction
+            if ("up".equals(dir) || "down".equals(dir) || "left".equals(dir) || "right".equals(dir)) {
+                return dir;
+            }
+        }
+        
+        // Fall back to computing direction from anchor position (for unrotated widgets)
         String anchor = attachment.path("anchor").asText(null);
         if (anchor == null) return null;
         
