@@ -17,6 +17,11 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcMar;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder;
 
+/**
+ * Renderer for object/shape widgets in DOCX.
+ * Uses native Word DrawingML shapes (wps:wsp) for all shape types.
+ * Falls back to table-based rendering only for simple rectangles without special shapes.
+ */
 @Component
 public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
 
@@ -30,20 +35,45 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
 
     @Override
     public String widgetType() {
-        return "object"; // Needs to match whatever the frontend sends, assuming 'object' or 'shape'
+        return "object";
     }
 
     @Override
     public void render(Widget widget, DocxRenderContext ctx) {
         if (widget.getProps() == null) return;
+        
+        String shapeType = widget.getProps().path("shapeType").asText("rectangle");
+        
+        // Always try VML first for all shape types
+        boolean success = objectService.generateShapeWithText(ctx.docx(), widget);
+        if (success) {
+            return; // Successfully rendered as VML shape
+        }
+        
+        // Only fall back to table for basic rectangle shapes
+        // For complex shapes, if VML failed, we still don't want a table
+        if ("rectangle".equals(shapeType) || "square".equals(shapeType)) {
+            System.out.println("VML failed for rectangle, using table fallback");
+            renderAsTable(widget, ctx);
+        } else {
+            // Log that we couldn't render the shape
+            System.err.println("Failed to render shape as VML: " + shapeType);
+        }
+    }
+
+    /**
+     * Fallback renderer using a positioned table (works well for rectangles).
+     */
+    private void renderAsTable(Widget widget, DocxRenderContext ctx) {
         String html = widget.getProps().path("contentHtml").asText("");
-        boolean hasSvg = false;
-        // Render as a positioned 1x1 table to ensure text stays inside bounds.
+
         XWPFTable table = ctx.docx().createTable(1, 1);
         DocxPositioningUtil.applyTablePosition(table, widget);
 
         XWPFTableRow row = table.getRow(0);
         XWPFTableCell cell = row.getCell(0);
+        
+        // Clear default paragraphs
         if (cell.getParagraphs() != null && !cell.getParagraphs().isEmpty()) {
             int count = cell.getParagraphs().size();
             for (int i = count - 1; i >= 0; i--) {
@@ -51,6 +81,7 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
             }
         }
 
+        // Set dimensions
         if (widget.getSize() != null) {
             long wTwips = DocxPositioningUtil.toTwips(widget.getSize().getWidth());
             long hTwips = DocxPositioningUtil.toTwips(widget.getSize().getHeight());
@@ -62,16 +93,16 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
             }
         }
 
-        if (!hasSvg) {
-            String fill = normalizeColor(widget.getProps().path("fillColor").asText(null));
-            if (fill != null) {
-                cell.setColor(fill);
-            }
+        // Apply fill color
+        String fill = normalizeColor(widget.getProps().path("fillColor").asText(null));
+        if (fill != null) {
+            cell.setColor(fill);
         }
 
-        // Remove padding so text stays inside exact bounds
+        // Remove default margins
         setCellMargins(cell, 0, 0, 0, 0);
 
+        // Apply borders
         String strokeColor = null;
         int strokeWidth = 0;
         if (widget.getProps().has("stroke")) {
@@ -83,11 +114,11 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
             strokeWidth = widget.getProps().path("borderWidth").asInt(0);
             strokeColor = normalizeColor(widget.getProps().path("borderColor").asText(null));
         }
-
-        if (!hasSvg && strokeWidth > 0) {
+        if (strokeWidth > 0) {
             applyCellBorders(cell, strokeWidth, strokeColor != null ? strokeColor : "000000");
         }
 
+        // Vertical alignment
         String vAlign = widget.getProps().path("verticalAlign").asText("top").toLowerCase();
         switch (vAlign) {
             case "middle" -> cell.setVerticalAlignment(XWPFVertAlign.CENTER);
@@ -95,11 +126,13 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
             default -> cell.setVerticalAlignment(XWPFVertAlign.TOP);
         }
 
+        // Padding
         int padding = widget.getProps().path("padding").asInt(0);
         if (padding > 0) {
             setCellMargins(cell, padding * 15, padding * 15, padding * 15, padding * 15);
         }
 
+        // Add text content
         if (html != null && !html.isBlank()) {
             String align = widget.getProps().path("textAlign").asText("");
             String wrapped = html;
@@ -107,8 +140,6 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
                 wrapped = "<div style=\"text-align: " + align + ";\">" + html + "</div>";
             }
             htmlConverter.appendHtmlToCell(cell, wrapped);
-        } else {
-            objectService.generateObject(ctx.docx(), widget.getProps());
         }
     }
 
