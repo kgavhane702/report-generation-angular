@@ -1972,6 +1972,9 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     if (!this.isRotating) return;
 
     const widget = this.displayWidget();
+    const persisted = this.persistedWidget();
+    const startRotation = this.rotationStartState?.initialRotation ?? (widget?.rotation ?? 0);
+    const finalRotation = widget?.rotation ?? startRotation;
     
     // Clear rotation state
     this._isRotating.set(false);
@@ -1986,13 +1989,42 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       }
     }
 
+    const hasRotationChange = finalRotation !== startRotation;
+
+    const previousWidgetOverride = persisted
+      ? { ...persisted, rotation: startRotation }
+      : widget
+        ? { ...widget, rotation: startRotation }
+        : undefined;
+
+    // Ensure we have a draft to commit when rotation actually changed
+    if (hasRotationChange && !this.draftState.hasDraft(this.widgetId)) {
+      this.draftState.updateDraftRotation(this.widgetId, finalRotation);
+    }
+
+    const shouldCommit = hasRotationChange || connectorDraftIds.size > 0;
+
     // Commit rotation and any connector drafts to store
-    if (widget) {
+    if (widget && shouldCommit) {
       if (connectorDraftIds.size > 0) {
         // Include connector drafts in the batch commit
-        this.draftState.commitDraftsBatched([this.widgetId, ...connectorDraftIds], { recordUndo: true });
+        this.draftState.commitDraftsBatched(
+          [this.widgetId, ...connectorDraftIds],
+          {
+            recordUndo: true,
+            ...(previousWidgetOverride ? { previousWidgetOverrides: { [this.widgetId]: previousWidgetOverride } } : {}),
+          }
+        );
       } else {
-        this.draftState.commitDraft(this.widgetId, { recordUndo: true });
+        this.draftState.commitDraft(this.widgetId, {
+          recordUndo: true,
+          ...(previousWidgetOverride ? { previousWidgetOverride } : {}),
+        });
+      }
+    } else if (!shouldCommit) {
+      // No actual rotation change; discard any no-op draft to avoid stale overrides
+      if (this.draftState.hasDraft(this.widgetId)) {
+        this.draftState.discardDraft(this.widgetId);
       }
     }
   }

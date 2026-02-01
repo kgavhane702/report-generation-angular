@@ -30,6 +30,10 @@ export interface CommitDraftOptions {
    * Default is false to preserve existing behavior (draft commits were historically not undoable).
    */
   recordUndo?: boolean;
+  /** Optional previous widget snapshot override for undo (used for precise history like rotation). */
+  previousWidgetOverride?: WidgetModel | WidgetEntity;
+  /** Optional per-widget previous snapshots for batch commits. */
+  previousWidgetOverrides?: Record<string, WidgetModel | WidgetEntity>;
 }
 
 /**
@@ -239,7 +243,8 @@ export class DraftStateService {
     if (Object.keys(changes).length > 0) {
       if (recordUndo) {
         const persisted = this.widgetEntities()[widgetId];
-        if (persisted) {
+        const previousWidget = options?.previousWidgetOverride ?? persisted;
+        if (previousWidget && persisted) {
           // IMPORTANT: ensure props is fully merged at commit time; NgRx updateOne does NOT deep-merge props.
           const mergedProps = changes.props
             ? ({ ...(persisted.props ?? {}), ...(changes.props as unknown as WidgetProps) } as WidgetProps)
@@ -248,7 +253,7 @@ export class DraftStateService {
           this.documentService.updateWidget(persisted.pageId, widgetId, {
             ...changes,
             ...(mergedProps ? { props: mergedProps } : {}),
-          } as unknown as Partial<WidgetModel>);
+          } as unknown as Partial<WidgetModel>, previousWidget);
         } else {
           // Fallback: if we can't resolve persisted entity/pageId, at least commit to store.
           this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes }));
@@ -303,10 +308,12 @@ export class DraftStateService {
     if (widgetIds.length === 0) return;
 
     const recordUndo = options?.recordUndo === true;
+    const previousWidgetOverrides = options?.previousWidgetOverrides ?? {};
     const updates: Array<{
       pageId: string;
       widgetId: string;
       changes: Partial<WidgetModel>;
+      previousWidget?: WidgetModel | WidgetEntity;
     }> = [];
 
     for (const widgetId of widgetIds) {
@@ -357,6 +364,9 @@ export class DraftStateService {
           ...changes,
           ...(mergedProps ? { props: mergedProps } : {}),
         } as unknown as Partial<WidgetModel>,
+        ...(recordUndo && previousWidgetOverrides[widgetId]
+          ? { previousWidget: previousWidgetOverrides[widgetId] }
+          : {}),
       });
 
       // Clear the draft and stop editing

@@ -177,10 +177,11 @@ export class DocumentService {
   updateWidget(
     pageId: string,
     widgetId: string,
-    mutation: Partial<WidgetModel>
+    mutation: Partial<WidgetModel>,
+    previousWidgetOverride?: WidgetModel | WidgetEntity
   ): void {
     if (!this.canEdit()) return;
-    const previousWidget = this.widgetEntities()[widgetId];
+    const previousWidget = previousWidgetOverride ?? this.widgetEntities()[widgetId];
     if (!previousWidget) {
       return;
     }
@@ -264,6 +265,7 @@ export class DocumentService {
       pageId: string;
       widgetId: string;
       changes: Partial<WidgetModel>;
+      previousWidget?: WidgetModel | WidgetEntity;
     }>
   ): void {
     if (!this.canEdit()) return;
@@ -271,14 +273,14 @@ export class DocumentService {
 
     const entities = this.widgetEntities();
     const updateData = updates
-      .map(({ pageId, widgetId, changes }) => {
-        const previousWidget = entities[widgetId];
-        if (!previousWidget) return null;
+      .map(({ pageId, widgetId, changes, previousWidget }) => {
+        const resolvedPreviousWidget = previousWidget ?? entities[widgetId];
+        if (!resolvedPreviousWidget) return null;
         return {
           pageId,
           widgetId,
           changes,
-          previousWidget: deepClone(previousWidget),
+          previousWidget: deepClone(resolvedPreviousWidget),
         };
       })
       .filter((u): u is NonNullable<typeof u> => u !== null);
