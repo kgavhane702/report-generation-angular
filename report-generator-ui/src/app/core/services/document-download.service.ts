@@ -22,7 +22,8 @@ export class DocumentDownloadService {
   private readonly apiUrl = '/api/document/export';
 
   async requestDownloadBlob(
-    documentModel: DocumentModel
+    documentModel: DocumentModel,
+    format: DocumentDownloadFormat = 'pdf'
   ): Promise<Observable<Blob>> {
     // Run URL table/text preloading and chart capture in parallel.
     // - URL preloading is network-bound (backend calls)
@@ -39,8 +40,7 @@ export class DocumentDownloadService {
     const merged = applyExportedChartImages(documentWithUrlData, chartExportDoc);
     const documentWithLogo = await convertDocumentLogo(merged);
 
-    // Frontend currently supports PDF only.
-    const url = `${this.apiUrl}?format=pdf`;
+    const url = `${this.apiUrl}?format=${format}`;
     return this.http.post<Blob>(
       url,
       { document: documentWithLogo },
@@ -51,11 +51,11 @@ export class DocumentDownloadService {
     );
   }
 
-  async download(documentModel: DocumentModel): Promise<void> {
-    const label = 'PDF';
+  async download(documentModel: DocumentModel, format: DocumentDownloadFormat = 'pdf'): Promise<void> {
+    const label = format === 'docx' ? 'Word Document' : 'PDF';
     this.exportUi.start(`Generating ${label}…`);
     try {
-      const download$ = await this.requestDownloadBlob(documentModel);
+      const download$ = await this.requestDownloadBlob(documentModel, format);
       this.exportUi.updateMessage(`Generating ${label}…`);
 
       const blob = await firstValueFrom(download$);
@@ -64,9 +64,10 @@ export class DocumentDownloadService {
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
+      const ext = format === 'docx' ? 'docx' : 'pdf';
       link.download = `${(documentModel.title || 'document')
         .replace(/[^a-z0-9]/gi, '-')
-        .toLowerCase()}-${Date.now()}.pdf`;
+        .toLowerCase()}-${Date.now()}.${ext}`;
       window.document.body.appendChild(link);
       link.click();
       window.document.body.removeChild(link);
@@ -80,7 +81,7 @@ export class DocumentDownloadService {
     const label = 'PDF';
     this.exportUi.start(`Generating ${label}…`);
     try {
-      const download$ = await this.requestDownloadBlob(documentModel);
+      const download$ = await this.requestDownloadBlob(documentModel, 'pdf');
       this.exportUi.updateMessage(`Generating ${label}…`);
 
       const blob = await firstValueFrom(download$);

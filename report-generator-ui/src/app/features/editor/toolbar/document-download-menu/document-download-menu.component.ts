@@ -29,29 +29,38 @@ export class DocumentDownloadMenuComponent {
   private readonly documentService = inject(DocumentService);
   private readonly notify = inject(NotificationService);
 
-  readonly buttonTitle = computed(() => (this.disabled ? 'Download PDF disabled while export is busy' : 'Download PDF'));
+  readonly buttonTitle = computed(() => (this.disabled ? 'Download disabled while export is busy' : 'Download PDF'));
+  readonly docxButtonTitle = computed(() => (this.disabled ? 'Download disabled while export is busy' : 'Download Word (DOCX)'));
 
   async downloadPdf(): Promise<void> {
     if (this.disabled) return;
+    await this.doDownload('pdf');
+  }
 
+  async downloadDocx(): Promise<void> {
+    if (this.disabled) return;
+    await this.doDownload('docx');
+  }
+
+  private async doDownload(format: 'pdf' | 'docx') {
     // Ensure all widget edits are committed before exporting.
     await this.pendingChangesRegistry.flushAll();
 
     const document = this.documentService.document;
     if (!document) {
-      this.notify.info('No document to export', 'Download PDF');
+      this.notify.info('No document to export', `Download ${format.toUpperCase()}`);
       return;
     }
 
     try {
       const t0 = performance.now();
-      await this.documentDownload.download(document);
+      await this.documentDownload.download(document, format);
       const ms = Math.round(performance.now() - t0);
-      this.notify.success(`PDF generated successfully (${ms}ms)!`, 'Download ready');
+      this.notify.success(`${format.toUpperCase()} generated successfully (${ms}ms)!`, 'Download ready');
     } catch (error) {
       const details = error instanceof Error ? error.message : 'Unknown error';
       this.notify.error(
-        `Failed to generate PDF: ${details}. Make sure the backend is running (default via proxy: http://localhost:8080).`,
+        `Failed to generate ${format.toUpperCase()}: ${details}. Make sure the backend is running (default via proxy: http://localhost:8080).`,
         'Download failed'
       );
     }

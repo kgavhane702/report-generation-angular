@@ -9,6 +9,18 @@
   >
     <app-icon name="picture_as_pdf" [size]="18"></app-icon>
   </button>
+  <button
+    type="button"
+    class="document-download-menu__button"
+    [class.document-download-menu__button--disabled]="disabled"
+    (click)="downloadDocx()"
+    [disabled]="disabled"
+    [title]="docxButtonTitle()"
+    style="margin-left: 4px;"
+  >
+    <app-icon name="description" [size]="18"></app-icon>
+  </button>
 </div>
+
 
 

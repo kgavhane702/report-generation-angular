@@ -83,6 +83,7 @@ public class DocumentExportController {
         if (f.isEmpty()) f = "pdf";
         return switch (f) {
             case "pdf" -> ExportFormat.PDF;
+            case "docx" -> ExportFormat.DOCX;
             default -> throw new ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST,
                     "Unsupported format: " + raw
