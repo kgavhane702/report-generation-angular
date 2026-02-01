@@ -11,7 +11,9 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTbl;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHAnchor;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STVAnchor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STWrap;
 
@@ -65,22 +67,37 @@ public final class DocxPositioningUtil {
     public static void applyTablePosition(XWPFTable table, Widget widget) {
         if (table == null || widget == null) return;
         WidgetPosition pos = widget.getPosition();
-        if (pos == null) return;
-
-        long x = toTwips(pos.getX());
-        long y = toTwips(pos.getY());
+        WidgetSize size = widget.getSize();
 
         CTTbl ctTbl = table.getCTTbl();
         CTTblPr pr = ctTbl.getTblPr();
         if (pr == null) {
             pr = ctTbl.addNewTblPr();
         }
-        CTTblPPr tblp = pr.getTblpPr();
-        if (tblp == null) {
-            tblp = pr.addNewTblpPr();
+
+        // Apply position
+        if (pos != null) {
+            long x = toTwips(pos.getX());
+            long y = toTwips(pos.getY());
+
+            CTTblPPr tblp = pr.getTblpPr();
+            if (tblp == null) {
+                tblp = pr.addNewTblpPr();
+            }
+            tblp.setTblpX(BigInteger.valueOf(x));
+            tblp.setTblpY(BigInteger.valueOf(y));
+            // Anchor to page for absolute positioning
+            tblp.setHorzAnchor(STHAnchor.PAGE);
+            tblp.setVertAnchor(STVAnchor.PAGE);
         }
-        tblp.setTblpX(BigInteger.valueOf(x));
-        tblp.setTblpY(BigInteger.valueOf(y));
+
+        // Apply width from widget size
+        if (size != null && size.getWidth() > 0) {
+            long widthTwips = toTwips(size.getWidth());
+            CTTblWidth tblW = pr.isSetTblW() ? pr.getTblW() : pr.addNewTblW();
+            tblW.setW(BigInteger.valueOf(widthTwips));
+            tblW.setType(STTblWidth.DXA);
+        }
     }
 
     public static long toTwips(Double px) {

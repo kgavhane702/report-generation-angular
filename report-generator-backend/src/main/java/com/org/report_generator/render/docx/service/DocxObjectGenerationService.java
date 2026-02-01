@@ -55,13 +55,15 @@ public class DocxObjectGenerationService {
         // Callouts  
         Map.entry("callout-rectangle", new VmlShapeInfo("shape", "41", "m,l,15429r8256,l10800,21600,13344,15429,21600,15429,21600,,,xe")),
         Map.entry("callout-rounded", new VmlShapeInfo("shape", "42", "m3590,qy,3590l,12209qx3590,15799l8256,15799,10800,21600,13344,15799,18010,15799qx21600,12209l21600,3590qy18010,l3590,xe")),
-        Map.entry("callout-cloud", new VmlShapeInfo("shape", "106", null)),
+        Map.entry("callout-cloud", new VmlShapeInfo("shape", "106",
+            "m3000,12000l4000,7000,8000,5000,11000,3500,15000,4500,18000,8000,18500,12000,17000,15000,14000,17000,9000,17500,5000,15500xe")),
         
         // Stars
         Map.entry("star-4", new VmlShapeInfo("shape", "187", "m10800,l8151,8151,,10800,8151,13449,10800,21600,13449,13449,21600,10800,13449,8151xe")),
         Map.entry("star-5", new VmlShapeInfo("shape", "12", "m10800,l8259,8259,,8259,6171,12948,4122,21600,10800,16200,17478,21600,15429,12948,21600,8259,13341,8259xe")),
         Map.entry("star-6", new VmlShapeInfo("shape", "188", "m10800,l8134,5400,,5400,5400,10800,,16200,8134,16200,10800,21600,13466,16200,21600,16200,16200,10800,21600,5400,13466,5400xe")),
-        Map.entry("star-8", new VmlShapeInfo("shape", "58", null)),
+        Map.entry("star-8", new VmlShapeInfo("shape", "58",
+            "m10800,0l12866,5811,18437,3163,15789,8734,21600,10800,15789,12866,18437,18437,12866,15789,10800,21600,8734,15789,3163,18437,5811,12866,0,10800,5811,8734,3163,3163,8734,5811xe")),
         
         // Other shapes
         Map.entry("banner", new VmlShapeInfo("shape", "53", null)),
@@ -69,7 +71,8 @@ public class DocxObjectGenerationService {
         Map.entry("heart", new VmlShapeInfo("shape", "74", null)),
         Map.entry("lightning", new VmlShapeInfo("shape", "73", null)),
         Map.entry("moon", new VmlShapeInfo("shape", "184", null)),
-        Map.entry("cloud", new VmlShapeInfo("shape", "75", null)),
+        Map.entry("cloud", new VmlShapeInfo("shape", "75",
+            "m3000,12000l4000,7000,8000,5000,11000,3500,15000,4500,18000,8000,18500,12000,17000,15000,14000,17000,9000,17500,5000,15500xe")),
         
         // Lines/connectors
         Map.entry("line", new VmlShapeInfo("line", null, null)),
