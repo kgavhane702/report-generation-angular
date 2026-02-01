@@ -219,6 +219,73 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     | null = null;
 
   /**
+   * Multi-drag state is shared by both CDK drag (regular widgets) and the custom
+   * connector-stroke drag (connectors are cdkDragDisabled).
+   *
+   * Key rule: we exclude connectors from `multiDragState.widgetIds` because attached
+   * connectors should be updated via attachment logic (updateAttachedConnectors),
+   * not by directly translating them.
+   */
+
+  private computeMultiDragStateExcludingConnectors(): {
+    widgetIds: string[];
+    startPositions: Map<string, { x: number; y: number }>;
+  } | null {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    if (selectedIds.length <= 1) return null;
+    if (!selectedIds.includes(this.widgetId)) return null;
+
+    const entities = this.widgetEntitiesSignal();
+    const startPositions = new Map<string, { x: number; y: number }>();
+
+    for (const id of selectedIds) {
+      const persisted = entities[id];
+      if (!persisted || persisted.pageId !== this.pageId) continue;
+      if (persisted.type === 'connector') continue;
+
+      const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
+      startPositions.set(id, { x: merged.position.x, y: merged.position.y });
+    }
+
+    const widgetIds = selectedIds.filter(id => startPositions.has(id));
+    if (widgetIds.length <= 1) return null;
+
+    return { widgetIds, startPositions };
+  }
+
+  private applyMultiDragDelta(dx: number, dy: number, options?: { skipPrimaryDraftUpdate?: boolean }): Set<string> {
+    if (!this.multiDragState) return new Set<string>();
+
+    const draggingWidgetIds = new Set<string>(this.multiDragState.widgetIds);
+
+    for (const id of this.multiDragState.widgetIds) {
+      if (options?.skipPrimaryDraftUpdate && id === this.widgetId) continue;
+      const start = this.multiDragState.startPositions.get(id);
+      if (!start) continue;
+      this.draftState.updateDraftPosition(id, { x: start.x + dx, y: start.y + dy });
+    }
+
+    return draggingWidgetIds;
+  }
+
+  private commitMultiDragWithConnectorDrafts(widgetIds: string[]): void {
+    if (widgetIds.length === 0) return;
+
+    const connectorDraftIds = new Set<string>();
+    for (const draggedId of widgetIds) {
+      const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(this.pageId, draggedId);
+      for (const { connectorId } of attachedConnectors) {
+        if (this.draftState.getDraft(connectorId)) {
+          connectorDraftIds.add(connectorId);
+        }
+      }
+    }
+
+    const allIdsToCommit = [...widgetIds, ...connectorDraftIds];
+    this.draftState.commitDraftsBatched(allIdsToCommit, { recordUndo: true });
+  }
+
+  /**
    * CDK Drag works in screen px, but our canvas is zoomed via CSS `transform: scale(...)`.
    * Without compensating, drag will feel "too slow" when zoomed out and "too fast" when zoomed in.
    *
@@ -940,31 +1007,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.connectorStrokeDragAllowedForGesture = null;
     // Capture starting frame so we can compute an absolute frame during drag moves.
     this.dragStartFrame = { ...this.frame };
-    this.multiDragState = null;
-
-    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
-    if (selectedIds.length > 1 && selectedIds.includes(this.widgetId)) {
-      const entities = this.widgetEntitiesSignal();
-      const startPositions = new Map<string, { x: number; y: number }>();
-      for (const id of selectedIds) {
-        const persisted = entities[id];
-        if (!persisted || persisted.pageId !== this.pageId) continue;
-        
-        // IMPORTANT: Exclude connectors from multi-drag position updates.
-        // Connectors attached to dragged widgets are moved via updateAttachedConnectors().
-        // If we include them here, they would be moved TWICE (once directly, once via attachment logic),
-        // causing them to move incorrectly (double the intended distance).
-        if (persisted.type === 'connector') continue;
-        
-        const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
-        startPositions.set(id, { x: merged.position.x, y: merged.position.y });
-      }
-
-      const widgetIds = selectedIds.filter(id => startPositions.has(id));
-      if (widgetIds.length > 1) {
-        this.multiDragState = { widgetIds, startPositions };
-      }
-    }
+    this.multiDragState = this.computeMultiDragStateExcludingConnectors();
     // Start drag tracking and guides only when actual drag begins
     this.uiState.startDragging(this.widgetId);
     this.guides.start(this.pageId, this.widgetId, 'drag');
@@ -987,19 +1030,12 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // We only update the guides overlay here (no snapping / no drag position mutation).
     this.guides.updateDrag(this.pageId, this.widgetId, rawFrame, this.pageWidth, this.pageHeight);
 
-    // Build set of widgets being dragged for connector logic
-    const draggingWidgetIds = new Set<string>([this.widgetId]);
-    if (this.multiDragState) {
-      const dx = p?.x ?? 0;
-      const dy = p?.y ?? 0;
-      for (const id of this.multiDragState.widgetIds) {
-        draggingWidgetIds.add(id);
-        if (id === this.widgetId) continue;
-        const start = this.multiDragState.startPositions.get(id);
-        if (!start) continue;
-        this.draftState.updateDraftPosition(id, { x: start.x + dx, y: start.y + dy });
-      }
-    }
+    const dx = p?.x ?? 0;
+    const dy = p?.y ?? 0;
+
+    const draggingWidgetIds = this.multiDragState
+      ? this.applyMultiDragDelta(dx, dy, { skipPrimaryDraftUpdate: true })
+      : new Set<string>([this.widgetId]);
 
     // Keep any attached connectors in sync during the drag gesture.
     this.updateAttachedConnectors({ frameOverride: rawFrame, mode: 'draft', draggingWidgetIds });
@@ -1027,24 +1063,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     this.draftState.updateDraftPosition(this.widgetId, newPosition);
 
     if (this.multiDragState && this.multiDragState.widgetIds.length > 1) {
-      // Batch commit all dragged widgets as a single undo operation
-      const allDraggedIds = this.multiDragState.widgetIds;
-      
-      // Collect connector IDs that have drafts (created during drag via updateAttachedConnectors).
-      // These must be committed along with the widgets, otherwise connector positions break.
-      const connectorDraftIds = new Set<string>();
-      for (const draggedId of allDraggedIds) {
-        const attachedConnectors = this.connectorAnchorService.findConnectorsAttachedToWidget(this.pageId, draggedId);
-        for (const { connectorId } of attachedConnectors) {
-          if (this.draftState.getDraft(connectorId)) {
-            connectorDraftIds.add(connectorId);
-          }
-        }
-      }
-      
-      // Include connector drafts in the batch commit
-      const allIdsToCommit = [...allDraggedIds, ...connectorDraftIds];
-      this.draftState.commitDraftsBatched(allIdsToCommit, { recordUndo: true });
+      this.commitMultiDragWithConnectorDrafts(this.multiDragState.widgetIds);
       this.multiDragState = null;
     } else {
       // Single widget drag - commit normally
@@ -1449,23 +1468,7 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       startPosition: { x: widget.position.x, y: widget.position.y },
     };
 
-    this.multiDragState = null;
-    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
-    if (selectedIds.length > 1 && selectedIds.includes(this.widgetId)) {
-      const entities = this.widgetEntitiesSignal();
-      const startPositions = new Map<string, { x: number; y: number }>();
-      for (const id of selectedIds) {
-        const persisted = entities[id];
-        if (!persisted || persisted.pageId !== this.pageId) continue;
-        const merged = this.draftState.getMergedWidget(id, persisted) ?? persisted;
-        startPositions.set(id, { x: merged.position.x, y: merged.position.y });
-      }
-
-      const widgetIds = selectedIds.filter(id => startPositions.has(id));
-      if (widgetIds.length > 1) {
-        this.multiDragState = { widgetIds, startPositions };
-      }
-    }
+    this.multiDragState = this.computeMultiDragStateExcludingConnectors();
 
     this.dragStartFrame = { ...this.frame };
     this.guides.start(this.pageId, this.widgetId, 'drag');
@@ -1491,16 +1494,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       y: this.connectorWholeDrag.startPosition.y + dy,
     };
 
-    // Smoothly update via draft (no store churn during gesture)
-    this.draftState.updateDraftPosition(this.widgetId, nextPosition);
-
+    // Multi-selection drag started from a connector stroke should behave like normal widget multi-drag:
+    // - Move ONLY non-connector widgets directly
+    // - Update connectors via attachment logic (so they keep attached to unselected widgets)
     if (this.multiDragState) {
-      for (const id of this.multiDragState.widgetIds) {
-        if (id === this.widgetId) continue;
-        const start = this.multiDragState.startPositions.get(id);
-        if (!start) continue;
-        this.draftState.updateDraftPosition(id, { x: start.x + dx, y: start.y + dy });
-      }
+      const draggingWidgetIds = this.applyMultiDragDelta(dx, dy);
+      // Keep connectors in sync during the gesture.
+      this.updateAttachedConnectors({ mode: 'draft', draggingWidgetIds });
+    } else {
+      // Single connector drag: move the connector itself.
+      this.draftState.updateDraftPosition(this.widgetId, nextPosition);
     }
 
     // Update guide overlay (virtual)
@@ -1524,14 +1527,55 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     this.connectorWholeDrag = null;
 
+    // Single connector drag: if the user dragged a connector *away* from an attached widget,
+    // treat that as an explicit detach so future widget moves don't auto-reattach.
+    // In multi-selection mode we intentionally DO NOT detach here; connectors should stay attached
+    // and be updated via attachment logic from the dragged widgets.
+    if (!this.multiDragState) {
+      const widget = this.displayWidget();
+      if (widget?.type === 'connector') {
+        const props = widget.props as any;
+        const startAttachment = props?.startAttachment as AnchorAttachment | null | undefined;
+        const endAttachment = props?.endAttachment as AnchorAttachment | null | undefined;
+        const startPoint = props?.startPoint;
+        const endPoint = props?.endPoint;
+
+        if ((startAttachment || endAttachment) && startPoint && endPoint) {
+          const absStart = { x: widget.position.x + startPoint.x, y: widget.position.y + startPoint.y };
+          const absEnd = { x: widget.position.x + endPoint.x, y: widget.position.y + endPoint.y };
+
+          const startAnchorPos = startAttachment
+            ? this.connectorAnchorService.getAttachedEndpointPosition(startAttachment)
+            : null;
+          const endAnchorPos = endAttachment
+            ? this.connectorAnchorService.getAttachedEndpointPosition(endAttachment)
+            : null;
+
+          const threshold = this.connectorAnchorService.SNAP_THRESHOLD;
+          const startDist = startAnchorPos ? Math.hypot(absStart.x - startAnchorPos.x, absStart.y - startAnchorPos.y) : 0;
+          const endDist = endAnchorPos ? Math.hypot(absEnd.x - endAnchorPos.x, absEnd.y - endAnchorPos.y) : 0;
+
+          const detachChanges: Record<string, any> = {};
+          if (startAttachment && startAnchorPos && startDist > threshold) {
+            detachChanges['startAttachment'] = null;
+          }
+          if (endAttachment && endAnchorPos && endDist > threshold) {
+            detachChanges['endAttachment'] = null;
+          }
+
+          if (Object.keys(detachChanges).length > 0) {
+            this.draftState.updateDraftProps(this.widgetId, detachChanges as any);
+          }
+        }
+      }
+    }
+
     // Commit final draft to store (undoable)
-    if (this.multiDragState && this.multiDragState.widgetIds.length > 1) {
-      // Batch commit all dragged widgets as a single undo operation
-      const allDraggedIds = this.multiDragState.widgetIds;
-      this.draftState.commitDraftsBatched(allDraggedIds, { recordUndo: true });
+    if (this.multiDragState && this.multiDragState.widgetIds.length > 0) {
+      this.commitMultiDragWithConnectorDrafts(this.multiDragState.widgetIds);
       this.multiDragState = null;
     } else {
-      // Single widget drag
+      // Single connector drag
       if (this.draftState.hasDraft(this.widgetId)) {
         this.draftState.commitDraft(this.widgetId, { recordUndo: true });
       }
