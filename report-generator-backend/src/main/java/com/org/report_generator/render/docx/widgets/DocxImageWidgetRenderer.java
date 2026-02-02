@@ -1,16 +1,13 @@
 package com.org.report_generator.render.docx.widgets;
 
 import com.org.report_generator.model.document.Widget;
+import com.org.report_generator.model.document.WidgetSize;
 import com.org.report_generator.render.docx.DocxRenderContext;
 import com.org.report_generator.render.docx.DocxWidgetRenderer;
-import com.org.report_generator.render.docx.service.DocxPositioningUtil;
-import org.apache.poi.util.Units;
+import com.org.report_generator.render.docx.service.DocxDrawingUtil;
+import com.org.report_generator.render.docx.service.SvgToPngConverter;
 import org.apache.poi.xwpf.usermodel.Document;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.stereotype.Component;
-
-import java.io.ByteArrayInputStream;
 import java.util.Base64;
 
 @Component
@@ -42,22 +39,22 @@ public class DocxImageWidgetRenderer implements DocxWidgetRenderer {
             String base64 = src.substring(comma + 1);
             byte[] bytes = Base64.getDecoder().decode(base64);
 
+            boolean isSvg = meta.toLowerCase().contains("svg");
+            byte[] payload = bytes;
             int pictureType = mapPictureType(meta);
-            XWPFParagraph p = ctx.docx().createParagraph();
-            DocxPositioningUtil.applyParagraphFrame(p, widget);
-            XWPFRun run = p.createRun();
 
-            int widthEmu = Units.toEMU(300);
-            int heightEmu = Units.toEMU(200);
-            if (widget.getSize() != null) {
-                Double w = widget.getSize().getWidth();
-                Double h = widget.getSize().getHeight();
-                if (w != null && w > 0) widthEmu = (int) Math.round(w * 9525);
-                if (h != null && h > 0) heightEmu = (int) Math.round(h * 9525);
+            if (isSvg) {
+                WidgetSize size = widget.getSize();
+                payload = SvgToPngConverter.convert(bytes,
+                    size != null ? size.getWidth() : null,
+                    size != null ? size.getHeight() : null);
+                if (payload == null || payload.length == 0) return;
+                pictureType = Document.PICTURE_TYPE_PNG;
             }
 
-            run.addPicture(new ByteArrayInputStream(bytes), pictureType, "image", widthEmu, heightEmu);
-        } catch (Exception ignored) {
+            DocxDrawingUtil.createAnchoredImage(ctx.docx(), widget, payload, pictureType, "Image");
+        } catch (Exception e) {
+            System.err.println("Failed to render image in DOCX: " + e.getMessage());
         }
     }
 

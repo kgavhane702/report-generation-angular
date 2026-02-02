@@ -47,17 +47,20 @@ public class DocxGeneratorService {
             List<Page> pages = collectPages(document);
             logger.info("Generating DOCX for {} pages", pages.size());
 
-            applyPageSettings(doc, document, pages.isEmpty() ? null : pages.get(0));
+            if (pages.isEmpty()) {
+                applyPageSettingsToBody(doc, document, null);
+            }
 
             // Iterate Pages
             for (int i = 0; i < pages.size(); i++) {
                 Page page = pages.get(i);
                 renderPage(doc, page, document);
-                
-                // Add page break after each page except the last one
+
+                // Apply section/page settings for this page, then insert page break if needed.
+                XWPFParagraph sect = doc.createParagraph();
+                applyPageSettingsToParagraph(sect, document, page);
                 if (i < pages.size() - 1) {
-                    XWPFParagraph p = doc.createParagraph();
-                    p.setPageBreak(true);
+                    sect.setPageBreak(true);
                 }
             }
 
@@ -112,7 +115,7 @@ public class DocxGeneratorService {
         }
     }
 
-    private void applyPageSettings(XWPFDocument doc, DocumentModel document, Page page) {
+    private void applyPageSettingsToBody(XWPFDocument doc, DocumentModel document, Page page) {
         PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
         double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(254d);
         double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(190.5d);
@@ -126,6 +129,28 @@ public class DocxGeneratorService {
                 ? doc.getDocument().getBody().getSectPr()
                 : doc.getDocument().getBody().addNewSectPr();
 
+        applyPageSettings(sectPr, widthMm, heightMm, portrait);
+    }
+
+    private void applyPageSettingsToParagraph(XWPFParagraph paragraph, DocumentModel document, Page page) {
+        if (paragraph == null) return;
+        PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
+        double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(254d);
+        double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(190.5d);
+
+        String orientation = page != null ? Optional.ofNullable(page.getOrientation()).orElse("landscape") : "landscape";
+        boolean portrait = orientation.equalsIgnoreCase("portrait");
+        double widthMm = portrait ? Math.min(baseWidth, baseHeight) : Math.max(baseWidth, baseHeight);
+        double heightMm = portrait ? Math.max(baseWidth, baseHeight) : Math.min(baseWidth, baseHeight);
+
+        var ctp = paragraph.getCTP();
+        var ppr = ctp.isSetPPr() ? ctp.getPPr() : ctp.addNewPPr();
+        CTSectPr sectPr = ppr.isSetSectPr() ? ppr.getSectPr() : ppr.addNewSectPr();
+
+        applyPageSettings(sectPr, widthMm, heightMm, portrait);
+    }
+
+    private void applyPageSettings(CTSectPr sectPr, double widthMm, double heightMm, boolean portrait) {
         CTPageSz pageSz = sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
         pageSz.setW(BigInteger.valueOf(mmToTwips(widthMm)));
         pageSz.setH(BigInteger.valueOf(mmToTwips(heightMm)));

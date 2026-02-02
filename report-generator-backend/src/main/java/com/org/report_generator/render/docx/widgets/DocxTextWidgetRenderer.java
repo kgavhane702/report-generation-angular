@@ -4,7 +4,7 @@ import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.render.docx.DocxRenderContext;
 import com.org.report_generator.render.docx.DocxWidgetRenderer;
 import com.org.report_generator.render.docx.service.HtmlToDocxConverter;
-import com.org.report_generator.render.docx.service.DocxPositioningUtil;
+import com.org.report_generator.render.docx.service.DocxDrawingUtil;
 import org.springframework.stereotype.Component;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
@@ -31,11 +31,12 @@ public class DocxTextWidgetRenderer implements DocxWidgetRenderer {
         if (widget.getProps() == null) return;
         String html = widget.getProps().path("contentHtml").asText("");
         if (html == null || html.isBlank()) return;
-        var p = ctx.docx().createParagraph();
-        DocxPositioningUtil.applyParagraphFrame(p, widget);
-        applyBackground(p, widget.getProps().path("backgroundColor").asText(null));
-        applyAlignment(p, widget.getProps().path("textAlign").asText(null));
-        htmlConverter.appendHtml(p, html);
+        
+        String backgroundColor = widget.getProps().path("backgroundColor").asText(null);
+        String textAlign = widget.getProps().path("textAlign").asText(null);
+        
+        // Use DrawingML text box for proper absolute positioning
+        DocxDrawingUtil.createTextBox(ctx.docx(), widget, html, backgroundColor, textAlign);
     }
 
     private void applyBackground(org.apache.poi.xwpf.usermodel.XWPFParagraph p, String color) {
