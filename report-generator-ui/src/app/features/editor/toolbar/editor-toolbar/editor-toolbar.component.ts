@@ -40,6 +40,7 @@ import { SettingsDialogComponent } from '../header-footer-edit-dialog/header-foo
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
+  private static imageInsertIdCounter = 0;
   private readonly widgetFactory = inject(WidgetFactoryService);
   protected readonly documentService = inject(DocumentService);
   private readonly editorState = inject(EditorStateService);
@@ -116,6 +117,7 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
   readonly imageInsertFileName = signal<string | null>(null);
   readonly imageInsertInProgress = signal(false);
   readonly imageInsertError = signal<string | null>(null);
+  readonly imageInsertInputId = `editorToolbarImageInsertInput-${++EditorToolbarComponent.imageInsertIdCounter}`;
 
   // Image constraints
   private readonly IMAGE_MAX_FILE_SIZE = 10 * 1024 * 1024;

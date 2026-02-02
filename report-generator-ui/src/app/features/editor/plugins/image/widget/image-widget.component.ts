@@ -232,11 +232,6 @@ export class ImageWidgetComponent implements OnInit, OnDestroy, OnChanges {
     this.cdr.markForCheck();
   }
 
-  onImageClick(): void {
-    // Clicking the image should always open the upload/replace dialog (as requested).
-    this.openUploadDialog();
-  }
-
   private convertFileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

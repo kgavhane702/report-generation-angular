@@ -205,7 +205,17 @@
   position: absolute;
   border: 1px dashed rgba(99, 102, 241, 0.9);
   background: rgba(99, 102, 241, 0.12);
-  z-index: 1200;
+  z-index: 9000;
   pointer-events: none;
+}
+
+.page__drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 8000;
+  background: transparent;
+  pointer-events: all;
+  cursor: crosshair;
 }
 

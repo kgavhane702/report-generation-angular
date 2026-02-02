@@ -218,10 +218,10 @@
           accept="image/*"
           (change)="onImageInsertFileSelected($event)"
           class="editor-toolbar__image-insert-file-input"
-          id="editorToolbarImageInsertInput"
+          [attr.id]="imageInsertInputId"
         />
         <label
-          for="editorToolbarImageInsertInput"
+          [attr.for]="imageInsertInputId"
           class="editor-toolbar__image-insert-file-label"
           [class.editor-toolbar__image-insert-file-label--disabled]="imageInsertInProgress()"
         >
