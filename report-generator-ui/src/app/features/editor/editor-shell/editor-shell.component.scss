@@ -280,17 +280,4 @@
   // Background inherited from body - no need to set here
 }
 
-.editor-shell__zoom-dock {
-  position: fixed;
-  right: calc(1rem + var(--editor-rail-width, 22px));
-  bottom: 1rem;
-  z-index: 180;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 14px;
-  padding: 0.35rem 0.6rem;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(8px);
-}
-
 

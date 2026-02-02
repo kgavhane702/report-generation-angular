@@ -59,12 +59,19 @@ export class RibbonToolbarComponent {
     return baseTabs;
   });
 
+  private previousHasContext = false;
+
   constructor() {
     effect(() => {
-      if (!this.hasContextTab() && this.activeTab() === 'context') {
+      const hasContext = this.hasContextTab();
+      // Only auto-switch to context when widget becomes newly selected
+      if (hasContext && !this.previousHasContext) {
+        this.activeTab.set('context');
+      } else if (!hasContext && this.activeTab() === 'context') {
         this.activeTab.set('insert');
       }
-    });
+      this.previousHasContext = hasContext;
+    }, { allowSignalWrites: true });
   }
 
   setActiveTab(tab: RibbonTabId): void {

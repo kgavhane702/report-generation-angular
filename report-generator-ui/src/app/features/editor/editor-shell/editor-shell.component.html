@@ -64,10 +64,6 @@
     <main class="editor-shell__canvas" (contextmenu)="onCanvasContextMenu($event)">
       <app-page-canvas></app-page-canvas>
 
-      <div class="editor-shell__zoom-dock">
-        <app-zoom-controls></app-zoom-controls>
-      </div>
-
       <app-context-menu
         [open]="canvasMenuOpen"
         [x]="canvasMenuX"

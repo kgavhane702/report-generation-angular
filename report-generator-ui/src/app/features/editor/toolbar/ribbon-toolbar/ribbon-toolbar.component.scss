@@ -94,7 +94,7 @@
 }
 
 :host ::ng-deep .ribbon-toolbar__menu app-zoom-controls {
-  display: none;
+  display: inline-flex;
 }
 
 :host ::ng-deep .ribbon-toolbar__panel-inner--insert .editor-toolbar__group--document-name,
