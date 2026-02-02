@@ -74,10 +74,10 @@
 .editor-shell__toolbar {
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   background: #ffffff;
-  padding: 0 1rem;
+  padding: 0;
   display: flex;
   align-items: center;
-  min-height: var(--editor-toolbar-height, 52px);
+  min-height: var(--editor-toolbar-height, 72px);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
   backdrop-filter: blur(10px);
   position: relative;
@@ -86,25 +86,9 @@
   z-index: 200;
 }
 
-.editor-shell__toolbar app-editor-toolbar {
+.editor-shell__toolbar app-ribbon-toolbar {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.editor-shell__widget-toolbar {
-  // Overlay mode: floats on top of content, doesn't push layout
-  position: absolute;
-  top: var(--editor-toolbar-height, 52px);
-  left: 0;
-  right: 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
-  background: #ffffff;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  padding: 0 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  z-index: 150; // Above body content, below main toolbar dropdowns
 }
 
 .editor-shell__body {
@@ -168,9 +152,10 @@
 
 .editor-shell__sidebar {
   // Fixed width sidebar
-  flex: 0 0 300px;
-  width: 300px;
-  min-width: 300px;
+  flex: 0 0 clamp(220px, 20vw, 300px);
+  width: clamp(220px, 20vw, 300px);
+  min-width: 220px;
+  max-width: 300px;
   // Fixed height to match visible viewport
   height: 100%;
   max-height: 100%;
@@ -293,6 +278,19 @@
   padding: 2rem calc(2rem + var(--editor-rail-width, 22px)) 2rem 2rem;
   box-sizing: border-box;
   // Background inherited from body - no need to set here
+}
+
+.editor-shell__zoom-dock {
+  position: fixed;
+  right: calc(1rem + var(--editor-rail-width, 22px));
+  bottom: 1rem;
+  z-index: 180;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  padding: 0.35rem 0.6rem;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
 }
 
 

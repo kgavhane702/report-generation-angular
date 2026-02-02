@@ -1,0 +1,38 @@
+<div class="ribbon-toolbar">
+  <div class="ribbon-toolbar__top">
+    <div class="ribbon-toolbar__tabs" role="tablist" aria-label="Editor ribbon tabs">
+      <button
+        *ngFor="let tab of tabs()"
+        type="button"
+        class="ribbon-toolbar__tab"
+        [class.ribbon-toolbar__tab--active]="isTabActive(tab.id)"
+        [class.ribbon-toolbar__tab--context]="tab.isContext"
+        role="tab"
+        [attr.aria-selected]="isTabActive(tab.id)"
+        (click)="setActiveTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+    <div class="ribbon-toolbar__menu">
+      <app-editor-toolbar></app-editor-toolbar>
+    </div>
+  </div>
+
+  <div class="ribbon-toolbar__panel">
+    <ng-container *ngIf="activeTab() === 'insert'">
+      <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--insert">
+        <app-editor-toolbar></app-editor-toolbar>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="activeTab() === 'context'">
+      <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--context">
+        <app-widget-toolbar class="ribbon-toolbar__widget-toolbar"></app-widget-toolbar>
+        <div class="ribbon-toolbar__empty" *ngIf="!hasContextTab()">
+          Select a single widget to format.
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div>
