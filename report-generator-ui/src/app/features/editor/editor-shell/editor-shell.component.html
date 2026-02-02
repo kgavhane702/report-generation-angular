@@ -1,6 +1,6 @@
 <div
   class="editor-shell"
-  [style.--editor-toolbar-height.px]="52"
+  [style.--editor-toolbar-height.px]="72"
   [style.--editor-rail-width.px]="22"
 >
   <div class="editor-shell__export-overlay" *ngIf="showExportOverlay()">
@@ -14,12 +14,8 @@
   </div>
 
   <header class="editor-shell__toolbar">
-    <app-editor-toolbar></app-editor-toolbar>
+    <app-ribbon-toolbar></app-ribbon-toolbar>
   </header>
-
-  <div class="editor-shell__widget-toolbar" *ngIf="showWidgetToolbar()">
-    <app-widget-toolbar></app-widget-toolbar>
-  </div>
   
   <div class="editor-shell__body" appScrollMetrics #scrollMetrics="scrollMetrics">
     <aside class="editor-shell__sidebar">

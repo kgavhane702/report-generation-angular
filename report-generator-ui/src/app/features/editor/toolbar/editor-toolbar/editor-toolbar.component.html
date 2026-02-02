@@ -89,7 +89,7 @@
       title="Add Text Widget"
       [disabled]="documentLocked()"
     >
-      <app-icon name="text_fields" [size]="18"></app-icon>
+      <app-icon name="text_fields" [size]="16"></app-icon>
     </button>
     <button
       type="button"
@@ -98,7 +98,7 @@
       title="Add Editastra Widget (temporary)"
       [disabled]="documentLocked()"
     >
-      <app-icon name="edit_note" [size]="18"></app-icon>
+      <app-icon name="edit_note" [size]="16"></app-icon>
     </button>
     <button 
       type="button" 
@@ -107,7 +107,7 @@
       title="Add Image"
       [disabled]="documentLocked()"
     >
-      <app-icon name="image" [size]="18"></app-icon>
+      <app-icon name="image" [size]="16"></app-icon>
     </button>
     <span
       class="editor-toolbar__disabled-wrap"
@@ -152,7 +152,7 @@
       [title]="documentLocked() ? 'Unlock document (enable editing)' : 'Lock document (disable editing)'"
       aria-label="Toggle document lock"
     >
-      <app-icon [name]="documentLocked() ? 'lock' : 'lock_open'" [size]="18"></app-icon>
+      <app-icon [name]="documentLocked() ? 'lock' : 'lock_open'" [size]="16"></app-icon>
     </button>
     <button
       type="button"
@@ -161,7 +161,7 @@
       [title]="documentLocked() ? 'Document is locked' : 'Settings'"
       [disabled]="documentLocked()"
     >
-      <app-icon name="tune" [size]="18"></app-icon>
+      <app-icon name="tune" [size]="16"></app-icon>
     </button>
     <button
       type="button"
@@ -170,7 +170,7 @@
       [title]="documentLocked() ? 'Export disabled while document is locked' : 'Export document as JSON file'"
       [disabled]="exportDisabled() || documentLocked()"
     >
-      <app-icon name="save" [size]="18"></app-icon>
+      <app-icon name="save" [size]="16"></app-icon>
     </button>
     <button
       type="button"
@@ -178,7 +178,7 @@
       (click)="triggerImport()"
       title="Import document from JSON file (imported document starts unlocked)"
     >
-      <app-icon name="import_content" [size]="18"></app-icon>
+      <app-icon name="import_content" [size]="16"></app-icon>
     </button>
     <app-document-download-menu [disabled]="exportDisabled()"></app-document-download-menu>
   </div>
@@ -218,10 +218,10 @@
           accept="image/*"
           (change)="onImageInsertFileSelected($event)"
           class="editor-toolbar__image-insert-file-input"
-          id="editorToolbarImageInsertInput"
+          [attr.id]="imageInsertInputId"
         />
         <label
-          for="editorToolbarImageInsertInput"
+          [attr.for]="imageInsertInputId"
           class="editor-toolbar__image-insert-file-label"
           [class.editor-toolbar__image-insert-file-label--disabled]="imageInsertInProgress()"
         >

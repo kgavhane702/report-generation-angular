@@ -336,6 +336,10 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     this.selectionBase = this.selectionAdditive ? new Set(this.uiState.selectedWidgetIds()) : new Set();
     this.lastSelectionIds = [];
 
+    // While drag-selecting, nothing should appear selected.
+    this.uiState.clearSelection();
+    this.uiState.startDragSelection();
+
     this._selectionRect.set({ x, y, width: 0, height: 0 });
 
     event.preventDefault();
@@ -386,15 +390,14 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     const combined = new Set(this.selectionBase);
     selected.forEach(id => combined.add(id));
     const nextIds = Array.from(combined);
-    
-    // Only update selection if it actually changed (prevents unnecessary signal updates)
-    const selectionChanged = 
+
+    // Track potential selection, but do not apply it until pointer up.
+    const selectionChanged =
       nextIds.length !== this.lastSelectionIds.length ||
       nextIds.some((id, i) => id !== this.lastSelectionIds[i]);
-    
+
     if (selectionChanged) {
       this.lastSelectionIds = nextIds;
-      this.uiState.selectMultiple(nextIds);
     }
   }
 
@@ -409,6 +412,7 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     this.selectionStart = null;
     this.selectionEnd = null;
     this._selectionRect.set(null);
+    this.uiState.stopDragSelection();
 
     if (!start || !end) {
       return;

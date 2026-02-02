@@ -6,6 +6,14 @@
   [attr.id]="surfaceId"
   (pointerdown)="onSurfacePointerDown($event)"
 >
+  <!-- Drag selection overlay - captures pointer events during drag to give priority over widgets -->
+  <div
+    *ngIf="selectionRect()"
+    class="page__drag-overlay"
+    [style.width.px]="widthPx"
+    [style.height.px]="heightPx"
+  ></div>
+
   <app-guides-overlay [pageId]="pageId" [widthPx]="widthPx" [heightPx]="heightPx"></app-guides-overlay>
 
   <!-- Visual safe areas (non-breaking). Helps avoid placing widgets under header/footer/logo. -->

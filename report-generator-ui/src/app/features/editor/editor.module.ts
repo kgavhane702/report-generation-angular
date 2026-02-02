@@ -7,6 +7,7 @@ import { CKEditorModule } from '@ckeditor/ckeditor5-angular';
 import { EditorShellComponent } from './editor-shell/editor-shell.component';
 import { ExportShellComponent } from './export-shell/export-shell.component';
 import { EditorToolbarComponent } from './toolbar/editor-toolbar/editor-toolbar.component';
+import { RibbonToolbarComponent } from './toolbar/ribbon-toolbar/ribbon-toolbar.component';
 import { EditorBreadcrumbComponent } from './breadcrumb/editor-breadcrumb.component';
 import { PageOutlineComponent } from './page-outline/page-outline.component';
 import { PageCanvasComponent } from './page-canvas/page-canvas.component';
@@ -49,6 +50,7 @@ import { EditorRoutingModule } from './editor-routing.module';
     EditorShellComponent,
     ExportShellComponent,
     EditorToolbarComponent,
+    RibbonToolbarComponent,
     EditorBreadcrumbComponent,
     PageOutlineComponent,
     PageCanvasComponent,

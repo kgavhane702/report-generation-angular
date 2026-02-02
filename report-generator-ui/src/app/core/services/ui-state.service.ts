@@ -135,6 +135,20 @@ export class UIStateService {
     this._resizingWidgetId() !== null
   );
 
+  /**
+   * Drag (marquee) selection state
+   */
+  private readonly _dragSelecting = signal<boolean>(false);
+  readonly dragSelecting = this._dragSelecting.asReadonly();
+
+  startDragSelection(): void {
+    this._dragSelecting.set(true);
+  }
+
+  stopDragSelection(): void {
+    this._dragSelecting.set(false);
+  }
+
   // ============================================
   // GUIDES / SNAPPING (PPT/Canva-like)
   // ============================================
