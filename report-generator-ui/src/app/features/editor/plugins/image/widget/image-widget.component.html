@@ -1,4 +1,7 @@
-<div class="image-widget" [class.image-widget--error]="imageError">
+<div class="image-widget" 
+     [class.image-widget--error]="imageError"
+     [style.border]="imageBorderStyle"
+     [style.border-radius]="imageBorderRadiusStyle">
   <!-- Image Display Mode -->
   <ng-container *ngIf="hasImage && !imageError">
     <img
@@ -7,7 +10,6 @@
       [style.object-fit]="imageFitStyle"
       [style.transform]="imageTransformStyle"
       [style.opacity]="imageOpacityStyle"
-      [style.border]="imageBorderStyle"
       [style.border-radius]="imageBorderRadiusStyle"
       (error)="handleImageError()"
       class="image-widget__image"
