@@ -132,10 +132,10 @@
             accept=".xlsx,.csv,.json,.xml"
             (change)="onExcelFileSelected($event)"
             class="table-grid-selector__file-input"
-            id="tableImportFileInput"
+            [attr.id]="importFileInputId"
           />
           <label
-            for="tableImportFileInput"
+            [attr.for]="importFileInputId"
             class="table-grid-selector__file-label"
             [class.table-grid-selector__file-label--disabled]="importInProgress"
           >
