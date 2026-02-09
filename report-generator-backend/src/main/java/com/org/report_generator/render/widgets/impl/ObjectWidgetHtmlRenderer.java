@@ -114,7 +114,7 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         String textOverlay = buildTextOverlay(contentHtml, verticalAlign, textAlign, padding);
 
         return String.format(
-            "<div class=\"widget widget-object\" style=\"%s\">" +
+            "<div class=\"widget widget-object\" style=\"%s overflow: visible;\">" +
                 "<div class=\"widget-object__shape widget-object__shape--css\" data-shape=\"%s\" style=\"%s\"></div>" +
                 "%s" +
             "</div>",
@@ -180,7 +180,7 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
         String textOverlay = buildTextOverlay(contentHtml, verticalAlign, textAlign, padding);
 
         return String.format(
-            "<div class=\"widget widget-object\" style=\"%s\">" +
+            "<div class=\"widget widget-object\" style=\"%s overflow: visible;\">" +
                 "<svg class=\"widget-object__shape widget-object__shape--svg\" " +
                     "viewBox=\"%s\" preserveAspectRatio=\"none\" " +
                     "style=\"width: 100%%; height: 100%%; display: block; opacity: %s;\">" +

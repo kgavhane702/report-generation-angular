@@ -120,7 +120,17 @@ public class ImageWidgetRenderer {
         // Build border radius style
         String borderRadiusStyle = borderRadius > 0 ? "border-radius: " + borderRadius + "px;" : "";
         
-        // Combine all image styles
+        // Build wrapper div styles (border goes on wrapper to avoid clipping)
+        StringBuilder wrapperStyle = new StringBuilder();
+        wrapperStyle.append(escapeHtmlAttribute(widgetStyle));
+        if (!borderStyle.isEmpty()) {
+            wrapperStyle.append(" ").append(borderStyle);
+        }
+        if (!borderRadiusStyle.isEmpty()) {
+            wrapperStyle.append(" ").append(borderRadiusStyle);
+        }
+        
+        // Combine all image styles (no border on img, but keep border-radius for shape)
         StringBuilder imgStyle = new StringBuilder();
         imgStyle.append("width: 100%; height: 100%; object-fit: ").append(objectFit).append(";");
         if (!transformStyle.isEmpty()) {
@@ -128,9 +138,6 @@ public class ImageWidgetRenderer {
         }
         if (!opacityStyle.isEmpty()) {
             imgStyle.append(" ").append(opacityStyle);
-        }
-        if (!borderStyle.isEmpty()) {
-            imgStyle.append(" ").append(borderStyle);
         }
         if (!borderRadiusStyle.isEmpty()) {
             imgStyle.append(" ").append(borderRadiusStyle);
@@ -141,7 +148,7 @@ public class ImageWidgetRenderer {
         String escapedAlt = escapeHtmlAttribute(alt);
         
         StringBuilder html = new StringBuilder();
-        html.append("<div class=\"widget widget-image\" style=\"").append(escapeHtmlAttribute(widgetStyle)).append("\">");
+        html.append("<div class=\"widget widget-image\" style=\"").append(wrapperStyle).append("\">");
         html.append("<img src=\"").append(escapedSrc).append("\" ");
         html.append("alt=\"").append(escapedAlt).append("\" ");
         html.append("data-fit=\"").append(objectFit).append("\" ");

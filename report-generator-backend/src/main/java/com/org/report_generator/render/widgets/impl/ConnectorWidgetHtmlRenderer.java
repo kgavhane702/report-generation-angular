@@ -57,8 +57,26 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
         // Extract widget size from widgetStyle for viewBox calculation
         // The CSS contains "width: Xpx; height: Ypx;" - we need to parse these values
         // to match frontend behavior where viewBox = "0 0 width height"
-        double widgetWidth = parseStyleDimension(style, "width", 200);
-        double widgetHeight = parseStyleDimension(style, "height", 100);
+        double widgetWidth = parseStyleDimension(style, "width");
+        double widgetHeight = parseStyleDimension(style, "height");
+
+        // If width/height are missing or too small, fall back to endpoint bounds.
+        double maxX = Math.max(startX, endX);
+        double maxY = Math.max(startY, endY);
+        if (controlPointNode != null && !controlPointNode.isMissingNode()) {
+            maxX = Math.max(maxX, controlPointNode.path("x").asDouble(maxX));
+            maxY = Math.max(maxY, controlPointNode.path("y").asDouble(maxY));
+        }
+
+        double minWidth = maxX + Math.max(strokeWidth, 1);
+        double minHeight = maxY + Math.max(strokeWidth, 1);
+
+        if (!Double.isFinite(widgetWidth) || widgetWidth < minWidth) {
+            widgetWidth = minWidth;
+        }
+        if (!Double.isFinite(widgetHeight) || widgetHeight < minHeight) {
+            widgetHeight = minHeight;
+        }
         
         // ViewBox matches widget size exactly, starting at origin (0,0)
         // This matches frontend: `0 0 ${width} ${height}`
@@ -733,13 +751,13 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
      * Parse a dimension (width or height) from CSS style string.
      * Looks for patterns like "width: 123.45px;" and extracts the numeric value.
      */
-    private double parseStyleDimension(String style, String property, double defaultValue) {
-        if (style == null || style.isEmpty()) return defaultValue;
+    private double parseStyleDimension(String style, String property) {
+        if (style == null || style.isEmpty()) return Double.NaN;
         
         // Look for property: valueXXpx; pattern
         String search = property + ":";
         int idx = style.toLowerCase().indexOf(search.toLowerCase());
-        if (idx < 0) return defaultValue;
+        if (idx < 0) return Double.NaN;
         
         int start = idx + search.length();
         // Skip whitespace
@@ -762,10 +780,10 @@ public class ConnectorWidgetHtmlRenderer implements WidgetRenderer {
             try {
                 return Double.parseDouble(style.substring(start, end));
             } catch (NumberFormatException e) {
-                return defaultValue;
+                return Double.NaN;
             }
         }
-        return defaultValue;
+        return Double.NaN;
     }
 
     private String escapeHtml(String input) {

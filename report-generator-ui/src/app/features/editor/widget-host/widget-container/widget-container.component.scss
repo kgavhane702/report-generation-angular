@@ -4,6 +4,7 @@
   border-radius: 0.5rem;
   transition: border-color 120ms ease, box-shadow 120ms ease;
   will-change: transform;
+  overflow: visible; // Ensure child widget borders are not clipped
 }
 
 // Straight connector widgets (lines) should not show a rectangular border at all.
@@ -81,6 +82,7 @@
   pointer-events: auto;
   background: transparent;
   transition: background-color 120ms ease;
+  overflow: visible; // Ensure child widget borders are not clipped
 }
 
 // Keep content transparent even when selected

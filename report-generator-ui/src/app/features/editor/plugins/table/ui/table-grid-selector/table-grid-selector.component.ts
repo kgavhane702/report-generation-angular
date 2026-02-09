@@ -38,6 +38,7 @@ export interface TableDimensions {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TableGridSelectorComponent implements OnChanges {
+  private static fileInputIdCounter = 0;
   /** Backend import state (provided by parent) */
   @Input() importInProgress = false;
   @Input() importError: string | null = null;
@@ -67,6 +68,8 @@ export class TableGridSelectorComponent implements OnChanges {
   readonly mode = signal<'new' | 'import'>('new');
 
   @ViewChild('excelFileInput', { static: false }) excelFileInput?: ElementRef<HTMLInputElement>;
+
+  readonly importFileInputId = `tableImportFileInput-${++TableGridSelectorComponent.fileInputIdCounter}`;
 
   /** Import dialog state */
   importDialogOpen = false;
