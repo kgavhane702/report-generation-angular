@@ -456,7 +456,7 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
     order: 4,
   },
   {
-    id: 'banner',
+    id: 'wave',
     label: 'Wave',
     icon: 'shapes/wave',
     category: 'stars',

@@ -170,7 +170,7 @@ const SHAPE_SVG_PATHS: Record<string, ShapeSvgConfig> = {
   },
   
   // Wave (wavy ribbon)
-  banner: {
+  wave: {
     path: 'M 5 35 C 20 20 35 20 50 35 C 65 50 80 50 95 35 L 95 65 C 80 80 65 80 50 65 C 35 50 20 50 5 65 Z',
     closed: true,
   },

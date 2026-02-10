@@ -413,7 +413,7 @@ const STAR_8_ANCHORS: ShapeAnchorPoint[] = [
 ];
 
 /**
- * Banner anchors
+ * Wave anchors
  * SVG path: M 5 20 L 95 20 L 85 50 L 95 80 L 5 80 L 15 50 Z
  * ViewBox: 5 20 90 60
  */
@@ -571,7 +571,7 @@ const SHAPE_ANCHORS: Record<string, ShapeAnchorPoint[]> = {
   'star-8': STAR_8_ANCHORS,
   
   // Other shapes
-  'banner': RECTANGULAR_ANCHORS,
+  'wave': RECTANGULAR_ANCHORS,
   'cross': CROSS_ANCHORS,
   'heart': HEART_ANCHORS,
   'lightning': LIGHTNING_ANCHORS,

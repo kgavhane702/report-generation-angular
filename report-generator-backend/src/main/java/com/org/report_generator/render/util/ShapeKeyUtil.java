@@ -9,16 +9,12 @@ public final class ShapeKeyUtil {
     }
 
     /**
-     * Returns a canonical shape key (lowercase, trimmed) with a few compatibility aliases.
+     * Returns a canonical shape key (lowercase, trimmed).
      */
     public static String canonicalize(String shapeType) {
         if (shapeType == null) return null;
         String key = shapeType.trim().toLowerCase();
         if (key.isEmpty()) return null;
-
-        // UI requested: banner should behave like wave.
-        if ("banner".equals(key)) return "wave";
-
         return key;
     }
 }

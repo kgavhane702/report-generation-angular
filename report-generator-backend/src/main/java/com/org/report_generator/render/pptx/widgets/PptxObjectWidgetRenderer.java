@@ -71,7 +71,6 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
         Map.entry("moon", ShapeType.MOON),
         Map.entry("cloud", ShapeType.CLOUD),
         Map.entry("wave", ShapeType.WAVE),
-        Map.entry("banner", ShapeType.WAVE),
         
         // Lines
         Map.entry("line", ShapeType.LINE),

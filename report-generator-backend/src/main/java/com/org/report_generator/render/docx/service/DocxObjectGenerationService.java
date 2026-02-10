@@ -68,7 +68,7 @@ public class DocxObjectGenerationService {
             "m10800,0l12866,5811,18437,3163,15789,8734,21600,10800,15789,12866,18437,18437,12866,15789,10800,21600,8734,15789,3163,18437,5811,12866,0,10800,5811,8734,3163,3163,8734,5811xe")),
         
         // Other shapes
-        Map.entry("banner", new VmlShapeInfo("shape", "53", null)),
+        Map.entry("wave", new VmlShapeInfo("shape", "53", null)),
         Map.entry("cross", new VmlShapeInfo("shape", "11", "m6480,l6480,6480,,6480,,15120,6480,15120,6480,21600,15120,21600,15120,15120,21600,15120,21600,6480,15120,6480,15120,xe")),
         Map.entry("heart", new VmlShapeInfo("shape", "74", null)),
         Map.entry("lightning", new VmlShapeInfo("shape", "73", null)),
