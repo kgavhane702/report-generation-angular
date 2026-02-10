@@ -34,8 +34,10 @@ public class DocxDrawingUtilAlignmentTest {
                 "#000000",
                 1,
                 "center",
-                "top",
-                0
+                "middle",
+                0,
+                "#FF0000",
+                12.0
         );
 
         byte[] bytes;
@@ -57,7 +59,7 @@ public class DocxDrawingUtilAlignmentTest {
         widget.setPosition(new WidgetPosition(10.0, 10.0));
         widget.setSize(new WidgetSize(200.0, 60.0));
 
-        DocxDrawingUtil.createTextBox(doc, widget, "Hello", null, "right", "top", 0);
+        DocxDrawingUtil.createTextBox(doc, widget, "Hello", null, "right", "top", 0, "#000000", 12.0);
 
         byte[] bytes;
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {

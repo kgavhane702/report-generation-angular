@@ -36,9 +36,20 @@ public class DocxTextWidgetRenderer implements DocxWidgetRenderer {
         String textAlign = widget.getProps().path("textAlign").asText(null);
         String verticalAlign = widget.getProps().path("verticalAlign").asText(null);
         Integer padding = widget.getProps().has("padding") ? widget.getProps().path("padding").asInt(0) : null;
-        
+
+        // Font color: check props, then extract from HTML
+        String textColor = widget.getProps().path("fontColor").asText(null);
+        if (textColor == null) textColor = widget.getProps().path("color").asText(null);
+        if (textColor == null) {
+            String extracted = DocxDrawingUtil.extractColorFromHtml(html);
+            if (extracted != null) textColor = "#" + extracted;
+        }
+        Double fontSize = widget.getProps().has("fontSize")
+                ? widget.getProps().path("fontSize").asDouble(0) : null;
+        if (fontSize != null && fontSize <= 0) fontSize = null;
+
         // Use DrawingML text box for proper absolute positioning
-        DocxDrawingUtil.createTextBox(ctx.docx(), widget, html, backgroundColor, textAlign, verticalAlign, padding);
+        DocxDrawingUtil.createTextBox(ctx.docx(), widget, html, backgroundColor, textAlign, verticalAlign, padding, textColor, fontSize);
     }
 
     private void applyBackground(org.apache.poi.xwpf.usermodel.XWPFParagraph p, String color) {

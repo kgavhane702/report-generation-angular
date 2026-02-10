@@ -51,7 +51,9 @@ class DocxDrawingUtilShapeSmokeTest {
                         stroke.path("width").asInt(),
                         props.path("textAlign").asText(),
                         props.path("verticalAlign").asText(),
-                        props.path("padding").asInt()
+                        props.path("padding").asInt(),
+                        "#000000",
+                        12.0
                 );
 
                 byte[] bytes;

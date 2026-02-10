@@ -3,6 +3,9 @@ package com.org.report_generator.render.docx.service;
 import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.model.document.WidgetPosition;
 import com.org.report_generator.model.document.WidgetSize;
+import com.org.report_generator.render.util.ColorUtil;
+import com.org.report_generator.render.util.HtmlRichTextParser;
+import com.org.report_generator.render.util.HtmlRichTextParser.StyledRun;
 import com.org.report_generator.render.util.ShapeKeyUtil;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
@@ -57,7 +60,9 @@ public final class DocxDrawingUtil {
             Integer strokeWidthPx,
             String textAlign,
             String verticalAlign,
-            Integer paddingPx
+            Integer paddingPx,
+            String textColor,
+            Double fontSize
     ) {
         if (doc == null || widget == null) return;
 
@@ -131,7 +136,12 @@ public final class DocxDrawingUtil {
 
         String jcVal = mapJc(textAlign);
         String anchorVal = mapBodyAnchor(verticalAlign);
-        String plainText = stripHtml(contentHtml);
+
+        // Parse HTML into styled runs (preserving all rich-text formatting)
+        java.util.List<StyledRun> runs = HtmlRichTextParser.parse(contentHtml);
+        // Fallback defaults for runs that don't carry their own color/size
+        String fallbackColor = normalizeColor(textColor);
+        Double fallbackSize = fontSize;
 
         // Build the wsp:wsp element using XmlCursor.
         XmlCursor cursor = graphicData.newCursor();
@@ -213,34 +223,12 @@ public final class DocxDrawingUtil {
         cursor.toEndToken(); // end spPr
         cursor.toNextToken();
 
-        // txbx
+        // txbx — rich text content
         cursor.beginElement(new QName(WPS_NS, "txbx", "wps"));
         cursor.beginElement(new QName(W_NS, "txbxContent", "w"));
-        cursor.beginElement(new QName(W_NS, "p", "w"));
-        cursor.beginElement(new QName(W_NS, "pPr", "w"));
 
-        // Remove default Word paragraph spacing that can cause apparent misalignment.
-        cursor.beginElement(new QName(W_NS, "spacing", "w"));
-        cursor.insertAttributeWithValue(new QName(W_NS, "before", "w"), "0");
-        cursor.insertAttributeWithValue(new QName(W_NS, "after", "w"), "0");
-        cursor.toEndToken();
-        cursor.toNextToken();
+        emitRichTextParagraphs(cursor, runs, jcVal, fallbackColor, fallbackSize);
 
-        cursor.beginElement(new QName(W_NS, "jc", "w"));
-        cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), jcVal);
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.beginElement(new QName(W_NS, "r", "w"));
-        cursor.beginElement(new QName(W_NS, "t", "w"));
-        cursor.insertChars(plainText);
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.toEndToken(); // end p
-        cursor.toNextToken();
         cursor.toEndToken(); // end txbxContent
         cursor.toNextToken();
         cursor.toEndToken(); // end txbx
@@ -273,7 +261,9 @@ public final class DocxDrawingUtil {
             String backgroundColor,
             String textAlign,
             String verticalAlign,
-            Integer paddingPx
+            Integer paddingPx,
+            String textColor,
+            Double fontSize
     ) {
         if (widget == null) return;
         
@@ -419,37 +409,17 @@ public final class DocxDrawingUtil {
         cursor.toEndToken(); // end spPr
         cursor.toNextToken();
 
-        // Add txbx (text box content)
+        // Add txbx (text box content) — rich text
         cursor.beginElement(new QName(WPS_NS, "txbx", "wps"));
         cursor.beginElement(new QName(W_NS, "txbxContent", "w"));
-        
-        // Add paragraph with text
-        cursor.beginElement(new QName(W_NS, "p", "w"));
-
-        // Paragraph properties: alignment + remove default spacing.
-        cursor.beginElement(new QName(W_NS, "pPr", "w"));
-        cursor.beginElement(new QName(W_NS, "spacing", "w"));
-        cursor.insertAttributeWithValue(new QName(W_NS, "before", "w"), "0");
-        cursor.insertAttributeWithValue(new QName(W_NS, "after", "w"), "0");
-        cursor.toEndToken();
-        cursor.toNextToken();
 
         String jcVal = mapJc(textAlign);
-        cursor.beginElement(new QName(W_NS, "jc", "w"));
-        cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), jcVal);
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.toEndToken();
-        cursor.toNextToken();
+        // Parse HTML into styled runs
+        java.util.List<StyledRun> tbRuns = HtmlRichTextParser.parse(textContent);
+        String tbFallbackColor = normalizeColor(textColor);
+        Double tbFallbackSize = fontSize;
 
-        // Run with text
-        cursor.beginElement(new QName(W_NS, "r", "w"));
-        cursor.beginElement(new QName(W_NS, "t", "w"));
-        cursor.insertChars(stripHtml(textContent));
-        cursor.toEndToken();
-        cursor.toNextToken();
-        cursor.toEndToken();
-        cursor.toNextToken();
+        emitRichTextParagraphs(cursor, tbRuns, jcVal, tbFallbackColor, tbFallbackSize);
 
         cursor.toEndToken(); // end p
         cursor.toNextToken();
@@ -477,6 +447,159 @@ public final class DocxDrawingUtil {
         cursor.toNextToken();
 
         cursor.dispose();
+    }
+
+    // ===== Rich-text helper: emits w:p / w:r blocks from HtmlRichTextParser.StyledRun list =====
+
+    /**
+     * Emit one or more w:p paragraphs from a list of StyledRuns.
+     * Line-break runs start a new w:p; each non-break run becomes a w:r inside the current w:p.
+     */
+    private static void emitRichTextParagraphs(
+            XmlCursor cursor,
+            java.util.List<StyledRun> runs,
+            String jcVal,
+            String fallbackColor,
+            Double fallbackSize
+    ) {
+        if (runs == null || runs.isEmpty()) {
+            // Empty paragraph so Word doesn't complain
+            cursor.beginElement(new QName(W_NS, "p", "w"));
+            emitParagraphProps(cursor, jcVal);
+            cursor.toEndToken();
+            cursor.toNextToken();
+            return;
+        }
+
+        // Open first paragraph
+        cursor.beginElement(new QName(W_NS, "p", "w"));
+        emitParagraphProps(cursor, jcVal);
+
+        for (StyledRun sr : runs) {
+            if (sr.lineBreak) {
+                // Close current paragraph, start a new one
+                cursor.toEndToken(); // end w:p
+                cursor.toNextToken();
+                cursor.beginElement(new QName(W_NS, "p", "w"));
+                emitParagraphProps(cursor, jcVal);
+                continue;
+            }
+            if (sr.text == null || sr.text.isEmpty()) continue;
+            emitRun(cursor, sr, fallbackColor, fallbackSize);
+        }
+
+        // Close last paragraph
+        cursor.toEndToken(); // end w:p
+        cursor.toNextToken();
+    }
+
+    private static void emitParagraphProps(XmlCursor cursor, String jcVal) {
+        cursor.beginElement(new QName(W_NS, "pPr", "w"));
+        cursor.beginElement(new QName(W_NS, "spacing", "w"));
+        cursor.insertAttributeWithValue(new QName(W_NS, "before", "w"), "0");
+        cursor.insertAttributeWithValue(new QName(W_NS, "after", "w"), "0");
+        cursor.toEndToken();
+        cursor.toNextToken();
+        cursor.beginElement(new QName(W_NS, "jc", "w"));
+        cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), jcVal);
+        cursor.toEndToken();
+        cursor.toNextToken();
+        cursor.toEndToken(); // end pPr
+        cursor.toNextToken();
+    }
+
+    /**
+     * Emit a single w:r (run) with full rPr formatting derived from the StyledRun.
+     */
+    private static void emitRun(XmlCursor cursor, StyledRun sr, String fallbackColor, Double fallbackSize) {
+        cursor.beginElement(new QName(W_NS, "r", "w"));
+        cursor.beginElement(new QName(W_NS, "rPr", "w"));
+
+        // Bold
+        if (sr.bold) {
+            cursor.beginElement(new QName(W_NS, "b", "w"));
+            cursor.toEndToken(); cursor.toNextToken();
+            cursor.beginElement(new QName(W_NS, "bCs", "w"));
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Italic
+        if (sr.italic) {
+            cursor.beginElement(new QName(W_NS, "i", "w"));
+            cursor.toEndToken(); cursor.toNextToken();
+            cursor.beginElement(new QName(W_NS, "iCs", "w"));
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Underline
+        if (sr.underline) {
+            cursor.beginElement(new QName(W_NS, "u", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "single");
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Strikethrough
+        if (sr.strike) {
+            cursor.beginElement(new QName(W_NS, "strike", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "true");
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Superscript / Subscript
+        if (sr.superscript) {
+            cursor.beginElement(new QName(W_NS, "vertAlign", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "superscript");
+            cursor.toEndToken(); cursor.toNextToken();
+        } else if (sr.subscript) {
+            cursor.beginElement(new QName(W_NS, "vertAlign", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "subscript");
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Font family
+        if (sr.fontFamily != null) {
+            cursor.beginElement(new QName(W_NS, "rFonts", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "ascii", "w"), sr.fontFamily);
+            cursor.insertAttributeWithValue(new QName(W_NS, "hAnsi", "w"), sr.fontFamily);
+            cursor.insertAttributeWithValue(new QName(W_NS, "cs", "w"), sr.fontFamily);
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Color (run-level > fallback)
+        String clr = sr.color != null ? sr.color : fallbackColor;
+        if (clr != null) {
+            cursor.beginElement(new QName(W_NS, "color", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), clr);
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Font size (run-level > fallback)
+        Double sz = sr.fontSizePt != null ? (double) sr.fontSizePt : fallbackSize;
+        if (sz != null && sz > 0) {
+            String szVal = String.valueOf((int) Math.round(sz * 2));
+            cursor.beginElement(new QName(W_NS, "sz", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), szVal);
+            cursor.toEndToken(); cursor.toNextToken();
+            cursor.beginElement(new QName(W_NS, "szCs", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), szVal);
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+        // Background / highlight
+        if (sr.backgroundColor != null) {
+            cursor.beginElement(new QName(W_NS, "highlight", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "yellow");
+            cursor.toEndToken(); cursor.toNextToken();
+            cursor.beginElement(new QName(W_NS, "shd", "w"));
+            cursor.insertAttributeWithValue(new QName(W_NS, "val", "w"), "clear");
+            cursor.insertAttributeWithValue(new QName(W_NS, "fill", "w"), sr.backgroundColor);
+            cursor.toEndToken(); cursor.toNextToken();
+        }
+
+        cursor.toEndToken(); // end rPr
+        cursor.toNextToken();
+
+        // w:t with xml:space="preserve"
+        cursor.beginElement(new QName(W_NS, "t", "w"));
+        cursor.insertAttributeWithValue(new QName("http://www.w3.org/XML/1998/namespace", "space"), "preserve");
+        cursor.insertChars(sr.text);
+        cursor.toEndToken();
+        cursor.toNextToken();
+
+        cursor.toEndToken(); // end w:r
+        cursor.toNextToken();
     }
 
     private static long toEmu(Double px) {
@@ -683,6 +806,20 @@ public final class DocxDrawingUtil {
         }
     }
 
+    /**
+     * Try to extract the first CSS color value from inline styles in HTML content.
+     */
+    public static String extractColorFromHtml(String html) {
+        if (html == null || html.isBlank()) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?<!background-)color:\\s*([^;\"'}>]+)")
+                .matcher(html);
+        if (m.find()) {
+            return normalizeColor(m.group(1).trim());
+        }
+        return null;
+    }
+
     private static String stripHtml(String html) {
         if (html == null) return "";
         return html.replaceAll("<[^>]+>", "")
@@ -695,28 +832,6 @@ public final class DocxDrawingUtil {
     }
 
     private static String normalizeColor(String value) {
-        if (value == null || value.isBlank()) return null;
-        String v = value.trim().toLowerCase();
-        if ("transparent".equals(v)) return null;
-        if (v.startsWith("#")) {
-            String hex = v.substring(1);
-            if (hex.length() == 3) {
-                return ("" + hex.charAt(0) + hex.charAt(0)
-                        + hex.charAt(1) + hex.charAt(1)
-                        + hex.charAt(2) + hex.charAt(2)).toUpperCase();
-            }
-            if (hex.length() == 6) return hex.toUpperCase();
-        }
-        if (v.startsWith("rgb")) {
-            try {
-                String inside = v.substring(v.indexOf('(') + 1, v.indexOf(')'));
-                String[] parts = inside.split(",");
-                int r = Integer.parseInt(parts[0].trim());
-                int g = Integer.parseInt(parts[1].trim());
-                int b = Integer.parseInt(parts[2].trim());
-                return String.format("%02X%02X%02X", r, g, b);
-            } catch (Exception ignored) {}
-        }
-        return null;
+        return ColorUtil.normalizeColor(value);
     }
 }

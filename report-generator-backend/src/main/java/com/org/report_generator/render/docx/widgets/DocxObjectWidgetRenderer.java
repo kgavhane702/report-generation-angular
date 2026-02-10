@@ -3,10 +3,10 @@ package com.org.report_generator.render.docx.widgets;
 import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.render.docx.DocxRenderContext;
 import com.org.report_generator.render.docx.DocxWidgetRenderer;
-import com.org.report_generator.render.docx.service.DocxObjectGenerationService;
-import com.org.report_generator.render.docx.service.HtmlToDocxConverter;
-import com.org.report_generator.render.docx.service.DocxPositioningUtil;
 import com.org.report_generator.render.docx.service.DocxDrawingUtil;
+import com.org.report_generator.render.docx.service.DocxObjectGenerationService;
+import com.org.report_generator.render.docx.service.DocxPositioningUtil;
+import com.org.report_generator.render.docx.service.HtmlToDocxConverter;
 import org.springframework.stereotype.Component;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
@@ -66,8 +66,19 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
         String fill = widget.getProps().path("fillColor").asText(null);
         // Match PPT defaults: center text inside shapes when UI doesn't specify.
         String textAlign = widget.getProps().path("textAlign").asText("center");
-        String verticalAlign = widget.getProps().path("verticalAlign").asText("top");
+        String verticalAlign = widget.getProps().path("verticalAlign").asText("middle");
         Integer padding = widget.getProps().has("padding") ? widget.getProps().path("padding").asInt(0) : 0;
+
+        // Font color: check props, then extract from HTML, fallback to black.
+        String textColor = widget.getProps().path("fontColor").asText(null);
+        if (textColor == null) textColor = widget.getProps().path("color").asText(null);
+        if (textColor == null) {
+            String extracted = DocxDrawingUtil.extractColorFromHtml(contentHtml);
+            if (extracted != null) textColor = "#" + extracted;
+        }
+        if (textColor == null) textColor = "#000000";
+        Double fontSize = widget.getProps().has("fontSize")
+                ? widget.getProps().path("fontSize").asDouble(12.0) : 12.0;
 
         String strokeColor = null;
         Integer strokeWidth = 0;
@@ -90,7 +101,9 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
                 strokeWidth,
                 textAlign,
                 verticalAlign,
-                padding
+                padding,
+                textColor,
+                fontSize
         );
     }
 

@@ -301,31 +301,7 @@ public class HtmlToDocxConverter {
     }
 
     private String normalizeColor(String value) {
-        if (value == null) return null;
-        String v = value.trim().toLowerCase(Locale.ROOT);
-        if (v.startsWith("#")) {
-            String hex = v.substring(1);
-            if (hex.length() == 3) {
-                return ("" + hex.charAt(0) + hex.charAt(0)
-                        + hex.charAt(1) + hex.charAt(1)
-                        + hex.charAt(2) + hex.charAt(2)).toUpperCase(Locale.ROOT);
-            }
-            if (hex.length() == 6) {
-                return hex.toUpperCase(Locale.ROOT);
-            }
-        }
-        if (v.startsWith("rgb")) {
-            try {
-                String inside = v.substring(v.indexOf('(') + 1, v.indexOf(')'));
-                String[] parts = inside.split(",");
-                int r = Integer.parseInt(parts[0].trim());
-                int g = Integer.parseInt(parts[1].trim());
-                int b = Integer.parseInt(parts[2].trim());
-                return String.format("%02X%02X%02X", r, g, b);
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
+        return com.org.report_generator.render.util.ColorUtil.normalizeColor(value);
     }
 
     private String parseFontFamily(String value) {

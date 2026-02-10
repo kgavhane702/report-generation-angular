@@ -5,6 +5,9 @@ import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.render.pptx.PptxRenderContext;
 import com.org.report_generator.render.pptx.PptxWidgetRenderer;
 import com.org.report_generator.render.pptx.service.PptxPositioningUtil;
+import com.org.report_generator.render.util.ColorUtil;
+import com.org.report_generator.render.util.HtmlRichTextParser;
+import com.org.report_generator.render.util.HtmlRichTextParser.StyledRun;
 import com.org.report_generator.render.util.ShapeKeyUtil;
 import org.apache.poi.xslf.usermodel.XSLFAutoShape;
 import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import java.awt.Color;
 import java.awt.geom.Rectangle2D;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -123,14 +127,16 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
             }
         }
 
-        // Add text if present
+        // Add text if present — rich text with full formatting
         String contentHtml = props.path("contentHtml").asText("");
-        String plainText = extractPlainText(contentHtml);
-        if (!plainText.isBlank()) {
+        List<StyledRun> runs = HtmlRichTextParser.parse(contentHtml);
+        // Filter out empty whitespace-only runs
+        boolean hasContent = runs.stream().anyMatch(r -> !r.lineBreak && r.text != null && !r.text.isBlank());
+        if (hasContent) {
             shape.clearText();
 
-            // Vertical alignment
-            String vAlign = props.path("verticalAlign").asText("top");
+            // Vertical alignment — default middle for shapes (matching DOCX)
+            String vAlign = props.path("verticalAlign").asText("middle");
             tryInvoke(shape, "setVerticalAlignment", new Class<?>[] { VerticalAlignment.class },
                     mapVerticalAlign(vAlign));
 
@@ -144,15 +150,50 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
                 tryInvoke(shape, "setBottomInset", new Class<?>[] { double.class }, insetPt);
             }
 
-            XSLFTextParagraph para = shape.addNewTextParagraph();
-            
+            // Fallback defaults from widget props
+            double defaultFontSize = props.path("fontSize").asDouble(12);
+            String defaultFontFamily = props.path("fontFamily").asText("Arial");
+            String fallbackColorStr = props.path("fontColor").asText(null);
+            if (fallbackColorStr == null) fallbackColorStr = props.path("color").asText(null);
+            if (fallbackColorStr == null) fallbackColorStr = "#000000";
+            Color fallbackColor = parseColor(fallbackColorStr);
+            boolean defaultBold = props.path("bold").asBoolean(false);
+            boolean defaultItalic = props.path("italic").asBoolean(false);
+
             String textAlign = props.path("textAlign").asText("center");
+            XSLFTextParagraph para = shape.addNewTextParagraph();
             para.setTextAlign(mapTextAlign(textAlign));
-            
-            XSLFTextRun run = para.addNewTextRun();
-            run.setText(plainText);
-            run.setFontSize(12.0);
-            run.setFontColor(Color.BLACK);
+
+            for (StyledRun sr : runs) {
+                if (sr.lineBreak) {
+                    // Start a new paragraph
+                    para = shape.addNewTextParagraph();
+                    para.setTextAlign(mapTextAlign(textAlign));
+                    continue;
+                }
+                if (sr.text == null || sr.text.isEmpty()) continue;
+
+                XSLFTextRun run = para.addNewTextRun();
+                run.setText(sr.text);
+
+                // Font size
+                run.setFontSize(sr.fontSizePt != null ? (double) sr.fontSizePt : defaultFontSize);
+                // Font family
+                run.setFontFamily(sr.fontFamily != null ? sr.fontFamily : defaultFontFamily);
+                // Bold / Italic
+                run.setBold(sr.bold || defaultBold);
+                run.setItalic(sr.italic || defaultItalic);
+                // Underline
+                if (sr.underline) run.setUnderlined(true);
+                // Strikethrough
+                if (sr.strike) run.setStrikethrough(true);
+                // Superscript / Subscript
+                if (sr.superscript) tryInvoke(run, "setSuperscript", new Class<?>[] { boolean.class }, true);
+                else if (sr.subscript) tryInvoke(run, "setSubscript", new Class<?>[] { boolean.class }, true);
+                // Font color
+                Color runColor = sr.color != null ? hexToColor(sr.color) : fallbackColor;
+                if (runColor != null) run.setFontColor(runColor);
+            }
         }
     }
 
@@ -195,37 +236,20 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
                    .trim();
     }
 
+    private Color hexToColor(String hex) {
+        if (hex == null || hex.length() < 6) return null;
+        try {
+            return new Color(
+                Integer.parseInt(hex.substring(0, 2), 16),
+                Integer.parseInt(hex.substring(2, 4), 16),
+                Integer.parseInt(hex.substring(4, 6), 16)
+            );
+        } catch (Exception e) { return null; }
+    }
+
     private Color parseColor(String color) {
         if (color == null || color.isBlank() || "transparent".equalsIgnoreCase(color)) return null;
-        try {
-            String c = color.trim().toLowerCase();
-            if (c.startsWith("#")) {
-                c = c.substring(1);
-                if (c.length() == 3) {
-                    c = "" + c.charAt(0) + c.charAt(0) + c.charAt(1) + c.charAt(1) + c.charAt(2) + c.charAt(2);
-                }
-                if (c.length() >= 6) {
-                    return new Color(
-                        Integer.parseInt(c.substring(0, 2), 16),
-                        Integer.parseInt(c.substring(2, 4), 16),
-                        Integer.parseInt(c.substring(4, 6), 16)
-                    );
-                }
-            } else if (c.startsWith("rgb")) {
-                int start = c.indexOf('(');
-                int end = c.indexOf(')');
-                if (start >= 0 && end > start) {
-                    String[] parts = c.substring(start + 1, end).split(",");
-                    if (parts.length >= 3) {
-                        return new Color(
-                            Math.min(255, Math.max(0, Integer.parseInt(parts[0].trim()))),
-                            Math.min(255, Math.max(0, Integer.parseInt(parts[1].trim()))),
-                            Math.min(255, Math.max(0, Integer.parseInt(parts[2].trim())))
-                        );
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        return null;
+        String hex = ColorUtil.normalizeColor(color);
+        return hexToColor(hex);
     }
 }
