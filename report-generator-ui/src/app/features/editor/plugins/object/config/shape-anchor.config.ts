@@ -571,7 +571,7 @@ const SHAPE_ANCHORS: Record<string, ShapeAnchorPoint[]> = {
   'star-8': STAR_8_ANCHORS,
   
   // Other shapes
-  'banner': BANNER_ANCHORS,
+  'banner': RECTANGULAR_ANCHORS,
   'cross': CROSS_ANCHORS,
   'heart': HEART_ANCHORS,
   'lightning': LIGHTNING_ANCHORS,

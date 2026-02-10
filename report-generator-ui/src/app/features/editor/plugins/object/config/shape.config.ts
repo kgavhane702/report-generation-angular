@@ -457,10 +457,10 @@ export const SHAPE_CONFIGS: ShapeConfig[] = [
   },
   {
     id: 'banner',
-    label: 'Banner',
-    icon: 'shapes/banner',
+    label: 'Wave',
+    icon: 'shapes/wave',
     category: 'stars',
-    description: 'Insert a banner shape',
+    description: 'Insert a wave shape',
     defaultFillColor: '#ef4444',
     supportsText: true,
     order: 5,

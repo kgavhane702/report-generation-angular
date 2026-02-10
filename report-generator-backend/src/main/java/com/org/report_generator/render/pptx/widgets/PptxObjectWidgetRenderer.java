@@ -5,11 +5,13 @@ import com.org.report_generator.model.document.Widget;
 import com.org.report_generator.render.pptx.PptxRenderContext;
 import com.org.report_generator.render.pptx.PptxWidgetRenderer;
 import com.org.report_generator.render.pptx.service.PptxPositioningUtil;
+import com.org.report_generator.render.util.ShapeKeyUtil;
 import org.apache.poi.xslf.usermodel.XSLFAutoShape;
 import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
 import org.apache.poi.xslf.usermodel.XSLFTextRun;
 import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.sl.usermodel.TextParagraph;
+import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -64,6 +66,7 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
         Map.entry("lightning", ShapeType.LIGHTNING_BOLT),
         Map.entry("moon", ShapeType.MOON),
         Map.entry("cloud", ShapeType.CLOUD),
+        Map.entry("wave", ShapeType.WAVE),
         Map.entry("banner", ShapeType.WAVE),
         
         // Lines
@@ -82,9 +85,10 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
 
         JsonNode props = widget.getProps();
         String shapeType = props.path("shapeType").asText("rectangle");
+        String shapeKey = ShapeKeyUtil.canonicalize(shapeType);
 
         // Map to PowerPoint shape type
-        ShapeType poiShapeType = SHAPE_MAP.getOrDefault(shapeType, ShapeType.RECT);
+        ShapeType poiShapeType = SHAPE_MAP.getOrDefault(shapeKey != null ? shapeKey : shapeType, ShapeType.RECT);
 
         // Get position and size (converted from CSS pixels to points)
         Rectangle2D anchor = PptxPositioningUtil.getAnchor(widget);
@@ -124,6 +128,22 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
         String plainText = extractPlainText(contentHtml);
         if (!plainText.isBlank()) {
             shape.clearText();
+
+            // Vertical alignment
+            String vAlign = props.path("verticalAlign").asText("top");
+            tryInvoke(shape, "setVerticalAlignment", new Class<?>[] { VerticalAlignment.class },
+                    mapVerticalAlign(vAlign));
+
+            // Padding/insets
+            int padding = props.path("padding").asInt(0);
+            if (padding > 0) {
+                double insetPt = PptxPositioningUtil.toPoints((double) padding);
+                tryInvoke(shape, "setLeftInset", new Class<?>[] { double.class }, insetPt);
+                tryInvoke(shape, "setRightInset", new Class<?>[] { double.class }, insetPt);
+                tryInvoke(shape, "setTopInset", new Class<?>[] { double.class }, insetPt);
+                tryInvoke(shape, "setBottomInset", new Class<?>[] { double.class }, insetPt);
+            }
+
             XSLFTextParagraph para = shape.addNewTextParagraph();
             
             String textAlign = props.path("textAlign").asText("center");
@@ -133,6 +153,24 @@ public class PptxObjectWidgetRenderer implements PptxWidgetRenderer {
             run.setText(plainText);
             run.setFontSize(12.0);
             run.setFontColor(Color.BLACK);
+        }
+    }
+
+    private VerticalAlignment mapVerticalAlign(String align) {
+        if (align == null) return VerticalAlignment.TOP;
+        return switch (align.toLowerCase()) {
+            case "middle", "center" -> VerticalAlignment.MIDDLE;
+            case "bottom" -> VerticalAlignment.BOTTOM;
+            default -> VerticalAlignment.TOP;
+        };
+    }
+
+    private void tryInvoke(Object target, String methodName, Class<?>[] paramTypes, Object arg) {
+        if (target == null) return;
+        try {
+            var m = target.getClass().getMethod(methodName, paramTypes);
+            m.invoke(target, arg);
+        } catch (Exception ignored) {
         }
     }
 

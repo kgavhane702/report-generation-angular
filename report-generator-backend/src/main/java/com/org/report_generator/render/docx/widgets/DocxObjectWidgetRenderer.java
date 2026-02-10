@@ -6,6 +6,7 @@ import com.org.report_generator.render.docx.DocxWidgetRenderer;
 import com.org.report_generator.render.docx.service.DocxObjectGenerationService;
 import com.org.report_generator.render.docx.service.HtmlToDocxConverter;
 import com.org.report_generator.render.docx.service.DocxPositioningUtil;
+import com.org.report_generator.render.docx.service.DocxDrawingUtil;
 import org.springframework.stereotype.Component;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
@@ -19,8 +20,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder;
 
 /**
  * Renderer for object/shape widgets in DOCX.
- * Uses native Word DrawingML shapes (wps:wsp) for all shape types.
- * Falls back to table-based rendering only for simple rectangles without special shapes.
+ * Uses native Word DrawingML shapes (wps:wsp) so Word recognizes them as shapes.
+ * Falls back to VML only for line/connector types.
  */
 @Component
 public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
@@ -43,22 +44,60 @@ public class DocxObjectWidgetRenderer implements DocxWidgetRenderer {
         if (widget.getProps() == null) return;
         
         String shapeType = widget.getProps().path("shapeType").asText("rectangle");
-        
-        // Always try VML first for all shape types
-        boolean success = objectService.generateShapeWithText(ctx.docx(), widget);
-        if (success) {
-            return; // Successfully rendered as VML shape
+
+        boolean isLineLike = isLineLike(shapeType);
+
+        // For lines/connectors, keep the existing VML approach for now.
+        if (isLineLike) {
+            boolean success = objectService.generateShapeWithText(ctx.docx(), widget);
+            if (!success) {
+                // As a last resort, render a thin rectangle so something shows up.
+                renderAsDrawingMlShape(widget, ctx, shapeType);
+            }
+            return;
         }
-        
-        // Only fall back to table for basic rectangle shapes
-        // For complex shapes, if VML failed, we still don't want a table
-        if ("rectangle".equals(shapeType) || "square".equals(shapeType)) {
-            System.out.println("VML failed for rectangle, using table fallback");
-            renderAsTable(widget, ctx);
-        } else {
-            // Log that we couldn't render the shape
-            System.err.println("Failed to render shape as VML: " + shapeType);
+
+        // For all other shapes, use DrawingML so Word recognizes the object as a shape.
+        renderAsDrawingMlShape(widget, ctx, shapeType);
+    }
+
+    private void renderAsDrawingMlShape(Widget widget, DocxRenderContext ctx, String shapeType) {
+        String contentHtml = widget.getProps().path("contentHtml").asText("");
+        String fill = widget.getProps().path("fillColor").asText(null);
+        // Match PPT defaults: center text inside shapes when UI doesn't specify.
+        String textAlign = widget.getProps().path("textAlign").asText("center");
+        String verticalAlign = widget.getProps().path("verticalAlign").asText("top");
+        Integer padding = widget.getProps().has("padding") ? widget.getProps().path("padding").asInt(0) : 0;
+
+        String strokeColor = null;
+        Integer strokeWidth = 0;
+        if (widget.getProps().has("stroke")) {
+            var stroke = widget.getProps().get("stroke");
+            strokeColor = stroke.path("color").asText("#000000");
+            strokeWidth = stroke.path("width").asInt(0);
+        } else if (widget.getProps().has("borderWidth")) {
+            strokeWidth = widget.getProps().path("borderWidth").asInt(0);
+            strokeColor = widget.getProps().path("borderColor").asText("#000000");
         }
+
+        DocxDrawingUtil.createShapeWithText(
+                ctx.docx(),
+                widget,
+                shapeType,
+                contentHtml,
+                fill,
+                strokeColor,
+                strokeWidth,
+                textAlign,
+                verticalAlign,
+                padding
+        );
+    }
+
+    private boolean isLineLike(String shapeType) {
+        if (shapeType == null) return false;
+        String t = shapeType.toLowerCase();
+        return t.contains("line") || t.contains("connector") || t.contains("elbow") || t.contains("curved") || t.contains("s-");
     }
 
     /**

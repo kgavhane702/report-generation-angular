@@ -417,14 +417,16 @@ public class DocxObjectGenerationService {
      * Check if a shape type has a native VML shape.
      */
     public boolean hasNativePreset(String shapeType) {
-        return SHAPE_TO_VML.containsKey(shapeType);
+        if (shapeType == null || shapeType.isBlank()) return false;
+        return SHAPE_TO_VML.containsKey(shapeType.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
     /**
      * Get the VML type for a shape.
      */
     public String getPresetGeometry(String shapeType) {
-        VmlShapeInfo info = SHAPE_TO_VML.get(shapeType);
+        if (shapeType == null || shapeType.isBlank()) return "rect";
+        VmlShapeInfo info = SHAPE_TO_VML.get(shapeType.trim().toLowerCase(java.util.Locale.ROOT));
         return info != null ? info.type() : "rect";
     }
 }

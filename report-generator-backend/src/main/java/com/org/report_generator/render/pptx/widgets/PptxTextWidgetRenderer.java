@@ -9,6 +9,7 @@ import org.apache.poi.xslf.usermodel.XSLFTextBox;
 import org.apache.poi.xslf.usermodel.XSLFTextParagraph;
 import org.apache.poi.xslf.usermodel.XSLFTextRun;
 import org.apache.poi.sl.usermodel.TextParagraph;
+import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.springframework.stereotype.Component;
 
 import java.awt.Color;
@@ -37,6 +38,20 @@ public class PptxTextWidgetRenderer implements PptxWidgetRenderer {
         // Create text box on slide
         XSLFTextBox textBox = ctx.slide().createTextBox();
         textBox.setAnchor(anchor);
+
+        // Vertical alignment
+        String vAlign = props.path("verticalAlign").asText("top");
+        tryInvoke(textBox, "setVerticalAlignment", new Class<?>[] { VerticalAlignment.class }, mapVerticalAlign(vAlign));
+
+        // Padding/insets
+        int padding = props.path("padding").asInt(0);
+        if (padding > 0) {
+            double insetPt = PptxPositioningUtil.toPoints((double) padding);
+            tryInvoke(textBox, "setLeftInset", new Class<?>[] { double.class }, insetPt);
+            tryInvoke(textBox, "setRightInset", new Class<?>[] { double.class }, insetPt);
+            tryInvoke(textBox, "setTopInset", new Class<?>[] { double.class }, insetPt);
+            tryInvoke(textBox, "setBottomInset", new Class<?>[] { double.class }, insetPt);
+        }
 
         // Clear default paragraph and add content
         textBox.clearText();
@@ -77,6 +92,24 @@ public class PptxTextWidgetRenderer implements PptxWidgetRenderer {
             if (bg != null) {
                 textBox.setFillColor(bg);
             }
+        }
+    }
+
+    private VerticalAlignment mapVerticalAlign(String align) {
+        if (align == null) return VerticalAlignment.TOP;
+        return switch (align.toLowerCase()) {
+            case "middle", "center" -> VerticalAlignment.MIDDLE;
+            case "bottom" -> VerticalAlignment.BOTTOM;
+            default -> VerticalAlignment.TOP;
+        };
+    }
+
+    private void tryInvoke(Object target, String methodName, Class<?>[] paramTypes, Object arg) {
+        if (target == null) return;
+        try {
+            var m = target.getClass().getMethod(methodName, paramTypes);
+            m.invoke(target, arg);
+        } catch (Exception ignored) {
         }
     }
 

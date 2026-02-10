@@ -10,6 +10,7 @@ import com.org.report_generator.model.document.WidgetPosition;
 import com.org.report_generator.render.pptx.PptxRenderContext;
 import com.org.report_generator.render.pptx.PptxWidgetRenderer;
 import com.org.report_generator.render.pptx.PptxWidgetRendererRegistry;
+import com.org.report_generator.render.util.PageSizeUtil;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
 import org.apache.poi.xslf.usermodel.XSLFSlide;
 import org.apache.poi.xslf.usermodel.XSLFSlideLayout;
@@ -126,27 +127,25 @@ public class PptxGeneratorService {
     }
 
     private void applySlideSize(XMLSlideShow pptx, DocumentModel document, List<Page> pages) {
-        PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
-        double baseWidthMm = Optional.ofNullable(pageSize.getWidthMm()).orElse(254d);
-        double baseHeightMm = Optional.ofNullable(pageSize.getHeightMm()).orElse(190.5d);
-
-        double maxWidthMm = Math.max(baseWidthMm, baseHeightMm);
-        double maxHeightMm = Math.min(baseWidthMm, baseHeightMm);
+        PageSize base = document != null ? document.getPageSize() : null;
+        PageSizeUtil.OrientedSizeMm baseLandscape = PageSizeUtil.orientedMm(base, "landscape");
+        double maxWidthMm = baseLandscape.widthMm();
+        double maxHeightMm = baseLandscape.heightMm();
 
         if (pages != null && !pages.isEmpty()) {
             for (Page page : pages) {
                 String orientation = page != null ? Optional.ofNullable(page.getOrientation()).orElse("landscape") : "landscape";
-                boolean portrait = orientation.equalsIgnoreCase("portrait");
-                double widthMm = portrait ? Math.min(baseWidthMm, baseHeightMm) : Math.max(baseWidthMm, baseHeightMm);
-                double heightMm = portrait ? Math.max(baseWidthMm, baseHeightMm) : Math.min(baseWidthMm, baseHeightMm);
+                PageSizeUtil.OrientedSizeMm oriented = PageSizeUtil.orientedMm(base, orientation);
+                double widthMm = oriented.widthMm();
+                double heightMm = oriented.heightMm();
                 maxWidthMm = Math.max(maxWidthMm, widthMm);
                 maxHeightMm = Math.max(maxHeightMm, heightMm);
             }
         }
 
         // Convert mm to points (1 inch = 25.4mm, 1 inch = 72 points)
-        int widthPts = (int) Math.round(maxWidthMm * 72.0 / 25.4);
-        int heightPts = (int) Math.round(maxHeightMm * 72.0 / 25.4);
+        int widthPts = PageSizeUtil.mmToPointsInt(maxWidthMm);
+        int heightPts = PageSizeUtil.mmToPointsInt(maxHeightMm);
 
         pptx.setPageSize(new Dimension(widthPts, heightPts));
     }

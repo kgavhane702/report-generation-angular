@@ -34,9 +34,11 @@ public class DocxTextWidgetRenderer implements DocxWidgetRenderer {
         
         String backgroundColor = widget.getProps().path("backgroundColor").asText(null);
         String textAlign = widget.getProps().path("textAlign").asText(null);
+        String verticalAlign = widget.getProps().path("verticalAlign").asText(null);
+        Integer padding = widget.getProps().has("padding") ? widget.getProps().path("padding").asInt(0) : null;
         
         // Use DrawingML text box for proper absolute positioning
-        DocxDrawingUtil.createTextBox(ctx.docx(), widget, html, backgroundColor, textAlign);
+        DocxDrawingUtil.createTextBox(ctx.docx(), widget, html, backgroundColor, textAlign, verticalAlign, padding);
     }
 
     private void applyBackground(org.apache.poi.xwpf.usermodel.XWPFParagraph p, String color) {

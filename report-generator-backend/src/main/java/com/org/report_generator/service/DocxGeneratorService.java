@@ -10,12 +10,15 @@ import com.org.report_generator.render.docx.DocxWidgetRenderer;
 import com.org.report_generator.render.docx.DocxWidgetRendererRegistry;
 import com.org.report_generator.model.document.PageSize;
 import com.org.report_generator.model.document.WidgetPosition;
+import com.org.report_generator.render.util.PageSizeUtil;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageMar;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STPageOrientation;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STSectionMark;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -51,16 +54,23 @@ public class DocxGeneratorService {
                 applyPageSettingsToBody(doc, document, null);
             }
 
-            // Iterate Pages
+            // Ensure first page settings are applied before any content is added.
+            if (!pages.isEmpty()) {
+                applyPageSettingsToBody(doc, document, pages.get(0));
+            }
+
+            // Iterate Pages.
+            // IMPORTANT: In OOXML, section properties on the section-break paragraph apply to the *next* section.
+            // So we set body sectPr for page 1, and after each page we insert a NEXT_PAGE section break with
+            // the settings for the upcoming page.
             for (int i = 0; i < pages.size(); i++) {
                 Page page = pages.get(i);
                 renderPage(doc, page, document);
 
-                // Apply section/page settings for this page, then insert page break if needed.
-                XWPFParagraph sect = doc.createParagraph();
-                applyPageSettingsToParagraph(sect, document, page);
                 if (i < pages.size() - 1) {
-                    sect.setPageBreak(true);
+                    Page nextPage = pages.get(i + 1);
+                    XWPFParagraph sectionBreak = doc.createParagraph();
+                    applySectionBreakWithNextPageSettings(sectionBreak, document, nextPage);
                 }
             }
 
@@ -70,6 +80,24 @@ public class DocxGeneratorService {
         } catch (IOException e) {
             throw new RuntimeException("Failed to generate DOCX", e);
         }
+    }
+
+    private void applySectionBreakWithNextPageSettings(XWPFParagraph paragraph, DocumentModel document, Page nextPage) {
+        if (paragraph == null) return;
+
+        PageSize pageSize = document != null ? document.getPageSize() : null;
+        String orientation = nextPage != null ? Optional.ofNullable(nextPage.getOrientation()).orElse("landscape") : "landscape";
+        PageSizeUtil.OrientedSizeMm oriented = PageSizeUtil.orientedMm(pageSize, orientation);
+
+        var ctp = paragraph.getCTP();
+        var ppr = ctp.isSetPPr() ? ctp.getPPr() : ctp.addNewPPr();
+        CTSectPr sectPr = ppr.isSetSectPr() ? ppr.getSectPr() : ppr.addNewSectPr();
+
+        // Ensure this paragraph is a "Next Page" section break.
+        CTSectType type = sectPr.isSetType() ? sectPr.getType() : sectPr.addNewType();
+        type.setVal(STSectionMark.NEXT_PAGE);
+
+        applyPageSettings(sectPr, oriented.widthMm(), oriented.heightMm(), oriented.portrait());
     }
 
     private void renderPage(XWPFDocument doc, Page page, DocumentModel document) {
@@ -116,44 +144,21 @@ public class DocxGeneratorService {
     }
 
     private void applyPageSettingsToBody(XWPFDocument doc, DocumentModel document, Page page) {
-        PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
-        double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(254d);
-        double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(190.5d);
-
+        PageSize pageSize = document != null ? document.getPageSize() : null;
         String orientation = page != null ? Optional.ofNullable(page.getOrientation()).orElse("landscape") : "landscape";
-        boolean portrait = orientation.equalsIgnoreCase("portrait");
-        double widthMm = portrait ? Math.min(baseWidth, baseHeight) : Math.max(baseWidth, baseHeight);
-        double heightMm = portrait ? Math.max(baseWidth, baseHeight) : Math.min(baseWidth, baseHeight);
+        PageSizeUtil.OrientedSizeMm oriented = PageSizeUtil.orientedMm(pageSize, orientation);
 
         CTSectPr sectPr = doc.getDocument().getBody().isSetSectPr()
                 ? doc.getDocument().getBody().getSectPr()
                 : doc.getDocument().getBody().addNewSectPr();
 
-        applyPageSettings(sectPr, widthMm, heightMm, portrait);
-    }
-
-    private void applyPageSettingsToParagraph(XWPFParagraph paragraph, DocumentModel document, Page page) {
-        if (paragraph == null) return;
-        PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
-        double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(254d);
-        double baseHeight = Optional.ofNullable(pageSize.getHeightMm()).orElse(190.5d);
-
-        String orientation = page != null ? Optional.ofNullable(page.getOrientation()).orElse("landscape") : "landscape";
-        boolean portrait = orientation.equalsIgnoreCase("portrait");
-        double widthMm = portrait ? Math.min(baseWidth, baseHeight) : Math.max(baseWidth, baseHeight);
-        double heightMm = portrait ? Math.max(baseWidth, baseHeight) : Math.min(baseWidth, baseHeight);
-
-        var ctp = paragraph.getCTP();
-        var ppr = ctp.isSetPPr() ? ctp.getPPr() : ctp.addNewPPr();
-        CTSectPr sectPr = ppr.isSetSectPr() ? ppr.getSectPr() : ppr.addNewSectPr();
-
-        applyPageSettings(sectPr, widthMm, heightMm, portrait);
+        applyPageSettings(sectPr, oriented.widthMm(), oriented.heightMm(), oriented.portrait());
     }
 
     private void applyPageSettings(CTSectPr sectPr, double widthMm, double heightMm, boolean portrait) {
         CTPageSz pageSz = sectPr.isSetPgSz() ? sectPr.getPgSz() : sectPr.addNewPgSz();
-        pageSz.setW(BigInteger.valueOf(mmToTwips(widthMm)));
-        pageSz.setH(BigInteger.valueOf(mmToTwips(heightMm)));
+        pageSz.setW(BigInteger.valueOf(PageSizeUtil.mmToTwips(widthMm)));
+        pageSz.setH(BigInteger.valueOf(PageSizeUtil.mmToTwips(heightMm)));
         if (!portrait) {
             pageSz.setOrient(STPageOrientation.LANDSCAPE);
         }
@@ -166,10 +171,6 @@ public class DocxGeneratorService {
         mar.setHeader(BigInteger.ZERO);
         mar.setFooter(BigInteger.ZERO);
         mar.setGutter(BigInteger.ZERO);
-    }
-
-    private long mmToTwips(double mm) {
-        return Math.round(mm * 1440d / 25.4d);
     }
 
     private List<Page> collectPages(DocumentModel document) {
