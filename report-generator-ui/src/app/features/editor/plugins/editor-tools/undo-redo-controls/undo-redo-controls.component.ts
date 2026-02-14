@@ -12,7 +12,6 @@ import { UndoRedoService } from '../../../../../core/services/undo-redo.service'
 import { UIStateService } from '../../../../../core/services/ui-state.service';
 import { PendingChangesRegistry } from '../../../../../core/services/pending-changes-registry.service';
 import { TableToolbarService } from '../../../../../core/services/table-toolbar.service';
-import { RichTextToolbarService } from '../../../../../core/services/rich-text-editor/rich-text-toolbar.service';
 import { EditorStateService } from '../../../../../core/services/editor-state.service';
 import { AppState } from '../../../../../store/app.state';
 import { DocumentSelectors } from '../../../../../store/document/document.selectors';
@@ -35,7 +34,6 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   private readonly uiState = inject(UIStateService);
   private readonly pendingChanges = inject(PendingChangesRegistry);
   private readonly tableToolbar = inject(TableToolbarService);
-  private readonly richTextToolbar = inject(RichTextToolbarService);
   private readonly editorState = inject(EditorStateService);
 
   readonly documentLocked = toSignal(
@@ -54,41 +52,8 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
 
     const editingWidgetId = this.uiState.editingWidgetId();
     const target = event.target as HTMLElement | null;
-    const containerId =
-      (target?.closest('.widget-container[data-widget-id]') as HTMLElement | null)?.getAttribute('data-widget-id') ?? null;
-
-    const activeCkEditableEl = this.richTextToolbar.activeEditor?.ui.getEditableElement() as HTMLElement | null;
-    const inActiveCkEditable = !!(activeCkEditableEl && target && activeCkEditableEl.contains(target));
-    const inCkToolbar = !!(this.richTextToolbar.activeToolbar && target && this.richTextToolbar.activeToolbar.contains(target));
-
-    // CKEditor: override native editor undo/redo and route to DOCUMENT undo/redo to keep global history synced.
-    // Scope: only when the keypress originates in the active editor's editable/toolbar AND the widget container matches UIState's editing widget.
-    if (
-      editingWidgetId &&
-      containerId === editingWidgetId &&
-      this.richTextToolbar.activeEditor &&
-      (inActiveCkEditable || inCkToolbar)
-    ) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const isRedo = key === 'y' || (key === 'z' && event.shiftKey);
-      if (isRedo) {
-        if (!this.documentCanRedo()) return;
-        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-        const affectedPageId = this.undoRedoService.redoDocument();
-        this.navigateToAffectedPage(affectedPageId);
-
-        return;
-      }
-
-      if (!this.documentCanUndo()) return;
-      document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-      const affectedPageId = this.undoRedoService.undoDocument();
-      this.navigateToAffectedPage(affectedPageId);
-
-      return;
-    }
+    const containerEl = target?.closest('.widget-container[data-widget-id]') as HTMLElement | null;
+    const containerId = containerEl?.getAttribute('data-widget-id') ?? null;
 
     // Only handle table-cell editing here.
     if (!editingWidgetId || this.tableToolbar.activeTableWidgetId !== editingWidgetId || !this.tableToolbar.activeCell) {
@@ -139,7 +104,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     const isShortcutKey = normalizedKey === 'z' || normalizedKey === 'y';
     const shouldHandle = this.shouldHandleGlobalShortcut(event);
 
-    // Don't steal Ctrl+Z / Ctrl+Y from inline editors (CKEditor, contenteditable table cells, inputs, etc).
+    // Don't steal Ctrl+Z / Ctrl+Y from inline editors (contenteditable table cells, inputs, etc).
     // Those editors usually have their own internal undo stacks that should be used while focused.
     if (!shouldHandle) {
       return;
@@ -171,17 +136,6 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // While editing a text widget (CKEditor), do document undo but allow the widget to temporarily
-    // apply the store update even though it's actively editing (focus-preserving sync).
-    if (editingWidgetId && this.richTextToolbar.activeEditor) {
-      if (this.documentCanUndo()) {
-        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-undo', { detail: { widgetId: editingWidgetId } }));
-        const affectedPageId = this.undoRedoService.undoDocument();
-        this.navigateToAffectedPage(affectedPageId);
-      }
-      return;
-    }
-
     // Ensure delayed-edit widgets (table/text) commit their changes before we snapshot/undo.
     await this.pendingChanges.flushAll();
 
@@ -197,15 +151,6 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
     if (editingWidgetId && this.tableToolbar.activeTableWidgetId === editingWidgetId && this.tableToolbar.activeCell) {
       if (this.documentCanRedo()) {
         document.dispatchEvent(new CustomEvent('tw-table-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
-        const affectedPageId = this.undoRedoService.redoDocument();
-        this.navigateToAffectedPage(affectedPageId);
-      }
-      return;
-    }
-
-    if (editingWidgetId && this.richTextToolbar.activeEditor) {
-      if (this.documentCanRedo()) {
-        document.dispatchEvent(new CustomEvent('tw-text-pre-doc-redo', { detail: { widgetId: editingWidgetId } }));
         const affectedPageId = this.undoRedoService.redoDocument();
         this.navigateToAffectedPage(affectedPageId);
       }
@@ -246,7 +191,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    // Any contenteditable region (CKEditor, table cells, etc.) should own its own undo stack.
+    // Any contenteditable region (table cells, etc.) should own its own undo stack.
     if (target.isContentEditable || target.closest('[contenteditable="true"]')) {
       return false;
     }

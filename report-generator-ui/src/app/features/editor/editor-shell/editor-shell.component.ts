@@ -201,7 +201,6 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
     
     const widget = this.editorState.activeWidget();
     return (
-      widget?.type === 'text' ||
       widget?.type === 'table' ||
       widget?.type === 'chart' ||
       widget?.type === 'editastra' ||

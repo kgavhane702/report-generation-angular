@@ -60,13 +60,6 @@
     <!-- Widget content - not draggable -->
     <div class="widget-container__content">
       <ng-container [ngSwitch]="widget.type">
-        <app-text-widget
-          *ngSwitchCase="'text'"
-          [widget]="$any(widget)"
-          (editingChange)="onEditingChange($event)"
-          (propsChange)="onContentChange($event)"
-        ></app-text-widget>
-
         <app-chart-widget
           *ngSwitchCase="'chart'"
           [widget]="$any(widget)"

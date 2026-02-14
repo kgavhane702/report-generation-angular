@@ -95,7 +95,7 @@ class DocumentRenderServiceTest {
     void render_documentWithWidget_rendersWidget() {
         when(widgetRenderers.render(any(), any(), any(), any())).thenReturn("<div class=\"widget\">Test Widget</div>");
         
-        DocumentModel document = createDocumentWithWidget("text");
+        DocumentModel document = createDocumentWithWidget("editastra");
 
         String result = service.render(document);
 
@@ -376,7 +376,7 @@ class DocumentRenderServiceTest {
         
         Widget widget = new Widget();
         widget.setId("widget1");
-        widget.setType("text");
+        widget.setType("editastra");
         WidgetPosition position = new WidgetPosition();
         position.setX(10.0);
         position.setY(20.0);
@@ -412,7 +412,7 @@ class DocumentRenderServiceTest {
         
         Widget widget = new Widget();
         widget.setId("widget1");
-        widget.setType("text");
+        widget.setType("editastra");
         WidgetPosition position = new WidgetPosition();
         position.setX(10.0);
         position.setY(20.0);

@@ -4,7 +4,6 @@ import { CommonModule } from '@angular/common';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import type { WidgetType } from '../../../../models/widget.model';
 
-import { TextWidgetToolbarComponent } from '../../plugins/text/ui/text-widget-toolbar/text-widget-toolbar.component';
 import { TableToolbarComponent } from '../../plugins/table/ui/table-toolbar/table-toolbar.component';
 import { ChartToolbarComponent } from '../../plugins/chart/ui/chart-toolbar/chart-toolbar.component';
 import { EditastraToolbarComponent } from '../../plugins/editastra/ui/editastra-toolbar/editastra-toolbar.component';
@@ -34,7 +33,6 @@ export class WidgetToolbarComponent {
 
   /** Central registry: widget type -> toolbar component */
   private readonly registry: WidgetToolbarRegistry = {
-    text: TextWidgetToolbarComponent,
     table: TableToolbarComponent,
     chart: ChartToolbarComponent,
     editastra: EditastraToolbarComponent,

@@ -260,7 +260,9 @@ class ConnectorWidgetHtmlRendererTest {
         props.set("endPoint", endPoint);
 
         String result = renderer.render(props, "width: 300px; height: 100px;", ctx);
-        assertThat(result).contains("viewBox=\"0 0 300 100\"");
+        // viewBox width = max(endPoint.x, startPoint.x) + strokeWidth = 300 + 2 = 302
+        // viewBox height = widgetHeight (100) since it exceeds minHeight (50 + 2 = 52)
+        assertThat(result).contains("viewBox=\"0 0 302 100\"");
     }
 
     @Test

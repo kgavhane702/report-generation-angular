@@ -13,6 +13,6 @@ This folder contains the **report editor feature**.
 
 - Plugin code may depend on **`src/app/core/`**, **`src/app/models/`**, **`src/app/shared/`**, **`src/app/store/`**.
 - Avoid importing deep internals across plugins. Prefer each plugin’s `index.ts` as its public surface.
-- `widgets/widget-container` is the only place that “hosts” all widget selectors (`app-text-widget`, `app-table-widget`, etc.).
+- `widgets/widget-container` is the only place that "hosts" all widget selectors (`app-table-widget`, `app-chart-widget`, etc.).
 
 

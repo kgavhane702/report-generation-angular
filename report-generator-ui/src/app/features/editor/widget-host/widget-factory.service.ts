@@ -5,7 +5,6 @@ import {
   WidgetModel,
   WidgetType,
   ChartWidgetProps,
-  TextWidgetProps,
   ImageWidgetProps,
   EditastraWidgetProps,
   TableWidgetProps,
@@ -23,8 +22,6 @@ import { TABLE_DEFAULT_WIDTH_PX, TABLE_INITIAL_ROW_PX } from '../plugins/table/t
 export class WidgetFactoryService {
   createWidget(type: WidgetType, props?: Partial<WidgetProps>): WidgetModel {
     switch (type) {
-      case 'text':
-        return this.createTextWidget();
       case 'chart':
         return this.createChartWidget();
       case 'image':
@@ -40,20 +37,6 @@ export class WidgetFactoryService {
       default:
         return this.createFallbackWidget(type);
     }
-  }
-
-  private createTextWidget(): WidgetModel<TextWidgetProps> {
-    return {
-      id: uuid(),
-      type: 'text',
-      position: { x: 80, y: 80 },
-      size: { width: 320, height: 140 },
-      zIndex: 1,
-      props: {
-        contentHtml: '<p></p>',
-        flowEnabled: true,
-      },
-    };
   }
 
   private createChartWidget(): WidgetModel<ChartWidgetProps> {

@@ -2,7 +2,6 @@ import { UUID } from './document.model';
 import type { ChartHttpDataSourceConfig, TableHttpDataSourceConfig } from '../shared/http-request/models/http-data-source.model';
 
 export type WidgetType =
-  | 'text'
   | 'chart'
   | 'image'
   | 'editastra'
@@ -35,7 +34,6 @@ export interface WidgetSize {
 }
 
 export type WidgetProps =
-  | TextWidgetProps
   | ChartWidgetProps
   | ImageWidgetProps
   | EditastraWidgetProps
@@ -44,13 +42,6 @@ export type WidgetProps =
   | TableWidgetProps
   | ObjectWidgetProps
   | ConnectorWidgetProps;
-
-export interface TextWidgetProps {
-  contentHtml: string;
-  editorConfigId?: string;
-  flowEnabled?: boolean;
-  backgroundColor?: string;
-}
 
 /**
  * EditastraWidgetProps

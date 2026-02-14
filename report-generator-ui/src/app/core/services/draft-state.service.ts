@@ -50,7 +50,7 @@ export interface CommitDraftOptions {
  * This prevents:
  * - Full document re-rendering during interactions
  * - Widget components being recreated mid-interaction
- * - CKEditor losing focus during typing
+ * - Text editor losing focus during typing
  */
 @Injectable({
   providedIn: 'root',

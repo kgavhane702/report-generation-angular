@@ -82,20 +82,11 @@
   </div>
 
   <div class="editor-toolbar__group editor-toolbar__group--widgets">
-    <button 
-      type="button" 
-      class="editor-toolbar__icon-button"
-      (click)="addWidget('text')"
-      title="Add Text Widget"
-      [disabled]="documentLocked()"
-    >
-      <app-icon name="text_fields" [size]="16"></app-icon>
-    </button>
     <button
       type="button"
       class="editor-toolbar__icon-button"
       (click)="addWidget('editastra')"
-      title="Add Editastra Widget (temporary)"
+      title="Add Text Widget"
       [disabled]="documentLocked()"
     >
       <app-icon name="edit_note" [size]="16"></app-icon>

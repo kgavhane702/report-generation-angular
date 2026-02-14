@@ -66,7 +66,6 @@ type SharedSplitRowSegment = { boundaryAbs: number; topPercent: number; leftPerc
  * TableWidgetComponent
  * 
  * A table widget with contenteditable cells for inline editing.
- * Follows the same architecture as TextWidgetComponent:
  * - Local editing state during typing
  * - Changes emitted only on blur
  * - FlushableWidget interface for pending changes

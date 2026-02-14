@@ -2,7 +2,6 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { DragDropModule } from '@angular/cdk/drag-drop';
-import { CKEditorModule } from '@ckeditor/ckeditor5-angular';
 
 import { EditorShellComponent } from './editor-shell/editor-shell.component';
 import { ExportShellComponent } from './export-shell/export-shell.component';
@@ -13,7 +12,6 @@ import { PageOutlineComponent } from './page-outline/page-outline.component';
 import { PageCanvasComponent } from './page-canvas/page-canvas.component';
 import { PageComponent } from './page/page.component';
 import { WidgetContainerComponent } from './widget-host/widget-container/widget-container.component';
-import { TextWidgetComponent } from './plugins/text/widget';
 import { ChartWidgetComponent } from './plugins/chart/widget';
 import { ImageWidgetComponent } from './plugins/image/widget';
 import { TableWidgetComponent } from './plugins/table/widget';
@@ -27,7 +25,6 @@ import { ChartRegistryInitializer } from './plugins/chart/engine/runtime';
 import { ChartConfigFormComponent } from './plugins/chart/ui/chart-config-form/chart-config-form.component';
 import { ChartWidgetSelectorComponent } from './plugins/chart/ui/chart-widget-selector/chart-widget-selector.component';
 import { ShapeWidgetSelectorComponent } from './plugins/object/ui/shape-widget-selector/shape-widget-selector.component';
-import { TextWidgetColorPickerComponent } from './plugins/text/ui/text-widget-color-picker/text-widget-color-picker.component';
 import { TableToolbarComponent } from './plugins/table/ui/table-toolbar/table-toolbar.component';
 import { TableGridSelectorComponent } from './plugins/table/ui/table-grid-selector/table-grid-selector.component';
 import { TableResizeOverlayComponent } from './plugins/table/widget/resize/table-resize-overlay.component';
@@ -56,7 +53,6 @@ import { EditorRoutingModule } from './editor-routing.module';
     PageCanvasComponent,
     PageComponent,
     WidgetContainerComponent,
-    TextWidgetComponent,
     ChartWidgetComponent,
     ImageWidgetComponent,
     TableWidgetComponent,
@@ -74,13 +70,11 @@ import { EditorRoutingModule } from './editor-routing.module';
     FormsModule,
     ReactiveFormsModule,
     DragDropModule,
-    CKEditorModule,
     AppModalComponent,
     ChartConfigFormComponent,
     ChartWidgetSelectorComponent,
     ShapeWidgetSelectorComponent,
     WidgetToolbarComponent,
-    TextWidgetColorPickerComponent,
     TableToolbarComponent,
     TableGridSelectorComponent,
     TableResizeOverlayComponent,

@@ -5,7 +5,7 @@ import { RouterModule, Routes } from '@angular/router';
  * App routing
  *
  * NOTE: We introduce routing primarily to enable lazy-loading and code-splitting.
- * The editor feature is heavy (CKEditor, charts, etc.) and should not be in the initial bundle.
+ * The editor feature is heavy (charts, etc.) and should not be in the initial bundle.
  */
 const routes: Routes = [
   {

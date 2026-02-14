@@ -917,10 +917,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   
   /**
    * Handle pointer down on drag handle
-   * Ensures proper pointer event handling and prevents CKEditor interference
+    * Ensures proper pointer event handling and prevents editor interference
    * Similar fix to resizer - ensures first drag attempt works after editing
    * 
-   * The issue: After editing in CKEditor, isEditing is still true when drag handle
+    * The issue: After editing in a text widget, isEditing is still true when drag handle
    * is clicked, causing cdkDragDisabled to be true. The blur timeout delays the
    * editing state change by 150ms, so the first drag attempt is blocked.
    * 
@@ -945,11 +945,11 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       this.uiState.stopEditing();
     }
     
-    // Release any pointer capture that might be held by CKEditor or other elements
+    // Release any pointer capture that might be held by editor or other elements
     // This must be done synchronously before CDK Drag processes the event
     if (event.pointerId !== undefined) {
       try {
-        // Release capture from the active element (might be CKEditor's editable)
+        // Release capture from the active element (might be an editable element)
         const activeElement = document.activeElement as HTMLElement;
         if (activeElement && typeof activeElement.releasePointerCapture === 'function') {
           try {
@@ -2707,11 +2707,11 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       return { minWidth: 40, minHeight: policy.preferredHeightPx };
     }
 
-    if (widget.type === 'text' || widget.type === 'editastra') {
-      // Text-like widgets should not collapse below a caret-friendly baseline.
-      // For editastra: additionally clamp to content-min-height from DOM (table-like behavior).
-      const baseMinH = widget.type === 'editastra' ? 24 : 50;
-      const domMinH = widget.type === 'editastra' ? this.readEditastraMinHeightPxFromDom() : null;
+    if (widget.type === 'editastra') {
+      // Editastra widgets should not collapse below a caret-friendly baseline.
+      // Additionally clamp to content-min-height from DOM (table-like behavior).
+      const baseMinH = 24;
+      const domMinH = this.readEditastraMinHeightPxFromDom();
       const contentMinH = domMinH ?? baseMinH;
       return { minWidth: 80, minHeight: Math.max(baseMinH, contentMinH) };
     }

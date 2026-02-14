@@ -25,13 +25,12 @@ export class RibbonToolbarComponent {
   readonly activeTab = signal<RibbonTabId>('insert');
 
   private readonly widgetLabelMap: Partial<Record<WidgetType, string>> = {
-    text: 'Text',
     table: 'Table',
     chart: 'Chart',
     image: 'Image',
     object: 'Shape',
     connector: 'Connector',
-    editastra: 'Editastra',
+    editastra: 'Text',
   };
 
   readonly contextLabel = computed(() => {

@@ -17,7 +17,6 @@ import com.org.report_generator.render.widgets.RenderContext;
 import com.org.report_generator.render.widgets.WidgetRendererRegistry;
 import com.org.report_generator.service.renderer.GlobalStylesRenderer;
 import com.org.report_generator.service.renderer.PageStylesRenderer;
-import com.org.report_generator.service.renderer.TextWidgetRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import com.org.report_generator.service.renderer.TableWidgetRenderer;
 import com.org.report_generator.service.renderer.EditastraWidgetRenderer;
@@ -78,7 +77,6 @@ public class DocumentRenderService {
         html.append("<title>").append(Optional.ofNullable(document.getTitle()).orElse("Document")).append("</title>");
         html.append("<style>")
                 .append(GlobalStylesRenderer.getCss())
-                .append(TextWidgetRenderer.getCss())
                 .append(ImageWidgetRenderer.getCss())
                 .append(TableWidgetRenderer.getCss())
                 .append(EditastraWidgetRenderer.getCss())
