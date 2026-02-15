@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
@@ -46,6 +47,7 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   @Output() propsChange = new EventEmitter<Partial<EditastraWidgetProps>>();
 
   private readonly pending = inject(PendingChangesRegistry);
+  private readonly hostEl = inject(ElementRef<HTMLElement>);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly tableToolbar = inject(TableToolbarService);
   private readonly draftState = inject(DraftStateService);
@@ -115,6 +117,145 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   }
 
   readonly placeholder = () => this.props.placeholder || 'Type here…';
+
+  private isSlidePlaceholderWidget(): boolean {
+    const p = (this.props.placeholder || '').trim().toLowerCase();
+    if (!p.startsWith('click to add')) return false;
+    return normalizeEditorHtmlForModel(this.localHtml()) === '';
+  }
+
+  private defaultBlockTagForPlaceholder(): 'h1' | 'h2' | 'h3' | 'p' {
+    const p = (this.props.placeholder || '').trim().toLowerCase();
+    if (p.includes('add title') && !p.includes('subtitle')) return 'h1';
+    if (p.includes('subtitle')) return 'h3';
+    if (p.includes('section title')) return 'h1';
+    if (p.includes('heading')) return 'h2';
+    return 'p';
+  }
+
+  private collapseEditorToEmptyState(): void {
+    const editable = this.editorComp?.getEditableElement();
+    if (!editable) return;
+
+    if (editable.innerHTML !== '') {
+      editable.innerHTML = '';
+    }
+
+    // Keep caret inside the editor at start so further typing remains aligned/expected.
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.selectNodeContents(editable);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  get effectiveBorderStyle(): 'solid' | 'dashed' | 'dotted' | 'none' {
+    if (this.props.borderStyle) return this.props.borderStyle;
+    return this.isSlidePlaceholderWidget() ? 'dashed' : 'none';
+  }
+
+  get effectiveBorderWidth(): number {
+    const v = Number(this.props.borderWidth);
+    if (Number.isFinite(v) && v > 0) return Math.round(v);
+    return this.isSlidePlaceholderWidget() ? 2 : 0;
+  }
+
+  get effectiveBorderColor(): string {
+    if (this.props.borderColor) return this.props.borderColor;
+    return this.isSlidePlaceholderWidget()
+      ? this.resolveAutoPlaceholderBorderColor()
+      : 'transparent';
+  }
+
+  private resolveAutoPlaceholderBorderColor(): string {
+    const host = this.hostEl.nativeElement;
+    const surface = host.closest('.page__surface') as HTMLElement | null;
+
+    // 1) Prefer computed background color from the current page surface.
+    if (surface) {
+      const cs = window.getComputedStyle(surface);
+      const bgRgb = this.parseCssColor(cs.backgroundColor);
+      if (bgRgb) {
+        return this.isLightColor(bgRgb) ? '#0f172a' : '#ffffff';
+      }
+
+      // 2) For gradient backgrounds, parse first explicit color token from background-image.
+      const fromGradient = this.extractFirstColorFromBackgroundImage(cs.backgroundImage);
+      if (fromGradient) {
+        const gradRgb = this.parseCssColor(fromGradient);
+        if (gradRgb) {
+          return this.isLightColor(gradRgb) ? '#0f172a' : '#ffffff';
+        }
+      }
+    }
+
+    // 3) Fallback to slide foreground variable (usually contrast-safe).
+    return 'var(--slide-foreground, #0f172a)';
+  }
+
+  private extractFirstColorFromBackgroundImage(bgImage: string | null | undefined): string | null {
+    const value = (bgImage ?? '').trim();
+    if (!value || value === 'none') return null;
+
+    // Match first hex/rgb/rgba/hsl/hsla token.
+    const tokenMatch = value.match(/#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b|rgba?\([^\)]+\)|hsla?\([^\)]+\)/);
+    return tokenMatch ? tokenMatch[0] : null;
+  }
+
+  private parseCssColor(input: string | null | undefined): { r: number; g: number; b: number } | null {
+    const raw = (input ?? '').trim();
+    if (!raw || raw === 'transparent' || raw === 'rgba(0, 0, 0, 0)') return null;
+
+    // #RGB or #RRGGBB
+    const hex = raw.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+    if (hex) {
+      const h = hex[1];
+      if (h.length === 3) {
+        return {
+          r: parseInt(h[0] + h[0], 16),
+          g: parseInt(h[1] + h[1], 16),
+          b: parseInt(h[2] + h[2], 16),
+        };
+      }
+      return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16),
+      };
+    }
+
+    // rgb()/rgba()
+    const rgb = raw.match(/^rgba?\(([^\)]+)\)$/i);
+    if (rgb) {
+      const parts = rgb[1].split(',').map((p) => p.trim());
+      if (parts.length >= 3) {
+        const r = Number(parts[0]);
+        const g = Number(parts[1]);
+        const b = Number(parts[2]);
+        if ([r, g, b].every((v) => Number.isFinite(v))) {
+          return { r, g, b };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private isLightColor(rgb: { r: number; g: number; b: number }): boolean {
+    const luma = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+    return luma >= 180;
+  }
+
+  get effectiveBorderRadius(): number {
+    const v = Number(this.props.borderRadius);
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+  }
+
+  isPlaceholderState(): boolean {
+    return normalizeEditorHtmlForModel(this.localHtml()) === '';
+  }
 
   ngOnInit(): void {
     this.localHtml.set(this.props.contentHtml || '');
@@ -292,9 +433,37 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   }
 
   onEditorInput(html: string): void {
-    this.localHtml.set(html ?? '');
+    const raw = html ?? '';
+    // Important: collapse "visually empty" editor HTML to truly empty string immediately,
+    // so placeholder comes back on the same page without waiting for page switch/re-hydration.
+    const normalized = normalizeEditorHtmlForModel(raw);
+    const isEmpty = normalized === '';
+    this.localHtml.set(isEmpty ? '' : raw);
+    if (isEmpty) {
+      this.collapseEditorToEmptyState();
+    }
     this.scheduleAutoGrow();
     this.scheduleAutosaveCommit();
+  }
+
+  onEditorKeydown(event: KeyboardEvent): void {
+    const key = (event.key || '').toLowerCase();
+    if (key !== 'backspace' && key !== 'delete') return;
+
+    // Some contenteditable states (especially heading blocks) can keep empty wrapper tags
+    // without emitting a clean input payload. Re-check DOM state after key handling.
+    queueMicrotask(() => {
+      const editable = this.editorComp?.getEditableElement();
+      if (!editable) return;
+      const html = editable.innerHTML ?? '';
+      const normalized = normalizeEditorHtmlForModel(html);
+      if (normalized === '' && this.localHtml() !== '') {
+        this.localHtml.set('');
+        this.collapseEditorToEmptyState();
+        this.scheduleAutosaveCommit();
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   onEditorBlur(): void {
@@ -664,9 +833,10 @@ function normalizeEditorHtmlForModel(html: string): string {
   const trimmed = raw.trim();
   if (!trimmed) return '';
 
-  // Common empty contenteditable shapes.
+  // Fast-path common empty contenteditable shapes.
   const normalized = trimmed
-    .replace(/&nbsp;/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -676,6 +846,25 @@ function normalizeEditorHtmlForModel(html: string): string {
     normalized === '<div><br></div><div><br></div>' ||
     normalized === '<p><br></p>'
   ) {
+    return '';
+  }
+
+  // Robust empty-check for rich wrappers produced by heading/formatBlock edits.
+  const host = document.createElement('div');
+  host.innerHTML = trimmed;
+
+  // Remove pure line-break nodes and empty wrappers to evaluate true content.
+  const text = (host.textContent || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .trim();
+
+  const hasMeaningfulMedia = !!host.querySelector('img,svg,video,audio,canvas,iframe,table');
+  const hasListItems = !!Array.from(host.querySelectorAll('li')).find((li) =>
+    (li.textContent || '').replace(/\u00A0/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '').trim().length > 0
+  );
+
+  if (!text && !hasMeaningfulMedia && !hasListItems) {
     return '';
   }
 

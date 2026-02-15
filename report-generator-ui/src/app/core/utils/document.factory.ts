@@ -7,9 +7,18 @@ import {
   SubsectionModel,
 } from '../../models/document.model';
 import { PageModel } from '../../models/page.model';
+import {
+  DEFAULT_SLIDE_LAYOUT_TYPE,
+  DEFAULT_SLIDE_THEME_ID,
+  getSlideThemeById,
+  resolveVariantForLayout,
+} from '../slide-design/slide-design.config';
+import { SlideLayoutType } from '../slide-design/slide-design.model';
+import { createInitialTitleSlidePlaceholders } from '../slide-design/slide-template.factory';
 
 export function createInitialDocument(): DocumentModel {
-  const page = createPageModel(1);
+  const page = createPageModel(1, 'landscape', { slideLayoutType: 'title_slide' });
+  page.widgets = createInitialTitleSlidePlaceholders();
   const subsection = createSubsectionModel('Overview', [page]);
   const section = createSectionModel('Executive Summary', [subsection]);
 
@@ -19,6 +28,10 @@ export function createInitialDocument(): DocumentModel {
     version: '1.0.0',
     pageSize: defaultPageSize(),
     sections: [section],
+    metadata: {
+      slideThemeId: DEFAULT_SLIDE_THEME_ID,
+      defaultSlideLayoutType: DEFAULT_SLIDE_LAYOUT_TYPE,
+    },
     footer: {
       showPageNumber: true,
     },
@@ -55,7 +68,15 @@ export function createSubsectionModel(
   };
 }
 
-export function createPageModel(pageNumber: number, orientation: 'portrait' | 'landscape' = 'landscape'): PageModel {
+export function createPageModel(
+  pageNumber: number,
+  orientation: 'portrait' | 'landscape' = 'landscape',
+  options?: { slideLayoutType?: SlideLayoutType; slideVariantId?: string }
+): PageModel {
+  const slideLayoutType = options?.slideLayoutType ?? DEFAULT_SLIDE_LAYOUT_TYPE;
+  const slideVariantId = options?.slideVariantId
+    ?? resolveVariantForLayout(getSlideThemeById(DEFAULT_SLIDE_THEME_ID), slideLayoutType).id;
+
   return {
     id: uuid(),
     number: pageNumber,
@@ -63,6 +84,8 @@ export function createPageModel(pageNumber: number, orientation: 'portrait' | 'l
     title: undefined,
     widgets: [],
     orientation,
+    slideLayoutType,
+    slideVariantId,
   };
 }
 

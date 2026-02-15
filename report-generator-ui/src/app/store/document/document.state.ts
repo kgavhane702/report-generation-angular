@@ -2,6 +2,7 @@ import { EntityState } from '@ngrx/entity';
 
 import { UUID, PageSize, HeaderConfig, FooterConfig, LogoConfig } from '../../models/document.model';
 import { BackgroundSpec } from '../../models/page.model';
+import { SlideLayoutType } from '../../core/slide-design/slide-design.model';
 import {
   WidgetType,
   WidgetPosition,
@@ -87,6 +88,8 @@ export interface PageEntity {
   title?: string;
   background?: BackgroundSpec;
   orientation?: 'portrait' | 'landscape';
+  slideLayoutType?: SlideLayoutType;
+  slideVariantId?: string;
   // Note: widgets are tracked via widgetIdsByPageId map
 }
 

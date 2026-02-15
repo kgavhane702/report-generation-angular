@@ -24,6 +24,8 @@ import {
   createSectionModel,
   createSubsectionModel,
 } from '../utils/document.factory';
+import { SlideDesignService } from '../slide-design/slide-design.service';
+import { SlideTemplateService } from '../slide-design/slide-template.service';
 import { UndoRedoService } from './undo-redo.service';
 import { ClipboardService } from './clipboard.service';
 import { SaveIndicatorService } from './save-indicator.service';
@@ -48,6 +50,7 @@ import {
 import { WidgetFactoryService } from '../../features/editor/widget-host/widget-factory.service';
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 import { deepClone } from '../utils/deep-clone.util';
+import { SlideLayoutType } from '../slide-design/slide-design.model';
 
 /**
  * DocumentService
@@ -64,6 +67,8 @@ export class DocumentService {
   private readonly clipboardService = inject(ClipboardService);
   private readonly widgetFactory = inject(WidgetFactoryService);
   private readonly saveIndicator = inject(SaveIndicatorService);
+  private readonly slideDesign = inject(SlideDesignService);
+  private readonly slideTemplates = inject(SlideTemplateService);
 
   // ============================================
   // STORE SIGNALS
@@ -299,7 +304,8 @@ export class DocumentService {
   replaceDocument(document: DocumentModel): void {
     // Document replacement (import/open) is a system action and must NOT create undo history.
     // The caller (e.g., editor-toolbar) should clear undo history before calling this.
-    this.store.dispatch(DocumentActions.setDocument({ document }));
+    const hydrated = this.slideDesign.hydrateDocument(document);
+    this.store.dispatch(DocumentActions.setDocument({ document: hydrated }));
   }
 
   updateDocumentTitle(title: string): void {
@@ -360,7 +366,13 @@ export class DocumentService {
     const sectionCount = this.sectionIds().length + 1;
     const sectionTitle = `Section ${sectionCount}`;
     const subsectionTitle = 'Subsection 1';
-    const page = createPageModel(1);
+    const page = createPageModel(1, 'landscape', this.slideDesign.buildPageDesign('blank'));
+    page.widgets = this.slideTemplates.createTemplateWidgets({
+      layout: page.slideLayoutType ?? 'blank',
+      pageSize: this.pageSizeSignal(),
+      orientation: 'landscape',
+      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? 'blank'),
+    });
     const subsection = createSubsectionModel(subsectionTitle, [page]);
     const section = createSectionModel(sectionTitle, [subsection]);
 
@@ -432,7 +444,13 @@ export class DocumentService {
     const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
     const subsectionCount = subIds.length + 1;
     const subsectionTitle = `Subsection ${subsectionCount}`;
-    const page = createPageModel(1);
+    const page = createPageModel(1, 'landscape', this.slideDesign.buildPageDesign('blank'));
+    page.widgets = this.slideTemplates.createTemplateWidgets({
+      layout: page.slideLayoutType ?? 'blank',
+      pageSize: this.pageSizeSignal(),
+      orientation: 'landscape',
+      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? 'blank'),
+    });
     const subsection = createSubsectionModel(subsectionTitle, [page]);
 
     const command = new AddSubsectionCommand(
@@ -498,11 +516,26 @@ export class DocumentService {
   // PAGE OPERATIONS
   // ============================================
 
-  addPage(subsectionId: string): string | null {
+  addPage(
+    subsectionId: string,
+    options?: { slideLayoutType?: SlideLayoutType }
+  ): string | null {
     if (!this.canEdit()) return null;
     const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
     const nextNumber = pageIds.length + 1;
-    const page = createPageModel(nextNumber);
+    // Default to 'blank' for manually added pages; callers pass an explicit layout when needed.
+    const layout = options?.slideLayoutType ?? 'blank';
+    const page = createPageModel(
+      nextNumber,
+      'landscape',
+      this.slideDesign.buildPageDesign(layout)
+    );
+    page.widgets = this.slideTemplates.createTemplateWidgets({
+      layout: page.slideLayoutType ?? this.slideDesign.defaultLayoutType(),
+      pageSize: this.pageSizeSignal(),
+      orientation: 'landscape',
+      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? this.slideDesign.defaultLayoutType()),
+    });
 
     const command = new AddPageCommand(this.store, subsectionId, page);
     this.undoRedoService.executeDocumentCommand(command);

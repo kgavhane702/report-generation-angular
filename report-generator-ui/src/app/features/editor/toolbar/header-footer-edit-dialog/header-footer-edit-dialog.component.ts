@@ -16,6 +16,8 @@ import { DocumentService } from '../../../../core/services/document.service';
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { PageLayoutSelectorComponent } from '../page-layout-selector/page-layout-selector.component';
+import { SlideThemeSelectorComponent } from '../slide-theme-selector/slide-theme-selector.component';
+import { SlideLayoutSelectorComponent } from '../slide-layout-selector/slide-layout-selector.component';
 
 type PageNumberFormat = 'arabic' | 'roman' | 'alphabetic';
 type TabType = 'header' | 'footer' | 'page';
@@ -45,6 +47,8 @@ export class SettingsDialogComponent {
 
   readonly open = signal(false);
   readonly activeTab = signal<TabType>('page');
+  readonly slideThemeSelectorComponent = SlideThemeSelectorComponent;
+  readonly slideLayoutSelectorComponent = SlideLayoutSelectorComponent;
 
   // Header state
   readonly headerLeftText = signal('');

@@ -8,6 +8,7 @@
   // Stable default typography for cells that don't have explicit per-cell font size.
   // Without this, the browser default (16px) leaks in and the toolbar "jumps" between cells after import.
   font-size: 14px;
+  color: var(--slide-foreground, #0f172a);
   line-height: 1.5;
 
   &--active {
@@ -39,7 +40,7 @@
   }
 
   &__cell {
-    border: 1px solid rgba(0, 0, 0, 0.12);
+    border: 1px solid var(--slide-table-border, rgba(0, 0, 0, 0.16));
     padding: 0;
     margin: 0;
     background: transparent;
@@ -50,7 +51,7 @@
     overflow: hidden; /* Prevent text/markers from spilling into other cells */
 
     &:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: var(--slide-table-hover, rgba(0, 0, 0, 0.04));
     }
 
     &--selected {
@@ -228,7 +229,7 @@
   }
 
   &__sub-cell {
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    border: 1px solid var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
     box-sizing: border-box;
     overflow: hidden;
     background: transparent;

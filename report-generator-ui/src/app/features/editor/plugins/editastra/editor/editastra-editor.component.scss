@@ -17,11 +17,49 @@
   overflow-wrap: anywhere;
   background: transparent;
 
-  color: #0f172a;
+  color: var(--slide-editor-color, var(--slide-foreground, #0f172a));
 
   // Subtle caret-friendly baseline blocks
   > div {
     min-height: 1em;
+  }
+
+  // Semantic heading typography (used by slide placeholders via formatBlock h1/h2/h3)
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 0;
+    padding: 0;
+    font-family: var(--slide-title-font-family, inherit);
+    font-weight: var(--slide-title-font-weight, 700);
+    line-height: 1.2;
+  }
+
+  h1 {
+    font-size: var(--slide-title-font-size, 32px);
+  }
+
+  h2 {
+    font-size: clamp(20px, calc(var(--slide-title-font-size, 32px) * 0.78), 32px);
+  }
+
+  h3 {
+    font-size: clamp(16px, calc(var(--slide-title-font-size, 32px) * 0.62), 24px);
+  }
+
+  h4 {
+    font-size: clamp(14px, calc(var(--slide-title-font-size, 32px) * 0.5), 20px);
+  }
+
+  h5 {
+    font-size: clamp(13px, calc(var(--slide-title-font-size, 32px) * 0.44), 18px);
+  }
+
+  h6 {
+    font-size: clamp(12px, calc(var(--slide-title-font-size, 32px) * 0.38), 16px);
   }
 
   // List styling (match table editor behavior)
@@ -106,18 +144,23 @@
 //
 // For standalone Editastra widgets (which use variant="table" but do NOT have the table-widget classes),
 // apply the compact padding + URL auto-fit scaling via `--ew-auto-fit-scale`.
+// IMPORTANT: font-size / font-weight / text-align are INHERITED from the widget wrapper
+// (set via [style.font-size], [style.font-weight], [style.text-align] bindings).
+// We only set a fallback when the widget does not specify a size.
 .editastra-editor--table .editastra-editor__surface:not(.table-widget__cell-editor):not(.table-widget__cell-editor--subcell) {
   padding:
     clamp(0px, calc(4px * var(--ew-auto-fit-scale, 1)), 4px)
     clamp(0px, calc(8px * var(--ew-auto-fit-scale, 1)), 8px);
-  font-size: clamp(8px, calc(1em * var(--ew-auto-fit-scale, 1)), 1em);
+  font-size: inherit;
+  font-weight: inherit;
+  text-align: inherit;
   line-height: clamp(1.0, calc(1.35 * var(--ew-auto-fit-scale, 1)), 1.35);
 }
 
 // Placeholder for empty contenteditable
 .editastra-editor__surface:empty::before {
   content: attr(data-placeholder);
-  color: rgba(100, 116, 139, 0.85);
+  color: var(--slide-placeholder-color, rgba(100, 116, 139, 0.85));
   pointer-events: none;
 }
 

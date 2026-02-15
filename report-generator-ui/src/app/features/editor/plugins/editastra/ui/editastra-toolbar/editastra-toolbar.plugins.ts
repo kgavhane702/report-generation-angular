@@ -117,6 +117,13 @@ export type EditastraToolbarPlugin =
       icon: 'format_color_fill';
     }
   | {
+      /** Widget-level border style for textbox frame. */
+      kind: 'widget-border';
+      id: string;
+      group: EditastraToolbarGroupId;
+      title: string;
+    }
+  | {
       /** Heading/paragraph style dropdown */
       kind: 'heading';
       id: string;
@@ -229,6 +236,12 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
     group: 'colors',
     title: 'Background color',
     icon: 'format_color_fill',
+  },
+  {
+    kind: 'widget-border',
+    id: 'borderStyle',
+    group: 'colors',
+    title: 'Border',
   },
 ];
 

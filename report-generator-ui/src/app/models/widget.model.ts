@@ -53,6 +53,16 @@ export interface EditastraWidgetProps {
   contentHtml: string;
   placeholder?: string;
   backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderRadius?: number;
+  /** Font size for this widget (e.g. '28px'). Used for title placeholders. */
+  fontSize?: string;
+  /** Font weight (e.g. 700 for bold headings). */
+  fontWeight?: number;
+  /** Text alignment: left | center | right */
+  textAlign?: 'left' | 'center' | 'right';
   /** Vertical alignment of the text block inside the widget (PPT-like). */
   verticalAlign?: 'top' | 'middle' | 'bottom';
   /** Optional persisted remote source (Postman-like request config). */

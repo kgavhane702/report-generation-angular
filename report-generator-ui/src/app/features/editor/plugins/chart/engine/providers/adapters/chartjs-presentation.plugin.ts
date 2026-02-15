@@ -5,6 +5,7 @@ import { computeFontScale, computeFontsPx } from '../../utils/layout-metrics.uti
 
 export interface ReportUiChartJsPresentationPluginOptions {
   chartData: ChartData;
+  defaultTextColor?: string;
 }
 
 export const reportUiChartJsValueLabelsPlugin: Plugin = {
@@ -12,6 +13,7 @@ export const reportUiChartJsValueLabelsPlugin: Plugin = {
   afterDatasetsDraw(chart: Chart) {
     const opts = ((chart.options.plugins as any)?.reportUiPresentation ?? null) as ReportUiChartJsPresentationPluginOptions | null;
     const chartData = opts?.chartData;
+    const defaultTextColor = opts?.defaultTextColor || '#0f172a';
     if (!chartData) return;
 
     const scale = computeFontScale(chart.width, chart.height, chartData.typography);
@@ -63,9 +65,9 @@ export const reportUiChartJsValueLabelsPlugin: Plugin = {
         if (style.color) {
           ctx.fillStyle = style.color;
         } else {
-          ctx.fillStyle = pos === 'inside' ? '#ffffff' : '#111827';
+          ctx.fillStyle = pos === 'inside' ? '#ffffff' : defaultTextColor;
           if (pos === 'inside' && color) {
-            ctx.fillStyle = isDarkColor(color) ? '#ffffff' : '#111827';
+            ctx.fillStyle = isDarkColor(color) ? '#ffffff' : defaultTextColor;
           }
         }
 

@@ -27,6 +27,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
+    const defaultTextColor = resolveChartTextColor(container);
     container.innerHTML = '';
     const filteredData = filterChartDataByLabelVisibility(chartData);
 
@@ -43,7 +44,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
-    const config = this.convertToChartJsConfig(filteredData, width, height);
+    const config = this.convertToChartJsConfig(filteredData, width, height, defaultTextColor);
 
     // Export mode: disable animation so we capture fully drawn charts (not axes only).
     if (exporting) {
@@ -81,7 +82,8 @@ export class ChartJsChartAdapter implements ChartAdapter {
   private convertToChartJsConfig(
     data: ChartData,
     width: number,
-    height: number
+    height: number,
+    defaultTextColor: string
   ): ChartConfiguration {
     const handler = this.chartTypeRegistry.getHandler(data.chartType);
     
@@ -90,15 +92,16 @@ export class ChartJsChartAdapter implements ChartAdapter {
       if (!defaultHandler) {
         throw new Error(`No chart handler found for type: ${data.chartType}`);
       }
-      return this.buildConfig(data, defaultHandler);
+      return this.buildConfig(data, defaultHandler, defaultTextColor);
     }
 
-    return this.buildConfig(data, handler);
+    return this.buildConfig(data, handler, defaultTextColor);
   }
 
   private buildConfig(
     data: ChartData,
-    handler: ReturnType<typeof this.chartTypeRegistry.getHandler>
+    handler: ReturnType<typeof this.chartTypeRegistry.getHandler>,
+    defaultTextColor: string
   ): ChartConfiguration {
     if (!handler) {
       throw new Error('Chart handler is required');
@@ -154,7 +157,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
       }
     }
 
-    this.applyPresentation(config, data);
+    this.applyPresentation(config, data, defaultTextColor);
 
     return config;
   }
@@ -181,12 +184,12 @@ export class ChartJsChartAdapter implements ChartAdapter {
     }
   }
 
-  private applyPresentation(config: ChartConfiguration, data: ChartData): void {
+  private applyPresentation(config: ChartConfiguration, data: ChartData, defaultTextColor: string): void {
     if (!config.options) config.options = {};
     if (!config.options.plugins) (config.options as any).plugins = {};
 
     // Provide chartData to our custom plugins/callbacks via options.
-    (config.options.plugins as any).reportUiPresentation = { chartData: data };
+    (config.options.plugins as any).reportUiPresentation = { chartData: data, defaultTextColor };
 
     // Ensure our value-label plugin is applied.
     const plugins = (config.plugins ?? []) as any[];
@@ -215,11 +218,11 @@ export class ChartJsChartAdapter implements ChartAdapter {
     const pluginsOpt: any = config.options.plugins;
     if (pluginsOpt.title) {
       pluginsOpt.title.font = fontFor('title');
-      pluginsOpt.title.color = data.textStyles?.title?.color ?? pluginsOpt.title.color;
+      pluginsOpt.title.color = data.textStyles?.title?.color ?? pluginsOpt.title.color ?? defaultTextColor;
     }
     if (pluginsOpt.legend?.labels) {
       pluginsOpt.legend.labels.font = fontFor('legend');
-      pluginsOpt.legend.labels.color = data.textStyles?.legend?.color ?? pluginsOpt.legend.labels.color;
+      pluginsOpt.legend.labels.color = data.textStyles?.legend?.color ?? pluginsOpt.legend.labels.color ?? defaultTextColor;
     }
     if (pluginsOpt.tooltip) {
       pluginsOpt.tooltip.titleFont = fontFor('axis');
@@ -252,8 +255,8 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
       s.ticks.font = fontFor('axis');
       s.title.font = fontFor('axis');
-      s.ticks.color = data.textStyles?.axis?.color ?? s.ticks.color;
-      s.title.color = data.textStyles?.axis?.color ?? s.title.color;
+      s.ticks.color = data.textStyles?.axis?.color ?? s.ticks.color ?? defaultTextColor;
+      s.title.color = data.textStyles?.axis?.color ?? s.title.color ?? defaultTextColor;
 
       // Ensure we don't auto-rotate into unreadable angles on small widgets.
       s.ticks.maxRotation = 0;
@@ -290,6 +293,15 @@ export class ChartJsChartAdapter implements ChartAdapter {
       };
     }
   }
+}
+
+function resolveChartTextColor(container: HTMLElement): string {
+  const cs = getComputedStyle(container);
+  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
+  if (reverse) return reverse;
+  const foreground = cs.getPropertyValue('--slide-foreground').trim();
+  if (foreground) return foreground;
+  return '#0f172a';
 }
 
 function extractParsedNumeric(parsed: any): any {

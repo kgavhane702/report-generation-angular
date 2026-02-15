@@ -1,6 +1,14 @@
 <div
   class="editastra-widget"
-  [style.background]="props.backgroundColor || null"
+  [style.background]="props.backgroundColor || 'transparent'"
+  [style.border-style]="effectiveBorderStyle"
+  [style.border-width.px]="effectiveBorderWidth"
+  [style.border-color]="effectiveBorderColor"
+  [style.border-radius.px]="effectiveBorderRadius"
+  [style.font-size]="props.fontSize || null"
+  [style.font-weight]="props.fontWeight || null"
+  [style.text-align]="props.textAlign || null"
+  [class.editastra-widget--placeholder]="isPlaceholderState()"
   [class.editastra-widget--loading]="props.loading === true"
   [style.--ew-auto-fit-scale]="autoFitTextScale()"
   [attr.data-ew-min-height]="minWidgetHeightPx()"
@@ -21,6 +29,7 @@
       (editorFocus)="onEditorFocus()"
       (editorBlur)="onEditorBlur()"
       (htmlInput)="onEditorInput($event)"
+      (editorKeydown)="onEditorKeydown($event)"
     ></app-editastra-editor>
   </div>
 </div>

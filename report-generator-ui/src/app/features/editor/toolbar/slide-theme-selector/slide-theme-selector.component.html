@@ -1,0 +1,36 @@
+<div class="slide-theme-selector__selected" *ngIf="activeTheme() as selected">
+  <div class="slide-theme-selector__selected-label">Selected design</div>
+  <div class="slide-theme-selector__selected-card">
+    <div class="slide-theme-selector__thumb slide-theme-selector__thumb--selected" [ngStyle]="previewStyle(selected)">
+      <div class="thumb-title" [style.font-family]="previewTitleFontFamily(selected)">Presentation Title</div>
+      <div class="thumb-subtitle">Subtitle goes here</div>
+    </div>
+    <div class="slide-theme-selector__selected-meta">
+      <div class="slide-theme-selector__name">{{ selected.label }}</div>
+      <div class="slide-theme-selector__desc">{{ selected.description }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="slide-theme-selector" role="radiogroup" aria-label="Slide theme">
+  <button
+    *ngFor="let theme of themes"
+    type="button"
+    class="slide-theme-selector__item"
+    role="radio"
+    [attr.aria-checked]="activeThemeId() === theme.id"
+    [class.slide-theme-selector__item--active]="activeThemeId() === theme.id"
+    [disabled]="documentLocked()"
+    (click)="selectTheme(theme.id)"
+  >
+    <div class="slide-theme-selector__thumb" [ngStyle]="previewStyle(theme)">
+      <div class="thumb-title" [style.font-family]="previewTitleFontFamily(theme)">Presentation Title</div>
+      <div class="thumb-subtitle">Subtitle goes here</div>
+    </div>
+
+    <div class="slide-theme-selector__meta">
+      <div class="slide-theme-selector__name">{{ theme.label }}</div>
+      <div class="slide-theme-selector__desc">{{ theme.description }}</div>
+    </div>
+  </button>
+</div>

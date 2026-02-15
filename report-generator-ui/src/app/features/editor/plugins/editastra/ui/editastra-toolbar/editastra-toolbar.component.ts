@@ -9,12 +9,13 @@ import type { EditastraWidgetProps, WidgetType } from '../../../../../../models/
 import { ColorPickerComponent, type ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
 import { AnchoredDropdownComponent } from '../../../../../../shared/components/dropdown/anchored-dropdown/anchored-dropdown.component';
 import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
+import { BorderPickerComponent, type BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
 import { EDITASTRA_TOOLBAR_GROUP_ORDER, EDITASTRA_TOOLBAR_PLUGINS, type EditastraToolbarPlugin } from './editastra-toolbar.plugins';
 
 @Component({
   selector: 'app-editastra-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, ColorPickerComponent, AnchoredDropdownComponent, AppIconComponent],
+  imports: [CommonModule, FormsModule, ColorPickerComponent, BorderPickerComponent, AnchoredDropdownComponent, AppIconComponent],
   templateUrl: './editastra-toolbar.component.html',
   styleUrls: ['./editastra-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -138,12 +139,39 @@ export class EditastraToolbarComponent {
     { value: '#000000', label: 'Black' },
   ];
 
+  readonly borderPalette: ColorOption[] = [
+    { value: '', label: 'Theme Default' },
+    { value: '#000000', label: 'Black' },
+    { value: '#1f2937', label: 'Dark Gray' },
+    { value: '#475569', label: 'Slate' },
+    { value: '#ffffff', label: 'White' },
+    { value: '#ef4444', label: 'Red' },
+    { value: '#f59e0b', label: 'Orange' },
+    { value: '#10b981', label: 'Green' },
+    { value: '#3b82f6', label: 'Blue' },
+    { value: '#8b5cf6', label: 'Purple' },
+  ];
+
   /** Current background color of the active Editastra widget. */
   readonly currentBackgroundColor = computed(() => {
     const ctx = this.editorState.activeWidgetContext();
     if (!ctx || ctx.widget.type !== 'editastra') return '';
     const props = ctx.widget.props as EditastraWidgetProps;
     return props.backgroundColor || '';
+  });
+
+  readonly currentBorderValue = computed<BorderValue>(() => {
+    const ctx = this.editorState.activeWidgetContext();
+    if (!ctx || ctx.widget.type !== 'editastra') {
+      return { color: '', width: 2, style: 'none', borderRadius: 0 };
+    }
+    const props = ctx.widget.props as EditastraWidgetProps;
+    return {
+      color: props.borderColor || '',
+      width: Math.max(1, Math.trunc(props.borderWidth ?? 2)),
+      style: props.borderStyle || 'none',
+      borderRadius: Math.max(0, Math.trunc(props.borderRadius ?? 0)),
+    };
   });
 
   // Font controls (same as table toolbar) - "Default" is rendered separately in the dropdown
@@ -539,6 +567,22 @@ export class EditastraToolbarComponent {
       props: {
         ...widget.props,
         backgroundColor: color,
+      } as EditastraWidgetProps,
+    });
+  }
+
+  onWidgetBorderChange(value: BorderValue): void {
+    const ctx = this.editorState.activeWidgetContext();
+    if (!ctx || ctx.widget.type !== 'editastra') return;
+
+    const { pageId, widget } = ctx;
+    this.documentService.updateWidget(pageId, widget.id, {
+      props: {
+        ...widget.props,
+        borderColor: value.color,
+        borderWidth: value.width,
+        borderStyle: value.style,
+        borderRadius: value.borderRadius ?? 0,
       } as EditastraWidgetProps,
     });
   }

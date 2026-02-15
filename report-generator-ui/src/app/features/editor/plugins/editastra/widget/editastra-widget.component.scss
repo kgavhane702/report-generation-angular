@@ -22,6 +22,10 @@
   align-content: start;
 }
 
+.editastra-widget--placeholder .editastra-widget__content {
+  background: transparent;
+}
+
 .editastra-widget__content[data-v-align='top'] {
   align-content: start;
 }

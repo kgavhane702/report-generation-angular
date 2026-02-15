@@ -20,6 +20,33 @@
   </div>
 
   <div class="ribbon-toolbar__panel">
+    <ng-container *ngIf="activeTab() === 'home'">
+      <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--home">
+        <div class="ribbon-toolbar__home-group ribbon-toolbar__home-group--action">
+          <button
+            type="button"
+            class="ribbon-toolbar__home-action"
+            [disabled]="documentLocked()"
+            (click)="openDesignDialog()"
+          >
+            Design Themes
+          </button>
+        </div>
+
+        <div class="ribbon-toolbar__home-group ribbon-toolbar__home-group--action">
+          <button
+            type="button"
+            class="ribbon-toolbar__home-action ribbon-toolbar__home-action--primary"
+            [disabled]="documentLocked()"
+            (click)="openAddSlideDialog()"
+          >
+            New Slide
+          </button>
+        </div>
+
+      </div>
+    </ng-container>
+
     <ng-container *ngIf="activeTab() === 'insert'">
       <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--insert">
         <app-editor-toolbar></app-editor-toolbar>
@@ -36,3 +63,48 @@
     </ng-container>
   </div>
 </div>
+
+<app-modal
+  [open]="designDialogOpen()"
+  (openChange)="designDialogOpen.set($event)"
+  size="xl"
+  [closeOnBackdrop]="true"
+  [closeOnEsc]="true"
+  [showFooter]="false"
+>
+  <ng-container appModalHeader>
+    <h2 class="ribbon-toolbar__dialog-title">Choose a Design Theme</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <div class="ribbon-toolbar__dialog-body">
+      <app-slide-theme-selector
+        mode="pick"
+        (themeSelected)="onThemePicked($event)"
+      ></app-slide-theme-selector>
+    </div>
+  </ng-container>
+</app-modal>
+
+<app-modal
+  [open]="addSlideDialogOpen()"
+  (openChange)="addSlideDialogOpen.set($event)"
+  size="xl"
+  [closeOnBackdrop]="true"
+  [closeOnEsc]="true"
+  [showFooter]="false"
+>
+  <ng-container appModalHeader>
+    <h2 class="ribbon-toolbar__dialog-title">Add Slide</h2>
+  </ng-container>
+
+  <ng-container appModalBody>
+    <div class="ribbon-toolbar__dialog-body">
+      <app-slide-layout-selector
+        mode="pick"
+        [selectedLayout]="dialogSelectedLayout()"
+        (layoutSelected)="pickDialogLayout($event)"
+      ></app-slide-layout-selector>
+    </div>
+  </ng-container>
+</app-modal>

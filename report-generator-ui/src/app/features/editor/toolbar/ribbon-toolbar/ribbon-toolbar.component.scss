@@ -53,7 +53,7 @@
 .ribbon-toolbar__panel {
   display: flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 62px;
   background: #ffffff;
   padding: 0 0.75rem;
 }
@@ -63,6 +63,130 @@
   align-items: center;
   width: 100%;
   min-width: 0;
+}
+
+.ribbon-toolbar__panel-inner--home {
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.ribbon-toolbar__home-group {
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+}
+
+.ribbon-toolbar__home-group--action {
+  min-width: 170px;
+}
+
+.ribbon-toolbar__home-group--slides {
+  min-width: 360px;
+  flex: 1 1 auto;
+}
+
+.ribbon-toolbar__home-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.ribbon-toolbar__home-action {
+  height: 38px;
+  min-width: 160px;
+  border: 1px solid rgba(59, 130, 246, 0.24);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, #ffffff 0%, #eef6ff 100%);
+    border-color: rgba(37, 99, 235, 0.42);
+    box-shadow: 0 3px 8px rgba(37, 99, 235, 0.14);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.ribbon-toolbar__home-action--primary {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-color: #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.32);
+  }
+}
+
+.ribbon-toolbar__home-help {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ribbon-toolbar__home-select {
+  height: 30px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 6px;
+  padding: 0 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ribbon-toolbar__slide-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ribbon-toolbar__slide-btn {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: #e2e8f0;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.ribbon-toolbar__slide-btn--primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
+
+  &:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
 }
 
 .ribbon-toolbar__menu {
@@ -87,6 +211,39 @@
   font-size: 12px;
   color: #64748b;
   padding-left: 0.75rem;
+}
+
+.ribbon-toolbar__dialog-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ribbon-toolbar__dialog-body {
+  min-height: 220px;
+}
+
+.ribbon-toolbar__dialog-btn {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ribbon-toolbar__dialog-btn--secondary {
+  margin-right: 8px;
+}
+
+.ribbon-toolbar__dialog-btn--primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
 }
 
 :host ::ng-deep .ribbon-toolbar__menu .editor-toolbar__group--widgets {

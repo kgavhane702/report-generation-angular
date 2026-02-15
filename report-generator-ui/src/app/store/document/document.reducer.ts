@@ -212,6 +212,8 @@ export const documentReducer = createReducer(
       title: page.title,
       background: page.background,
       orientation: page.orientation,
+      slideLayoutType: page.slideLayoutType,
+      slideVariantId: page.slideVariantId,
     };
     
     const widgetEntities: WidgetEntity[] = page.widgets.map(w => ({
@@ -571,6 +573,8 @@ function normalizeDocument(doc: DocumentModel): NormalizedDocumentState {
           title: page.title,
           background: page.background,
           orientation: page.orientation,
+          slideLayoutType: page.slideLayoutType,
+          slideVariantId: page.slideVariantId,
         });
         widgetIdsByPageId[page.id] = [];
         
@@ -649,6 +653,8 @@ function normalizeSubsectionDeep(subsection: SubsectionModel, sectionId: string)
       title: page.title,
       background: page.background,
       orientation: page.orientation,
+      slideLayoutType: page.slideLayoutType,
+      slideVariantId: page.slideVariantId,
     });
     
     page.widgets.forEach(widget => {

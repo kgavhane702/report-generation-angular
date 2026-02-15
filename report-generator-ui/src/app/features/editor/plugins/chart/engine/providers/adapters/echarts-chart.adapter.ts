@@ -24,6 +24,7 @@ export class EChartsChartAdapter implements ChartAdapter {
 
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
+    const defaultTextColor = resolveChartTextColor(container);
     container.innerHTML = '';
     const filteredData = filterChartDataByLabelVisibility(chartData);
 
@@ -53,7 +54,7 @@ export class EChartsChartAdapter implements ChartAdapter {
     chart.setOption(option);
 
     // Apply presentation (fonts/wrapping/formatting) once we have a base option.
-    this.applyPresentation(chart, option, filteredData, width, height);
+    this.applyPresentation(chart, option, filteredData, width, height, defaultTextColor);
 
     // Handle resize
     let resizeTimer: any = null;
@@ -62,7 +63,7 @@ export class EChartsChartAdapter implements ChartAdapter {
       resizeTimer = setTimeout(() => {
         const w = container.clientWidth || 400;
         const h = container.clientHeight || 300;
-        this.applyPresentation(chart, option, filteredData, w, h);
+        this.applyPresentation(chart, option, filteredData, w, h, defaultTextColor);
         chart.resize({ devicePixelRatio: computeEffectiveDevicePixelRatio(container) } as any);
       }, 80);
     });
@@ -133,7 +134,8 @@ export class EChartsChartAdapter implements ChartAdapter {
     baseOption: echarts.EChartsOption,
     data: ChartData,
     width: number,
-    height: number
+    height: number,
+    defaultTextColor: string
   ): void {
     const scale = computeFontScale(width, height, data.typography);
     const fonts = computeFontsPx(scale);
@@ -148,13 +150,14 @@ export class EChartsChartAdapter implements ChartAdapter {
     const patch: echarts.EChartsOption = {
       textStyle: {
         fontSize: fonts.axis,
+        color: defaultTextColor,
       },
       title: (baseOption as any)?.title
         ? {
             show: true,
             textStyle: {
               fontSize: fonts.title,
-              ...pickTextStyle(styles.title),
+              ...pickTextStyle(styles.title, defaultTextColor),
             },
           }
         : undefined,
@@ -165,7 +168,7 @@ export class EChartsChartAdapter implements ChartAdapter {
             width: Math.max(120, Math.floor(width * 0.9)),
             textStyle: {
               fontSize: fonts.legend,
-              ...pickTextStyle(styles.legend),
+              ...pickTextStyle(styles.legend, defaultTextColor),
               overflow: 'break',
               ellipsis: '',
             },
@@ -179,10 +182,10 @@ export class EChartsChartAdapter implements ChartAdapter {
           }
         : undefined,
       tooltip: this.buildTooltipPatch(baseOption, chartNumberFormat, seriesData),
-      xAxis: this.buildAxisPatch((baseOption as any)?.xAxis, data, width, height, fonts),
-      yAxis: this.buildAxisPatch((baseOption as any)?.yAxis, data, width, height, fonts),
+      xAxis: this.buildAxisPatch((baseOption as any)?.xAxis, data, width, height, fonts, defaultTextColor),
+      yAxis: this.buildAxisPatch((baseOption as any)?.yAxis, data, width, height, fonts, defaultTextColor),
       series: Array.isArray(baseSeries)
-        ? baseSeries.map((s, idx) => this.buildSeriesPatch(s, idx, data, fonts))
+        ? baseSeries.map((s, idx) => this.buildSeriesPatch(s, idx, data, fonts, defaultTextColor))
         : undefined,
     };
 
@@ -195,7 +198,8 @@ export class EChartsChartAdapter implements ChartAdapter {
     data: ChartData,
     width: number,
     height: number,
-    fonts: { axis: number }
+    fonts: { axis: number },
+    defaultTextColor: string
   ): any {
     if (!axis) return undefined;
 
@@ -205,13 +209,13 @@ export class EChartsChartAdapter implements ChartAdapter {
       const out: any = {
         axisLabel: {
           fontSize: fonts.axis,
-          ...pickTextStyle(axisStyle),
+          ...pickTextStyle(axisStyle, defaultTextColor),
           // Never show ellipsis for axis labels.
           ellipsis: '',
         },
         nameTextStyle: {
           fontSize: fonts.axis,
-          ...pickTextStyle(axisStyle),
+          ...pickTextStyle(axisStyle, defaultTextColor),
           ellipsis: '',
         },
       };
@@ -351,7 +355,13 @@ export class EChartsChartAdapter implements ChartAdapter {
     };
   }
 
-  private buildSeriesPatch(baseSeries: any, index: number, data: ChartData, fonts: { valueLabel: number }): any {
+  private buildSeriesPatch(
+    baseSeries: any,
+    index: number,
+    data: ChartData,
+    fonts: { valueLabel: number },
+    defaultTextColor: string
+  ): any {
     const series = (data.series ?? [])[index];
     const chartShow = data.showValueLabels !== false;
     const show = typeof series?.showValueLabels === 'boolean' ? series.showValueLabels : chartShow;
@@ -365,7 +375,7 @@ export class EChartsChartAdapter implements ChartAdapter {
         ...(baseSeries?.label ?? {}),
         show,
         fontSize: fonts.valueLabel,
-        ...pickTextStyle(valueLabelStyle),
+        ...pickTextStyle(valueLabelStyle, defaultTextColor),
         // Never show ellipsis in series labels.
         ellipsis: '',
         overflow: 'break',
@@ -432,12 +442,22 @@ function extractNumeric(value: any): any {
   return value;
 }
 
-function pickTextStyle(style: any): { color?: string; fontWeight?: 'bold' } {
+function pickTextStyle(style: any, fallbackColor?: string): { color?: string; fontWeight?: 'bold' } {
   const out: any = {};
   const color = (style?.color ?? '').toString().trim();
   if (color) out.color = color;
+  else if (fallbackColor) out.color = fallbackColor;
   if (style?.bold === true) out.fontWeight = 'bold' as const;
   return out;
+}
+
+function resolveChartTextColor(container: HTMLElement): string {
+  const cs = getComputedStyle(container);
+  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
+  if (reverse) return reverse;
+  const foreground = cs.getPropertyValue('--slide-foreground').trim();
+  if (foreground) return foreground;
+  return '#0f172a';
 }
 
 function computeEffectiveDevicePixelRatio(container: HTMLElement): number {

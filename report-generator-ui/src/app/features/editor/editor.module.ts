@@ -37,6 +37,8 @@ import { TwSafeInnerHtmlDirective } from '../../shared/directives/tw-safe-inner-
 import { AppModalComponent } from '../../shared/components/modal/app-modal/app-modal.component';
 import { WidgetToolbarComponent } from './toolbar/widget-toolbar/widget-toolbar.component';
 import { SettingsDialogComponent } from './toolbar/header-footer-edit-dialog/header-footer-edit-dialog.component';
+import { SlideThemeSelectorComponent } from './toolbar/slide-theme-selector/slide-theme-selector.component';
+import { SlideLayoutSelectorComponent } from './toolbar/slide-layout-selector/slide-layout-selector.component';
 import { AppIconComponent } from '../../shared/components/icon/icon.component';
 import { ContextMenuComponent } from '../../shared/components/context-menu/context-menu.component';
 import { DocumentDownloadMenuComponent } from './toolbar/document-download-menu/document-download-menu.component';
@@ -86,6 +88,8 @@ import { EditorRoutingModule } from './editor-routing.module';
     AppIconComponent,
     ContextMenuComponent,
     SettingsDialogComponent,
+    SlideThemeSelectorComponent,
+    SlideLayoutSelectorComponent,
     DocumentDownloadMenuComponent,
   ],
   exports: [EditorShellComponent],

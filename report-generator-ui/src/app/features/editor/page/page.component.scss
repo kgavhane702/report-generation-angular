@@ -14,6 +14,77 @@
   transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.page__theme-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+  }
+}
+
+/* Keep widgets/content above decorative layer */
+:host ::ng-deep .page__surface app-widget-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* --- Curvy Magenta: make real slides match thumbnails --- */
+.page__theme-layer.theme-curvy-magenta {
+  &::after {
+    right: 9.5%;
+    top: 0;
+    width: 4.8%;
+    height: 17.5%;
+    background: #c71585;
+    border-radius: 0 0 2px 2px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Cover slides: rich curved highlight over colored background */
+.page__theme-layer.theme-curvy-magenta.variant-g1,
+.page__theme-layer.theme-curvy-magenta.layout-title-slide,
+.page__theme-layer.theme-curvy-magenta.layout-section-header {
+  &::before {
+    left: 4%;
+    right: 4%;
+    top: 0;
+    height: 42%;
+    border-radius: 0 0 46% 46% / 0 0 30% 30%;
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+
+/* Content slides: subtle curved top band + soft white cut */
+.page__theme-layer.theme-curvy-magenta.variant-g2,
+.page__theme-layer.theme-curvy-magenta.layout-title-and-content,
+.page__theme-layer.theme-curvy-magenta.layout-two-content,
+.page__theme-layer.theme-curvy-magenta.layout-comparison,
+.page__theme-layer.theme-curvy-magenta.layout-title-only {
+  &::before {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 34%;
+    border-radius: 0 0 55% 55% / 0 0 26% 26%;
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+
+/* Blank: keep clean page and only magenta tab */
+.page__theme-layer.theme-curvy-magenta.variant-g3,
+.page__theme-layer.theme-curvy-magenta.layout-blank {
+  &::before {
+    display: none;
+  }
+}
+
 .page__surface--active {
   border-color: rgba(99, 102, 241, 0.4);
   box-shadow: 0 24px 72px rgba(99, 102, 241, 0.15), 0 12px 32px rgba(15, 23, 42, 0.12);
@@ -32,7 +103,7 @@
   align-items: flex-start;
   padding: 8px 20px;
   pointer-events: none;
-  background: #ffffff;
+  background: transparent;
   min-height: 24px;
   box-sizing: border-box;
 }
@@ -119,7 +190,7 @@
   align-items: flex-end;
   padding: 8px 20px;
   pointer-events: none; // Allow clicks to pass through to widgets below
-  background: #ffffff;
+  background: transparent;
   min-height: 24px;
   box-sizing: border-box;
 }

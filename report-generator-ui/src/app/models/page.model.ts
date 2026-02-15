@@ -1,5 +1,6 @@
 import { UUID } from './document.model';
 import { WidgetModel } from './widget.model';
+import { SlideLayoutType } from '../core/slide-design/slide-design.model';
 
 export interface PageModel {
   id: UUID;
@@ -8,6 +9,10 @@ export interface PageModel {
   widgets: WidgetModel[];
   background?: BackgroundSpec;
   orientation?: 'portrait' | 'landscape';
+  /** PPT-like logical layout for this page (Title, Comparison, Blank, etc.) */
+  slideLayoutType?: SlideLayoutType;
+  /** Resolved design variant id from active theme mapping (e.g. A1/A2/B1) */
+  slideVariantId?: string;
 }
 
 export interface BackgroundSpec {

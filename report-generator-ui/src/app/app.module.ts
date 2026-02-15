@@ -1,4 +1,4 @@
-import { APP_INITIALIZER, NgModule } from '@angular/core';
+import { APP_INITIALIZER, ErrorHandler, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule } from '@angular/common/http';
@@ -13,6 +13,7 @@ import {
   documentReducer,
 } from './store/document/document.reducer';
 import { IconPreloaderService } from './shared/components/icon/icon-preloader.service';
+import { ChunkLoadErrorHandlerService } from './core/services/chunk-load-error-handler.service';
 
 /**
  * Factory for APP_INITIALIZER that preloads toolbar icons.
@@ -47,6 +48,10 @@ function initializeIcons(iconPreloader: IconPreloaderService): () => Promise<voi
     EffectsModule.forRoot([]),
   ],
   providers: [
+    {
+      provide: ErrorHandler,
+      useClass: ChunkLoadErrorHandlerService,
+    },
     {
       provide: APP_INITIALIZER,
       useFactory: initializeIcons,

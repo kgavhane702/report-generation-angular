@@ -24,6 +24,7 @@ import { PageEntity, WidgetEntity } from '../../../store/document/document.state
 import { formatPageNumber, PageNumberFormat } from '../../../core/utils/page-number-formatter.util';
 import { LogoConfig } from '../../../models/document.model';
 import { getOrientedPageSizeMm, mmToPx } from '../../../core/utils/page-dimensions.util';
+import { SlideDesignService } from '../../../core/slide-design/slide-design.service';
 
 /**
  * PageComponent
@@ -54,6 +55,7 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   private readonly store = inject(Store<AppState>);
   private readonly editorState = inject(EditorStateService);
   private readonly uiState = inject(UIStateService);
+  private readonly slideDesign = inject(SlideDesignService);
   private readonly widgetEntitiesSignal = toSignal(
     this.store.select(DocumentSelectors.selectWidgetEntities),
     { initialValue: {} as Record<string, WidgetEntity> }
@@ -164,23 +166,23 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   get footerTextColor(): string {
-    return this.editorState.documentFooter()?.textColor || '#000000';
+    return this.editorState.documentFooter()?.textColor || this.themeForegroundColor;
   }
 
   // Per-position footer text colors (fallback to global textColor, then to black)
   get footerLeftTextColor(): string {
     const footer = this.editorState.documentFooter();
-    return footer?.leftTextColor || footer?.textColor || '#000000';
+    return footer?.leftTextColor || footer?.textColor || this.themeForegroundColor;
   }
 
   get footerCenterTextColor(): string {
     const footer = this.editorState.documentFooter();
-    return footer?.centerTextColor || footer?.textColor || '#000000';
+    return footer?.centerTextColor || footer?.textColor || this.themeForegroundColor;
   }
 
   get footerRightTextColor(): string {
     const footer = this.editorState.documentFooter();
-    return footer?.rightTextColor || footer?.textColor || '#000000';
+    return footer?.rightTextColor || footer?.textColor || this.themeForegroundColor;
   }
 
   get headerLeftText(): string | undefined {
@@ -208,23 +210,28 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   get headerTextColor(): string {
-    return this.editorState.documentHeader()?.textColor || '#000000';
+    return this.editorState.documentHeader()?.textColor || this.themeForegroundColor;
   }
 
   // Per-position header text colors (fallback to global textColor, then to black)
   get headerLeftTextColor(): string {
     const header = this.editorState.documentHeader();
-    return header?.leftTextColor || header?.textColor || '#000000';
+    return header?.leftTextColor || header?.textColor || this.themeForegroundColor;
   }
 
   get headerCenterTextColor(): string {
     const header = this.editorState.documentHeader();
-    return header?.centerTextColor || header?.textColor || '#000000';
+    return header?.centerTextColor || header?.textColor || this.themeForegroundColor;
   }
 
   get headerRightTextColor(): string {
     const header = this.editorState.documentHeader();
-    return header?.rightTextColor || header?.textColor || '#000000';
+    return header?.rightTextColor || header?.textColor || this.themeForegroundColor;
+  }
+
+  private get themeForegroundColor(): string {
+    const layout = this._pageData()?.slideLayoutType ?? this.slideDesign.defaultLayoutType();
+    return this.slideDesign.resolveVariant(layout).surfaceForeground || '#0f172a';
   }
 
   get headerShowPageNumber(): boolean {
@@ -265,6 +272,22 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
   
   get pageOrientation(): 'portrait' | 'landscape' {
     return this._pageData()?.orientation || 'landscape';
+  }
+
+  get pageSurfaceStyle(): Record<string, string> {
+    return this.slideDesign.getPageSurfaceStyle(this._pageData());
+  }
+
+  get pageThemeClasses(): string[] {
+    const page = this._pageData();
+    const layout = page?.slideLayoutType ?? this.slideDesign.defaultLayoutType();
+    const variantId = (page?.slideVariantId?.trim() || this.slideDesign.resolveVariantId(layout)).toLowerCase();
+    const themeId = this.slideDesign.activeThemeId().replace(/_/g, '-');
+    return [
+      `theme-${themeId}`,
+      `variant-${variantId}`,
+      `layout-${layout.replace(/_/g, '-')}`,
+    ];
   }
 
   // ============================================

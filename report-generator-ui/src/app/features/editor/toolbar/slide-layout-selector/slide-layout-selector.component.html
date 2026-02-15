@@ -1,0 +1,105 @@
+<div class="slide-layout-selector" role="radiogroup" aria-label="Default slide layout">
+  <button
+    *ngFor="let l of layouts"
+    type="button"
+    class="slide-layout-selector__item"
+    role="radio"
+    [attr.aria-checked]="currentSelectedLayout() === l.id"
+    [class.slide-layout-selector__item--active]="currentSelectedLayout() === l.id"
+    [disabled]="documentLocked()"
+    (click)="selectLayout(l.id)"
+  >
+    <div
+      class="slide-layout-selector__thumb"
+      [ngStyle]="cardStyle(l.id)"
+      [ngClass]="thumbClasses(l.id)"
+    >
+      <ng-container [ngSwitch]="l.id">
+
+        <!-- Title Slide: centered title + subtitle -->
+        <ng-container *ngSwitchCase="'title_slide'">
+          <div class="lt lt--title-slide">
+            <div class="lt__title" [style.font-family]="'var(--layout-title-font)'">Presentation Title</div>
+            <div class="lt__subtitle">Subtitle goes here</div>
+          </div>
+        </ng-container>
+
+        <!-- Title and Content: heading at top + body lines -->
+        <ng-container *ngSwitchCase="'title_and_content'">
+          <div class="lt lt--title-content">
+            <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
+            <div class="lt__body">
+              <div class="lt__line lt__line--long"></div>
+              <div class="lt__line lt__line--medium"></div>
+              <div class="lt__line lt__line--short"></div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Section Header: centered big title + subtitle -->
+        <ng-container *ngSwitchCase="'section_header'">
+          <div class="lt lt--section-header">
+            <div class="lt__section-title" [style.font-family]="'var(--layout-title-font)'">Section Title</div>
+            <div class="lt__section-subtitle">Supporting description text</div>
+          </div>
+        </ng-container>
+
+        <!-- Two Content: heading + two columns -->
+        <ng-container *ngSwitchCase="'two_content'">
+          <div class="lt lt--two-content">
+            <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
+            <div class="lt__columns">
+              <div class="lt__col">
+                <div class="lt__line lt__line--long"></div>
+                <div class="lt__line lt__line--medium"></div>
+              </div>
+              <div class="lt__col">
+                <div class="lt__line lt__line--long"></div>
+                <div class="lt__line lt__line--short"></div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Comparison: heading + two labeled columns -->
+        <ng-container *ngSwitchCase="'comparison'">
+          <div class="lt lt--comparison">
+            <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Comparison</div>
+            <div class="lt__columns">
+              <div class="lt__col">
+                <div class="lt__col-head">Left</div>
+                <div class="lt__line lt__line--long"></div>
+                <div class="lt__line lt__line--medium"></div>
+              </div>
+              <div class="lt__col">
+                <div class="lt__col-head">Right</div>
+                <div class="lt__line lt__line--long"></div>
+                <div class="lt__line lt__line--short"></div>
+              </div>
+            </div>
+          </div>
+        </ng-container>
+
+        <!-- Title Only: just heading -->
+        <ng-container *ngSwitchCase="'title_only'">
+          <div class="lt lt--title-only">
+            <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
+          </div>
+        </ng-container>
+
+        <!-- Blank -->
+        <ng-container *ngSwitchDefault>
+          <div class="lt lt--blank">
+            <span class="lt__blank-label">Blank</span>
+          </div>
+        </ng-container>
+
+      </ng-container>
+    </div>
+
+    <div class="slide-layout-selector__meta">
+      <div class="slide-layout-selector__name">{{ l.label }}</div>
+      <div class="slide-layout-selector__desc">{{ l.description }}</div>
+    </div>
+  </button>
+</div>

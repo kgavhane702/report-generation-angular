@@ -2,9 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { UIStateService } from '../../../../core/services/ui-state.service';
+import { DocumentService } from '../../../../core/services/document.service';
+import { SlideDesignService } from '../../../../core/slide-design/slide-design.service';
+import { SLIDE_LAYOUT_OPTIONS } from '../../../../core/slide-design/slide-design.config';
+import { SlideLayoutType, SlideThemeDefinition, SlideThemeId } from '../../../../core/slide-design/slide-design.model';
 import type { WidgetType } from '../../../../models/widget.model';
 
-type RibbonTabId = 'insert' | 'context';
+type RibbonTabId = 'home' | 'insert' | 'context';
 
 interface RibbonTab {
   id: RibbonTabId;
@@ -21,8 +25,18 @@ interface RibbonTab {
 export class RibbonToolbarComponent {
   private readonly editorState = inject(EditorStateService);
   private readonly uiState = inject(UIStateService);
+  private readonly documentService = inject(DocumentService);
+  private readonly slideDesign = inject(SlideDesignService);
 
-  readonly activeTab = signal<RibbonTabId>('insert');
+  readonly activeTab = signal<RibbonTabId>('home');
+  readonly addSlideDialogOpen = signal(false);
+  readonly designDialogOpen = signal(false);
+  readonly dialogSelectedLayout = signal<SlideLayoutType>('title_and_content');
+  readonly documentLocked = this.documentService.documentLocked;
+  readonly themes = this.slideDesign.themes;
+  readonly activeThemeId = this.slideDesign.activeThemeId;
+  readonly layouts = SLIDE_LAYOUT_OPTIONS;
+  readonly defaultLayout = this.slideDesign.defaultLayoutType;
 
   private readonly widgetLabelMap: Partial<Record<WidgetType, string>> = {
     table: 'Table',
@@ -47,6 +61,7 @@ export class RibbonToolbarComponent {
 
   readonly tabs = computed<RibbonTab[]>(() => {
     const baseTabs: RibbonTab[] = [
+      { id: 'home', label: 'Home' },
       { id: 'insert', label: 'Insert' },
     ];
 
@@ -79,5 +94,58 @@ export class RibbonToolbarComponent {
 
   isTabActive(tab: RibbonTabId): boolean {
     return this.activeTab() === tab;
+  }
+
+  setTheme(themeId: SlideThemeId): void {
+    if (this.documentLocked()) return;
+    this.slideDesign.updateTheme(themeId);
+  }
+
+  setDefaultLayout(layout: string): void {
+    if (this.documentLocked()) return;
+    this.slideDesign.updateDefaultLayout(layout as SlideLayoutType);
+  }
+
+  addSlide(layout: SlideLayoutType): void {
+    if (this.documentLocked()) return;
+
+    const subsectionId = this.editorState.activeSubsectionId();
+    if (!subsectionId) return;
+
+    const pageId = this.documentService.addPage(subsectionId, { slideLayoutType: layout });
+    if (pageId) {
+      this.editorState.setActivePage(pageId);
+    }
+  }
+
+  openAddSlideDialog(): void {
+    if (this.documentLocked()) return;
+    this.dialogSelectedLayout.set(this.defaultLayout());
+    this.addSlideDialogOpen.set(true);
+  }
+
+  closeAddSlideDialog(): void {
+    this.addSlideDialogOpen.set(false);
+  }
+
+  pickDialogLayout(layout: SlideLayoutType): void {
+    if (this.documentLocked()) return;
+    this.dialogSelectedLayout.set(layout);
+    this.addSlide(layout);
+    this.addSlideDialogOpen.set(false);
+  }
+
+  openDesignDialog(): void {
+    if (this.documentLocked()) return;
+    this.designDialogOpen.set(true);
+  }
+
+  closeDesignDialog(): void {
+    this.designDialogOpen.set(false);
+  }
+
+  onThemePicked(_themeId: SlideThemeDefinition['id']): void {
+    if (this.documentLocked()) return;
+    this.designDialogOpen.set(false);
   }
 }

@@ -61,6 +61,18 @@ const selectPageLayoutPresetId = createSelector(
   (metadata) => metadata['pageLayoutPresetId'] as string | undefined
 );
 
+/** Slide theme id stored in metadata */
+const selectSlideThemeId = createSelector(
+  selectDocumentMetadata,
+  (metadata) => metadata['slideThemeId'] as string | undefined
+);
+
+/** Default slide layout type stored in metadata */
+const selectDefaultSlideLayoutType = createSelector(
+  selectDocumentMetadata,
+  (metadata) => metadata['defaultSlideLayoutType'] as string | undefined
+);
+
 /** Select document title */
 const selectDocumentTitle = createSelector(
   selectDocumentMeta,
@@ -423,6 +435,8 @@ const selectDenormalizedDocument = createSelector(
             title: page.title,
             background: page.background,
             orientation: page.orientation,
+            slideLayoutType: page.slideLayoutType,
+            slideVariantId: page.slideVariantId,
             widgets,
           };
         });
@@ -474,6 +488,8 @@ export const DocumentSelectors = {
   selectDocumentFooter,
   selectDocumentLogo,
   selectPageLayoutPresetId,
+  selectSlideThemeId,
+  selectDefaultSlideLayoutType,
   
   // Sections
   selectSectionState,
