@@ -20,6 +20,7 @@ import com.org.report_generator.service.renderer.PageStylesRenderer;
 import com.org.report_generator.service.renderer.ImageWidgetRenderer;
 import com.org.report_generator.service.renderer.TableWidgetRenderer;
 import com.org.report_generator.service.renderer.EditastraWidgetRenderer;
+import com.org.report_generator.service.renderer.SlideThemeStyleResolver;
 import com.org.report_generator.config.ExportPerformanceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,15 +53,18 @@ public class DocumentRenderService {
     private final WidgetRendererRegistry widgetRenderers;
     private final ExportPerformanceProperties perf;
     private final ExecutorService htmlRenderExecutor;
+    private final SlideThemeStyleResolver slideThemeStyleResolver;
 
     public DocumentRenderService(
             WidgetRendererRegistry widgetRenderers,
             ExportPerformanceProperties perf,
-            ExecutorService htmlRenderExecutor
+            ExecutorService htmlRenderExecutor,
+            SlideThemeStyleResolver slideThemeStyleResolver
     ) {
         this.widgetRenderers = widgetRenderers;
         this.perf = perf;
         this.htmlRenderExecutor = htmlRenderExecutor;
+        this.slideThemeStyleResolver = slideThemeStyleResolver;
     }
     
     // Cache for mmToPx calculations to avoid repeated computations
@@ -168,6 +172,10 @@ public class DocumentRenderService {
         double heightPx = mmToPx(pageHeight, dpi);
 
         String pageName = "page-" + Optional.ofNullable(page.getId()).orElse(UUID.randomUUID().toString());
+        String pageSurfaceClasses = "page__surface " + slideThemeStyleResolver.buildSurfaceClasses(document, page);
+        String pageThemeLayerClasses = "page__theme-layer " + slideThemeStyleResolver.buildSurfaceClasses(document, page);
+        String pageSurfaceStyle = "width: " + widthPx + "px; height: " + heightPx + "px;"
+            + slideThemeStyleResolver.buildSurfaceStyle(document, page);
 
         // Estimate capacity: page HTML (~300) + widgets (estimate 500 per widget) + footer (~200)
         int widgetCount = page.getWidgets() != null ? page.getWidgets().size() : 0;
@@ -179,11 +187,14 @@ public class DocumentRenderService {
             .append(heightPx)
             .append("px; page-break-after: always; page: ")
             .append(pageName)
-            .append(";\"><div class=\"page__surface\" style=\"width: ")
-            .append(widthPx)
-            .append("px; height: ")
-            .append(heightPx)
-            .append("px;\">");
+            .append(";\"><div class=\"")
+            .append(pageSurfaceClasses)
+            .append("\" style=\"")
+            .append(escapeHtmlAttribute(pageSurfaceStyle))
+            .append("\">")
+            .append("<div class=\"")
+            .append(pageThemeLayerClasses)
+            .append("\"></div>");
 
         builder.append(renderHeader(document, page));
 

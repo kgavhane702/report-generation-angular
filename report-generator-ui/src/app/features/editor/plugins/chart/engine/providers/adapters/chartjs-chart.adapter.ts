@@ -27,14 +27,15 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
-    const defaultTextColor = resolveChartTextColor(container);
+    const presentation = resolveChartPresentation(container);
+    const defaultTextColor = presentation.defaultTextColor;
     container.innerHTML = '';
     const filteredData = filterChartDataByLabelVisibility(chartData);
 
     // Production-friendly empty state: show a prompt instead of rendering an empty chart.
     if (!this.hasRenderableData(filteredData)) {
       container.innerHTML =
-        '<div style="padding: 20px; text-align: center; color: #666;">No data connected. Double-click to configure and import data.</div>';
+        `<div style="padding: 20px; text-align: center; color: ${defaultTextColor};">No data connected. Double-click to configure and import data.</div>`;
       return {
         destroy() {
           container.innerHTML = '';
@@ -44,7 +45,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
 
     const canvas = document.createElement('canvas');
     container.appendChild(canvas);
-    const config = this.convertToChartJsConfig(filteredData, width, height, defaultTextColor);
+    const config = this.convertToChartJsConfig(filteredData, width, height, presentation);
 
     // Export mode: disable animation so we capture fully drawn charts (not axes only).
     if (exporting) {
@@ -83,7 +84,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
     data: ChartData,
     width: number,
     height: number,
-    defaultTextColor: string
+    presentation: ChartPresentation
   ): ChartConfiguration {
     const handler = this.chartTypeRegistry.getHandler(data.chartType);
     
@@ -92,16 +93,16 @@ export class ChartJsChartAdapter implements ChartAdapter {
       if (!defaultHandler) {
         throw new Error(`No chart handler found for type: ${data.chartType}`);
       }
-      return this.buildConfig(data, defaultHandler, defaultTextColor);
+      return this.buildConfig(data, defaultHandler, presentation);
     }
 
-    return this.buildConfig(data, handler, defaultTextColor);
+    return this.buildConfig(data, handler, presentation);
   }
 
   private buildConfig(
     data: ChartData,
     handler: ReturnType<typeof this.chartTypeRegistry.getHandler>,
-    defaultTextColor: string
+    presentation: ChartPresentation
   ): ChartConfiguration {
     if (!handler) {
       throw new Error('Chart handler is required');
@@ -129,7 +130,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
       if (xScale) {
         xScale.grid = {
           display: showAxisLines,
-          color: showAxisLines ? '#e6e6e6' : 'transparent',
+          color: showAxisLines ? presentation.gridColor : 'transparent',
         };
         // Axis line (border) is controlled through ticks.border
         if (xScale.ticks) {
@@ -144,7 +145,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
       if (yScale) {
         yScale.grid = {
           display: showAxisLines,
-          color: showAxisLines ? '#e6e6e6' : 'transparent',
+          color: showAxisLines ? presentation.gridColor : 'transparent',
         };
         // Axis line (border) is controlled through ticks.border
         if (yScale.ticks) {
@@ -157,7 +158,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
       }
     }
 
-    this.applyPresentation(config, data, defaultTextColor);
+    this.applyPresentation(config, data, presentation);
 
     return config;
   }
@@ -184,12 +185,24 @@ export class ChartJsChartAdapter implements ChartAdapter {
     }
   }
 
-  private applyPresentation(config: ChartConfiguration, data: ChartData, defaultTextColor: string): void {
+  private applyPresentation(config: ChartConfiguration, data: ChartData, presentation: ChartPresentation): void {
     if (!config.options) config.options = {};
     if (!config.options.plugins) (config.options as any).plugins = {};
 
+    const defaultTextColor = presentation.defaultTextColor;
+    (config.options as any).font = {
+      ...((config.options as any).font ?? {}),
+      family: presentation.fontFamily,
+      size: Math.round(11 * presentation.fontScale),
+    };
+    (config.options as any).color = defaultTextColor;
+
     // Provide chartData to our custom plugins/callbacks via options.
-    (config.options.plugins as any).reportUiPresentation = { chartData: data, defaultTextColor };
+    (config.options.plugins as any).reportUiPresentation = {
+      chartData: data,
+      defaultTextColor,
+      defaultFontFamily: presentation.fontFamily,
+    };
 
     // Ensure our value-label plugin is applied.
     const plugins = (config.plugins ?? []) as any[];
@@ -202,6 +215,7 @@ export class ChartJsChartAdapter implements ChartAdapter {
       return (ctx: any) => {
         const scale = computeFontScale(ctx?.chart?.width ?? 0, ctx?.chart?.height ?? 0, data.typography);
         const fonts = computeFontsPx(scale);
+        const size = Math.max(1, Math.round(fonts[kind] * presentation.fontScale));
         const weight =
           kind === 'title'
             ? (data.textStyles?.title?.bold ? 'bold' : undefined)
@@ -210,7 +224,8 @@ export class ChartJsChartAdapter implements ChartAdapter {
               : kind === 'axis'
                 ? (data.textStyles?.axis?.bold ? 'bold' : undefined)
                 : (data.textStyles?.valueLabel?.bold ? 'bold' : undefined);
-        return { size: fonts[kind], weight };
+        const family = kind === 'title' ? presentation.titleFontFamily : presentation.fontFamily;
+        return { size, weight, family };
       };
     };
 
@@ -295,13 +310,53 @@ export class ChartJsChartAdapter implements ChartAdapter {
   }
 }
 
-function resolveChartTextColor(container: HTMLElement): string {
+interface ChartPresentation {
+  defaultTextColor: string;
+  fontFamily: string;
+  titleFontFamily: string;
+  fontScale: number;
+  gridColor: string;
+}
+
+function resolveChartPresentation(container: HTMLElement): ChartPresentation {
   const cs = getComputedStyle(container);
-  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
-  if (reverse) return reverse;
   const foreground = cs.getPropertyValue('--slide-foreground').trim();
-  if (foreground) return foreground;
-  return '#0f172a';
+  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
+  const defaultTextColor = foreground || reverse || '#0f172a';
+  const fontFamily =
+    cs.getPropertyValue('--slide-font-family').trim() ||
+    cs.fontFamily ||
+    "'Inter', sans-serif";
+  const titleFontFamily = cs.getPropertyValue('--slide-title-font-family').trim() || fontFamily;
+  const baseFontPx = parsePx(cs.fontSize) || 16;
+  const fontScale = clamp(baseFontPx / 16, 0.75, 1.35);
+
+  return {
+    defaultTextColor,
+    fontFamily,
+    titleFontFamily,
+    fontScale,
+    gridColor: withAlpha(defaultTextColor, 0.22),
+  };
+}
+
+function withAlpha(color: string, alpha: number): string {
+  const hex = color.trim();
+  const m = /^#([A-Fa-f0-9]{6})$/.exec(hex);
+  if (!m) {
+    return `rgba(148, 163, 184, ${alpha})`;
+  }
+  const value = m[1];
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function parsePx(value: string | null | undefined): number {
+  if (!value) return NaN;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function extractParsedNumeric(parsed: any): any {

@@ -5,7 +5,7 @@
   border-radius: 0.75rem;
   position: relative;
   overflow: hidden;
-  color: #475569;
+  color: var(--slide-foreground, #0f172a);
   font-size: 0.9rem;
 }
 
@@ -48,7 +48,7 @@
 .chart-widget__loading-text {
   font-size: 13px;
   font-weight: 600;
-  color: #475569;
+  color: var(--slide-foreground, #0f172a);
 }
 
 @keyframes chartWidgetSpin {
@@ -66,12 +66,12 @@
   justify-content: center;
   text-align: center;
   padding: 16px;
-  color: #64748b;
+  color: var(--slide-foreground, #0f172a);
 }
 
 .chart-widget__empty-title {
   font-weight: 600;
-  color: #334155;
+  color: var(--slide-foreground, #0f172a);
   margin-bottom: 4px;
 }
 

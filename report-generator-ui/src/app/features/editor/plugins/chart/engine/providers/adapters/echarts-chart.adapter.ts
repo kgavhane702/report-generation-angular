@@ -24,14 +24,15 @@ export class EChartsChartAdapter implements ChartAdapter {
 
     const width = container.clientWidth || 400;
     const height = container.clientHeight || 300;
-    const defaultTextColor = resolveChartTextColor(container);
+    const presentation = resolveChartPresentation(container);
+    const defaultTextColor = presentation.defaultTextColor;
     container.innerHTML = '';
     const filteredData = filterChartDataByLabelVisibility(chartData);
 
     // Production-friendly empty state: show a prompt instead of rendering an empty chart.
     if (!this.hasRenderableData(filteredData)) {
       container.innerHTML =
-        '<div style="padding: 20px; text-align: center; color: #666;">No data connected. Double-click to configure and import data.</div>';
+        `<div style="padding: 20px; text-align: center; color: ${defaultTextColor};">No data connected. Double-click to configure and import data.</div>`;
       return {
         destroy() {
           container.innerHTML = '';
@@ -54,7 +55,7 @@ export class EChartsChartAdapter implements ChartAdapter {
     chart.setOption(option);
 
     // Apply presentation (fonts/wrapping/formatting) once we have a base option.
-    this.applyPresentation(chart, option, filteredData, width, height, defaultTextColor);
+    this.applyPresentation(chart, option, filteredData, width, height, presentation);
 
     // Handle resize
     let resizeTimer: any = null;
@@ -63,7 +64,7 @@ export class EChartsChartAdapter implements ChartAdapter {
       resizeTimer = setTimeout(() => {
         const w = container.clientWidth || 400;
         const h = container.clientHeight || 300;
-        this.applyPresentation(chart, option, filteredData, w, h, defaultTextColor);
+        this.applyPresentation(chart, option, filteredData, w, h, presentation);
         chart.resize({ devicePixelRatio: computeEffectiveDevicePixelRatio(container) } as any);
       }, 80);
     });
@@ -135,10 +136,11 @@ export class EChartsChartAdapter implements ChartAdapter {
     data: ChartData,
     width: number,
     height: number,
-    defaultTextColor: string
+    presentation: ChartPresentation
   ): void {
+    const defaultTextColor = presentation.defaultTextColor;
     const scale = computeFontScale(width, height, data.typography);
-    const fonts = computeFontsPx(scale);
+    const fonts = computeFontsPx(scale * presentation.fontScale);
 
     const labelWrap = data.labelWrap ?? { enabled: true, maxLines: 2, mode: 'word' as const };
     const chartNumberFormat = data.numberFormat;
@@ -151,12 +153,14 @@ export class EChartsChartAdapter implements ChartAdapter {
       textStyle: {
         fontSize: fonts.axis,
         color: defaultTextColor,
+        fontFamily: presentation.fontFamily,
       },
       title: (baseOption as any)?.title
         ? {
             show: true,
             textStyle: {
               fontSize: fonts.title,
+              fontFamily: presentation.titleFontFamily,
               ...pickTextStyle(styles.title, defaultTextColor),
             },
           }
@@ -168,6 +172,7 @@ export class EChartsChartAdapter implements ChartAdapter {
             width: Math.max(120, Math.floor(width * 0.9)),
             textStyle: {
               fontSize: fonts.legend,
+              fontFamily: presentation.fontFamily,
               ...pickTextStyle(styles.legend, defaultTextColor),
               overflow: 'break',
               ellipsis: '',
@@ -182,10 +187,10 @@ export class EChartsChartAdapter implements ChartAdapter {
           }
         : undefined,
       tooltip: this.buildTooltipPatch(baseOption, chartNumberFormat, seriesData),
-      xAxis: this.buildAxisPatch((baseOption as any)?.xAxis, data, width, height, fonts, defaultTextColor),
-      yAxis: this.buildAxisPatch((baseOption as any)?.yAxis, data, width, height, fonts, defaultTextColor),
+      xAxis: this.buildAxisPatch((baseOption as any)?.xAxis, data, width, height, fonts, defaultTextColor, presentation),
+      yAxis: this.buildAxisPatch((baseOption as any)?.yAxis, data, width, height, fonts, defaultTextColor, presentation),
       series: Array.isArray(baseSeries)
-        ? baseSeries.map((s, idx) => this.buildSeriesPatch(s, idx, data, fonts, defaultTextColor))
+        ? baseSeries.map((s, idx) => this.buildSeriesPatch(s, idx, data, fonts, defaultTextColor, presentation))
         : undefined,
     };
 
@@ -199,7 +204,8 @@ export class EChartsChartAdapter implements ChartAdapter {
     width: number,
     height: number,
     fonts: { axis: number },
-    defaultTextColor: string
+    defaultTextColor: string,
+    presentation: ChartPresentation
   ): any {
     if (!axis) return undefined;
 
@@ -209,12 +215,14 @@ export class EChartsChartAdapter implements ChartAdapter {
       const out: any = {
         axisLabel: {
           fontSize: fonts.axis,
+          fontFamily: presentation.fontFamily,
           ...pickTextStyle(axisStyle, defaultTextColor),
           // Never show ellipsis for axis labels.
           ellipsis: '',
         },
         nameTextStyle: {
           fontSize: fonts.axis,
+          fontFamily: presentation.fontFamily,
           ...pickTextStyle(axisStyle, defaultTextColor),
           ellipsis: '',
         },
@@ -360,7 +368,8 @@ export class EChartsChartAdapter implements ChartAdapter {
     index: number,
     data: ChartData,
     fonts: { valueLabel: number },
-    defaultTextColor: string
+    defaultTextColor: string,
+    presentation: ChartPresentation
   ): any {
     const series = (data.series ?? [])[index];
     const chartShow = data.showValueLabels !== false;
@@ -375,6 +384,7 @@ export class EChartsChartAdapter implements ChartAdapter {
         ...(baseSeries?.label ?? {}),
         show,
         fontSize: fonts.valueLabel,
+        fontFamily: presentation.fontFamily,
         ...pickTextStyle(valueLabelStyle, defaultTextColor),
         // Never show ellipsis in series labels.
         ellipsis: '',
@@ -451,13 +461,37 @@ function pickTextStyle(style: any, fallbackColor?: string): { color?: string; fo
   return out;
 }
 
-function resolveChartTextColor(container: HTMLElement): string {
+interface ChartPresentation {
+  defaultTextColor: string;
+  fontFamily: string;
+  titleFontFamily: string;
+  fontScale: number;
+}
+
+function resolveChartPresentation(container: HTMLElement): ChartPresentation {
   const cs = getComputedStyle(container);
-  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
-  if (reverse) return reverse;
   const foreground = cs.getPropertyValue('--slide-foreground').trim();
-  if (foreground) return foreground;
-  return '#0f172a';
+  const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
+  const defaultTextColor = foreground || reverse || '#0f172a';
+  const fontFamily =
+    cs.getPropertyValue('--slide-font-family').trim() ||
+    cs.fontFamily ||
+    "'Inter', sans-serif";
+  const titleFontFamily = cs.getPropertyValue('--slide-title-font-family').trim() || fontFamily;
+  const baseFontPx = parsePx(cs.fontSize) || 16;
+
+  return {
+    defaultTextColor,
+    fontFamily,
+    titleFontFamily,
+    fontScale: clamp(baseFontPx / 16, 0.75, 1.35),
+  };
+}
+
+function parsePx(value: string | null | undefined): number {
+  if (!value) return NaN;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function computeEffectiveDevicePixelRatio(container: HTMLElement): number {

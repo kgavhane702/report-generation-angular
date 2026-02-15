@@ -25,16 +25,16 @@ public class TableWidgetRenderer {
             position: relative;
             /* Allow other widgets to overlap visually (table cell content is still clipped by cell overflow rules). */
             overflow: visible;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            color: #0f172a;
+            font-family: var(--slide-editor-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif);
+            color: var(--slide-editor-color, #0f172a);
             /* Match frontend default typography (tables default to 14px, not browser 16px). */
-            font-size: 14px;
+            font-size: var(--slide-table-font-size, 14px);
             line-height: 1.5;
             /* Defaults that can be overridden per-widget (e.g. showBorders=false) */
             --table-border-style: solid;
             --table-border-width: 1px;
-            --table-border-color: #cbd5e1;
-            --subcell-border-color: #e2e8f0;
+            --table-border-color: var(--slide-table-border, #cbd5e1);
+            --subcell-border-color: var(--slide-table-sub-border, #e2e8f0);
             /* Runtime-only scaling to prevent clipped text for dense (URL-based) tables in fixed frames. */
             --tw-auto-fit-scale: 1;
         }
@@ -150,7 +150,7 @@ public class TableWidgetRenderer {
         .widget-table .table-widget__cell-content blockquote {
             margin: 0.25em 0 0.25em 1em;
             padding-left: 0.75em;
-            border-left: 3px solid #e2e8f0;
+            border-left: 3px solid var(--slide-table-sub-border, #e2e8f0);
         }
 
         /* Lists inside table cells - proper display with inherited font size */
@@ -647,23 +647,23 @@ public class TableWidgetRenderer {
         }
 
         if (isHeaderRow) {
-            // Header row: light blue (overrides user background unless explicitly set)
+            // Header row (overrides user background unless explicitly set)
             if (backgroundColor.isBlank()) {
-                style.append("background-color: #dbeafe;");
+                style.append("background-color: var(--slide-table-header-bg, #dbeafe);");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }
         } else if (isTotalRow) {
-            // Total row: #eef2f7 (only if no user background)
+            // Total row (only if no user background)
             if (backgroundColor.isBlank()) {
-                style.append("background-color: #eef2f7;");
+                style.append("background-color: var(--slide-table-total-bg, #eef2f7);");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }
         } else if (isFirstCol || isLastCol) {
-            // First/Last column: #f1f5f9 (only if no user background and not in header/total row)
+            // First/Last column (only if no user background and not in header/total row)
             if (backgroundColor.isBlank()) {
-                style.append("background-color: #f1f5f9;");
+                style.append("background-color: var(--slide-table-edge-bg, #f1f5f9);");
             } else {
                 style.append("background-color: ").append(backgroundColor).append(";");
             }

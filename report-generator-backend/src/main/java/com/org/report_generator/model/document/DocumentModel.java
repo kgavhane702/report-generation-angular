@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -15,9 +16,13 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class DocumentModel {
+    private String id;
     private String title;
+    private String version;
+    private String schemaVersion;
     private PageSize pageSize = new PageSize();
     private List<Section> sections = new ArrayList<>();
+    private Map<String, Object> metadata;
     private HeaderConfig header;
     private FooterConfig footer;
     private LogoConfig logo;

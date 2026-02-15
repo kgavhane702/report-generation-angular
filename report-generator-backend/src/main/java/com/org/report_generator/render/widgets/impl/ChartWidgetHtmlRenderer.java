@@ -46,7 +46,7 @@ public class ChartWidgetHtmlRenderer implements WidgetRenderer {
         }
         String chartType = props.path("chartType").asText("N/A");
         return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(style) + "\">"
-                + "<div class=\"chart-placeholder\">Chart: " + escapeHtml(chartType) + "</div>"
+            + "<div class=\"chart-placeholder\" style=\"color: var(--slide-foreground, #0f172a); font-family: var(--slide-editor-font-family, inherit);\">Chart: " + escapeHtml(chartType) + "</div>"
                 + "</div>";
     }
 

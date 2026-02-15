@@ -4,6 +4,8 @@ import com.org.report_generator.dto.PdfGenerationRequest;
 import com.org.report_generator.export.ExportFormat;
 import com.org.report_generator.export.ExportResult;
 import com.org.report_generator.export.ExporterRegistry;
+import com.org.report_generator.ingest.DocumentIngestPipeline;
+import com.org.report_generator.ingest.DocumentValidationException;
 import com.org.report_generator.model.document.DocumentModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +35,11 @@ public class DocumentExportController {
 
     private static final Logger logger = LoggerFactory.getLogger(DocumentExportController.class);
     private final ExporterRegistry exporterRegistry;
+    private final DocumentIngestPipeline ingestPipeline;
 
-    public DocumentExportController(ExporterRegistry exporterRegistry) {
+    public DocumentExportController(ExporterRegistry exporterRegistry, DocumentIngestPipeline ingestPipeline) {
         this.exporterRegistry = exporterRegistry;
+        this.ingestPipeline = ingestPipeline;
     }
 
     @GetMapping("/health")
@@ -59,7 +63,13 @@ public class DocumentExportController {
         long startTime = System.currentTimeMillis();
         ExportFormat exportFormat = parseFormat(format);
 
-        DocumentModel document = request.getDocument();
+        DocumentModel document;
+        try {
+            document = ingestPipeline.ingest(request.getDocument());
+        } catch (DocumentValidationException e) {
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        }
+
         logger.info("Document export request: format={}, document={}, pages={}",
                 exportFormat, document.getTitle(), countPages(document));
 

@@ -339,7 +339,10 @@ public class ObjectWidgetHtmlRenderer implements WidgetRenderer {
             "position: absolute; top: 0; left: 0; right: 0; bottom: 0; " +
             "display: flex; flex-direction: column; justify-content: %s; " +
             "text-align: %s; padding: %dpx; box-sizing: border-box; " +
-            "overflow: hidden; word-wrap: break-word;",
+            "overflow: hidden; word-wrap: break-word; " +
+            "color: var(--slide-editor-color, #0f172a); " +
+            "font-family: var(--slide-editor-font-family, inherit); " +
+            "font-size: var(--slide-editor-font-size, 14px);",
             justifyContent, textAlign, padding
         );
         

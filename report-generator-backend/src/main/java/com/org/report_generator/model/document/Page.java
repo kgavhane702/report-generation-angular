@@ -17,7 +17,11 @@ import java.util.List;
 public class Page {
     private String id;
     private Integer number;
+    private String title;
     private String orientation;
+    private BackgroundSpec background;
+    private String slideLayoutType;
+    private String slideVariantId;
     private List<Widget> widgets = new ArrayList<>();
 }
 

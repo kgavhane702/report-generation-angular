@@ -30,10 +30,68 @@ public class PageStylesRenderer {
             background: #ffffff;
             box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08);
             padding: 0;
+            border: 1px solid rgba(148, 163, 184, 0.2);
             border-radius: 0;
             /* Allow visible overflow for header/footer */
             overflow: visible;
             box-sizing: border-box;
+        }
+
+        .page__theme-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .page__theme-layer::before,
+        .page__theme-layer::after {
+            content: '';
+            position: absolute;
+            pointer-events: none;
+        }
+
+        /* Curvy Magenta: top-right magenta tab */
+        .page__theme-layer.theme-curvy-magenta::after {
+            right: 9.5%;
+            top: 0;
+            width: 4.8%;
+            height: 17.5%;
+            background: #c71585;
+            border-radius: 0 0 2px 2px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Curvy cover slides */
+        .page__theme-layer.theme-curvy-magenta.variant-g1::before,
+        .page__theme-layer.theme-curvy-magenta.layout-title-slide::before,
+        .page__theme-layer.theme-curvy-magenta.layout-section-header::before {
+            left: 4%;
+            right: 4%;
+            top: 0;
+            height: 42%;
+            border-radius: 0 0 46% 46% / 0 0 30% 30%;
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        /* Curvy content slides */
+        .page__theme-layer.theme-curvy-magenta.variant-g2::before,
+        .page__theme-layer.theme-curvy-magenta.layout-title-and-content::before,
+        .page__theme-layer.theme-curvy-magenta.layout-two-content::before,
+        .page__theme-layer.theme-curvy-magenta.layout-comparison::before,
+        .page__theme-layer.theme-curvy-magenta.layout-title-only::before {
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 34%;
+            border-radius: 0 0 55% 55% / 0 0 26% 26%;
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        /* Curvy blank slides */
+        .page__theme-layer.theme-curvy-magenta.variant-g3::before,
+        .page__theme-layer.theme-curvy-magenta.layout-blank::before {
+            display: none;
         }
 
         @media print {

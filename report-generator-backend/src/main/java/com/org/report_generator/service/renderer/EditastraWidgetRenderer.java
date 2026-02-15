@@ -22,8 +22,8 @@ public class EditastraWidgetRenderer {
             overflow: hidden;
             border: none;
             background: transparent;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            color: #0f172a;
+            font-family: var(--slide-editor-font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif);
+            color: var(--slide-editor-color, #0f172a);
             box-sizing: border-box;
             /* Match frontend Editastra widget default (used for URL auto-fit scaling in standalone widgets). */
             --ew-auto-fit-scale: 1;
@@ -62,6 +62,32 @@ public class EditastraWidgetRenderer {
             line-height: clamp(1.0, calc(1.35 * var(--ew-auto-fit-scale, 1)), 1.35);
             background: transparent;
             box-sizing: border-box;
+        }
+
+        .widget-editastra__editor h1,
+        .widget-editastra__editor h2,
+        .widget-editastra__editor h3,
+        .widget-editastra__editor h4,
+        .widget-editastra__editor h5,
+        .widget-editastra__editor h6 {
+            margin: 0;
+            padding: 0;
+            font-family: var(--slide-title-font-family, inherit);
+            font-weight: var(--slide-title-font-weight, 700);
+            line-height: 1.2;
+        }
+
+        .widget-editastra__editor h1 { font-size: var(--slide-title-font-size, 32px); }
+        .widget-editastra__editor h2 { font-size: clamp(20px, calc(var(--slide-title-font-size, 32px) * 0.78), 32px); }
+        .widget-editastra__editor h3 { font-size: clamp(16px, calc(var(--slide-title-font-size, 32px) * 0.62), 24px); }
+        .widget-editastra__editor h4 { font-size: clamp(14px, calc(var(--slide-title-font-size, 32px) * 0.5), 20px); }
+        .widget-editastra__editor h5 { font-size: clamp(13px, calc(var(--slide-title-font-size, 32px) * 0.44), 18px); }
+        .widget-editastra__editor h6 { font-size: clamp(12px, calc(var(--slide-title-font-size, 32px) * 0.38), 16px); }
+
+        .widget-editastra__editor[data-empty='true'][data-placeholder]::before {
+            content: attr(data-placeholder);
+            color: var(--slide-placeholder-color, rgba(100, 116, 139, 0.85));
+            pointer-events: none;
         }
 
         /* Subtle caret-friendly baseline blocks (match UI) */
@@ -151,10 +177,9 @@ public class EditastraWidgetRenderer {
         }
 
         String content = props.path("contentHtml").asText("");
-        if (content.trim().isEmpty()) {
-            // Keep an empty editor block to preserve padding/height.
-            content = "<div><br></div>";
-        }
+        boolean isEmpty = content.trim().isEmpty();
+        String placeholder = props.path("placeholder").asText("");
+        boolean isSlidePlaceholder = isSlidePlaceholder(placeholder);
 
         String bg = props.path("backgroundColor").asText("");
         StringBuilder finalStyle = new StringBuilder(widgetStyle);
@@ -162,16 +187,70 @@ public class EditastraWidgetRenderer {
             finalStyle.append("background-color: ").append(bg).append(";");
         }
 
+        String fontSize = props.path("fontSize").asText("");
+        if (!fontSize.isBlank()) {
+            finalStyle.append("font-size: ").append(fontSize).append(";");
+        }
+
+        String fontWeight = props.path("fontWeight").asText("");
+        if (!fontWeight.isBlank()) {
+            finalStyle.append("font-weight: ").append(fontWeight).append(";");
+        }
+
+        String textAlign = props.path("textAlign").asText("");
+        if (!textAlign.isBlank()) {
+            finalStyle.append("text-align: ").append(textAlign).append(";");
+        }
+
+        String borderStyle = props.path("borderStyle").asText("");
+        int borderWidth = props.path("borderWidth").asInt(0);
+        String borderColor = props.path("borderColor").asText("");
+        int borderRadius = props.path("borderRadius").asInt(0);
+
+        if (borderStyle.isBlank() && isSlidePlaceholder) {
+            borderStyle = "dashed";
+        }
+        if (borderWidth <= 0 && isSlidePlaceholder) {
+            borderWidth = 2;
+        }
+        if (borderColor.isBlank() && isSlidePlaceholder) {
+            borderColor = "var(--slide-reverse-color, #0f172a)";
+        }
+
+        if (!borderStyle.isBlank() && borderWidth > 0) {
+            finalStyle.append("border-style: ").append(borderStyle).append(";");
+            finalStyle.append("border-width: ").append(borderWidth).append("px;");
+            finalStyle.append("border-color: ").append(borderColor.isBlank() ? "transparent" : borderColor).append(";");
+        }
+
+        if (borderRadius > 0) {
+            finalStyle.append("border-radius: ").append(borderRadius).append("px;");
+        }
+
         String vAlign = props.path("verticalAlign").asText("top").toLowerCase(Locale.ROOT);
         if (!("top".equals(vAlign) || "middle".equals(vAlign) || "bottom".equals(vAlign))) {
             vAlign = "top";
         }
 
+        StringBuilder editorAttrs = new StringBuilder();
+        if (!placeholder.isBlank()) {
+            editorAttrs.append(" data-placeholder=\"").append(escapeHtmlAttribute(placeholder)).append("\"");
+        }
+        if (isEmpty) {
+            editorAttrs.append(" data-empty=\"true\"");
+        }
+
         return "<div class=\"widget widget-editastra\" style=\"" + escapeHtmlAttribute(finalStyle.toString()) + "\">"
             + "<div class=\"widget-editastra__content\" data-v-align=\"" + escapeHtmlAttribute(vAlign) + "\">"
-            + "<div class=\"widget-editastra__editor\">" + content + "</div>"
+            + "<div class=\"widget-editastra__editor\"" + editorAttrs + ">" + content + "</div>"
             + "</div>"
             + "</div>";
+    }
+
+    private boolean isSlidePlaceholder(String placeholder) {
+        if (placeholder == null) return false;
+        String p = placeholder.trim().toLowerCase(Locale.ROOT);
+        return p.startsWith("click to add");
     }
 
     private String escapeHtmlAttribute(String input) {

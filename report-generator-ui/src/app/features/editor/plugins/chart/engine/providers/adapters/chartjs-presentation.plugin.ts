@@ -6,6 +6,7 @@ import { computeFontScale, computeFontsPx } from '../../utils/layout-metrics.uti
 export interface ReportUiChartJsPresentationPluginOptions {
   chartData: ChartData;
   defaultTextColor?: string;
+  defaultFontFamily?: string;
 }
 
 export const reportUiChartJsValueLabelsPlugin: Plugin = {
@@ -14,6 +15,7 @@ export const reportUiChartJsValueLabelsPlugin: Plugin = {
     const opts = ((chart.options.plugins as any)?.reportUiPresentation ?? null) as ReportUiChartJsPresentationPluginOptions | null;
     const chartData = opts?.chartData;
     const defaultTextColor = opts?.defaultTextColor || '#0f172a';
+    const defaultFontFamily = opts?.defaultFontFamily || 'sans-serif';
     if (!chartData) return;
 
     const scale = computeFontScale(chart.width, chart.height, chartData.typography);
@@ -29,7 +31,7 @@ export const reportUiChartJsValueLabelsPlugin: Plugin = {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const fontFamily = (chart.options.font as any)?.family;
+    const fontFamily = (chart.options.font as any)?.family || defaultFontFamily;
 
     const datasets = chart.data.datasets ?? [];
     for (let di = 0; di < datasets.length; di++) {
