@@ -400,9 +400,18 @@ const selectDenormalizedDocument = createSelector(
         const pages: PageModel[] = pageIds.map((pageId: string) => {
           const page = pageEntities[pageId]!;
           const wIds = widgetIdsByPageId[pageId] || [];
-          
-          const widgets: WidgetModel[] = wIds.map((wId: string) => {
-            const widget = widgetEntities[wId]!;
+
+          const widgetsWithIndex = wIds
+            .map((wId: string, idx: number) => ({ widget: widgetEntities[wId], idx }))
+            .filter((x): x is { widget: NonNullable<typeof x.widget>; idx: number } => !!x.widget)
+            .sort((a, b) => {
+              const za = a.widget.zIndex ?? 1;
+              const zb = b.widget.zIndex ?? 1;
+              if (za !== zb) return za - zb;
+              return a.idx - b.idx;
+            });
+
+          const widgets: WidgetModel[] = widgetsWithIndex.map(({ widget }) => {
             // Remove pageId from widget when denormalizing
             const { pageId: _, ...widgetWithoutPageId } = widget;
             return widgetWithoutPageId as WidgetModel;

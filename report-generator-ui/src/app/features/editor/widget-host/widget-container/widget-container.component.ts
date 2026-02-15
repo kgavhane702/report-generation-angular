@@ -115,6 +115,16 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   get contextMenuItems(): ContextMenuItem[] {
     return [
       {
+        id: 'bring-to-front',
+        label: 'Bring to front',
+        disabled: this.isDocumentLocked,
+      },
+      {
+        id: 'send-to-back',
+        label: 'Send to back',
+        disabled: this.isDocumentLocked,
+      },
+      {
         id: 'delete',
         label: 'Delete',
         icon: 'trash',
@@ -2593,6 +2603,18 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const isMulti = selectedIds.length > 1;
 
     switch (actionId) {
+      case 'bring-to-front':
+        queueMicrotask(() => {
+          if (this.isDocumentLocked) return;
+          this.documentService.bringWidgetsToFront(this.pageId, selectedIds);
+        });
+        break;
+      case 'send-to-back':
+        queueMicrotask(() => {
+          if (this.isDocumentLocked) return;
+          this.documentService.sendWidgetsToBack(this.pageId, selectedIds);
+        });
+        break;
       case 'delete':
         queueMicrotask(() => this.deleteWidgetInternal(selectedIds));
         break;

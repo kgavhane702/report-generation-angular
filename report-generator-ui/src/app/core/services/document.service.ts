@@ -600,6 +600,16 @@ export class DocumentService {
     this.deleteWidgets(pageId, widgetIds);
   }
 
+  bringWidgetsToFront(pageId: string, widgetIds: string[]): void {
+    if (!this.canEdit()) return;
+    this.reorderWidgetsZIndex(pageId, widgetIds, 'front');
+  }
+
+  sendWidgetsToBack(pageId: string, widgetIds: string[]): void {
+    if (!this.canEdit()) return;
+    this.reorderWidgetsZIndex(pageId, widgetIds, 'back');
+  }
+
   pasteWidgets(pageId: string, options?: { at?: { x: number; y: number } }): string[] {
     if (!this.canEdit()) return [];
     const copiedWidgets = this.clipboardService.getCopiedWidgets();
@@ -631,6 +641,59 @@ export class DocumentService {
 
   canPaste(): boolean {
     return this.clipboardService.hasCopiedWidgets();
+  }
+
+  private reorderWidgetsZIndex(
+    pageId: string,
+    widgetIds: string[],
+    direction: 'front' | 'back'
+  ): void {
+    if (widgetIds.length === 0) return;
+
+    const entities = this.widgetEntities();
+    const idsOnPage = this.widgetIdsByPageId()[pageId] ?? [];
+    if (idsOnPage.length === 0) return;
+
+    const pageOrderIndex = new Map<string, number>(
+      idsOnPage.map((id, index) => [id, index])
+    );
+
+    const sortedPageWidgets = idsOnPage
+      .map((id) => entities[id])
+      .filter((w): w is WidgetEntity => !!w)
+      .sort((a, b) => {
+        const zDiff = (a.zIndex ?? 1) - (b.zIndex ?? 1);
+        if (zDiff !== 0) return zDiff;
+        return (pageOrderIndex.get(a.id) ?? 0) - (pageOrderIndex.get(b.id) ?? 0);
+      });
+
+    if (sortedPageWidgets.length <= 1) return;
+
+    const moveSet = new Set(widgetIds.filter((id) => pageOrderIndex.has(id)));
+    if (moveSet.size === 0) return;
+
+    const selected = sortedPageWidgets.filter((w) => moveSet.has(w.id));
+    const others = sortedPageWidgets.filter((w) => !moveSet.has(w.id));
+    const reordered = direction === 'front' ? [...others, ...selected] : [...selected, ...others];
+
+    const updates = reordered
+      .map((widget, index) => {
+        const nextZIndex = index + 1;
+        if ((widget.zIndex ?? 1) === nextZIndex) {
+          return null;
+        }
+
+        return {
+          pageId,
+          widgetId: widget.id,
+          changes: { zIndex: nextZIndex } as Partial<WidgetModel>,
+          previousWidget: widget,
+        };
+      })
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+
+    if (updates.length === 0) return;
+    this.updateWidgets(updates);
   }
 
   // ============================================

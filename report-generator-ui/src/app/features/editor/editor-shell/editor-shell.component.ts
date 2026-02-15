@@ -254,6 +254,21 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       }
     }
 
+    if (!isInputElement && (event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey) {
+      const code = event.code;
+      if (code === 'BracketRight') {
+        event.preventDefault();
+        this.bringSelectionToFront();
+        return;
+      }
+
+      if (code === 'BracketLeft') {
+        event.preventDefault();
+        this.sendSelectionToBack();
+        return;
+      }
+    }
+
     if (!isInputElement && !event.ctrlKey && !event.metaKey && !event.altKey) {
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault();
@@ -358,6 +373,36 @@ export class EditorShellComponent implements AfterViewInit, OnDestroy {
       // Select all pasted widgets (also sets first as active)
       this.uiState.selectMultiple(pastedWidgetIds);
     }
+  }
+
+  private bringSelectionToFront(): void {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    const pageId = this.editorState.activePageId();
+
+    if (selectedIds.length > 0) {
+      if (!pageId) return;
+      this.documentService.bringWidgetsToFront(pageId, selectedIds);
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) return;
+    this.documentService.bringWidgetsToFront(widgetContext.pageId, [widgetContext.widget.id]);
+  }
+
+  private sendSelectionToBack(): void {
+    const selectedIds = Array.from(this.uiState.selectedWidgetIds());
+    const pageId = this.editorState.activePageId();
+
+    if (selectedIds.length > 0) {
+      if (!pageId) return;
+      this.documentService.sendWidgetsToBack(pageId, selectedIds);
+      return;
+    }
+
+    const widgetContext = this.editorState.activeWidgetContext();
+    if (!widgetContext) return;
+    this.documentService.sendWidgetsToBack(widgetContext.pageId, [widgetContext.widget.id]);
   }
 
   ngAfterViewInit(): void {

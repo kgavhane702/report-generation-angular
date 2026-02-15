@@ -26,9 +26,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +47,7 @@ public class DocumentRenderService {
     private static final double DEFAULT_WIDTH_MM = 254d;
     private static final double DEFAULT_HEIGHT_MM = 190.5d;
     private static final int DEFAULT_DPI = 96;
+    private static final int WIDGET_Z_INDEX_BASE = 2000;
     
     private final WidgetRendererRegistry widgetRenderers;
     private final ExportPerformanceProperties perf;
@@ -183,8 +187,9 @@ public class DocumentRenderService {
 
         builder.append(renderHeader(document, page));
 
-        if (page.getWidgets() != null) {
-            for (Widget widget : page.getWidgets()) {
+        List<Widget> widgetsForRender = orderWidgetsForRender(page.getWidgets());
+        if (!widgetsForRender.isEmpty()) {
+            for (Widget widget : widgetsForRender) {
                 builder.append(renderWidget(widget, document, page));
             }
         }
@@ -193,6 +198,45 @@ public class DocumentRenderService {
 
         builder.append("</div></div>");
         return builder.toString();
+    }
+
+    /**
+     * Render widgets in stacking order (low z-index to high z-index).
+     *
+     * This keeps backend HTML/PDF output consistent with editor layering operations
+     * like "Bring to front" / "Send to back".
+     */
+    private List<Widget> orderWidgetsForRender(List<Widget> widgets) {
+        if (widgets == null || widgets.isEmpty()) {
+            return List.of();
+        }
+
+        List<Widget> ordered = widgets.stream()
+                .filter(w -> w != null)
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+
+        if (ordered.size() <= 1) {
+            return ordered;
+        }
+
+        boolean hasAnyZIndex = ordered.stream().anyMatch(w -> w.getZIndex() != null);
+        if (!hasAnyZIndex) {
+            // Legacy documents without zIndex should keep source order.
+            return ordered;
+        }
+
+        Map<Widget, Integer> originalOrder = new IdentityHashMap<>();
+        for (int i = 0; i < ordered.size(); i++) {
+            originalOrder.put(ordered.get(i), i);
+        }
+
+        ordered.sort(
+                Comparator
+                .comparingInt((Widget w) -> Optional.ofNullable(w.getZIndex()).orElse(1))
+                        .thenComparingInt(w -> originalOrder.getOrDefault(w, 0))
+        );
+
+        return ordered;
     }
 
     private String renderWidget(Widget widget, DocumentModel document, Page page) {
@@ -230,10 +274,10 @@ public class DocumentRenderService {
         style.append("width: ").append(Optional.ofNullable(size.getWidth()).orElse(0d)).append("px;");
         style.append("height: ").append(Optional.ofNullable(size.getHeight()).orElse(0d)).append("px;");
 
-        // Match frontend stacking order.
-        if (widget.getZIndex() != null) {
-            style.append("z-index: ").append(widget.getZIndex()).append(";");
-        }
+        // Match frontend stacking order exactly:
+        // WidgetContainer uses base 2000 + (widget.zIndex ?? 1)
+        int effectiveZ = WIDGET_Z_INDEX_BASE + Optional.ofNullable(widget.getZIndex()).orElse(1);
+        style.append("z-index: ").append(effectiveZ).append(";");
 
         // Optional rotation (degrees). Use center origin to match frontend behavior.
         if (widget.getRotation() != null && Double.isFinite(widget.getRotation()) && Math.abs(widget.getRotation()) > 0.00001d) {
@@ -246,6 +290,10 @@ public class DocumentRenderService {
             Iterator<String> fields = styleNode.fieldNames();
             while (fields.hasNext()) {
                 String key = fields.next();
+                // Do not allow custom style payload to override computed geometry/stacking.
+                if (isReservedWidgetLayoutStyleKey(key)) {
+                    continue;
+                }
                 JsonNode value = styleNode.get(key);
                 if (value != null && !value.isNull()) {
                     style.append(camelToKebab(key)).append(": ").append(formatCssValue(key, value)).append(";");
@@ -290,6 +338,21 @@ public class DocumentRenderService {
             return Long.toString(asLong);
         }
         return Double.toString(v);
+    }
+
+    private boolean isReservedWidgetLayoutStyleKey(String key) {
+        if (key == null) return false;
+        String k = key.trim().toLowerCase(Locale.ROOT);
+        return k.equals("left")
+                || k.equals("top")
+                || k.equals("width")
+                || k.equals("height")
+                || k.equals("position")
+                || k.equals("zindex")
+                || k.equals("z-index")
+                || k.equals("transform")
+                || k.equals("transform-origin")
+                || k.equals("transformorigin");
     }
 
 
