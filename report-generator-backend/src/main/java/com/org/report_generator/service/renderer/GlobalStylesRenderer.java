@@ -40,6 +40,16 @@ public class GlobalStylesRenderer {
             /* Export behavior: clip content to the widget frame (prevents hidden/clipped content from showing in PDF). */
             overflow: hidden;
         }
+
+        /* Chart widgets should be fully transparent (match editor behavior). */
+        .widget-chart,
+        .widget-chart .chart-svg,
+        .widget-chart .chart-svg svg,
+        .widget-chart img,
+        .widget-chart canvas {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
         
         @media print {
             body {
