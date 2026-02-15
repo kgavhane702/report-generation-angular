@@ -52,6 +52,10 @@ export type WidgetProps =
 export interface EditastraWidgetProps {
   contentHtml: string;
   placeholder?: string;
+  /** True when this widget is a slide template placeholder (not a normal free-text widget). */
+  isTemplatePlaceholder?: boolean;
+  /** For template placeholders, tracks whether user has provided actual content. */
+  placeholderResolved?: boolean;
   backgroundColor?: string;
   borderColor?: string;
   borderWidth?: number;

@@ -50,6 +50,8 @@ export class SlideTemplateService {
       ...props,
       contentHtml: '',
       placeholder: spec.placeholder,
+      isTemplatePlaceholder: true,
+      placeholderResolved: false,
       backgroundColor: 'transparent',
       fontSize,
       fontWeight,

@@ -119,9 +119,25 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   readonly placeholder = () => this.props.placeholder || 'Type here…';
 
   private isSlidePlaceholderWidget(): boolean {
+    return this.isUnresolvedTemplatePlaceholderState();
+  }
+
+  private isTemplatePlaceholderWidget(): boolean {
+    if (typeof this.props.isTemplatePlaceholder === 'boolean') {
+      return this.props.isTemplatePlaceholder;
+    }
     const p = (this.props.placeholder || '').trim().toLowerCase();
-    if (!p.startsWith('click to add')) return false;
-    return normalizeEditorHtmlForModel(this.localHtml()) === '';
+    return p.startsWith('click to add');
+  }
+
+  private isUnresolvedTemplatePlaceholderState(): boolean {
+    if (!this.isTemplatePlaceholderWidget()) return false;
+    const content = normalizeEditorHtmlForModel(this.localHtml());
+    if (content !== '') return false;
+    if (typeof this.props.placeholderResolved === 'boolean') {
+      return this.props.placeholderResolved === false || content === '';
+    }
+    return true;
   }
 
   private defaultBlockTagForPlaceholder(): 'h1' | 'h2' | 'h3' | 'p' {
@@ -563,9 +579,21 @@ export class EditastraWidgetComponent implements OnInit, OnChanges, OnDestroy, F
   private commitContentChange(reason: 'blur' | 'flush' | 'destroy' | 'autosave'): void {
     const next = normalizeEditorHtmlForModel(this.localHtml());
     const baseline = this.htmlAtEditStart;
+    const isTemplatePlaceholder = this.isTemplatePlaceholderWidget();
+    const nextPlaceholderResolved = isTemplatePlaceholder ? next !== '' : undefined;
+    const currentPlaceholderResolved = this.props.placeholderResolved;
+    const placeholderStateChanged =
+      isTemplatePlaceholder &&
+      (typeof currentPlaceholderResolved !== 'boolean' || currentPlaceholderResolved !== nextPlaceholderResolved);
 
-    if (next !== baseline) {
-      this.propsChange.emit({ contentHtml: next });
+    if (next !== baseline || placeholderStateChanged) {
+      const patch: Partial<EditastraWidgetProps> = { contentHtml: next };
+      if (isTemplatePlaceholder) {
+        patch.isTemplatePlaceholder = true;
+        patch.placeholderResolved = nextPlaceholderResolved;
+      }
+
+      this.propsChange.emit(patch);
       // Advance baseline so subsequent autosaves/blur don't emit the same change again.
       this.htmlAtEditStart = next;
     }

@@ -177,9 +177,17 @@ public class EditastraWidgetRenderer {
         }
 
         String content = props.path("contentHtml").asText("");
-        boolean isEmpty = content.trim().isEmpty();
         String placeholder = props.path("placeholder").asText("");
-        boolean isSlidePlaceholder = isSlidePlaceholder(placeholder);
+        boolean isTemplatePlaceholder = isTemplatePlaceholderWidget(props, placeholder);
+        boolean placeholderResolved = resolvePlaceholderResolved(props, content, placeholder, isTemplatePlaceholder);
+        boolean unresolvedPlaceholder = isTemplatePlaceholder && !placeholderResolved;
+
+        if (unresolvedPlaceholder) {
+            // Export behavior: unresolved slide placeholders should not be visible in final PDF.
+            content = "";
+        }
+
+        boolean isEmpty = content.trim().isEmpty();
 
         String bg = props.path("backgroundColor").asText("");
         StringBuilder finalStyle = new StringBuilder(widgetStyle);
@@ -207,14 +215,12 @@ public class EditastraWidgetRenderer {
         String borderColor = props.path("borderColor").asText("");
         int borderRadius = props.path("borderRadius").asInt(0);
 
-        if (borderStyle.isBlank() && isSlidePlaceholder) {
-            borderStyle = "dashed";
-        }
-        if (borderWidth <= 0 && isSlidePlaceholder) {
-            borderWidth = 2;
-        }
-        if (borderColor.isBlank() && isSlidePlaceholder) {
-            borderColor = "var(--slide-reverse-color, #0f172a)";
+        if (unresolvedPlaceholder) {
+            // Export behavior: unresolved template placeholders are hidden in final output.
+            finalStyle.append("border: none;");
+        } else if (isTemplatePlaceholder && borderStyle.isBlank() && borderWidth <= 0) {
+            // Resolved template placeholders render as normal content blocks with no auto placeholder border.
+            finalStyle.append("border: none;");
         }
 
         if (!borderStyle.isBlank() && borderWidth > 0) {
@@ -233,10 +239,10 @@ public class EditastraWidgetRenderer {
         }
 
         StringBuilder editorAttrs = new StringBuilder();
-        if (!placeholder.isBlank()) {
+        if (!placeholder.isBlank() && !unresolvedPlaceholder) {
             editorAttrs.append(" data-placeholder=\"").append(escapeHtmlAttribute(placeholder)).append("\"");
         }
-        if (isEmpty) {
+        if (isEmpty && !unresolvedPlaceholder) {
             editorAttrs.append(" data-empty=\"true\"");
         }
 
@@ -251,6 +257,72 @@ public class EditastraWidgetRenderer {
         if (placeholder == null) return false;
         String p = placeholder.trim().toLowerCase(Locale.ROOT);
         return p.startsWith("click to add");
+    }
+
+    private boolean isTemplatePlaceholderWidget(JsonNode props, String placeholder) {
+        JsonNode explicit = props.path("isTemplatePlaceholder");
+        if (!explicit.isMissingNode() && !explicit.isNull() && explicit.isBoolean()) {
+            return explicit.asBoolean(false);
+        }
+        // Backward compatibility for older documents without explicit flag.
+        return isSlidePlaceholder(placeholder);
+    }
+
+    private boolean resolvePlaceholderResolved(JsonNode props, String contentHtml, String placeholder, boolean isTemplatePlaceholder) {
+        if (!isTemplatePlaceholder) {
+            return true;
+        }
+
+        JsonNode explicit = props.path("placeholderResolved");
+        if (!explicit.isMissingNode() && !explicit.isNull() && explicit.isBoolean()) {
+            return explicit.asBoolean(false);
+        }
+
+        // Backward compatibility: infer unresolved state from content for legacy payloads.
+        return !isUnresolvedSlidePlaceholderContent(contentHtml, placeholder);
+    }
+
+    private boolean isUnresolvedSlidePlaceholderContent(String contentHtml, String placeholder) {
+        String plain = toPlainText(contentHtml).trim().toLowerCase(Locale.ROOT);
+        if (plain.isEmpty()) {
+            return true;
+        }
+
+        if (plain.startsWith("click to add")) {
+            return true;
+        }
+
+        String placeholderText = (placeholder == null ? "" : placeholder).trim().toLowerCase(Locale.ROOT);
+        if (!placeholderText.isBlank() && normalizeWhitespace(plain).equals(normalizeWhitespace(placeholderText))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private String toPlainText(String html) {
+        if (html == null || html.isBlank()) {
+            return "";
+        }
+
+        String plain = html
+            .replaceAll("<[^>]+>", " ")
+            .replace("&nbsp;", " ")
+            .replace("&#160;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'");
+
+        return normalizeWhitespace(plain);
+    }
+
+    private String normalizeWhitespace(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.trim().replaceAll("\\s+", " ");
     }
 
     private String escapeHtmlAttribute(String input) {

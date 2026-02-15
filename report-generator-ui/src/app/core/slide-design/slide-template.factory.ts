@@ -16,6 +16,8 @@ export function createInitialTitleSlidePlaceholders(): WidgetModel[] {
     props: {
       contentHtml: '',
       placeholder: 'Click to add title',
+      isTemplatePlaceholder: true,
+      placeholderResolved: false,
       backgroundColor: 'transparent',
       fontSize: titleFontSize,
       fontWeight: titleVariant.titleFontWeight || 700,
@@ -33,6 +35,8 @@ export function createInitialTitleSlidePlaceholders(): WidgetModel[] {
     props: {
       contentHtml: '',
       placeholder: 'Click to add subtitle',
+      isTemplatePlaceholder: true,
+      placeholderResolved: false,
       backgroundColor: 'transparent',
       fontSize: '18px',
       fontWeight: 400,

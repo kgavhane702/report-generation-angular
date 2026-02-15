@@ -165,9 +165,22 @@ export class SlideDesignService {
 
             const props = (widget.props ?? { contentHtml: '' }) as EditastraWidgetProps;
             const placeholder = (props.placeholder ?? '').toString();
+            const isTemplatePlaceholder = this.isTemplatePlaceholderProps(props);
+            const normalizedContent = (props.contentHtml ?? '').trim();
+            const placeholderResolved = isTemplatePlaceholder
+              ? normalizedContent.length > 0
+              : props.placeholderResolved;
             const role = inferPlaceholderRole(placeholder);
             if (role === 'body' && !placeholder.toLowerCase().startsWith('click to add')) {
-              return widget;
+              return {
+                ...widget,
+                props: {
+                  ...props,
+                  contentHtml: props.contentHtml ?? '',
+                  isTemplatePlaceholder,
+                  placeholderResolved,
+                } as EditastraWidgetProps,
+              };
             }
 
             const defaults = defaultsForPlaceholderRole(role, variant);
@@ -176,6 +189,8 @@ export class SlideDesignService {
               props: {
                 ...props,
                 contentHtml: props.contentHtml ?? '',
+                isTemplatePlaceholder,
+                placeholderResolved,
                 fontSize: props.fontSize || defaults.fontSize,
                 fontWeight: Number.isFinite(Number(props.fontWeight))
                   ? Number(props.fontWeight)
@@ -351,7 +366,17 @@ export class SlideDesignService {
             if (widget.type !== 'editastra') return widget;
 
             const props = (widget.props ?? { contentHtml: '' }) as EditastraWidgetProps;
-            if (!this.isTemplatePlaceholder(props.placeholder)) return widget;
+            if (!this.isTemplatePlaceholderProps(props)) {
+              return {
+                ...widget,
+                props: {
+                  ...props,
+                  contentHtml: props.contentHtml ?? '',
+                  isTemplatePlaceholder: false,
+                  placeholderResolved: true,
+                } as EditastraWidgetProps,
+              };
+            }
 
             const template = templateByPlaceholder.get(this.placeholderKey(props.placeholder));
             if (!template || template.type !== 'editastra') {
@@ -366,6 +391,8 @@ export class SlideDesignService {
               props: {
                 ...props,
                 contentHtml: props.contentHtml ?? '',
+                isTemplatePlaceholder: true,
+                placeholderResolved: (props.contentHtml ?? '').trim().length > 0,
                 placeholder: templateProps.placeholder ?? props.placeholder,
                 backgroundColor: templateProps.backgroundColor ?? 'transparent',
                 fontSize: templateProps.fontSize,
@@ -395,6 +422,13 @@ export class SlideDesignService {
 
   private isTemplatePlaceholder(placeholder: string | undefined): boolean {
     return this.placeholderKey(placeholder).startsWith('click to add');
+  }
+
+  private isTemplatePlaceholderProps(props: EditastraWidgetProps): boolean {
+    if (typeof props.isTemplatePlaceholder === 'boolean') {
+      return props.isTemplatePlaceholder;
+    }
+    return this.isTemplatePlaceholder(props.placeholder);
   }
 
   private placeholderKey(placeholder: string | undefined): string {

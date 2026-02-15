@@ -85,6 +85,8 @@ export class WidgetFactoryService {
       props: {
         contentHtml: '',
         placeholder: 'Type here…',
+        isTemplatePlaceholder: false,
+        placeholderResolved: true,
         backgroundColor: 'transparent',
         verticalAlign: 'top',
       },
