@@ -77,6 +77,7 @@ public class ImageWidgetRenderer {
         String borderColor = props.path("borderColor").asText("#000000");
         String borderStyleProp = props.path("borderStyle").asText("solid");
         int borderRadius = props.path("borderRadius").asInt(0);
+        String backgroundColor = normalizeCssColor(props.path("backgroundColor").asText(""));
         
         if (src.isBlank()) {
             return "<div class=\"widget widget-image\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
@@ -129,6 +130,9 @@ public class ImageWidgetRenderer {
         if (!borderRadiusStyle.isEmpty()) {
             wrapperStyle.append(" ").append(borderRadiusStyle);
         }
+        if (!backgroundColor.isBlank()) {
+            wrapperStyle.append(" background-color: ").append(backgroundColor).append(";");
+        }
         
         // Combine all image styles (no border on img, but keep border-radius for shape)
         StringBuilder imgStyle = new StringBuilder();
@@ -170,6 +174,14 @@ public class ImageWidgetRenderer {
                     .replace(">", "&gt;")
                     .replace("\"", "&quot;")
                     .replace("'", "&#39;");
+    }
+
+    private String normalizeCssColor(String c) {
+        if (c == null) return "";
+        String s = c.trim();
+        if (s.isEmpty()) return "";
+        if ("transparent".equalsIgnoreCase(s)) return "";
+        return s;
     }
     
     /**

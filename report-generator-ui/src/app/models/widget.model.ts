@@ -82,6 +82,8 @@ export interface ChartWidgetProps {
   provider?: string;
   chartType?: string;
   data: unknown;
+  /** Optional chart widget background color (transparent when empty). */
+  backgroundColor?: string;
   renderMode?: 'svg' | 'canvas';
   exportedImage?: string;
   /** Optional persisted remote source (Postman-like request config). */
@@ -98,6 +100,8 @@ export interface ImageWidgetProps {
   src: string;
   alt?: string;
   fit?: 'cover' | 'contain' | 'stretch';
+  /** Optional image widget background color (behind image). */
+  backgroundColor?: string;
   // Transform properties
   flipHorizontal?: boolean;
   flipVertical?: boolean;

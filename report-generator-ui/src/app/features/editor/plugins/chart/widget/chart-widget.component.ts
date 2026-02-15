@@ -416,6 +416,10 @@ export class ChartWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     return this.chartProps.loadingMessage || 'Loading chart…';
   }
 
+  get backgroundColor(): string {
+    return this.chartProps.backgroundColor || '';
+  }
+
   private isEmptyDataset(data: ChartData | undefined | null): boolean {
     if (!data) return true;
     const series = (data as any).series as ChartData['series'] | undefined;

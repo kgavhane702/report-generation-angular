@@ -42,7 +42,6 @@ public class GlobalStylesRenderer {
         }
 
         /* Chart widgets should be fully transparent (match editor behavior). */
-        .widget-chart,
         .widget-chart .chart-svg,
         .widget-chart .chart-svg svg,
         .widget-chart img,

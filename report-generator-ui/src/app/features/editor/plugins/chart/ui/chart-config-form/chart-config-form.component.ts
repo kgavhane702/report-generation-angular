@@ -341,7 +341,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
     const visibility = (normalized.labelVisibility ?? (normalized.labels || []).map(() => true)).map((v) => v !== false);
     const numberFormat = normalized.numberFormat ?? { scale: 'auto', decimals: 1, useGrouping: true };
     const labelWrap = normalized.labelWrap ?? { enabled: true, maxLines: 2, mode: 'word' as const };
-    const typography = normalized.typography ?? { responsive: true, scaleFactor: 1 };
+    const typography = normalized.typography ?? { responsive: true, scaleFactor: 1.1 };
     const textStyles = normalized.textStyles ?? {};
     const titleStyle = textStyles.title ?? {};
     const legendStyle = textStyles.legend ?? {};
@@ -372,7 +372,7 @@ export class ChartConfigFormComponent implements OnInit, OnChanges, OnDestroy {
 
       // Typography responsiveness
       typographyResponsive: [typography.responsive !== false],
-      typographyScaleFactor: [Number.isFinite((typography as any).scaleFactor) ? (typography as any).scaleFactor : 1],
+      typographyScaleFactor: [Number.isFinite((typography as any).scaleFactor) ? (typography as any).scaleFactor : 1.1],
 
       // Text styles (color + bold)
       titleTextColor: [titleStyle.color || ''],

@@ -54,6 +54,7 @@ export class WidgetFactoryService {
         provider: 'echarts',
         chartType: defaultChartData.chartType,
         data: defaultChartData,
+        backgroundColor: '',
         renderMode: 'canvas',
       },
     };
@@ -71,6 +72,7 @@ export class WidgetFactoryService {
         alt: '',
         // Default to contain so the full image is always visible (no cropping) when resizing.
         fit: 'contain',
+        backgroundColor: '',
       },
     };
   }

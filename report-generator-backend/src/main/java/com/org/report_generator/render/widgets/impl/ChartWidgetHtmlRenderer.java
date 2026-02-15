@@ -22,6 +22,10 @@ public class ChartWidgetHtmlRenderer implements WidgetRenderer {
             return "<div class=\"widget widget-chart\" style=\"" + escapeHtmlAttribute(widgetStyle) + "\"></div>";
         }
         String style = widgetStyle == null ? "" : widgetStyle;
+        String bg = normalizeCssColor(props.path("backgroundColor").asText(""));
+        if (!bg.isBlank()) {
+            style = style + "background-color: " + bg + ";";
+        }
         String image = props.path("exportedImage").asText("");
         if (!image.isBlank()) {
             String chartType = props.path("chartType").asText("N/A");
@@ -102,6 +106,14 @@ public class ChartWidgetHtmlRenderer implements WidgetRenderer {
 
     private String escapeHtmlAttribute(String input) {
         return escapeHtml(input);
+    }
+
+    private String normalizeCssColor(String c) {
+        if (c == null) return "";
+        String s = c.trim();
+        if (s.isEmpty()) return "";
+        if ("transparent".equalsIgnoreCase(s)) return "";
+        return s;
     }
 }
 

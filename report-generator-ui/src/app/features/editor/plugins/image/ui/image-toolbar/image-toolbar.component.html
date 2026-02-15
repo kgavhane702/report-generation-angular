@@ -108,6 +108,19 @@
 
   <div class="image-toolbar__separator"></div>
 
+  <!-- Group: Background -->
+  <div class="image-toolbar__group">
+    <app-color-picker
+      [currentColor]="backgroundColor"
+      [colorPalette]="colorPalette"
+      icon="format_color_fill"
+      title="Background"
+      (colorSelected)="onBackgroundColorChange($event)"
+    ></app-color-picker>
+  </div>
+
+  <div class="image-toolbar__separator"></div>
+
   <!-- Group: Border -->
   <div class="image-toolbar__group">
     <app-border-picker

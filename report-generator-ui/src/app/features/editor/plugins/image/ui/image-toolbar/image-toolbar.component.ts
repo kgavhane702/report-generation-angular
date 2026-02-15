@@ -16,14 +16,14 @@ import { ImageToolbarService } from '../../../../../../core/services/image-toolb
 import { ImageWidgetProps } from '../../../../../../models/widget.model';
 import { AppIconComponent } from '../../../../../../shared/components/icon/icon.component';
 import { BorderPickerComponent, BorderValue } from '../../../../../../shared/components/border-picker/border-picker.component';
-import { ColorOption } from '../../../../../../shared/components/color-picker/color-picker.component';
+import { ColorOption, ColorPickerComponent } from '../../../../../../shared/components/color-picker/color-picker.component';
 
 type FitMode = 'contain' | 'cover' | 'stretch';
 
 @Component({
   selector: 'app-image-toolbar',
   standalone: true,
-  imports: [CommonModule, FormsModule, AppIconComponent, BorderPickerComponent],
+  imports: [CommonModule, FormsModule, AppIconComponent, BorderPickerComponent, ColorPickerComponent],
   templateUrl: './image-toolbar.component.html',
   styleUrls: ['./image-toolbar.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -87,6 +87,10 @@ export class ImageToolbarComponent implements OnInit, OnDestroy {
     };
   }
 
+  get backgroundColor(): string {
+    return this.props?.backgroundColor || '';
+  }
+
   get isFlippedHorizontal(): boolean {
     return this.props?.flipHorizontal ?? false;
   }
@@ -148,6 +152,10 @@ export class ImageToolbarComponent implements OnInit, OnDestroy {
       borderStyle: value.style as any,
       borderRadius: value.borderRadius || 0,
     });
+  }
+
+  onBackgroundColorChange(color: string): void {
+    this.emitChange({ backgroundColor: color || '' });
   }
 
   private emitChange(changes: Partial<ImageWidgetProps>): void {

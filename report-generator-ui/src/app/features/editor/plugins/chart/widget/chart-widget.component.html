@@ -1,4 +1,9 @@
-<div class="chart-widget" (dblclick)="onDoubleClick($event)" title="Double-click to configure chart">
+<div
+  class="chart-widget"
+  (dblclick)="onDoubleClick($event)"
+  title="Double-click to configure chart"
+  [style.background-color]="backgroundColor || null"
+>
   <div #container class="chart-widget__container" style="width: 100%; height: 100%; cursor: pointer;"></div>
 
   <div *ngIf="showLoadingOverlay" class="chart-widget__loading-overlay" aria-live="polite" aria-busy="true">

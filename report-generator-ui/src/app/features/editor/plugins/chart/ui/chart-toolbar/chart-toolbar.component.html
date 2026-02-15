@@ -37,6 +37,38 @@
 
   <div class="chart-toolbar__separator"></div>
 
+  <!-- Group: chart background -->
+  <div class="chart-toolbar__group">
+    <div class="chart-toolbar__field">
+      <span class="chart-toolbar__field-label">Background</span>
+      <app-color-picker
+        [currentColor]="chartBackgroundColor()"
+        [colorPalette]="colorPalette"
+        icon="format_color_fill"
+        title="Chart background color"
+        (colorSelected)="setChartBackground($event)"
+      ></app-color-picker>
+    </div>
+  </div>
+
+  <div class="chart-toolbar__separator"></div>
+
+  <!-- Group: quick series colors -->
+  <div class="chart-toolbar__group chart-toolbar__group--format" *ngIf="seriesColorItems().length > 0">
+    <div class="chart-toolbar__field" *ngFor="let item of seriesColorItems()">
+      <span class="chart-toolbar__field-label">{{ item.label }}</span>
+      <app-color-picker
+        [currentColor]="item.color"
+        [colorPalette]="colorPalette"
+        icon="format_color_fill"
+        [title]="item.label + ' color'"
+        (colorSelected)="setSeriesColor(item.index, $event)"
+      ></app-color-picker>
+    </div>
+  </div>
+
+  <div class="chart-toolbar__separator" *ngIf="seriesColorItems().length > 0"></div>
+
   <!-- Group: text styling (matches table toolbar pattern: bold toggle + same color picker dropdown) -->
   <div class="chart-toolbar__group chart-toolbar__group--format">
     <div class="chart-toolbar__field">

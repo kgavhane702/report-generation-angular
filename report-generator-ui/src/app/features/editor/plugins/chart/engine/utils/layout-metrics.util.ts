@@ -15,10 +15,10 @@ export interface ChartLayoutMetrics {
 export function computeFontScale(containerWidthPx: number, containerHeightPx: number, typography?: ChartTypographySpec): number {
   const t: ChartTypographySpec = typography ?? {
     responsive: true,
-    scaleFactor: 1,
+    scaleFactor: 1.1,
   };
 
-  const factor = clamp(Number.isFinite(t.scaleFactor) ? t.scaleFactor : 1, 0.2, 3);
+  const factor = clamp(Number.isFinite(t.scaleFactor) ? t.scaleFactor : 1.1, 0.2, 3);
 
   const w = Math.max(1, containerWidthPx || 1);
   const h = Math.max(1, containerHeightPx || 1);
