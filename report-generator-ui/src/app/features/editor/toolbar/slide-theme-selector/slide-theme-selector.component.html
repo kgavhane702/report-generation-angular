@@ -13,10 +13,12 @@
       <div class="slide-theme-selector__name">{{ selected.label }}</div>
       <div class="slide-theme-selector__desc">{{ selected.description }}</div>
       <app-design-variant-chips
-        mode="display"
+        mode="pick"
         [showZoom]="false"
         [variants]="selected.variants"
         [selectedVariantId]="selectedVariantIdForTheme(selected.id)"
+        [disabled]="documentLocked() || mode !== 'pick'"
+        (variantSelected)="onVariantChipPicked(selected.id, $event)"
       ></app-design-variant-chips>
     </div>
   </div>
