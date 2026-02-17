@@ -71,7 +71,6 @@ export class SlideTemplateService {
   ): { fontSize: string; fontWeight: number; textAlign: 'left' | 'center' | 'right'; verticalAlign: 'top' | 'middle' | 'bottom' } {
     const titleFont = variant?.titleFontSize || '28px';
     const titleWeight = variant?.titleFontWeight || 700;
-    const isCurvy = (variant?.id ?? '').startsWith('G');
 
     switch (role) {
       case 'title':
@@ -79,11 +78,11 @@ export class SlideTemplateService {
       case 'subtitle':
         return { fontSize: '18px', fontWeight: 400, textAlign: 'center', verticalAlign: 'top' };
       case 'section-title':
-        return { fontSize: titleFont, fontWeight: titleWeight, textAlign: isCurvy ? 'center' : 'left', verticalAlign: 'middle' };
+        return { fontSize: titleFont, fontWeight: titleWeight, textAlign: 'left', verticalAlign: 'middle' };
       case 'section-subtitle':
-        return { fontSize: '16px', fontWeight: 400, textAlign: isCurvy ? 'center' : 'left', verticalAlign: 'top' };
+        return { fontSize: '16px', fontWeight: 400, textAlign: 'left', verticalAlign: 'top' };
       case 'heading':
-        return { fontSize: '20px', fontWeight: 600, textAlign: isCurvy ? 'center' : 'left', verticalAlign: 'middle' };
+        return { fontSize: '20px', fontWeight: 600, textAlign: 'left', verticalAlign: 'middle' };
       case 'body':
       default:
         return { fontSize: variant?.fontSize || '16px', fontWeight: 400, textAlign: 'left', verticalAlign: 'top' };
@@ -99,173 +98,6 @@ export class SlideTemplateService {
     const mX = Math.max(36, Math.round(pageWidth * 0.08));
     const innerW = Math.round(pageWidth - mX * 2);
     const gap = Math.max(16, Math.round(pageWidth * 0.03));
-
-    // Theme-specific template geometry for Curvy Magenta (G variants)
-    // so title/content placements match the curved visual bands.
-    if ((variant?.id ?? '').startsWith('G')) {
-      const curveBottomY = Math.round(pageHeight * 0.56);
-      const contentTopY = Math.round(pageHeight * 0.60);
-      const contentBottomY = Math.round(pageHeight * 0.89);
-      const contentH = Math.max(80, contentBottomY - contentTopY);
-
-      switch (layout) {
-        case 'title_slide':
-          return [
-            {
-              x: Math.round(pageWidth * 0.06),
-              y: Math.round(pageHeight * 0.54),
-              width: Math.round(pageWidth * 0.88),
-              height: Math.round(pageHeight * 0.18),
-              placeholder: 'Click to add title',
-              role: 'title',
-            },
-            {
-              x: Math.round(pageWidth * 0.22),
-              y: Math.round(pageHeight * 0.74),
-              width: Math.round(pageWidth * 0.56),
-              height: Math.round(pageHeight * 0.08),
-              placeholder: 'Click to add subtitle',
-              role: 'subtitle',
-            },
-          ];
-
-        case 'section_header':
-          return [
-            {
-              x: Math.round(pageWidth * 0.10),
-              y: Math.round(pageHeight * 0.52),
-              width: Math.round(pageWidth * 0.80),
-              height: Math.round(pageHeight * 0.14),
-              placeholder: 'Click to add section title',
-              role: 'section-title',
-            },
-            {
-              x: Math.round(pageWidth * 0.18),
-              y: Math.round(pageHeight * 0.68),
-              width: Math.round(pageWidth * 0.64),
-              height: Math.round(pageHeight * 0.08),
-              placeholder: 'Click to add section subtitle',
-              role: 'section-subtitle',
-            },
-          ];
-
-        case 'title_and_content':
-          return [
-            {
-              x: Math.round(pageWidth * 0.14),
-              y: Math.round(pageHeight * 0.50),
-              width: Math.round(pageWidth * 0.72),
-              height: Math.round(pageHeight * 0.09),
-              placeholder: 'Click to add title',
-              role: 'heading',
-            },
-            {
-              x: mX,
-              y: contentTopY,
-              width: innerW,
-              height: contentH,
-              placeholder: 'Click to add text',
-              role: 'body',
-            },
-          ];
-
-        case 'two_content': {
-          const colW = Math.round((innerW - gap) / 2);
-          return [
-            {
-              x: Math.round(pageWidth * 0.14),
-              y: Math.round(pageHeight * 0.49),
-              width: Math.round(pageWidth * 0.72),
-              height: Math.round(pageHeight * 0.09),
-              placeholder: 'Click to add title',
-              role: 'heading',
-            },
-            {
-              x: mX,
-              y: contentTopY,
-              width: colW,
-              height: contentH,
-              placeholder: 'Click to add left content',
-              role: 'body',
-            },
-            {
-              x: mX + colW + gap,
-              y: contentTopY,
-              width: colW,
-              height: contentH,
-              placeholder: 'Click to add right content',
-              role: 'body',
-            },
-          ];
-        }
-
-        case 'comparison': {
-          const colW = Math.round((innerW - gap) / 2);
-          const headY = contentTopY;
-          const headH = Math.max(34, Math.round(pageHeight * 0.07));
-          const textY = headY + headH + 8;
-          const textH = Math.max(60, contentBottomY - textY);
-          return [
-            {
-              x: Math.round(pageWidth * 0.14),
-              y: Math.round(pageHeight * 0.49),
-              width: Math.round(pageWidth * 0.72),
-              height: Math.round(pageHeight * 0.09),
-              placeholder: 'Click to add title',
-              role: 'heading',
-            },
-            {
-              x: mX,
-              y: headY,
-              width: colW,
-              height: headH,
-              placeholder: 'Click to add left heading',
-              role: 'heading',
-            },
-            {
-              x: mX + colW + gap,
-              y: headY,
-              width: colW,
-              height: headH,
-              placeholder: 'Click to add right heading',
-              role: 'heading',
-            },
-            {
-              x: mX,
-              y: textY,
-              width: colW,
-              height: textH,
-              placeholder: 'Click to add left text',
-              role: 'body',
-            },
-            {
-              x: mX + colW + gap,
-              y: textY,
-              width: colW,
-              height: textH,
-              placeholder: 'Click to add right text',
-              role: 'body',
-            },
-          ];
-        }
-
-        case 'title_only':
-          return [
-            {
-              x: Math.round(pageWidth * 0.12),
-              y: Math.round(pageHeight * 0.50),
-              width: Math.round(pageWidth * 0.76),
-              height: Math.round(pageHeight * 0.12),
-              placeholder: 'Click to add title',
-              role: 'heading',
-            },
-          ];
-
-        case 'blank':
-        default:
-          return [];
-      }
-    }
 
     // Keep template content clear of header/footer and page number regions.
     const safeTop = Math.max(48, Math.round(pageHeight * 0.1));
@@ -289,7 +121,7 @@ export class SlideTemplateService {
     const sectionHeaderSubtitleHeight = Math.max(36, Math.round(contentHeight * 0.1));
 
     switch (layout) {
-      case 'title_slide':
+      case 'hero_title':
         return [
           {
             x: mX,
@@ -309,7 +141,7 @@ export class SlideTemplateService {
           },
         ];
 
-      case 'title_and_content':
+      case 'title_body':
         return [
           {
             x: mX,
@@ -329,7 +161,7 @@ export class SlideTemplateService {
           },
         ];
 
-      case 'section_header':
+      case 'section_intro':
         return [
           {
             x: mX,
@@ -349,7 +181,7 @@ export class SlideTemplateService {
           },
         ];
 
-      case 'two_content': {
+      case 'two_column': {
         const colW = Math.round((innerW - gap) / 2);
         return [
           {
@@ -379,7 +211,7 @@ export class SlideTemplateService {
         ];
       }
 
-      case 'comparison': {
+      case 'compare_columns': {
         const colW = Math.round((innerW - gap) / 2);
         const headY = bodyY;
         const headHeight = Math.max(36, Math.round(contentHeight * 0.1));
@@ -429,7 +261,7 @@ export class SlideTemplateService {
         ];
       }
 
-      case 'title_only':
+      case 'title_focus':
         return [
           {
             x: mX,

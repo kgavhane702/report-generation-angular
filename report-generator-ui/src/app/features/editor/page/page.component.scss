@@ -49,8 +49,8 @@
 
 /* Cover slides: rich curved highlight over colored background */
 .page__theme-layer.theme-curvy-magenta.variant-g1,
-.page__theme-layer.theme-curvy-magenta.layout-title-slide,
-.page__theme-layer.theme-curvy-magenta.layout-section-header {
+.page__theme-layer.theme-curvy-magenta.layout-hero-title,
+.page__theme-layer.theme-curvy-magenta.layout-section-intro {
   &::before {
     left: 4%;
     right: 4%;
@@ -63,10 +63,10 @@
 
 /* Content slides: subtle curved top band + soft white cut */
 .page__theme-layer.theme-curvy-magenta.variant-g2,
-.page__theme-layer.theme-curvy-magenta.layout-title-and-content,
-.page__theme-layer.theme-curvy-magenta.layout-two-content,
-.page__theme-layer.theme-curvy-magenta.layout-comparison,
-.page__theme-layer.theme-curvy-magenta.layout-title-only {
+.page__theme-layer.theme-curvy-magenta.layout-title-body,
+.page__theme-layer.theme-curvy-magenta.layout-two-column,
+.page__theme-layer.theme-curvy-magenta.layout-compare-columns,
+.page__theme-layer.theme-curvy-magenta.layout-title-focus {
   &::before {
     left: 0;
     right: 0;

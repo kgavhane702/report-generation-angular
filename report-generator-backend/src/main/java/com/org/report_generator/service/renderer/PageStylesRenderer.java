@@ -64,8 +64,8 @@ public class PageStylesRenderer {
 
         /* Curvy cover slides */
         .page__theme-layer.theme-curvy-magenta.variant-g1::before,
-        .page__theme-layer.theme-curvy-magenta.layout-title-slide::before,
-        .page__theme-layer.theme-curvy-magenta.layout-section-header::before {
+        .page__theme-layer.theme-curvy-magenta.layout-hero-title::before,
+        .page__theme-layer.theme-curvy-magenta.layout-section-intro::before {
             left: 4%;
             right: 4%;
             top: 0;
@@ -76,10 +76,10 @@ public class PageStylesRenderer {
 
         /* Curvy content slides */
         .page__theme-layer.theme-curvy-magenta.variant-g2::before,
-        .page__theme-layer.theme-curvy-magenta.layout-title-and-content::before,
-        .page__theme-layer.theme-curvy-magenta.layout-two-content::before,
-        .page__theme-layer.theme-curvy-magenta.layout-comparison::before,
-        .page__theme-layer.theme-curvy-magenta.layout-title-only::before {
+        .page__theme-layer.theme-curvy-magenta.layout-title-body::before,
+        .page__theme-layer.theme-curvy-magenta.layout-two-column::before,
+        .page__theme-layer.theme-curvy-magenta.layout-compare-columns::before,
+        .page__theme-layer.theme-curvy-magenta.layout-title-focus::before {
             left: 0;
             right: 0;
             top: 0;

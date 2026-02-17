@@ -1,18 +1,36 @@
 <div class="slide-theme-selector__selected" *ngIf="activeTheme() as selected">
   <div class="slide-theme-selector__selected-label">Selected design</div>
   <div class="slide-theme-selector__selected-card">
-    <div class="slide-theme-selector__thumb slide-theme-selector__thumb--selected" [ngStyle]="previewStyle(selected)">
+    <div
+      class="slide-theme-selector__thumb slide-theme-selector__thumb--selected"
+      [class.slide-theme-selector__thumb--curvy-magenta]="selected.id === 'curvy_magenta'"
+      [ngStyle]="previewStyle(selected)"
+    >
       <div class="thumb-title" [style.font-family]="previewTitleFontFamily(selected)">Presentation Title</div>
       <div class="thumb-subtitle">Subtitle goes here</div>
     </div>
     <div class="slide-theme-selector__selected-meta">
       <div class="slide-theme-selector__name">{{ selected.label }}</div>
       <div class="slide-theme-selector__desc">{{ selected.description }}</div>
+      <div class="slide-theme-selector__variants-row">
+        <span
+          *ngFor="let variant of selected.variants"
+          class="slide-theme-selector__variant-chip"
+          [class.slide-theme-selector__variant-chip--active]="isVariantActive(selected.id, variant.id)"
+        >
+          <span class="slide-theme-selector__variant-mini" [ngStyle]="variantChipPreviewStyle(variant)">
+            <span class="slide-theme-selector__variant-mini-accent"></span>
+          </span>
+          <span class="slide-theme-selector__variant-text">{{ variant.label }}</span>
+        </span>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="slide-theme-selector" role="radiogroup" aria-label="Slide theme">
+<div class="slide-theme-selector__all-label">All designs</div>
+
+<div class="slide-theme-selector" role="radiogroup" aria-label="Design theme">
   <button
     *ngFor="let theme of themes"
     type="button"
@@ -23,7 +41,11 @@
     [disabled]="documentLocked()"
     (click)="selectTheme(theme.id)"
   >
-    <div class="slide-theme-selector__thumb" [ngStyle]="previewStyle(theme)">
+    <div
+      class="slide-theme-selector__thumb"
+      [class.slide-theme-selector__thumb--curvy-magenta]="theme.id === 'curvy_magenta'"
+      [ngStyle]="previewStyle(theme)"
+    >
       <div class="thumb-title" [style.font-family]="previewTitleFontFamily(theme)">Presentation Title</div>
       <div class="thumb-subtitle">Subtitle goes here</div>
     </div>
@@ -31,6 +53,23 @@
     <div class="slide-theme-selector__meta">
       <div class="slide-theme-selector__name">{{ theme.label }}</div>
       <div class="slide-theme-selector__desc">{{ theme.description }}</div>
+      <div class="slide-theme-selector__variants">
+        <span
+          *ngFor="let variant of theme.variants"
+          class="slide-theme-selector__variant-btn"
+          [class.slide-theme-selector__variant-btn--disabled]="documentLocked() || mode !== 'pick'"
+          [class.slide-theme-selector__variant-btn--active]="isVariantActive(theme.id, variant.id)"
+          (click)="selectVariant(theme.id, variant.id, $event)"
+        >
+          <span class="slide-theme-selector__variant-mini" [ngStyle]="variantChipPreviewStyle(variant)">
+            <span class="slide-theme-selector__variant-mini-accent"></span>
+          </span>
+          <span class="slide-theme-selector__variant-text">{{ variant.label }}</span>
+          <span class="slide-theme-selector__variant-zoom" [ngStyle]="variantChipPreviewStyle(variant)">
+            <span class="slide-theme-selector__variant-zoom-accent"></span>
+          </span>
+        </span>
+      </div>
     </div>
   </button>
 </div>

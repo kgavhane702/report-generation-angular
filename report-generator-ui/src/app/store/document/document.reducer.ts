@@ -290,6 +290,20 @@ export const documentReducer = createReducer(
       },
     };
   }),
+
+  on(DocumentActions.updatePageDesign, (state, { pageId, changes }) => {
+    const newPages = pageAdapter.updateOne(
+      { id: pageId, changes },
+      state.normalized.pages
+    );
+
+    return {
+      normalized: {
+        ...state.normalized,
+        pages: newPages,
+      },
+    };
+  }),
   
   on(DocumentActions.updatePageOrientation, (state, { pageId, orientation }) => {
     const newPages = pageAdapter.updateOne(

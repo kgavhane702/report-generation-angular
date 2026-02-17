@@ -1,4 +1,4 @@
-<div class="slide-layout-selector" role="radiogroup" aria-label="Default slide layout">
+<div class="slide-layout-selector" role="radiogroup" aria-label="Quick add layout">
   <button
     *ngFor="let l of layouts"
     type="button"
@@ -17,7 +17,7 @@
       <ng-container [ngSwitch]="l.id">
 
         <!-- Title Slide: centered title + subtitle -->
-        <ng-container *ngSwitchCase="'title_slide'">
+        <ng-container *ngSwitchCase="'hero_title'">
           <div class="lt lt--title-slide">
             <div class="lt__title" [style.font-family]="'var(--layout-title-font)'">Presentation Title</div>
             <div class="lt__subtitle">Subtitle goes here</div>
@@ -25,7 +25,7 @@
         </ng-container>
 
         <!-- Title and Content: heading at top + body lines -->
-        <ng-container *ngSwitchCase="'title_and_content'">
+        <ng-container *ngSwitchCase="'title_body'">
           <div class="lt lt--title-content">
             <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
             <div class="lt__body">
@@ -37,7 +37,7 @@
         </ng-container>
 
         <!-- Section Header: centered big title + subtitle -->
-        <ng-container *ngSwitchCase="'section_header'">
+        <ng-container *ngSwitchCase="'section_intro'">
           <div class="lt lt--section-header">
             <div class="lt__section-title" [style.font-family]="'var(--layout-title-font)'">Section Title</div>
             <div class="lt__section-subtitle">Supporting description text</div>
@@ -45,7 +45,7 @@
         </ng-container>
 
         <!-- Two Content: heading + two columns -->
-        <ng-container *ngSwitchCase="'two_content'">
+        <ng-container *ngSwitchCase="'two_column'">
           <div class="lt lt--two-content">
             <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
             <div class="lt__columns">
@@ -62,7 +62,7 @@
         </ng-container>
 
         <!-- Comparison: heading + two labeled columns -->
-        <ng-container *ngSwitchCase="'comparison'">
+        <ng-container *ngSwitchCase="'compare_columns'">
           <div class="lt lt--comparison">
             <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Comparison</div>
             <div class="lt__columns">
@@ -81,7 +81,7 @@
         </ng-container>
 
         <!-- Title Only: just heading -->
-        <ng-container *ngSwitchCase="'title_only'">
+        <ng-container *ngSwitchCase="'title_focus'">
           <div class="lt lt--title-only">
             <div class="lt__heading" [style.font-family]="'var(--layout-title-font)'">Slide Heading</div>
           </div>

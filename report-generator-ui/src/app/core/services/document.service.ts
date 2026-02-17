@@ -29,6 +29,7 @@ import { SlideTemplateService } from '../slide-design/slide-template.service';
 import { UndoRedoService } from './undo-redo.service';
 import { ClipboardService } from './clipboard.service';
 import { SaveIndicatorService } from './save-indicator.service';
+import { EditorStateService } from './editor-state.service';
 import {
   AddWidgetCommand,
   UpdateWidgetCommand,
@@ -69,6 +70,7 @@ export class DocumentService {
   private readonly saveIndicator = inject(SaveIndicatorService);
   private readonly slideDesign = inject(SlideDesignService);
   private readonly slideTemplates = inject(SlideTemplateService);
+  private readonly editorState = inject(EditorStateService);
 
   // ============================================
   // STORE SIGNALS
@@ -366,12 +368,13 @@ export class DocumentService {
     const sectionCount = this.sectionIds().length + 1;
     const sectionTitle = `Section ${sectionCount}`;
     const subsectionTitle = 'Subsection 1';
-    const page = createPageModel(1, 'landscape', this.slideDesign.buildPageDesign('blank'));
+    const pageDesign = this.getActivePageDesign() ?? this.slideDesign.buildPageDesign('blank');
+    const page = createPageModel(1, 'landscape', pageDesign);
     page.widgets = this.slideTemplates.createTemplateWidgets({
       layout: page.slideLayoutType ?? 'blank',
       pageSize: this.pageSizeSignal(),
       orientation: 'landscape',
-      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? 'blank'),
+      variant: this.resolveVariantFromDesign(pageDesign),
     });
     const subsection = createSubsectionModel(subsectionTitle, [page]);
     const section = createSectionModel(sectionTitle, [subsection]);
@@ -444,12 +447,13 @@ export class DocumentService {
     const subIds = this.subsectionIdsBySectionId()[sectionId] || [];
     const subsectionCount = subIds.length + 1;
     const subsectionTitle = `Subsection ${subsectionCount}`;
-    const page = createPageModel(1, 'landscape', this.slideDesign.buildPageDesign('blank'));
+    const pageDesign = this.getActivePageDesign() ?? this.slideDesign.buildPageDesign('blank');
+    const page = createPageModel(1, 'landscape', pageDesign);
     page.widgets = this.slideTemplates.createTemplateWidgets({
       layout: page.slideLayoutType ?? 'blank',
       pageSize: this.pageSizeSignal(),
       orientation: 'landscape',
-      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? 'blank'),
+      variant: this.resolveVariantFromDesign(pageDesign),
     });
     const subsection = createSubsectionModel(subsectionTitle, [page]);
 
@@ -523,19 +527,39 @@ export class DocumentService {
     if (!this.canEdit()) return null;
     const pageIds = this.pageIdsBySubsectionId()[subsectionId] || [];
     const nextNumber = pageIds.length + 1;
-    // Default to 'blank' for manually added pages; callers pass an explicit layout when needed.
-    const layout = options?.slideLayoutType ?? 'blank';
+
+    // Copy design (theme variant) from the last page in the subsection.
+    // Falls back to a blank layout when no prior page exists.
+    let design: { slideLayoutType?: SlideLayoutType; slideVariantId?: string };
+    if (options?.slideLayoutType) {
+      design = this.slideDesign.buildPageDesign(options.slideLayoutType);
+    } else {
+      const activeDesign = this.getActivePageDesign();
+      if (activeDesign) {
+        design = activeDesign;
+      } else if (pageIds.length > 0) {
+        const lastPageId = pageIds[pageIds.length - 1];
+        const lastPage = this.pageEntities()[lastPageId];
+        if (lastPage?.slideLayoutType || lastPage?.slideVariantId) {
+          design = {
+            slideLayoutType: lastPage.slideLayoutType ?? 'blank',
+            slideVariantId: lastPage.slideVariantId ?? this.slideDesign.resolveVariantId(lastPage.slideLayoutType ?? 'blank'),
+          };
+        } else {
+          design = this.slideDesign.buildPageDesign('blank');
+        }
+      } else {
+        design = this.slideDesign.buildPageDesign('blank');
+      }
+    }
+
     const page = createPageModel(
       nextNumber,
       'landscape',
-      this.slideDesign.buildPageDesign(layout)
+      design
     );
-    page.widgets = this.slideTemplates.createTemplateWidgets({
-      layout: page.slideLayoutType ?? this.slideDesign.defaultLayoutType(),
-      pageSize: this.pageSizeSignal(),
-      orientation: 'landscape',
-      variant: this.slideDesign.resolveVariant(page.slideLayoutType ?? this.slideDesign.defaultLayoutType()),
-    });
+    // New pages are blank — no template widgets added automatically.
+    page.widgets = [];
 
     const command = new AddPageCommand(this.store, subsectionId, page);
     this.undoRedoService.executeDocumentCommand(command);
@@ -578,6 +602,22 @@ export class DocumentService {
       page.title ?? ''
     );
     this.undoRedoService.executeDocumentCommand(command);
+  }
+
+  updatePageDesign(
+    pageId: string,
+    changes: Partial<Pick<PageEntity, 'slideLayoutType' | 'slideVariantId'>>
+  ): void {
+    if (!this.canEdit()) return;
+    const page = this.pageEntities()[pageId];
+    if (!page) return;
+
+    this.store.dispatch(
+      DocumentActions.updatePageDesign({
+        pageId,
+        changes,
+      })
+    );
   }
 
   updatePageOrientation(
@@ -727,6 +767,32 @@ export class DocumentService {
 
     if (updates.length === 0) return;
     this.updateWidgets(updates);
+  }
+
+  private getActivePageDesign(): { slideLayoutType?: SlideLayoutType; slideVariantId?: string } | null {
+    const activePageId = this.editorState.activePageId();
+    if (!activePageId) return null;
+
+    const activePage = this.pageEntities()[activePageId];
+    if (!activePage) return null;
+
+    const layout = activePage.slideLayoutType ?? 'blank';
+    return {
+      slideLayoutType: layout,
+      slideVariantId: activePage.slideVariantId ?? this.slideDesign.resolveVariantId(layout),
+    };
+  }
+
+  private resolveVariantFromDesign(design: { slideLayoutType?: SlideLayoutType; slideVariantId?: string }) {
+    const theme = this.slideDesign.activeTheme();
+    const variantId = design.slideVariantId?.trim().toLowerCase();
+    if (variantId) {
+      const matched = theme.variants.find((variant) => variant.id.toLowerCase() === variantId);
+      if (matched) {
+        return matched;
+      }
+    }
+    return this.slideDesign.resolveVariant(design.slideLayoutType ?? 'blank');
   }
 
   // ============================================

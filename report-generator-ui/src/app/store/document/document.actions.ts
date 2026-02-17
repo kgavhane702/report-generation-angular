@@ -49,6 +49,7 @@ export const DocumentActions = createActionGroup({
     'Rename Section': props<{ sectionId: string; title: string }>(),
     'Rename Subsection': props<{ subsectionId: string; title: string }>(),
     'Rename Page': props<{ pageId: string; title: string }>(),
+    'Update Page Design': props<{ pageId: string; changes: Partial<Pick<PageModel, 'slideLayoutType' | 'slideVariantId'>> }>(),
     'Update Page Orientation': props<{ pageId: string; orientation: 'portrait' | 'landscape' }>(),
     'Delete Section': props<{ sectionId: string }>(),
     'Delete Subsection': props<{ sectionId: string; subsectionId: string }>(),

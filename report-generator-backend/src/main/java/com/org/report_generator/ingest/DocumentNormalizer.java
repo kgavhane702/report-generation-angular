@@ -25,7 +25,7 @@ public class DocumentNormalizer {
     private static final String DEFAULT_SCHEMA_VERSION = "2.0";
     private static final String DEFAULT_TITLE = "Untitled Document";
     private static final String DEFAULT_THEME_ID = "berlin_orange";
-    private static final String DEFAULT_LAYOUT_TYPE = "title_slide";
+    private static final String DEFAULT_LAYOUT_TYPE = "blank";
 
     public DocumentModel normalize(DocumentModel input) {
         DocumentModel out = new DocumentModel();
@@ -119,7 +119,7 @@ public class DocumentNormalizer {
 
         String normalizedLayout = normalizeLayout(page.getSlideLayoutType());
         if (isBlank(normalizedLayout)) {
-            normalizedLayout = globalPageIndex == 1 ? "title_slide" : normalizeLayout(defaultLayoutType);
+            normalizedLayout = normalizeLayout(defaultLayoutType);
         }
         next.setSlideLayoutType(normalizedLayout);
 
@@ -142,7 +142,13 @@ public class DocumentNormalizer {
         if (isBlank(layout)) return null;
         String v = layout.trim().toLowerCase(Locale.ROOT);
         return switch (v) {
-            case "title_slide", "title_and_content", "section_header", "two_content", "comparison", "title_only", "blank" -> v;
+            case "title_slide", "hero_title" -> "hero_title";
+            case "title_and_content", "title_body" -> "title_body";
+            case "section_header", "section_intro" -> "section_intro";
+            case "two_content", "two_column" -> "two_column";
+            case "comparison", "compare_columns" -> "compare_columns";
+            case "title_only", "title_focus" -> "title_focus";
+            case "blank" -> "blank";
             default -> null;
         };
     }

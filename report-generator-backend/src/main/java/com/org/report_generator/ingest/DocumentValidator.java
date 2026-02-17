@@ -20,6 +20,12 @@ public class DocumentValidator {
             "two_content",
             "comparison",
             "title_only",
+            "hero_title",
+            "title_body",
+            "section_intro",
+            "two_column",
+            "compare_columns",
+            "title_focus",
             "blank"
     );
 

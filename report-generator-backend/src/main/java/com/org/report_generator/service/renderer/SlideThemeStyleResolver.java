@@ -14,7 +14,7 @@ import java.util.Map;
 public class SlideThemeStyleResolver {
 
     private static final String DEFAULT_THEME_ID = "berlin_orange";
-    private static final String DEFAULT_LAYOUT_TYPE = "title_slide";
+    private static final String DEFAULT_LAYOUT_TYPE = "blank";
 
     private static final Map<String, ThemeDef> THEMES = buildThemes();
 
@@ -123,13 +123,6 @@ public class SlideThemeStyleResolver {
         }
 
         if (variant == null) {
-            String mappedVariantId = theme.layoutVariantMap().getOrDefault(layout, null);
-            if (mappedVariantId != null) {
-                variant = theme.variantsById().get(normalize(mappedVariantId));
-            }
-        }
-
-        if (variant == null) {
             variant = theme.defaultVariant();
         }
 
@@ -144,7 +137,6 @@ public class SlideThemeStyleResolver {
                 variants(
                         variant("A1", "linear-gradient(90deg, #f97316 0%, #dc2626 100%)", "#ffffff", "'Segoe UI', 'Inter', sans-serif", "16px", "'Segoe UI Semibold', 'Segoe UI', sans-serif", "32px", "700", "#111827")
                 ),
-                layoutMap(allLayouts("A1")),
                 "A1"
         ));
 
@@ -154,15 +146,6 @@ public class SlideThemeStyleResolver {
                         variant("B1", "linear-gradient(135deg, #334155 0%, #1e293b 100%)", "#f8fafc", "'Inter', 'Segoe UI', sans-serif", "15px", "'Inter', 'Segoe UI', sans-serif", "34px", "700", "#94a3b8"),
                         variant("B2", "#ffffff", "#0f172a", "'Inter', 'Segoe UI', sans-serif", "15px", "'Inter', 'Segoe UI', sans-serif", "28px", "600", "#475569")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "B1",
-                        "section_header", "B1",
-                        "title_and_content", "B2",
-                        "two_content", "B2",
-                        "comparison", "B2",
-                        "title_only", "B2",
-                        "blank", "B2"
-                )),
                 "B1"
         ));
 
@@ -172,15 +155,6 @@ public class SlideThemeStyleResolver {
                         variant("C1", "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", "#0b2545", "'Calibri', 'Segoe UI', sans-serif", "16px", "'Calibri', 'Segoe UI', sans-serif", "30px", "700", "#1d4ed8"),
                         variant("C2", "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)", "#f8fafc", "'Calibri', 'Segoe UI', sans-serif", "16px", "'Calibri', 'Segoe UI', sans-serif", "34px", "700", "#60a5fa")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "C2",
-                        "section_header", "C2",
-                        "title_and_content", "C1",
-                        "title_only", "C1",
-                        "comparison", "C1",
-                        "two_content", "C1",
-                        "blank", "C1"
-                )),
                 "C1"
         ));
 
@@ -190,15 +164,6 @@ public class SlideThemeStyleResolver {
                         variant("D1", "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)", "#052e16", "'Aptos', 'Inter', sans-serif", "15px", "'Aptos', 'Inter', sans-serif", "28px", "600", "#047857"),
                         variant("D2", "linear-gradient(135deg, #064e3b 0%, #022c22 100%)", "#ecfdf5", "'Aptos', 'Inter', sans-serif", "15px", "'Aptos', 'Inter', sans-serif", "34px", "700", "#34d399")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "D2",
-                        "section_header", "D2",
-                        "title_and_content", "D1",
-                        "title_only", "D1",
-                        "comparison", "D1",
-                        "two_content", "D1",
-                        "blank", "D1"
-                )),
                 "D1"
         ));
 
@@ -209,15 +174,6 @@ public class SlideThemeStyleResolver {
                         variant("E2", "linear-gradient(135deg, #4c1d95 0%, #2e1065 100%)", "#faf5ff", "'Cambria', 'Georgia', serif", "16px", "'Georgia', 'Cambria', serif", "34px", "700", "#c4b5fd"),
                         variant("E3", "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", "#ffffff", "'Cambria', 'Georgia', serif", "16px", "'Georgia', 'Cambria', serif", "28px", "600", "#e9d5ff")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "E2",
-                        "section_header", "E2",
-                        "title_and_content", "E1",
-                        "title_only", "E1",
-                        "comparison", "E3",
-                        "two_content", "E1",
-                        "blank", "E1"
-                )),
                 "E1"
         ));
 
@@ -227,15 +183,6 @@ public class SlideThemeStyleResolver {
                         variant("F1", "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)", "#4c0519", "'Trebuchet MS', 'Verdana', sans-serif", "15px", "'Trebuchet MS', 'Verdana', sans-serif", "28px", "700", "#e11d48"),
                         variant("F2", "linear-gradient(135deg, #be123c 0%, #7f1d1d 100%)", "#fff1f2", "'Trebuchet MS', 'Verdana', sans-serif", "15px", "'Trebuchet MS', 'Verdana', sans-serif", "34px", "700", "#fb7185")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "F2",
-                        "section_header", "F2",
-                        "title_and_content", "F1",
-                        "title_only", "F1",
-                        "comparison", "F1",
-                        "two_content", "F1",
-                        "blank", "F1"
-                )),
                 "F1"
         ));
 
@@ -246,15 +193,6 @@ public class SlideThemeStyleResolver {
                         variant("G2", "radial-gradient(160% 110% at 50% -8%, #8a3f79 0%, #5c2e73 48%, #262457 72%, transparent 73%) top/100% 52% no-repeat, #f8fafc", "#0f172a", "'Segoe UI', 'Inter', sans-serif", "15px", "'Segoe UI', 'Inter', sans-serif", "30px", "700", "#c71585"),
                         variant("G3", "#f8fafc", "#0f172a", "'Segoe UI', 'Inter', sans-serif", "15px", "'Segoe UI', 'Inter', sans-serif", "28px", "600", "#c71585")
                 ),
-                layoutMap(mapOf(
-                        "title_slide", "G1",
-                        "section_header", "G1",
-                        "title_and_content", "G2",
-                        "title_only", "G2",
-                        "two_content", "G2",
-                        "comparison", "G2",
-                        "blank", "G3"
-                )),
                 "G1"
         ));
 
@@ -331,34 +269,6 @@ public class SlideThemeStyleResolver {
         );
     }
 
-    private static Map<String, String> layoutMap(Map<String, String> input) {
-        Map<String, String> out = new HashMap<>();
-        for (Map.Entry<String, String> e : input.entrySet()) {
-            out.put(normalize(e.getKey()), normalize(e.getValue()));
-        }
-        return out;
-    }
-
-    private static Map<String, String> allLayouts(String variantId) {
-        return mapOf(
-                "title_slide", variantId,
-                "title_and_content", variantId,
-                "section_header", variantId,
-                "title_only", variantId,
-                "comparison", variantId,
-                "two_content", variantId,
-                "blank", variantId
-        );
-    }
-
-    private static Map<String, String> mapOf(String... kv) {
-        Map<String, String> map = new LinkedHashMap<>();
-        for (int i = 0; i < kv.length - 1; i += 2) {
-            map.put(kv[i], kv[i + 1]);
-        }
-        return map;
-    }
-
     private record VariantDef(
             String id,
             String surfaceBackground,
@@ -375,7 +285,6 @@ public class SlideThemeStyleResolver {
     private record ThemeDef(
             String id,
             Map<String, VariantDef> variantsById,
-            Map<String, String> layoutVariantMap,
             String defaultVariantId
     ) {
         VariantDef defaultVariant() {

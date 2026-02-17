@@ -20,7 +20,7 @@ import {
 import { SlideLayoutType, SlideThemeId, SlideThemeVariant } from './slide-design.model';
 import { SlideTemplateService } from './slide-template.service';
 
-type PageLike = Pick<PageModel, 'background' | 'slideLayoutType'>;
+type PageLike = Pick<PageModel, 'background' | 'slideLayoutType' | 'slideVariantId'>;
 
 type PlaceholderRole = 'title' | 'subtitle' | 'section-title' | 'section-subtitle' | 'heading' | 'body';
 
@@ -153,9 +153,7 @@ export class SlideDesignService {
           globalPageIndex += 1;
           const layout = page.slideLayoutType
             ? coerceSlideLayoutType(page.slideLayoutType)
-            : globalPageIndex === 1
-              ? 'title_slide'
-              : defaultLayout;
+            : defaultLayout;
 
           const nextVariantId = page.slideVariantId?.trim() || this.resolveVariantId(layout, themeId);
           const variant = resolveVariantForLayout(theme, layout);
@@ -253,7 +251,14 @@ export class SlideDesignService {
   getPageSurfaceStyle(page: PageLike | null | undefined): Record<string, string> {
     const layout = page?.slideLayoutType ? coerceSlideLayoutType(page.slideLayoutType) : this.defaultLayoutType();
     const theme = this.activeTheme();
-    const variant = resolveVariantForLayout(theme, layout);
+    const variant = (() => {
+      const variantId = page?.slideVariantId?.trim().toLowerCase();
+      if (!variantId) {
+        return resolveVariantForLayout(theme, layout);
+      }
+      return theme.variants.find((v) => v.id.toLowerCase() === variantId)
+        ?? resolveVariantForLayout(theme, layout);
+    })();
 
     const tableBorder = withAlpha(variant.accentColor || variant.surfaceForeground, '80', 'rgba(15, 23, 42, 0.28)');
     const tableSubBorder = withAlpha(variant.accentColor || variant.surfaceForeground, '66', 'rgba(15, 23, 42, 0.2)');
@@ -326,9 +331,7 @@ export class SlideDesignService {
           globalPageIndex += 1;
           const layout = page.slideLayoutType
             ? coerceSlideLayoutType(page.slideLayoutType)
-            : globalPageIndex === 1
-              ? 'title_slide'
-              : defaultLayout;
+            : defaultLayout;
           const variant = this.resolveVariant(layout, themeId);
 
           const templateWidgets = this.slideTemplates.createTemplateWidgets({

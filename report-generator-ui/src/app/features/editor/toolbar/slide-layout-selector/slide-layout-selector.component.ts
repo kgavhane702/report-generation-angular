@@ -3,6 +3,7 @@ import { CommonModule, NgStyle, NgSwitch, NgSwitchCase, NgSwitchDefault } from '
 
 import { SlideDesignService } from '../../../../core/slide-design/slide-design.service';
 import { DocumentService } from '../../../../core/services/document.service';
+import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { SLIDE_LAYOUT_OPTIONS } from '../../../../core/slide-design/slide-design.config';
 import { SlideLayoutType } from '../../../../core/slide-design/slide-design.model';
 
@@ -21,10 +22,12 @@ export class SlideLayoutSelectorComponent {
 
   private readonly slideDesign = inject(SlideDesignService);
   private readonly documentService = inject(DocumentService);
+  private readonly editorState = inject(EditorStateService);
 
   readonly layouts = SLIDE_LAYOUT_OPTIONS;
   readonly activeLayout = this.slideDesign.defaultLayoutType;
   readonly activeTheme = this.slideDesign.activeTheme;
+  readonly activePage = this.editorState.activePage;
   readonly documentLocked = this.documentService.documentLocked;
 
   readonly currentSelectedLayout = computed<SlideLayoutType>(() => {
@@ -44,7 +47,7 @@ export class SlideLayoutSelectorComponent {
   }
 
   cardStyle(layout: SlideLayoutType): Record<string, string> {
-    const variant = this.slideDesign.resolveVariant(layout);
+    const variant = this.previewVariant(layout);
     return {
       background: variant.surfaceBackground,
       color: variant.surfaceForeground,
@@ -59,12 +62,23 @@ export class SlideLayoutSelectorComponent {
 
   thumbClasses(layout: SlideLayoutType): string[] {
     const themeId = this.activeTheme().id;
-    const variantId = this.variantFor(layout).toLowerCase();
+    const variantId = this.previewVariant(layout).id.toLowerCase();
     const normalizedTheme = themeId.replace(/_/g, '-');
     return [`theme-${normalizedTheme}`, `variant-${variantId}`];
   }
 
-  variantFor(layout: SlideLayoutType): string {
-    return this.slideDesign.resolveVariant(layout).id;
+  private previewVariant(layout: SlideLayoutType) {
+    if (this.mode === 'pick') {
+      const page = this.activePage();
+      const activeVariantId = page?.slideVariantId?.trim().toLowerCase();
+      if (activeVariantId) {
+        const theme = this.activeTheme();
+        const matched = theme.variants.find((variant) => variant.id.toLowerCase() === activeVariantId);
+        if (matched) {
+          return matched;
+        }
+      }
+    }
+    return this.slideDesign.resolveVariant(layout);
   }
 }

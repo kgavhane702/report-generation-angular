@@ -6,6 +6,7 @@ import { DocumentService } from '../../../../core/services/document.service';
 import { SlideDesignService } from '../../../../core/slide-design/slide-design.service';
 import { SLIDE_LAYOUT_OPTIONS } from '../../../../core/slide-design/slide-design.config';
 import { SlideLayoutType, SlideThemeDefinition, SlideThemeId } from '../../../../core/slide-design/slide-design.model';
+import { SlideTemplateService } from '../../../../core/slide-design/slide-template.service';
 import type { WidgetType } from '../../../../models/widget.model';
 
 type RibbonTabId = 'home' | 'insert' | 'context';
@@ -27,11 +28,12 @@ export class RibbonToolbarComponent {
   private readonly uiState = inject(UIStateService);
   private readonly documentService = inject(DocumentService);
   private readonly slideDesign = inject(SlideDesignService);
+  private readonly slideTemplates = inject(SlideTemplateService);
 
   readonly activeTab = signal<RibbonTabId>('home');
-  readonly addSlideDialogOpen = signal(false);
+  readonly quickAddDialogOpen = signal(false);
   readonly designDialogOpen = signal(false);
-  readonly dialogSelectedLayout = signal<SlideLayoutType>('title_and_content');
+  readonly dialogSelectedLayout = signal<SlideLayoutType>('title_body');
   readonly documentLocked = this.documentService.documentLocked;
   readonly themes = this.slideDesign.themes;
   readonly activeThemeId = this.slideDesign.activeThemeId;
@@ -106,33 +108,48 @@ export class RibbonToolbarComponent {
     this.slideDesign.updateDefaultLayout(layout as SlideLayoutType);
   }
 
-  addSlide(layout: SlideLayoutType): void {
+  quickAdd(layout: SlideLayoutType): void {
     if (this.documentLocked()) return;
 
-    const subsectionId = this.editorState.activeSubsectionId();
-    if (!subsectionId) return;
+    const pageId = this.editorState.activePageId();
+    if (!pageId) return;
 
-    const pageId = this.documentService.addPage(subsectionId, { slideLayoutType: layout });
-    if (pageId) {
-      this.editorState.setActivePage(pageId);
+    const page = this.editorState.activePage();
+    const pageSize = this.documentService.pageSize;
+    const orientation = page?.orientation ?? 'landscape';
+    const activeTheme = this.slideDesign.activeTheme();
+    const activeVariantId = page?.slideVariantId?.trim().toLowerCase();
+    const variant = (activeVariantId
+      ? activeTheme.variants.find((v) => v.id.toLowerCase() === activeVariantId)
+      : undefined) ?? this.slideDesign.resolveVariant(layout);
+
+    const widgets = this.slideTemplates.createTemplateWidgets({
+      layout,
+      pageSize,
+      orientation,
+      variant,
+    });
+
+    if (widgets.length > 0) {
+      this.documentService.addWidgets(pageId, widgets);
     }
   }
 
-  openAddSlideDialog(): void {
+  openQuickAddDialog(): void {
     if (this.documentLocked()) return;
     this.dialogSelectedLayout.set(this.defaultLayout());
-    this.addSlideDialogOpen.set(true);
+    this.quickAddDialogOpen.set(true);
   }
 
-  closeAddSlideDialog(): void {
-    this.addSlideDialogOpen.set(false);
+  closeQuickAddDialog(): void {
+    this.quickAddDialogOpen.set(false);
   }
 
   pickDialogLayout(layout: SlideLayoutType): void {
     if (this.documentLocked()) return;
     this.dialogSelectedLayout.set(layout);
-    this.addSlide(layout);
-    this.addSlideDialogOpen.set(false);
+    this.quickAdd(layout);
+    this.quickAddDialogOpen.set(false);
   }
 
   openDesignDialog(): void {
@@ -145,6 +162,11 @@ export class RibbonToolbarComponent {
   }
 
   onThemePicked(_themeId: SlideThemeDefinition['id']): void {
+    if (this.documentLocked()) return;
+    this.designDialogOpen.set(false);
+  }
+
+  onVariantPicked(): void {
     if (this.documentLocked()) return;
     this.designDialogOpen.set(false);
   }

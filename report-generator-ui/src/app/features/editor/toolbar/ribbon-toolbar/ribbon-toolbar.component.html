@@ -38,9 +38,9 @@
             type="button"
             class="ribbon-toolbar__home-action ribbon-toolbar__home-action--primary"
             [disabled]="documentLocked()"
-            (click)="openAddSlideDialog()"
+            (click)="openQuickAddDialog()"
           >
-            New Slide
+            Quick Add
           </button>
         </div>
 
@@ -81,21 +81,22 @@
       <app-slide-theme-selector
         mode="pick"
         (themeSelected)="onThemePicked($event)"
+        (variantSelected)="onVariantPicked()"
       ></app-slide-theme-selector>
     </div>
   </ng-container>
 </app-modal>
 
 <app-modal
-  [open]="addSlideDialogOpen()"
-  (openChange)="addSlideDialogOpen.set($event)"
+  [open]="quickAddDialogOpen()"
+  (openChange)="quickAddDialogOpen.set($event)"
   size="xl"
   [closeOnBackdrop]="true"
   [closeOnEsc]="true"
   [showFooter]="false"
 >
   <ng-container appModalHeader>
-    <h2 class="ribbon-toolbar__dialog-title">Add Slide</h2>
+    <h2 class="ribbon-toolbar__dialog-title">Quick Add</h2>
   </ng-container>
 
   <ng-container appModalBody>

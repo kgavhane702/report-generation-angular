@@ -12,7 +12,7 @@ export interface SlideLayoutOption {
 }
 
 export const DEFAULT_SLIDE_THEME_ID: SlideThemeId = 'berlin_orange';
-export const DEFAULT_SLIDE_LAYOUT_TYPE: SlideLayoutType = 'title_slide';
+export const DEFAULT_SLIDE_LAYOUT_TYPE: SlideLayoutType = 'blank';
 
 export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
   {
@@ -33,15 +33,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#111827',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'A1',
-      title_and_content: 'A1',
-      section_header: 'A1',
-      title_only: 'A1',
-      comparison: 'A1',
-      two_content: 'A1',
-      blank: 'A1',
-    },
   },
   {
     id: 'minimal_slate',
@@ -73,15 +64,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#475569',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'B1',
-      section_header: 'B1',
-      title_and_content: 'B2',
-      two_content: 'B2',
-      comparison: 'B2',
-      title_only: 'B2',
-      blank: 'B2',
-    },
   },
   {
     id: 'ocean_blue',
@@ -113,15 +95,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#60a5fa',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'C2',
-      section_header: 'C2',
-      title_and_content: 'C1',
-      title_only: 'C1',
-      comparison: 'C1',
-      two_content: 'C1',
-      blank: 'C1',
-    },
   },
   {
     id: 'emerald_forest',
@@ -153,15 +126,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#34d399',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'D2',
-      section_header: 'D2',
-      title_and_content: 'D1',
-      title_only: 'D1',
-      comparison: 'D1',
-      two_content: 'D1',
-      blank: 'D1',
-    },
   },
   {
     id: 'royal_purple',
@@ -205,15 +169,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#e9d5ff',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'E2',
-      section_header: 'E2',
-      title_and_content: 'E1',
-      title_only: 'E1',
-      comparison: 'E3',
-      two_content: 'E1',
-      blank: 'E1',
-    },
   },
   {
     id: 'sunset_rose',
@@ -245,15 +200,6 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#fb7185',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'F2',
-      section_header: 'F2',
-      title_and_content: 'F1',
-      title_only: 'F1',
-      comparison: 'F1',
-      two_content: 'F1',
-      blank: 'F1',
-    },
   },
   {
     id: 'curvy_magenta',
@@ -299,46 +245,37 @@ export const SLIDE_THEMES: ReadonlyArray<SlideThemeDefinition> = [
         accentColor: '#c71585',
       },
     ],
-    layoutVariantMap: {
-      title_slide: 'G1',
-      section_header: 'G1',
-      title_and_content: 'G2',
-      title_only: 'G2',
-      two_content: 'G2',
-      comparison: 'G2',
-      blank: 'G3',
-    },
   },
 ] as const;
 
 export const SLIDE_LAYOUT_OPTIONS: ReadonlyArray<SlideLayoutOption> = [
   {
-    id: 'title_slide',
-    label: 'Title Slide',
-    description: 'Large title area with subtitle section.',
+    id: 'hero_title',
+    label: 'Title',
+    description: 'Large title area with subtitle placeholder.',
   },
   {
-    id: 'title_and_content',
-    label: 'Title and Content',
+    id: 'title_body',
+    label: 'Title + Content',
     description: 'Top title with one main content placeholder.',
   },
   {
-    id: 'section_header',
+    id: 'section_intro',
     label: 'Section Header',
     description: 'Section title page with supporting subtitle.',
   },
   {
-    id: 'two_content',
+    id: 'two_column',
     label: 'Two Content',
     description: 'Title and two equal content columns.',
   },
   {
-    id: 'comparison',
+    id: 'compare_columns',
     label: 'Comparison',
     description: 'Two comparison columns under a shared title.',
   },
   {
-    id: 'title_only',
+    id: 'title_focus',
     label: 'Title Only',
     description: 'Single title band, no content placeholders.',
   },
@@ -358,19 +295,24 @@ export function coerceSlideThemeId(input: unknown): SlideThemeId {
 export function coerceSlideLayoutType(input: unknown): SlideLayoutType {
   if (typeof input !== 'string') return DEFAULT_SLIDE_LAYOUT_TYPE;
 
-  const allowed = new Set<SlideLayoutType>([
-    'title_slide',
-    'title_and_content',
-    'section_header',
-    'two_content',
-    'comparison',
-    'title_only',
-    'blank',
-  ]);
+  const normalized = input.trim().toLowerCase();
+  const migrated: Record<string, SlideLayoutType> = {
+    title_slide: 'hero_title',
+    title_and_content: 'title_body',
+    section_header: 'section_intro',
+    two_content: 'two_column',
+    comparison: 'compare_columns',
+    title_only: 'title_focus',
+    hero_title: 'hero_title',
+    title_body: 'title_body',
+    section_intro: 'section_intro',
+    two_column: 'two_column',
+    compare_columns: 'compare_columns',
+    title_focus: 'title_focus',
+    blank: 'blank',
+  };
 
-  return allowed.has(input as SlideLayoutType)
-    ? (input as SlideLayoutType)
-    : DEFAULT_SLIDE_LAYOUT_TYPE;
+  return migrated[normalized] ?? DEFAULT_SLIDE_LAYOUT_TYPE;
 }
 
 export function getSlideThemeById(themeId: SlideThemeId): SlideThemeDefinition {
@@ -379,12 +321,7 @@ export function getSlideThemeById(themeId: SlideThemeId): SlideThemeDefinition {
 
 export function resolveVariantForLayout(
   theme: SlideThemeDefinition,
-  layout: SlideLayoutType
+  _layout: SlideLayoutType
 ): SlideThemeVariant {
-  const mappedVariantId = theme.layoutVariantMap?.[layout];
-  if (mappedVariantId) {
-    const mapped = theme.variants.find((v) => v.id === mappedVariantId);
-    if (mapped) return mapped;
-  }
   return theme.variants[0];
 }

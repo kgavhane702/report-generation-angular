@@ -61,13 +61,13 @@ const selectPageLayoutPresetId = createSelector(
   (metadata) => metadata['pageLayoutPresetId'] as string | undefined
 );
 
-/** Slide theme id stored in metadata */
+/** Design theme id stored in metadata */
 const selectSlideThemeId = createSelector(
   selectDocumentMetadata,
   (metadata) => metadata['slideThemeId'] as string | undefined
 );
 
-/** Default slide layout type stored in metadata */
+/** Default quick-add layout type stored in metadata */
 const selectDefaultSlideLayoutType = createSelector(
   selectDocumentMetadata,
   (metadata) => metadata['defaultSlideLayoutType'] as string | undefined

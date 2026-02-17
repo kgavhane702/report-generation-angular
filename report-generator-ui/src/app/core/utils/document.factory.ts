@@ -14,11 +14,10 @@ import {
   resolveVariantForLayout,
 } from '../slide-design/slide-design.config';
 import { SlideLayoutType } from '../slide-design/slide-design.model';
-import { createInitialTitleSlidePlaceholders } from '../slide-design/slide-template.factory';
 
 export function createInitialDocument(): DocumentModel {
-  const page = createPageModel(1, 'landscape', { slideLayoutType: 'title_slide' });
-  page.widgets = createInitialTitleSlidePlaceholders();
+  const page = createPageModel(1, 'landscape', { slideLayoutType: 'blank' });
+  page.widgets = [];
   const subsection = createSubsectionModel('Overview', [page]);
   const section = createSectionModel('Executive Summary', [subsection]);
 
