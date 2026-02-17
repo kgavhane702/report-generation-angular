@@ -6,11 +6,12 @@ import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
 import { SlideThemeDefinition, SlideThemeVariant } from '../../../../core/slide-design/slide-design.model';
 import { getSlideThemeById } from '../../../../core/slide-design/slide-design.config';
+import { DesignVariantChipsComponent } from '../design-variant-chips/design-variant-chips.component';
 
 @Component({
   selector: 'app-slide-theme-selector',
   standalone: true,
-  imports: [CommonModule, NgStyle],
+  imports: [CommonModule, NgStyle, DesignVariantChipsComponent],
   templateUrl: './slide-theme-selector.component.html',
   styleUrls: ['./slide-theme-selector.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -65,6 +66,20 @@ export class SlideThemeSelectorComponent {
     return pageVariantId === variantId.toLowerCase();
   }
 
+  selectedVariantIdForTheme(themeId: SlideThemeDefinition['id']): string | null {
+    if (this.activeThemeId() !== themeId) return null;
+    const pageVariantId = this.activePage()?.slideVariantId?.trim();
+    if (pageVariantId && pageVariantId.length > 0) {
+      return pageVariantId;
+    }
+    const theme = getSlideThemeById(themeId);
+    return theme.variants[0]?.id ?? null;
+  }
+
+  onVariantChipPicked(themeId: SlideThemeDefinition['id'], payload: { variantId: string; event: MouseEvent }): void {
+    this.selectVariant(themeId, payload.variantId, payload.event);
+  }
+
   /** Style for the preview thumbnail (theme primary variant). */
   previewStyle(theme: SlideThemeDefinition): Record<string, string> {
     const variant = theme.variants[0];
@@ -87,14 +102,6 @@ export class SlideThemeSelectorComponent {
       '--thumb-accent-soft': `${variant.accentColor || variant.surfaceForeground}44`,
       '--thumb-foreground-soft': `${variant.surfaceForeground}30`,
       '--thumb-title-font': variant.titleFontFamily || variant.fontFamily || "'Inter', sans-serif",
-    };
-  }
-
-  variantChipPreviewStyle(variant: SlideThemeVariant): Record<string, string> {
-    return {
-      background: variant.surfaceBackground,
-      '--variant-mini-foreground': variant.surfaceForeground,
-      '--variant-mini-accent': variant.accentColor || variant.surfaceForeground,
     };
   }
 

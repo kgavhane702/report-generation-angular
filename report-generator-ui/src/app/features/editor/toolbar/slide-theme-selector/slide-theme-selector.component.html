@@ -12,18 +12,12 @@
     <div class="slide-theme-selector__selected-meta">
       <div class="slide-theme-selector__name">{{ selected.label }}</div>
       <div class="slide-theme-selector__desc">{{ selected.description }}</div>
-      <div class="slide-theme-selector__variants-row">
-        <span
-          *ngFor="let variant of selected.variants"
-          class="slide-theme-selector__variant-chip"
-          [class.slide-theme-selector__variant-chip--active]="isVariantActive(selected.id, variant.id)"
-        >
-          <span class="slide-theme-selector__variant-mini" [ngStyle]="variantChipPreviewStyle(variant)">
-            <span class="slide-theme-selector__variant-mini-accent"></span>
-          </span>
-          <span class="slide-theme-selector__variant-text">{{ variant.label }}</span>
-        </span>
-      </div>
+      <app-design-variant-chips
+        mode="display"
+        [showZoom]="false"
+        [variants]="selected.variants"
+        [selectedVariantId]="selectedVariantIdForTheme(selected.id)"
+      ></app-design-variant-chips>
     </div>
   </div>
 </div>
@@ -53,23 +47,14 @@
     <div class="slide-theme-selector__meta">
       <div class="slide-theme-selector__name">{{ theme.label }}</div>
       <div class="slide-theme-selector__desc">{{ theme.description }}</div>
-      <div class="slide-theme-selector__variants">
-        <span
-          *ngFor="let variant of theme.variants"
-          class="slide-theme-selector__variant-btn"
-          [class.slide-theme-selector__variant-btn--disabled]="documentLocked() || mode !== 'pick'"
-          [class.slide-theme-selector__variant-btn--active]="isVariantActive(theme.id, variant.id)"
-          (click)="selectVariant(theme.id, variant.id, $event)"
-        >
-          <span class="slide-theme-selector__variant-mini" [ngStyle]="variantChipPreviewStyle(variant)">
-            <span class="slide-theme-selector__variant-mini-accent"></span>
-          </span>
-          <span class="slide-theme-selector__variant-text">{{ variant.label }}</span>
-          <span class="slide-theme-selector__variant-zoom" [ngStyle]="variantChipPreviewStyle(variant)">
-            <span class="slide-theme-selector__variant-zoom-accent"></span>
-          </span>
-        </span>
-      </div>
+      <app-design-variant-chips
+        mode="pick"
+        [showZoom]="true"
+        [variants]="theme.variants"
+        [selectedVariantId]="selectedVariantIdForTheme(theme.id)"
+        [disabled]="documentLocked() || mode !== 'pick'"
+        (variantSelected)="onVariantChipPicked(theme.id, $event)"
+      ></app-design-variant-chips>
     </div>
   </button>
 </div>

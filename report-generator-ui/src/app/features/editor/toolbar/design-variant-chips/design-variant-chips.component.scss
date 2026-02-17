@@ -1,0 +1,112 @@
+.design-variant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  overflow: visible;
+  width: 100%;
+}
+
+.design-variant-chips__chip {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #334155;
+  background: #f8fafc;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  position: relative;
+}
+
+.design-variant-chips__chip:hover {
+  border-color: rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+  z-index: 40;
+}
+
+.design-variant-chips__chip--disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.design-variant-chips__chip--active {
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.65);
+  background: rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.design-variant-chips__mini {
+  width: 58px;
+  height: 34px;
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.design-variant-chips__mini-accent {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 999px;
+  background: var(--variant-mini-accent, #334155);
+}
+
+.design-variant-chips__text {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.design-variant-chips__zoom {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: 172px;
+  height: 108px;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 60;
+}
+
+.design-variant-chips__chip:hover .design-variant-chips__zoom,
+.design-variant-chips__chip:focus-visible .design-variant-chips__zoom {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.design-variant-chips__zoom-accent {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--variant-mini-accent, #334155);
+}
+
+.design-variant-chips--display .design-variant-chips__chip {
+  cursor: default;
+}
+
+.design-variant-chips--display .design-variant-chips__chip:hover {
+  transform: none;
+  border-color: rgba(15, 23, 42, 0.18);
+}

@@ -1,0 +1,18 @@
+<div class="design-variant-chips" [class.design-variant-chips--display]="mode === 'display'">
+  <span
+    *ngFor="let variant of variants"
+    class="design-variant-chips__chip"
+    [class.design-variant-chips__chip--disabled]="disabled || mode !== 'pick'"
+    [class.design-variant-chips__chip--active]="isVariantActive(variant.id)"
+    (click)="onVariantClick(variant.id, $event)"
+  >
+    <span class="design-variant-chips__mini" [ngStyle]="variantChipPreviewStyle(variant)">
+      <span class="design-variant-chips__mini-accent"></span>
+    </span>
+    <span class="design-variant-chips__text">{{ variant.label }}</span>
+
+    <span class="design-variant-chips__zoom" *ngIf="showZoom" [ngStyle]="variantChipPreviewStyle(variant)">
+      <span class="design-variant-chips__zoom-accent"></span>
+    </span>
+  </span>
+</div>
