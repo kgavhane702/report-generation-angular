@@ -5,7 +5,6 @@ import com.org.report_generator.model.document.DocumentModel;
 import com.org.report_generator.model.document.Page;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -13,10 +12,7 @@ import java.util.Map;
 @Service
 public class SlideThemeStyleResolver {
 
-    private static final String DEFAULT_THEME_ID = "berlin_orange";
     private static final String DEFAULT_LAYOUT_TYPE = "blank";
-
-    private static final Map<String, ThemeDef> THEMES = buildThemes();
 
     public String buildSurfaceStyle(DocumentModel document, Page page) {
         ThemeResolution resolution = resolveTheme(document, page);
@@ -83,6 +79,9 @@ public class SlideThemeStyleResolver {
         style.append("--slide-table-total-bg: ").append(tableTotalBg).append(";");
         style.append("--slide-table-edge-bg: ").append(tableEdgeBg).append(";");
         style.append("--slide-table-font-size: 14px;");
+        style.append("--slide-theme-overlay-soft: ").append(variant.overlaySoftColor()).append(";");
+        style.append("--slide-theme-overlay-strong: ").append(variant.overlayStrongColor()).append(";");
+        style.append("--slide-theme-tab: ").append(variant.tabColor()).append(";");
 
         return style.toString();
     }
@@ -96,15 +95,9 @@ public class SlideThemeStyleResolver {
     }
 
     private ThemeResolution resolveTheme(DocumentModel document, Page page) {
-        String themeId = DEFAULT_THEME_ID;
         String layout = DEFAULT_LAYOUT_TYPE;
 
         if (document != null && document.getMetadata() != null) {
-            Object themeRaw = document.getMetadata().get("slideThemeId");
-            if (themeRaw instanceof String t && !t.isBlank()) {
-                themeId = normalize(t);
-            }
-
             Object defaultLayoutRaw = document.getMetadata().get("defaultSlideLayoutType");
             if (defaultLayoutRaw instanceof String l && !l.isBlank()) {
                 layout = normalize(l);
@@ -115,88 +108,98 @@ public class SlideThemeStyleResolver {
             layout = normalize(page.getSlideLayoutType());
         }
 
-        ThemeDef theme = THEMES.getOrDefault(themeId, THEMES.get(DEFAULT_THEME_ID));
+        ThemeDef theme = resolveThemeFromMetadata(document);
 
-        VariantDef variant = null;
+        VariantDef variant;
         if (page != null && page.getSlideVariantId() != null && !page.getSlideVariantId().isBlank()) {
             variant = theme.variantsById().get(normalize(page.getSlideVariantId()));
-        }
-
-        if (variant == null) {
+            if (variant == null) {
+                throw new IllegalStateException("slideThemeResolved does not contain page variant: " + page.getSlideVariantId());
+            }
+        } else {
             variant = theme.defaultVariant();
         }
 
         return new ThemeResolution(theme, variant, layout);
     }
 
-    private static Map<String, ThemeDef> buildThemes() {
-        Map<String, ThemeDef> map = new HashMap<>();
+    @SuppressWarnings("unchecked")
+    private ThemeDef resolveThemeFromMetadata(DocumentModel document) {
+        if (document == null || document.getMetadata() == null) {
+            throw new IllegalStateException("Document metadata is required for slide theme resolution");
+        }
 
-        map.put("berlin_orange", new ThemeDef(
-                "berlin_orange",
-                variants(
-                        variant("A1", "linear-gradient(90deg, #f97316 0%, #dc2626 100%)", "#ffffff", "'Segoe UI', 'Inter', sans-serif", "16px", "'Segoe UI Semibold', 'Segoe UI', sans-serif", "32px", "700", "#111827")
-                ),
-                "A1"
-        ));
+        Object resolvedThemeRaw = document.getMetadata().get("slideThemeResolved");
+        if (!(resolvedThemeRaw instanceof Map<?, ?> resolvedThemeMap)) {
+            throw new IllegalStateException("Document metadata.slideThemeResolved is required");
+        }
 
-        map.put("minimal_slate", new ThemeDef(
-                "minimal_slate",
-                variants(
-                        variant("B1", "linear-gradient(135deg, #334155 0%, #1e293b 100%)", "#f8fafc", "'Inter', 'Segoe UI', sans-serif", "15px", "'Inter', 'Segoe UI', sans-serif", "34px", "700", "#94a3b8"),
-                        variant("B2", "#ffffff", "#0f172a", "'Inter', 'Segoe UI', sans-serif", "15px", "'Inter', 'Segoe UI', sans-serif", "28px", "600", "#475569")
-                ),
-                "B1"
-        ));
+        String themeId = requiredString(resolvedThemeMap, "themeId");
+        String defaultVariantId = requiredString(resolvedThemeMap, "defaultVariantId");
 
-        map.put("ocean_blue", new ThemeDef(
-                "ocean_blue",
-                variants(
-                        variant("C1", "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", "#0b2545", "'Calibri', 'Segoe UI', sans-serif", "16px", "'Calibri', 'Segoe UI', sans-serif", "30px", "700", "#1d4ed8"),
-                        variant("C2", "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)", "#f8fafc", "'Calibri', 'Segoe UI', sans-serif", "16px", "'Calibri', 'Segoe UI', sans-serif", "34px", "700", "#60a5fa")
-                ),
-                "C1"
-        ));
+        Object variantsRaw = resolvedThemeMap.get("variants");
+        if (!(variantsRaw instanceof Map<?, ?> variantsMap)) {
+            throw new IllegalStateException("Document metadata.slideThemeResolved.variants must be an object");
+        }
 
-        map.put("emerald_forest", new ThemeDef(
-                "emerald_forest",
-                variants(
-                        variant("D1", "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)", "#052e16", "'Aptos', 'Inter', sans-serif", "15px", "'Aptos', 'Inter', sans-serif", "28px", "600", "#047857"),
-                        variant("D2", "linear-gradient(135deg, #064e3b 0%, #022c22 100%)", "#ecfdf5", "'Aptos', 'Inter', sans-serif", "15px", "'Aptos', 'Inter', sans-serif", "34px", "700", "#34d399")
-                ),
-                "D1"
-        ));
+        Map<String, VariantDef> variantsById = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : variantsMap.entrySet()) {
+            if (!(entry.getValue() instanceof Map<?, ?> variantMap)) {
+                continue;
+            }
+            VariantDef variant = variantFromMap((Map<String, Object>) variantMap);
+            variantsById.put(normalize(variant.id()), variant);
+        }
 
-        map.put("royal_purple", new ThemeDef(
-                "royal_purple",
-                variants(
-                        variant("E1", "linear-gradient(135deg, #f3e8ff 0%, #ddd6fe 100%)", "#2e1065", "'Cambria', 'Georgia', serif", "16px", "'Georgia', 'Cambria', serif", "30px", "700", "#7c3aed"),
-                        variant("E2", "linear-gradient(135deg, #4c1d95 0%, #2e1065 100%)", "#faf5ff", "'Cambria', 'Georgia', serif", "16px", "'Georgia', 'Cambria', serif", "34px", "700", "#c4b5fd"),
-                        variant("E3", "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)", "#ffffff", "'Cambria', 'Georgia', serif", "16px", "'Georgia', 'Cambria', serif", "28px", "600", "#e9d5ff")
-                ),
-                "E1"
-        ));
+        if (variantsById.isEmpty()) {
+            throw new IllegalStateException("Document metadata.slideThemeResolved.variants cannot be empty");
+        }
 
-        map.put("sunset_rose", new ThemeDef(
-                "sunset_rose",
-                variants(
-                        variant("F1", "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)", "#4c0519", "'Trebuchet MS', 'Verdana', sans-serif", "15px", "'Trebuchet MS', 'Verdana', sans-serif", "28px", "700", "#e11d48"),
-                        variant("F2", "linear-gradient(135deg, #be123c 0%, #7f1d1d 100%)", "#fff1f2", "'Trebuchet MS', 'Verdana', sans-serif", "15px", "'Trebuchet MS', 'Verdana', sans-serif", "34px", "700", "#fb7185")
-                ),
-                "F1"
-        ));
+        return new ThemeDef(themeId, variantsById, defaultVariantId);
+    }
 
-        map.put("curvy_magenta", new ThemeDef(
-                "curvy_magenta",
-                variants(
-                        variant("G1", "radial-gradient(120% 180% at 50% 25%, #8a3f79 0%, #5c2e73 40%, #262457 100%)", "#e5e7eb", "'Segoe UI', 'Inter', sans-serif", "16px", "'Segoe UI', 'Inter', sans-serif", "48px", "600", "#c71585"),
-                        variant("G2", "radial-gradient(160% 110% at 50% -8%, #8a3f79 0%, #5c2e73 48%, #262457 72%, transparent 73%) top/100% 52% no-repeat, #f8fafc", "#0f172a", "'Segoe UI', 'Inter', sans-serif", "15px", "'Segoe UI', 'Inter', sans-serif", "30px", "700", "#c71585"),
-                        variant("G3", "#f8fafc", "#0f172a", "'Segoe UI', 'Inter', sans-serif", "15px", "'Segoe UI', 'Inter', sans-serif", "28px", "600", "#c71585")
-                ),
-                "G1"
-        ));
+    private VariantDef variantFromMap(Map<String, Object> raw) {
+        String id = requiredString(raw, "id");
+        String surfaceBackground = requiredString(raw, "surfaceBackground");
+        String surfaceForeground = requiredString(raw, "surfaceForeground");
+        String fontFamily = requiredString(raw, "fontFamily");
+        String fontSize = requiredString(raw, "fontSize");
+        String titleFontFamily = requiredString(raw, "titleFontFamily");
+        String titleFontSize = requiredString(raw, "titleFontSize");
+        String titleFontWeight = requiredString(raw, "titleFontWeight");
+        String accentColor = requiredString(raw, "accentColor");
+        String overlaySoftColor = requiredString(raw, "overlaySoftColor");
+        String overlayStrongColor = requiredString(raw, "overlayStrongColor");
+        String tabColor = requiredString(raw, "tabColor");
 
-        return map;
+        return new VariantDef(
+                id,
+                surfaceBackground,
+                surfaceForeground,
+                fontFamily,
+                fontSize,
+                titleFontFamily,
+                titleFontSize,
+                titleFontWeight,
+                accentColor,
+                overlaySoftColor,
+                overlayStrongColor,
+                tabColor
+        );
+    }
+
+    private static String requiredString(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            throw new IllegalStateException("Missing required theme field: " + key);
+        }
+
+        String s = String.valueOf(value).trim();
+        if (s.isBlank()) {
+            throw new IllegalStateException("Theme field is blank: " + key);
+        }
+
+        return s;
     }
 
     private static String normalize(String value) {
@@ -237,38 +240,6 @@ public class SlideThemeStyleResolver {
         return value.toLowerCase(Locale.ROOT).replace('_', '-').replaceAll("[^a-z0-9-]", "-");
     }
 
-    private static Map<String, VariantDef> variants(VariantDef... variants) {
-        Map<String, VariantDef> map = new LinkedHashMap<>();
-        for (VariantDef v : variants) {
-            map.put(normalize(v.id()), v);
-        }
-        return map;
-    }
-
-    private static VariantDef variant(
-            String id,
-            String surfaceBackground,
-            String surfaceForeground,
-            String fontFamily,
-            String fontSize,
-            String titleFontFamily,
-            String titleFontSize,
-            String titleFontWeight,
-            String accentColor
-    ) {
-        return new VariantDef(
-                id,
-                surfaceBackground,
-                surfaceForeground,
-                fontFamily,
-                fontSize,
-                titleFontFamily,
-                titleFontSize,
-                titleFontWeight,
-                accentColor
-        );
-    }
-
     private record VariantDef(
             String id,
             String surfaceBackground,
@@ -278,7 +249,10 @@ public class SlideThemeStyleResolver {
             String titleFontFamily,
             String titleFontSize,
             String titleFontWeight,
-            String accentColor
+            String accentColor,
+            String overlaySoftColor,
+            String overlayStrongColor,
+            String tabColor
     ) {
     }
 
@@ -288,20 +262,11 @@ public class SlideThemeStyleResolver {
             String defaultVariantId
     ) {
         VariantDef defaultVariant() {
-            VariantDef v = variantsById.get(normalize(defaultVariantId));
-            if (v != null) return v;
-            return variantsById.values().stream().findFirst()
-                    .orElse(new VariantDef(
-                            "DEFAULT",
-                            "#ffffff",
-                            "#0f172a",
-                            "'Inter', 'Segoe UI', sans-serif",
-                            "16px",
-                            "'Inter', 'Segoe UI', sans-serif",
-                            "28px",
-                            "700",
-                            "#0f172a"
-                    ));
+            VariantDef variant = variantsById.get(normalize(defaultVariantId));
+            if (variant == null) {
+                throw new IllegalStateException("slideThemeResolved.defaultVariantId is not present in variants: " + defaultVariantId);
+            }
+            return variant;
         }
     }
 

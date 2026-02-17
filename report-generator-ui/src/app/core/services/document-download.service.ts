@@ -6,6 +6,11 @@ import { ChartExportService } from './chart-export.service';
 import { convertDocumentLogo } from '../utils/image-converter.util';
 import { ExportUiStateService } from './export-ui-state.service';
 import { RemoteWidgetPreloadService } from './remote-widget-preload.service';
+import {
+  coerceSlideThemeId,
+  coerceThemeSwatchId,
+  getSlideThemeById,
+} from '../slide-design/slide-design.theme-config';
 
 export type DocumentDownloadFormat = 'pdf' | 'docx' | 'pptx';
 
@@ -37,7 +42,8 @@ export class DocumentDownloadService {
     ]);
 
     const merged = applyExportedChartImages(documentWithUrlData, chartExportDoc);
-    const documentWithLogo = await convertDocumentLogo(merged);
+    const themedForBackend = withResolvedThemeMetadata(merged);
+    const documentWithLogo = await convertDocumentLogo(themedForBackend);
 
     // Frontend currently supports PDF only.
     const url = `${this.apiUrl}?format=pdf`;
@@ -91,6 +97,53 @@ export class DocumentDownloadService {
       this.exportUi.stop();
     }
   }
+}
+
+function withResolvedThemeMetadata(document: DocumentModel): DocumentModel {
+  const metadata = { ...(document.metadata ?? {}) } as Record<string, unknown>;
+  const themeId = coerceSlideThemeId(metadata['slideThemeId']);
+  const swatchMapRaw = metadata['slideThemeSwatchByTheme'];
+  const swatchMap = (swatchMapRaw && typeof swatchMapRaw === 'object')
+    ? (swatchMapRaw as Record<string, unknown>)
+    : {};
+  const swatchId = coerceThemeSwatchId(themeId, swatchMap[themeId]);
+  const resolvedTheme = getSlideThemeById(themeId, swatchId);
+  const defaultVariantId = resolvedTheme.variants[0]?.id;
+  if (!defaultVariantId) {
+    throw new Error(`Resolved theme has no variants: ${resolvedTheme.id}`);
+  }
+
+  const variants = Object.fromEntries(
+    resolvedTheme.variants.map((variant) => [
+      variant.id,
+      {
+        id: variant.id,
+        surfaceBackground: variant.surfaceBackground,
+        surfaceForeground: variant.surfaceForeground,
+        fontFamily: variant.fontFamily || "'Inter', sans-serif",
+        fontSize: variant.fontSize || '16px',
+        titleFontFamily: variant.titleFontFamily || variant.fontFamily || "'Inter', sans-serif",
+        titleFontSize: variant.titleFontSize || '28px',
+        titleFontWeight: String(variant.titleFontWeight ?? 700),
+        accentColor: variant.accentColor || variant.surfaceForeground,
+        overlaySoftColor: variant.overlaySoftColor || 'rgba(255, 255, 255, 0.14)',
+        overlayStrongColor: variant.overlayStrongColor || 'rgba(255, 255, 255, 0.2)',
+        tabColor: variant.tabColor || variant.accentColor || variant.surfaceForeground,
+      },
+    ])
+  );
+
+  metadata['slideThemeResolved'] = {
+    themeId: resolvedTheme.id,
+    swatchId,
+    defaultVariantId,
+    variants,
+  };
+
+  return {
+    ...document,
+    metadata,
+  };
 }
 
 function applyExportedChartImages(target: DocumentModel, source: DocumentModel): DocumentModel {

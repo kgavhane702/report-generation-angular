@@ -24,7 +24,6 @@ public class DocumentNormalizer {
     private static final String DEFAULT_VERSION = "1.0.0";
     private static final String DEFAULT_SCHEMA_VERSION = "2.0";
     private static final String DEFAULT_TITLE = "Untitled Document";
-    private static final String DEFAULT_THEME_ID = "berlin_orange";
     private static final String DEFAULT_LAYOUT_TYPE = "blank";
 
     public DocumentModel normalize(DocumentModel input) {
@@ -62,7 +61,6 @@ public class DocumentNormalizer {
             next.putAll(metadata);
         }
 
-        next.putIfAbsent("slideThemeId", DEFAULT_THEME_ID);
         next.putIfAbsent("defaultSlideLayoutType", DEFAULT_LAYOUT_TYPE);
 
         return next;

@@ -57,7 +57,7 @@ public class PageStylesRenderer {
             top: 0;
             width: 4.8%;
             height: 17.5%;
-            background: #c71585;
+            background: var(--slide-theme-tab, var(--slide-accent, #c71585));
             border-radius: 0 0 2px 2px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
         }
@@ -71,7 +71,7 @@ public class PageStylesRenderer {
             top: 0;
             height: 42%;
             border-radius: 0 0 46% 46% / 0 0 30% 30%;
-            background: rgba(255, 255, 255, 0.14);
+            background: var(--slide-theme-overlay-soft, rgba(255, 255, 255, 0.14));
         }
 
         /* Curvy content slides */
@@ -85,7 +85,7 @@ public class PageStylesRenderer {
             top: 0;
             height: 34%;
             border-radius: 0 0 55% 55% / 0 0 26% 26%;
-            background: rgba(255, 255, 255, 0.18);
+            background: var(--slide-theme-overlay-strong, rgba(255, 255, 255, 0.18));
         }
 
         /* Curvy blank slides */
