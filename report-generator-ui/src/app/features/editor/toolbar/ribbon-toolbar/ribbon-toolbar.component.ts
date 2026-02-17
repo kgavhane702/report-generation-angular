@@ -4,7 +4,7 @@ import { EditorStateService } from '../../../../core/services/editor-state.servi
 import { UIStateService } from '../../../../core/services/ui-state.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { SlideDesignService } from '../../../../core/slide-design/slide-design.service';
-import { SLIDE_LAYOUT_OPTIONS } from '../../../../core/slide-design/slide-design.config';
+import { SLIDE_LAYOUT_OPTIONS } from '../../../../core/slide-design/slide-design.theme-config';
 import { SlideLayoutType, SlideThemeDefinition, SlideThemeId } from '../../../../core/slide-design/slide-design.model';
 import { SlideTemplateService } from '../../../../core/slide-design/slide-template.service';
 import type { WidgetType } from '../../../../models/widget.model';

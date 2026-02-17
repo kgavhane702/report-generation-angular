@@ -11,13 +11,15 @@ import { EditastraWidgetProps, WidgetModel } from '../../models/widget.model';
 import {
   coerceSlideLayoutType,
   coerceSlideThemeId,
+  coerceThemeSwatchId,
   DEFAULT_SLIDE_LAYOUT_TYPE,
   DEFAULT_SLIDE_THEME_ID,
+  getDefaultThemeSwatchId,
   getSlideThemeById,
   resolveVariantForLayout,
   SLIDE_THEMES,
-} from './slide-design.config';
-import { SlideLayoutType, SlideThemeId, SlideThemeVariant } from './slide-design.model';
+} from './slide-design.theme-config';
+import { SlideLayoutType, SlideThemeId, SlideThemeSwatchMap, SlideThemeVariant } from './slide-design.model';
 import { SlideTemplateService } from './slide-template.service';
 
 type PageLike = Pick<PageModel, 'background' | 'slideLayoutType' | 'slideVariantId'>;
@@ -101,24 +103,56 @@ export class SlideDesignService {
 
   readonly themes = SLIDE_THEMES;
 
+  readonly themeSwatchByTheme = computed<SlideThemeSwatchMap>(() =>
+    this.coerceThemeSwatchMap(this.metadata()['slideThemeSwatchByTheme'])
+  );
+
   readonly activeThemeId = computed<SlideThemeId>(() =>
     coerceSlideThemeId(this.metadata()['slideThemeId'])
   );
 
-  readonly activeTheme = computed(() => getSlideThemeById(this.activeThemeId()));
+  readonly activeThemeSwatchId = computed<string>(() => {
+    const themeId = this.activeThemeId();
+    const map = this.themeSwatchByTheme();
+    return coerceThemeSwatchId(themeId, map[themeId]);
+  });
+
+  readonly activeTheme = computed(() =>
+    getSlideThemeById(this.activeThemeId(), this.activeThemeSwatchId())
+  );
 
   readonly defaultLayoutType = computed<SlideLayoutType>(() =>
     coerceSlideLayoutType(this.metadata()['defaultSlideLayoutType'])
   );
 
-  resolveVariantId(layout: SlideLayoutType, themeId?: SlideThemeId): string {
-    const theme = getSlideThemeById(themeId ?? this.activeThemeId());
+  resolveVariantId(layout: SlideLayoutType, themeId?: SlideThemeId, swatchId?: string): string {
+    const resolvedThemeId = themeId ?? this.activeThemeId();
+    const theme = getSlideThemeById(
+      resolvedThemeId,
+      swatchId ?? this.themeSwatchIdForTheme(resolvedThemeId)
+    );
     return resolveVariantForLayout(theme, layout).id;
   }
 
-  resolveVariant(layout: SlideLayoutType, themeId?: SlideThemeId): SlideThemeVariant {
-    const theme = getSlideThemeById(themeId ?? this.activeThemeId());
+  resolveVariant(layout: SlideLayoutType, themeId?: SlideThemeId, swatchId?: string): SlideThemeVariant {
+    const resolvedThemeId = themeId ?? this.activeThemeId();
+    const theme = getSlideThemeById(
+      resolvedThemeId,
+      swatchId ?? this.themeSwatchIdForTheme(resolvedThemeId)
+    );
     return resolveVariantForLayout(theme, layout);
+  }
+
+  getThemeById(themeId: SlideThemeId) {
+    return getSlideThemeById(themeId, this.themeSwatchIdForTheme(themeId));
+  }
+
+  getThemeByIdWithSwatch(themeId: SlideThemeId, swatchId: string) {
+    return getSlideThemeById(themeId, swatchId);
+  }
+
+  getThemeSwatchId(themeId: SlideThemeId): string {
+    return this.themeSwatchIdForTheme(themeId);
   }
 
   buildPageDesign(layout?: SlideLayoutType): Pick<PageModel, 'slideLayoutType' | 'slideVariantId'> {
@@ -131,18 +165,28 @@ export class SlideDesignService {
 
   ensureMetadataDefaults(metadata?: Record<string, unknown>): Record<string, unknown> {
     const current = metadata ?? {};
+    const slideThemeId = coerceSlideThemeId(current['slideThemeId']);
+    const swatchMap = this.coerceThemeSwatchMap(current['slideThemeSwatchByTheme']);
+    const ensuredSwatchMap: SlideThemeSwatchMap = {
+      ...swatchMap,
+      [slideThemeId]: coerceThemeSwatchId(slideThemeId, swatchMap[slideThemeId]),
+    };
+
     return {
       ...current,
-      slideThemeId: coerceSlideThemeId(current['slideThemeId']),
+      slideThemeId,
       defaultSlideLayoutType: coerceSlideLayoutType(current['defaultSlideLayoutType']),
+      slideThemeSwatchByTheme: ensuredSwatchMap,
     };
   }
 
   hydrateDocument(document: DocumentModel): DocumentModel {
     const metadata = this.ensureMetadataDefaults(document.metadata);
     const themeId = coerceSlideThemeId(metadata['slideThemeId']);
+    const swatchByTheme = this.coerceThemeSwatchMap(metadata['slideThemeSwatchByTheme']);
+    const themeSwatchId = coerceThemeSwatchId(themeId, swatchByTheme[themeId]);
     const defaultLayout = coerceSlideLayoutType(metadata['defaultSlideLayoutType']);
-    const theme = getSlideThemeById(themeId);
+    const theme = getSlideThemeById(themeId, themeSwatchId);
 
     let globalPageIndex = 0;
     const sections = (document.sections ?? []).map((section) => ({
@@ -226,6 +270,10 @@ export class SlideDesignService {
           metadata: {
             ...metadata,
             slideThemeId: nextThemeId,
+            slideThemeSwatchByTheme: {
+              ...this.coerceThemeSwatchMap(metadata['slideThemeSwatchByTheme']),
+              [nextThemeId]: coerceThemeSwatchId(nextThemeId, this.themeSwatchByTheme()[nextThemeId]),
+            },
           },
         })
       );
@@ -234,6 +282,25 @@ export class SlideDesignService {
 
     const themedDocument = this.applyThemeToDocument(currentDocument, nextThemeId);
     this.store.dispatch(DocumentActions.setDocument({ document: themedDocument }));
+  }
+
+  updateThemeSwatch(themeId: SlideThemeId, swatchId: string): void {
+    const resolvedThemeId = coerceSlideThemeId(themeId);
+    const resolvedSwatchId = coerceThemeSwatchId(resolvedThemeId, swatchId);
+    const metadata = this.ensureMetadataDefaults(this.metadata());
+    const swatchMap = this.coerceThemeSwatchMap(metadata['slideThemeSwatchByTheme']);
+
+    this.store.dispatch(
+      DocumentMetaActions.updateMetadata({
+        metadata: {
+          ...metadata,
+          slideThemeSwatchByTheme: {
+            ...swatchMap,
+            [resolvedThemeId]: resolvedSwatchId,
+          },
+        },
+      })
+    );
   }
 
   updateDefaultLayout(layout: SlideLayoutType): void {
@@ -283,6 +350,9 @@ export class SlideDesignService {
       '--slide-table-border': tableBorder,
       '--slide-table-sub-border': tableSubBorder,
       '--slide-table-hover': tableHover,
+      '--slide-theme-overlay-soft': variant.overlaySoftColor || 'rgba(255, 255, 255, 0.14)',
+      '--slide-theme-overlay-strong': variant.overlayStrongColor || 'rgba(255, 255, 255, 0.2)',
+      '--slide-theme-tab': variant.tabColor || variant.accentColor || variant.surfaceForeground,
     };
 
     if (page?.background?.type === 'color' || page?.background?.type === 'gradient') {
@@ -311,13 +381,22 @@ export class SlideDesignService {
     return {
       slideThemeId: DEFAULT_SLIDE_THEME_ID,
       defaultSlideLayoutType: DEFAULT_SLIDE_LAYOUT_TYPE,
+      slideThemeSwatchByTheme: {
+        [DEFAULT_SLIDE_THEME_ID]: getDefaultThemeSwatchId(DEFAULT_SLIDE_THEME_ID),
+      },
     };
   }
 
   private applyThemeToDocument(document: DocumentModel, themeId: SlideThemeId): DocumentModel {
+    const currentSwatchMap = this.coerceThemeSwatchMap(document.metadata?.['slideThemeSwatchByTheme']);
+    const activeSwatchId = coerceThemeSwatchId(themeId, currentSwatchMap[themeId]);
     const nextMetadata: Record<string, unknown> = {
       ...this.ensureMetadataDefaults(document.metadata),
       slideThemeId: themeId,
+      slideThemeSwatchByTheme: {
+        ...currentSwatchMap,
+        [themeId]: activeSwatchId,
+      },
     };
 
     const defaultLayout = coerceSlideLayoutType(nextMetadata['defaultSlideLayoutType']);
@@ -332,7 +411,7 @@ export class SlideDesignService {
           const layout = page.slideLayoutType
             ? coerceSlideLayoutType(page.slideLayoutType)
             : defaultLayout;
-          const variant = this.resolveVariant(layout, themeId);
+          const variant = this.resolveVariant(layout, themeId, activeSwatchId);
 
           const templateWidgets = this.slideTemplates.createTemplateWidgets({
             layout,
@@ -467,5 +546,21 @@ export class SlideDesignService {
     return value !== null && typeof value === 'object'
       ? (value as Record<string, unknown>)
       : null;
+  }
+
+  private themeSwatchIdForTheme(themeId: SlideThemeId): string {
+    return coerceThemeSwatchId(themeId, this.themeSwatchByTheme()[themeId]);
+  }
+
+  private coerceThemeSwatchMap(input: unknown): SlideThemeSwatchMap {
+    if (!input || typeof input !== 'object') {
+      return {};
+    }
+
+    const record = input as Record<string, unknown>;
+    return this.themes.reduce<SlideThemeSwatchMap>((acc, theme) => {
+      acc[theme.id] = coerceThemeSwatchId(theme.id, record[theme.id]);
+      return acc;
+    }, {});
   }
 }

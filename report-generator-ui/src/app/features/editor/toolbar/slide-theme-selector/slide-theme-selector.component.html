@@ -12,10 +12,27 @@
     <div class="slide-theme-selector__selected-meta">
       <div class="slide-theme-selector__name">{{ selected.label }}</div>
       <div class="slide-theme-selector__desc">{{ selected.description }}</div>
+      <div class="slide-theme-selector__swatches" role="group" aria-label="Theme colors">
+        <button
+          *ngFor="let swatch of swatchesForTheme(selected)"
+          type="button"
+          class="slide-theme-selector__swatch"
+          [class.slide-theme-selector__swatch--active]="selectedSwatchIdForTheme(selected.id) === swatch.id"
+          [attr.aria-pressed]="selectedSwatchIdForTheme(selected.id) === swatch.id"
+          [title]="swatch.label"
+          (click)="selectSwatch(selected.id, swatch.id, $event)"
+        >
+          <span class="slide-theme-selector__swatch-indicator">
+            <span class="slide-theme-selector__swatch-dot" [style.background]="swatchSurfaceBackground(selected.id, swatch.id)"></span>
+            <span class="slide-theme-selector__swatch-accent" [style.background]="swatchAccentColor(selected.id, swatch.id)"></span>
+          </span>
+          <span class="slide-theme-selector__swatch-label">{{ swatch.label }}</span>
+        </button>
+      </div>
       <app-design-variant-chips
         mode="pick"
         [showZoom]="false"
-        [variants]="selected.variants"
+        [variants]="resolvedTheme(selected.id).variants"
         [selectedVariantId]="selectedVariantIdForTheme(selected.id)"
         [disabled]="documentLocked() || mode !== 'pick'"
         (variantSelected)="onVariantChipPicked(selected.id, $event)"
@@ -49,10 +66,27 @@
     <div class="slide-theme-selector__meta">
       <div class="slide-theme-selector__name">{{ theme.label }}</div>
       <div class="slide-theme-selector__desc">{{ theme.description }}</div>
+      <div class="slide-theme-selector__swatches" role="group" aria-label="Theme colors">
+        <button
+          *ngFor="let swatch of swatchesForTheme(theme)"
+          type="button"
+          class="slide-theme-selector__swatch"
+          [class.slide-theme-selector__swatch--active]="selectedSwatchIdForTheme(theme.id) === swatch.id"
+          [attr.aria-pressed]="selectedSwatchIdForTheme(theme.id) === swatch.id"
+          [title]="swatch.label"
+          (click)="selectSwatch(theme.id, swatch.id, $event)"
+        >
+          <span class="slide-theme-selector__swatch-indicator">
+            <span class="slide-theme-selector__swatch-dot" [style.background]="swatchSurfaceBackground(theme.id, swatch.id)"></span>
+            <span class="slide-theme-selector__swatch-accent" [style.background]="swatchAccentColor(theme.id, swatch.id)"></span>
+          </span>
+          <span class="slide-theme-selector__swatch-label">{{ swatch.label }}</span>
+        </button>
+      </div>
       <app-design-variant-chips
         mode="pick"
         [showZoom]="true"
-        [variants]="theme.variants"
+        [variants]="resolvedTheme(theme.id).variants"
         [selectedVariantId]="selectedVariantIdForTheme(theme.id)"
         [disabled]="documentLocked() || mode !== 'pick'"
         (variantSelected)="onVariantChipPicked(theme.id, $event)"

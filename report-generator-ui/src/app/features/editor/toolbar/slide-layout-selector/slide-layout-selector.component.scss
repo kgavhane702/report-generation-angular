@@ -73,7 +73,7 @@
   top: -5%;
   width: 28%;
   height: 120%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(180deg, var(--layout-overlay-strong, rgba(255, 255, 255, 0.18)), transparent);
   transform: skew(-9deg);
 }
 
@@ -82,7 +82,7 @@
   right: 0;
   top: 0;
   height: 14%;
-  background: rgba(15, 23, 42, 0.06);
+  background: var(--layout-overlay-soft, rgba(15, 23, 42, 0.06));
 }
 
 .slide-layout-selector__thumb.theme-ocean-blue::before {
@@ -91,7 +91,7 @@
   width: 60%;
   height: 60%;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--layout-overlay-soft, rgba(255, 255, 255, 0.15));
 }
 
 .slide-layout-selector__thumb.theme-emerald-forest::before {
@@ -99,7 +99,7 @@
   top: 0;
   width: 100%;
   height: 9%;
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--layout-overlay-soft, rgba(255, 255, 255, 0.16));
 }
 
 .slide-layout-selector__thumb.theme-royal-purple::before {
@@ -107,7 +107,7 @@
   right: 0;
   top: 0;
   height: 18%;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+  background: linear-gradient(90deg, var(--layout-overlay-soft, rgba(255, 255, 255, 0.1)), rgba(255, 255, 255, 0));
 }
 
 .slide-layout-selector__thumb.theme-sunset-rose::before {
@@ -116,7 +116,7 @@
   width: 45%;
   height: 70%;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--layout-overlay-strong, rgba(255, 255, 255, 0.2));
 }
 
 .slide-layout-selector__thumb.theme-curvy-magenta::before {
@@ -125,7 +125,7 @@
   top: -44%;
   height: 92%;
   border-radius: 0 0 52% 52% / 0 0 38% 38%;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--layout-overlay-soft, rgba(255, 255, 255, 0.14));
 }
 
 .slide-layout-selector__thumb.theme-curvy-magenta::after {
@@ -133,7 +133,7 @@
   top: -2%;
   width: 7%;
   height: 22%;
-  background: #c71585;
+  background: var(--layout-tab, #c71585);
   border-radius: 0 0 2px 2px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
@@ -188,8 +188,8 @@
 }
 
 .lt__title {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--layout-title-size, 9px);
+  font-weight: var(--layout-title-weight, 700);
   line-height: 1.15;
   color: var(--layout-foreground, inherit);
   font-family: var(--layout-title-font, inherit);
@@ -197,11 +197,11 @@
 }
 
 .lt__subtitle {
-  font-size: 5.5px;
-  font-weight: 400;
+  font-size: var(--layout-subtitle-size, 5.5px);
+  font-weight: var(--layout-body-weight, 500);
   opacity: 0.65;
   line-height: 1.2;
-  color: var(--layout-foreground, inherit);
+  color: var(--layout-subtitle-color, var(--layout-foreground, inherit));
 }
 
 /* Title and Content / Title Only */
@@ -211,8 +211,8 @@
 }
 
 .lt__heading {
-  font-size: 7.5px;
-  font-weight: 600;
+  font-size: var(--layout-heading-size, 7.5px);
+  font-weight: var(--layout-heading-weight, 600);
   line-height: 1.1;
   color: var(--layout-foreground, inherit);
   font-family: var(--layout-title-font, inherit);
@@ -230,7 +230,7 @@
 .lt__line {
   height: 2px;
   border-radius: 1px;
-  background: var(--layout-foreground-soft, rgba(0, 0, 0, 0.15));
+  background: var(--layout-line-color, var(--layout-foreground-soft, rgba(0, 0, 0, 0.15)));
 }
 
 .lt__line--long { width: 90%; }
@@ -244,8 +244,8 @@
 }
 
 .lt__section-title {
-  font-size: 9px;
-  font-weight: 700;
+  font-size: var(--layout-title-size, 9px);
+  font-weight: var(--layout-title-weight, 700);
   line-height: 1.15;
   color: var(--layout-foreground, inherit);
   font-family: var(--layout-title-font, inherit);
@@ -253,11 +253,11 @@
 }
 
 .lt__section-subtitle {
-  font-size: 5.5px;
-  font-weight: 400;
+  font-size: var(--layout-subtitle-size, 5.5px);
+  font-weight: var(--layout-body-weight, 500);
   opacity: 0.6;
   line-height: 1.2;
-  color: var(--layout-foreground, inherit);
+  color: var(--layout-subtitle-color, var(--layout-foreground, inherit));
 }
 
 /* Two Content / Comparison */
@@ -280,8 +280,8 @@
 }
 
 .lt__col-head {
-  font-size: 5.5px;
-  font-weight: 600;
+  font-size: var(--layout-body-size, 5.5px);
+  font-weight: var(--layout-heading-weight, 600);
   color: var(--layout-accent, var(--layout-foreground, inherit));
   margin-bottom: 2px;
 }
@@ -300,8 +300,8 @@
 }
 
 .lt__blank-label {
-  font-size: 7px;
-  font-weight: 700;
+  font-size: var(--layout-heading-size, 7px);
+  font-weight: var(--layout-heading-weight, 700);
   letter-spacing: 0.03em;
   opacity: 0.5;
   color: var(--layout-foreground, inherit);

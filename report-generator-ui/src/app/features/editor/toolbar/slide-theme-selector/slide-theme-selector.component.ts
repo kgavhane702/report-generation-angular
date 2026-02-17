@@ -4,8 +4,7 @@ import { CommonModule, NgStyle } from '@angular/common';
 import { SlideDesignService } from '../../../../core/slide-design/slide-design.service';
 import { DocumentService } from '../../../../core/services/document.service';
 import { EditorStateService } from '../../../../core/services/editor-state.service';
-import { SlideThemeDefinition, SlideThemeVariant } from '../../../../core/slide-design/slide-design.model';
-import { getSlideThemeById } from '../../../../core/slide-design/slide-design.config';
+import { SlideThemeDefinition, SlideThemeSwatch, SlideThemeVariant } from '../../../../core/slide-design/slide-design.model';
 import { DesignVariantChipsComponent } from '../design-variant-chips/design-variant-chips.component';
 
 @Component({
@@ -27,6 +26,7 @@ export class SlideThemeSelectorComponent {
 
   readonly themes = this.slideDesign.themes;
   readonly activeThemeId = this.slideDesign.activeThemeId;
+  readonly activeTheme = this.slideDesign.activeTheme;
   readonly activePage = this.editorState.activePage;
   readonly documentLocked = this.documentService.documentLocked;
 
@@ -60,7 +60,7 @@ export class SlideThemeSelectorComponent {
     if (this.activeThemeId() !== themeId) return false;
     const pageVariantId = this.activePage()?.slideVariantId?.trim().toLowerCase();
     if (!pageVariantId) {
-      const theme = getSlideThemeById(themeId);
+      const theme = this.slideDesign.getThemeById(themeId);
       return theme.variants[0]?.id.toLowerCase() === variantId.toLowerCase();
     }
     return pageVariantId === variantId.toLowerCase();
@@ -72,8 +72,39 @@ export class SlideThemeSelectorComponent {
     if (pageVariantId && pageVariantId.length > 0) {
       return pageVariantId;
     }
-    const theme = getSlideThemeById(themeId);
+    const theme = this.slideDesign.getThemeById(themeId);
     return theme.variants[0]?.id ?? null;
+  }
+
+  selectSwatch(themeId: SlideThemeDefinition['id'], swatchId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.documentLocked()) return;
+    this.slideDesign.updateThemeSwatch(themeId, swatchId);
+  }
+
+  swatchesForTheme(theme: SlideThemeDefinition): ReadonlyArray<SlideThemeSwatch> {
+    return theme.swatches;
+  }
+
+  resolvedTheme(themeId: SlideThemeDefinition['id']): SlideThemeDefinition {
+    return this.slideDesign.getThemeById(themeId);
+  }
+
+  swatchPreviewStyle(themeId: SlideThemeDefinition['id'], swatchId: string): Record<string, string> {
+    const preview = this.slideDesign.getThemeByIdWithSwatch(themeId, swatchId);
+    return this.variantToStyle(preview.variants[0]);
+  }
+
+  swatchAccentColor(themeId: SlideThemeDefinition['id'], swatchId: string): string {
+    return this.swatchPreviewStyle(themeId, swatchId)['--thumb-accent'];
+  }
+
+  swatchSurfaceBackground(themeId: SlideThemeDefinition['id'], swatchId: string): string {
+    return this.swatchPreviewStyle(themeId, swatchId)['background'];
+  }
+
+  selectedSwatchIdForTheme(themeId: SlideThemeDefinition['id']): string {
+    return this.slideDesign.getThemeSwatchId(themeId);
   }
 
   onVariantChipPicked(themeId: SlideThemeDefinition['id'], payload: { variantId: string; event: MouseEvent }): void {
@@ -82,13 +113,13 @@ export class SlideThemeSelectorComponent {
 
   /** Style for the preview thumbnail (theme primary variant). */
   previewStyle(theme: SlideThemeDefinition): Record<string, string> {
-    const variant = theme.variants[0];
+    const variant = this.slideDesign.getThemeById(theme.id).variants[0];
     return this.variantToStyle(variant);
   }
 
   /** Title font family from the theme primary variant */
   previewTitleFontFamily(theme: SlideThemeDefinition): string {
-    const variant = theme.variants[0];
+    const variant = this.slideDesign.getThemeById(theme.id).variants[0];
     return variant.titleFontFamily || variant.fontFamily || "'Inter', sans-serif";
   }
 
@@ -102,10 +133,9 @@ export class SlideThemeSelectorComponent {
       '--thumb-accent-soft': `${variant.accentColor || variant.surfaceForeground}44`,
       '--thumb-foreground-soft': `${variant.surfaceForeground}30`,
       '--thumb-title-font': variant.titleFontFamily || variant.fontFamily || "'Inter', sans-serif",
+      '--thumb-overlay-soft': variant.overlaySoftColor || 'rgba(255, 255, 255, 0.14)',
+      '--thumb-overlay-strong': variant.overlayStrongColor || 'rgba(255, 255, 255, 0.2)',
+      '--thumb-tab': variant.tabColor || variant.accentColor || variant.surfaceForeground,
     };
-  }
-
-  activeTheme(): SlideThemeDefinition {
-    return getSlideThemeById(this.activeThemeId());
   }
 }

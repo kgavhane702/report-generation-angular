@@ -10,9 +10,10 @@ import { PageModel } from '../../models/page.model';
 import {
   DEFAULT_SLIDE_LAYOUT_TYPE,
   DEFAULT_SLIDE_THEME_ID,
+  getDefaultThemeSwatchId,
   getSlideThemeById,
   resolveVariantForLayout,
-} from '../slide-design/slide-design.config';
+} from '../slide-design/slide-design.theme-config';
 import { SlideLayoutType } from '../slide-design/slide-design.model';
 
 export function createInitialDocument(): DocumentModel {
@@ -30,6 +31,9 @@ export function createInitialDocument(): DocumentModel {
     metadata: {
       slideThemeId: DEFAULT_SLIDE_THEME_ID,
       defaultSlideLayoutType: DEFAULT_SLIDE_LAYOUT_TYPE,
+      slideThemeSwatchByTheme: {
+        [DEFAULT_SLIDE_THEME_ID]: getDefaultThemeSwatchId(DEFAULT_SLIDE_THEME_ID),
+      },
     },
     footer: {
       showPageNumber: true,

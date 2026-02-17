@@ -35,6 +35,31 @@ export interface SlideThemeVariant {
   titleFontWeight?: number;
   /** Accent color used by placeholders/decorations */
   accentColor?: string;
+  /** Optional decorative overlay tone for themed ornaments */
+  overlaySoftColor?: string;
+  /** Optional decorative overlay tone for stronger highlights */
+  overlayStrongColor?: string;
+  /** Optional decorative tab marker color */
+  tabColor?: string;
+}
+
+export type SlideThemeVariantOverride = Partial<
+  Pick<
+    SlideThemeVariant,
+    | 'surfaceBackground'
+    | 'surfaceForeground'
+    | 'accentColor'
+    | 'overlaySoftColor'
+    | 'overlayStrongColor'
+    | 'tabColor'
+  >
+>;
+
+export interface SlideThemeSwatch {
+  id: string;
+  label: string;
+  description?: string;
+  variantOverrides: Readonly<Record<string, SlideThemeVariantOverride>>;
 }
 
 export interface SlideThemeDefinition {
@@ -42,9 +67,14 @@ export interface SlideThemeDefinition {
   label: string;
   description: string;
   variants: ReadonlyArray<SlideThemeVariant>;
+  swatches: ReadonlyArray<SlideThemeSwatch>;
+  defaultSwatchId: string;
 }
+
+export type SlideThemeSwatchMap = Partial<Record<SlideThemeId, string>>;
 
 export interface SlideDesignMetadata {
   slideThemeId: SlideThemeId;
   defaultSlideLayoutType: SlideLayoutType;
+  slideThemeSwatchByTheme?: SlideThemeSwatchMap;
 }

@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid';
 
 import { EditastraWidgetProps, WidgetModel } from '../../models/widget.model';
-import { DEFAULT_SLIDE_THEME_ID, getSlideThemeById } from './slide-design.config';
+import { DEFAULT_SLIDE_THEME_ID, getSlideThemeById } from './slide-design.theme-config';
 
 export function createInitialTitleSlidePlaceholders(): WidgetModel[] {
   const titleVariant = getSlideThemeById(DEFAULT_SLIDE_THEME_ID).variants[0];
