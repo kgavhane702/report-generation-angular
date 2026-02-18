@@ -9,7 +9,7 @@ import { SlideLayoutType, SlideThemeDefinition, SlideThemeId } from '../../../..
 import { SlideTemplateService } from '../../../../core/slide-design/slide-template.service';
 import type { WidgetType } from '../../../../models/widget.model';
 
-type RibbonTabId = 'home' | 'insert' | 'context';
+type RibbonTabId = 'design' | 'insert' | 'context';
 
 interface RibbonTab {
   id: RibbonTabId;
@@ -30,7 +30,7 @@ export class RibbonToolbarComponent {
   private readonly slideDesign = inject(SlideDesignService);
   private readonly slideTemplates = inject(SlideTemplateService);
 
-  readonly activeTab = signal<RibbonTabId>('home');
+  readonly activeTab = signal<RibbonTabId>('design');
   readonly quickAddDialogOpen = signal(false);
   readonly designDialogOpen = signal(false);
   readonly dialogSelectedLayout = signal<SlideLayoutType>('title_body');
@@ -63,7 +63,7 @@ export class RibbonToolbarComponent {
 
   readonly tabs = computed<RibbonTab[]>(() => {
     const baseTabs: RibbonTab[] = [
-      { id: 'home', label: 'Home' },
+      { id: 'design', label: 'Design' },
       { id: 'insert', label: 'Insert' },
     ];
 
@@ -96,6 +96,19 @@ export class RibbonToolbarComponent {
 
   isTabActive(tab: RibbonTabId): boolean {
     return this.activeTab() === tab;
+  }
+
+  tabIcon(tab: RibbonTabId): string {
+    switch (tab) {
+      case 'design':
+        return 'design_tab_svgrepo';
+      case 'insert':
+        return 'insert_tab_svgrepo';
+      case 'context':
+        return 'tune';
+      default:
+        return 'label';
+    }
   }
 
   setTheme(themeId: SlideThemeId): void {

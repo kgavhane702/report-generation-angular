@@ -63,6 +63,11 @@ const PRELOAD_ICONS = [
   'check_circle',
   'cloud_done',
   'sync',
+  // Ribbon custom SVGrepo-style icons
+  'design_tab_svgrepo',
+  'insert_tab_svgrepo',
+  'design_themes_svgrepo',
+  'quick_add_svgrepo',
   // Dropdowns
   'caret_down',
   'caret_down_small',

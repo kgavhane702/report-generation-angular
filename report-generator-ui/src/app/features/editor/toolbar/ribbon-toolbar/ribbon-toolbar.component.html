@@ -9,9 +9,11 @@
         [class.ribbon-toolbar__tab--context]="tab.isContext"
         role="tab"
         [attr.aria-selected]="isTabActive(tab.id)"
+        [attr.aria-label]="tab.label"
         (click)="setActiveTab(tab.id)"
       >
-        {{ tab.label }}
+        <app-icon [name]="tabIcon(tab.id)" [size]="14" class="ribbon-toolbar__tab-icon"></app-icon>
+        <span class="ribbon-toolbar__tab-label">{{ tab.label }}</span>
       </button>
     </div>
     <div class="ribbon-toolbar__menu">
@@ -20,27 +22,33 @@
   </div>
 
   <div class="ribbon-toolbar__panel">
-    <ng-container *ngIf="activeTab() === 'home'">
-      <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--home">
-        <div class="ribbon-toolbar__home-group ribbon-toolbar__home-group--action">
+    <ng-container *ngIf="activeTab() === 'design'">
+      <div class="ribbon-toolbar__panel-inner ribbon-toolbar__panel-inner--design">
+        <div class="ribbon-toolbar__design-group ribbon-toolbar__design-group--action">
           <button
             type="button"
-            class="ribbon-toolbar__home-action"
+            class="ribbon-toolbar__design-action"
             [disabled]="documentLocked()"
             (click)="openDesignDialog()"
           >
-            Design Themes
+            <span class="ribbon-toolbar__design-action-prefix" aria-hidden="true">
+              <app-icon name="design_themes_svgrepo" [size]="15" class="ribbon-toolbar__design-action-icon"></app-icon>
+            </span>
+            <span class="ribbon-toolbar__design-action-label">Design Themes</span>
           </button>
         </div>
 
-        <div class="ribbon-toolbar__home-group ribbon-toolbar__home-group--action">
+        <div class="ribbon-toolbar__design-group ribbon-toolbar__design-group--action">
           <button
             type="button"
-            class="ribbon-toolbar__home-action ribbon-toolbar__home-action--primary"
+            class="ribbon-toolbar__design-action ribbon-toolbar__design-action--primary"
             [disabled]="documentLocked()"
             (click)="openQuickAddDialog()"
           >
-            Quick Add
+            <span class="ribbon-toolbar__design-action-prefix" aria-hidden="true">
+              <app-icon name="quick_add_svgrepo" [size]="15" class="ribbon-toolbar__design-action-icon"></app-icon>
+            </span>
+            <span class="ribbon-toolbar__design-action-label">Add Layout</span>
           </button>
         </div>
 
@@ -96,7 +104,7 @@
   [showFooter]="false"
 >
   <ng-container appModalHeader>
-    <h2 class="ribbon-toolbar__dialog-title">Quick Add</h2>
+    <h2 class="ribbon-toolbar__dialog-title">Add Layout</h2>
   </ng-container>
 
   <ng-container appModalBody>
