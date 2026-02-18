@@ -140,10 +140,71 @@ function withResolvedThemeMetadata(document: DocumentModel): DocumentModel {
     variants,
   };
 
+  const themeCss = buildThemeLayerCss(resolvedTheme.id, resolvedTheme.variants.map((variant) => variant.id));
+  if (themeCss) {
+    metadata['renderManifest'] = {
+      version: '1.0.0',
+      generatedAt: new Date().toISOString(),
+      themeCss,
+    };
+  } else {
+    delete metadata['renderManifest'];
+  }
+
   return {
     ...document,
     metadata,
   };
+}
+
+function buildThemeLayerCss(themeId: string, variantIds: string[]): string {
+  const normalizedTheme = sanitizeCssToken(themeId);
+  if (normalizedTheme !== 'curvy-magenta') {
+    return '';
+  }
+
+  const coverVariant = sanitizeCssToken(variantIds[0] ?? '');
+  const contentVariant = sanitizeCssToken(variantIds[1] ?? '');
+  const blankVariant = sanitizeCssToken(variantIds[2] ?? '');
+
+  if (!coverVariant || !contentVariant) {
+    return '';
+  }
+
+  return [
+    `.page__theme-layer.theme-${normalizedTheme}::after {`,
+    `  right: 9.5%;`,
+    `  top: 0;`,
+    `  width: 4.8%;`,
+    `  height: 17.5%;`,
+    `  background: var(--slide-theme-tab, var(--slide-accent));`,
+    `  border-radius: 0 0 2px 2px;`,
+    `  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);`,
+    `}`,
+    `.page__theme-layer.theme-${normalizedTheme}.variant-${coverVariant}::before {`,
+    `  left: 4%;`,
+    `  right: 4%;`,
+    `  top: 0;`,
+    `  height: 42%;`,
+    `  border-radius: 0 0 46% 46% / 0 0 30% 30%;`,
+    `  background: var(--slide-theme-overlay-soft);`,
+    `}`,
+    `.page__theme-layer.theme-${normalizedTheme}.variant-${contentVariant}::before {`,
+    `  left: 0;`,
+    `  right: 0;`,
+    `  top: 0;`,
+    `  height: 34%;`,
+    `  border-radius: 0 0 55% 55% / 0 0 26% 26%;`,
+    `  background: var(--slide-theme-overlay-strong);`,
+    `}`,
+    blankVariant
+      ? `.page__theme-layer.theme-${normalizedTheme}.variant-${blankVariant}::before { display: none; }`
+      : '',
+  ].filter(Boolean).join('\n');
+}
+
+function sanitizeCssToken(input: string): string {
+  return input.trim().toLowerCase().replace(/_/g, '-').replace(/[^a-z0-9-]/g, '-');
 }
 
 function applyExportedChartImages(target: DocumentModel, source: DocumentModel): DocumentModel {

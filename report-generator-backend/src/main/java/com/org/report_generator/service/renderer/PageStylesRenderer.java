@@ -6,6 +6,7 @@ import com.org.report_generator.model.document.PageSize;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,49 +50,6 @@ public class PageStylesRenderer {
             content: '';
             position: absolute;
             pointer-events: none;
-        }
-
-        /* Curvy Magenta: top-right magenta tab */
-        .page__theme-layer.theme-curvy-magenta::after {
-            right: 9.5%;
-            top: 0;
-            width: 4.8%;
-            height: 17.5%;
-            background: var(--slide-theme-tab, var(--slide-accent, #c71585));
-            border-radius: 0 0 2px 2px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-        }
-
-        /* Curvy cover slides */
-        .page__theme-layer.theme-curvy-magenta.variant-g1::before,
-        .page__theme-layer.theme-curvy-magenta.layout-hero-title::before,
-        .page__theme-layer.theme-curvy-magenta.layout-section-intro::before {
-            left: 4%;
-            right: 4%;
-            top: 0;
-            height: 42%;
-            border-radius: 0 0 46% 46% / 0 0 30% 30%;
-            background: var(--slide-theme-overlay-soft, rgba(255, 255, 255, 0.14));
-        }
-
-        /* Curvy content slides */
-        .page__theme-layer.theme-curvy-magenta.variant-g2::before,
-        .page__theme-layer.theme-curvy-magenta.layout-title-body::before,
-        .page__theme-layer.theme-curvy-magenta.layout-two-column::before,
-        .page__theme-layer.theme-curvy-magenta.layout-compare-columns::before,
-        .page__theme-layer.theme-curvy-magenta.layout-title-focus::before {
-            left: 0;
-            right: 0;
-            top: 0;
-            height: 34%;
-            border-radius: 0 0 55% 55% / 0 0 26% 26%;
-            background: var(--slide-theme-overlay-strong, rgba(255, 255, 255, 0.18));
-        }
-
-        /* Curvy blank slides */
-        .page__theme-layer.theme-curvy-magenta.variant-g3::before,
-        .page__theme-layer.theme-curvy-magenta.layout-blank::before {
-            display: none;
         }
 
         @media print {
@@ -241,6 +199,7 @@ public class PageStylesRenderer {
      */
     public static String getCss(List<Page> pages, DocumentModel document) {
         StringBuilder css = new StringBuilder(PAGE_CSS);
+        css.append(extractRenderManifestThemeCss(document));
         
         PageSize pageSize = Optional.ofNullable(document.getPageSize()).orElse(new PageSize());
         double baseWidth = Optional.ofNullable(pageSize.getWidthMm()).orElse(DEFAULT_WIDTH_MM);
@@ -265,6 +224,29 @@ public class PageStylesRenderer {
         }
         
         return css.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String extractRenderManifestThemeCss(DocumentModel document) {
+        if (document == null || document.getMetadata() == null) return "";
+
+        Object manifestRaw = document.getMetadata().get("renderManifest");
+        if (!(manifestRaw instanceof Map<?, ?> manifest)) return "";
+
+        Object themeCssRaw = manifest.get("themeCss");
+        if (!(themeCssRaw instanceof String themeCss) || themeCss.isBlank()) return "";
+
+        String cleaned = themeCss
+                .replace("</style>", "")
+                .replace("<style>", "")
+                .replace("<script", "")
+                .trim();
+
+        if (cleaned.length() > 50_000) {
+            throw new IllegalStateException("renderManifest.themeCss exceeds maximum allowed length");
+        }
+
+        return "\n" + cleaned + "\n";
     }
 }
 

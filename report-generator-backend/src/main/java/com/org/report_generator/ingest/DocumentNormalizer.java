@@ -24,7 +24,6 @@ public class DocumentNormalizer {
     private static final String DEFAULT_VERSION = "1.0.0";
     private static final String DEFAULT_SCHEMA_VERSION = "2.0";
     private static final String DEFAULT_TITLE = "Untitled Document";
-    private static final String DEFAULT_LAYOUT_TYPE = "blank";
 
     public DocumentModel normalize(DocumentModel input) {
         DocumentModel out = new DocumentModel();
@@ -61,8 +60,6 @@ public class DocumentNormalizer {
             next.putAll(metadata);
         }
 
-        next.putIfAbsent("defaultSlideLayoutType", DEFAULT_LAYOUT_TYPE);
-
         return next;
     }
 
@@ -71,8 +68,6 @@ public class DocumentNormalizer {
         List<Section> normalizedSections = new ArrayList<>(source.size());
 
         int globalPageIndex = 0;
-        String defaultLayoutType = String.valueOf(metadata.getOrDefault("defaultSlideLayoutType", DEFAULT_LAYOUT_TYPE));
-
         for (Section section : source) {
             if (section == null) continue;
 
@@ -95,7 +90,7 @@ public class DocumentNormalizer {
                     if (page == null) continue;
 
                     globalPageIndex += 1;
-                    nextSubsection.getPages().add(normalizePage(page, globalPageIndex, defaultLayoutType));
+                    nextSubsection.getPages().add(normalizePage(page, globalPageIndex));
                 }
 
                 nextSection.getSubsections().add(nextSubsection);
@@ -107,7 +102,7 @@ public class DocumentNormalizer {
         return normalizedSections;
     }
 
-    private Page normalizePage(Page page, int globalPageIndex, String defaultLayoutType) {
+    private Page normalizePage(Page page, int globalPageIndex) {
         Page next = new Page();
         next.setId(isBlank(page.getId()) ? UUID.randomUUID().toString() : page.getId());
         next.setNumber(page.getNumber() == null || page.getNumber() <= 0 ? globalPageIndex : page.getNumber());
@@ -116,9 +111,6 @@ public class DocumentNormalizer {
         next.setBackground(page.getBackground());
 
         String normalizedLayout = normalizeLayout(page.getSlideLayoutType());
-        if (isBlank(normalizedLayout)) {
-            normalizedLayout = normalizeLayout(defaultLayoutType);
-        }
         next.setSlideLayoutType(normalizedLayout);
 
         String variantId = page.getSlideVariantId();
@@ -138,17 +130,7 @@ public class DocumentNormalizer {
 
     private String normalizeLayout(String layout) {
         if (isBlank(layout)) return null;
-        String v = layout.trim().toLowerCase(Locale.ROOT);
-        return switch (v) {
-            case "title_slide", "hero_title" -> "hero_title";
-            case "title_and_content", "title_body" -> "title_body";
-            case "section_header", "section_intro" -> "section_intro";
-            case "two_content", "two_column" -> "two_column";
-            case "comparison", "compare_columns" -> "compare_columns";
-            case "title_only", "title_focus" -> "title_focus";
-            case "blank" -> "blank";
-            default -> null;
-        };
+        return layout.trim().toLowerCase(Locale.ROOT);
     }
 
     private boolean isBlank(String value) {

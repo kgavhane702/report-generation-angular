@@ -6,7 +6,6 @@ import {
   OnInit,
   inject,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom, filter, take } from 'rxjs';
 
 import { DocumentModel } from '../../../models/document.model';
@@ -29,7 +28,6 @@ type ExportPageRef = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExportShellComponent implements OnInit, OnDestroy {
-  private readonly route = inject(ActivatedRoute);
   private readonly documentService = inject(DocumentService);
   protected readonly editorState = inject(EditorStateService);
   private readonly chartRenderRegistry = inject(ChartRenderRegistry);
@@ -44,7 +42,7 @@ export class ExportShellComponent implements OnInit, OnDestroy {
     try {
       this.prepareForExport();
 
-      const doc = this.readDocumentFromWindow() ?? (await this.fetchDocumentFromToken());
+      const doc = this.readDocumentFromWindow();
       if (!doc) {
         // Signal error to Playwright instead of hanging forever.
         (window as any).__RG_EXPORT_READY__ = false;
@@ -57,7 +55,7 @@ export class ExportShellComponent implements OnInit, OnDestroy {
       this.documentService.setDocumentLocked(true);
 
       this.pages = this.flattenPages(doc);
-      this.pageCss = this.buildPagedMediaCss(doc, this.pages);
+      this.pageCss = this.buildPagedMediaCss(doc, this.pages) + this.extractManifestThemeCss(doc);
 
       await this.waitForExportReady();
 
@@ -96,15 +94,6 @@ export class ExportShellComponent implements OnInit, OnDestroy {
     const doc = w.__RG_EXPORT_DOC__;
     if (!doc) return null;
     return doc as DocumentModel;
-  }
-
-  private async fetchDocumentFromToken(): Promise<DocumentModel | null> {
-    const token = this.route.snapshot.queryParamMap.get('token');
-    if (!token) return null;
-
-    // Optional future extension: fetch from backend if we ever move to token-based sessions.
-    // For now we rely on Playwright init-script injection.
-    throw new Error('Export token flow not configured');
   }
 
   private flattenPages(doc: DocumentModel): ExportPageRef[] {
@@ -152,6 +141,21 @@ export class ExportShellComponent implements OnInit, OnDestroy {
     }
 
     return css;
+  }
+
+  private extractManifestThemeCss(doc: DocumentModel): string {
+    const metadata = (doc.metadata ?? {}) as Record<string, unknown>;
+    const renderManifest = metadata['renderManifest'];
+    if (!renderManifest || typeof renderManifest !== 'object') {
+      return '';
+    }
+
+    const themeCss = (renderManifest as Record<string, unknown>)['themeCss'];
+    if (typeof themeCss !== 'string' || !themeCss.trim()) {
+      return '';
+    }
+
+    return `\n${themeCss.trim()}\n`;
   }
 
   private async waitForExportReady(): Promise<void> {

@@ -630,23 +630,19 @@ export function coerceSlideLayoutType(input: unknown): SlideLayoutType {
   if (typeof input !== 'string') return DEFAULT_SLIDE_LAYOUT_TYPE;
 
   const normalized = input.trim().toLowerCase();
-  const migrated: Record<string, SlideLayoutType> = {
-    title_slide: 'hero_title',
-    title_and_content: 'title_body',
-    section_header: 'section_intro',
-    two_content: 'two_column',
-    comparison: 'compare_columns',
-    title_only: 'title_focus',
-    hero_title: 'hero_title',
-    title_body: 'title_body',
-    section_intro: 'section_intro',
-    two_column: 'two_column',
-    compare_columns: 'compare_columns',
-    title_focus: 'title_focus',
-    blank: 'blank',
-  };
+  const supported = [
+    'hero_title',
+    'title_body',
+    'section_intro',
+    'two_column',
+    'compare_columns',
+    'title_focus',
+    'blank',
+  ] as const;
 
-  return migrated[normalized] ?? DEFAULT_SLIDE_LAYOUT_TYPE;
+  return (supported as readonly string[]).includes(normalized)
+    ? (normalized as SlideLayoutType)
+    : DEFAULT_SLIDE_LAYOUT_TYPE;
 }
 
 export function getSlideThemeById(themeId: SlideThemeId, swatchId?: string): SlideThemeDefinition {

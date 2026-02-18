@@ -12,8 +12,6 @@ import java.util.Map;
 @Service
 public class SlideThemeStyleResolver {
 
-    private static final String DEFAULT_LAYOUT_TYPE = "blank";
-
     public String buildSurfaceStyle(DocumentModel document, Page page) {
         ThemeResolution resolution = resolveTheme(document, page);
         VariantDef variant = resolution.variant();
@@ -90,37 +88,25 @@ public class SlideThemeStyleResolver {
         ThemeResolution resolution = resolveTheme(document, page);
         String themeClass = "theme-" + sanitizeClassToken(resolution.theme().id());
         String variantClass = "variant-" + sanitizeClassToken(resolution.variant().id());
-        String layoutClass = "layout-" + sanitizeClassToken(resolution.layout());
-        return themeClass + " " + variantClass + " " + layoutClass;
+        return themeClass + " " + variantClass;
     }
 
     private ThemeResolution resolveTheme(DocumentModel document, Page page) {
-        String layout = DEFAULT_LAYOUT_TYPE;
-
-        if (document != null && document.getMetadata() != null) {
-            Object defaultLayoutRaw = document.getMetadata().get("defaultSlideLayoutType");
-            if (defaultLayoutRaw instanceof String l && !l.isBlank()) {
-                layout = normalize(l);
-            }
-        }
-
-        if (page != null && page.getSlideLayoutType() != null && !page.getSlideLayoutType().isBlank()) {
-            layout = normalize(page.getSlideLayoutType());
-        }
-
         ThemeDef theme = resolveThemeFromMetadata(document);
 
-        VariantDef variant;
+        VariantDef variant = null;
         if (page != null && page.getSlideVariantId() != null && !page.getSlideVariantId().isBlank()) {
             variant = theme.variantsById().get(normalize(page.getSlideVariantId()));
             if (variant == null) {
                 throw new IllegalStateException("slideThemeResolved does not contain page variant: " + page.getSlideVariantId());
             }
-        } else {
-            variant = theme.defaultVariant();
         }
 
-        return new ThemeResolution(theme, variant, layout);
+        if (variant == null) {
+            variant = theme.firstVariant();
+        }
+
+        return new ThemeResolution(theme, variant);
     }
 
     @SuppressWarnings("unchecked")
@@ -135,8 +121,6 @@ public class SlideThemeStyleResolver {
         }
 
         String themeId = requiredString(resolvedThemeMap, "themeId");
-        String defaultVariantId = requiredString(resolvedThemeMap, "defaultVariantId");
-
         Object variantsRaw = resolvedThemeMap.get("variants");
         if (!(variantsRaw instanceof Map<?, ?> variantsMap)) {
             throw new IllegalStateException("Document metadata.slideThemeResolved.variants must be an object");
@@ -155,7 +139,7 @@ public class SlideThemeStyleResolver {
             throw new IllegalStateException("Document metadata.slideThemeResolved.variants cannot be empty");
         }
 
-        return new ThemeDef(themeId, variantsById, defaultVariantId);
+        return new ThemeDef(themeId, variantsById);
     }
 
     private VariantDef variantFromMap(Map<String, Object> raw) {
@@ -258,18 +242,15 @@ public class SlideThemeStyleResolver {
 
     private record ThemeDef(
             String id,
-            Map<String, VariantDef> variantsById,
-            String defaultVariantId
+            Map<String, VariantDef> variantsById
     ) {
-        VariantDef defaultVariant() {
-            VariantDef variant = variantsById.get(normalize(defaultVariantId));
-            if (variant == null) {
-                throw new IllegalStateException("slideThemeResolved.defaultVariantId is not present in variants: " + defaultVariantId);
-            }
-            return variant;
+        VariantDef firstVariant() {
+            return variantsById.values().stream().findFirst().orElseThrow(
+                () -> new IllegalStateException("slideThemeResolved.variants cannot be empty")
+            );
         }
     }
 
-    private record ThemeResolution(ThemeDef theme, VariantDef variant, String layout) {
+    private record ThemeResolution(ThemeDef theme, VariantDef variant) {
     }
 }

@@ -1,11 +1,15 @@
 :host {
+  --export-bg: #ffffff;
+  --export-hidden: none;
+  --export-overflow: hidden;
+
   display: block;
-  background: #ffffff;
+  background: var(--export-bg);
 }
 
 .export-shell {
   display: block;
-  background: #ffffff;
+  background: var(--export-bg);
 }
 
 // Ensure each page becomes a PDF page.
@@ -25,7 +29,7 @@
 
 // Hide editor-only visual guides/safe zones in export.
 :host ::ng-deep .page__safe-zone {
-  display: none !important;
+  display: var(--export-hidden) !important;
 }
 
 // Hide any widget interaction affordances (drag handles, resize handles, etc.).
@@ -33,7 +37,7 @@
 :host ::ng-deep .widget-container__resize,
 :host ::ng-deep .widget-container__rotate,
 :host ::ng-deep .widget-toolbar {
-  display: none !important;
+  display: var(--export-hidden) !important;
 }
 
 // In export mode: make footer/header background transparent so widgets behind them are visible.
@@ -46,10 +50,10 @@
 // Clip page surface so content extending beyond page boundary doesn't create extra pages.
 // But widgets WITHIN the page bounds (including footer area) remain visible.
 :host ::ng-deep .page__surface {
-  overflow: hidden !important;
+  overflow: var(--export-overflow) !important;
 }
 
 // Avoid the editor canvas background gradient.
 body.rg-export-mode {
-  background: #ffffff !important;
+  background: var(--export-bg) !important;
 }

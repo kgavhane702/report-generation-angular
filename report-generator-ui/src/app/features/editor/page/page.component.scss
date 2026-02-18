@@ -4,6 +4,10 @@
   margin: 0 auto;
 }
 
+$curvy-tab-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+$curvy-cover-radius: 0 0 46% 46% / 0 0 30% 30%;
+$curvy-content-radius: 0 0 55% 55% / 0 0 26% 26%;
+
 .page__surface {
   position: relative;
   background: #ffffff;
@@ -43,43 +47,36 @@
     height: 17.5%;
     background: var(--slide-theme-tab, #c71585);
     border-radius: 0 0 2px 2px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    box-shadow: $curvy-tab-shadow;
   }
 }
 
 /* Cover slides: rich curved highlight over colored background */
-.page__theme-layer.theme-curvy-magenta.variant-g1,
-.page__theme-layer.theme-curvy-magenta.layout-hero-title,
-.page__theme-layer.theme-curvy-magenta.layout-section-intro {
+.page__theme-layer.theme-curvy-magenta.variant-g1 {
   &::before {
     left: 4%;
     right: 4%;
     top: 0;
     height: 42%;
-    border-radius: 0 0 46% 46% / 0 0 30% 30%;
+    border-radius: $curvy-cover-radius;
     background: var(--slide-theme-overlay-soft, rgba(255, 255, 255, 0.14));
   }
 }
 
 /* Content slides: subtle curved top band + soft white cut */
-.page__theme-layer.theme-curvy-magenta.variant-g2,
-.page__theme-layer.theme-curvy-magenta.layout-title-body,
-.page__theme-layer.theme-curvy-magenta.layout-two-column,
-.page__theme-layer.theme-curvy-magenta.layout-compare-columns,
-.page__theme-layer.theme-curvy-magenta.layout-title-focus {
+.page__theme-layer.theme-curvy-magenta.variant-g2 {
   &::before {
     left: 0;
     right: 0;
     top: 0;
     height: 34%;
-    border-radius: 0 0 55% 55% / 0 0 26% 26%;
+    border-radius: $curvy-content-radius;
     background: var(--slide-theme-overlay-strong, rgba(255, 255, 255, 0.18));
   }
 }
 
 /* Blank: keep clean page and only magenta tab */
-.page__theme-layer.theme-curvy-magenta.variant-g3,
-.page__theme-layer.theme-curvy-magenta.layout-blank {
+.page__theme-layer.theme-curvy-magenta.variant-g3 {
   &::before {
     display: none;
   }

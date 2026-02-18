@@ -8,26 +8,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Service
 public class DocumentValidator {
-
-    private static final Set<String> ALLOWED_SLIDE_LAYOUTS = Set.of(
-            "title_slide",
-            "title_and_content",
-            "section_header",
-            "two_content",
-            "comparison",
-            "title_only",
-            "hero_title",
-            "title_body",
-            "section_intro",
-            "two_column",
-            "compare_columns",
-            "title_focus",
-            "blank"
-    );
 
     private static final Set<String> ALLOWED_PAGE_ORIENTATIONS = Set.of("portrait", "landscape");
 
@@ -40,8 +25,59 @@ public class DocumentValidator {
             throw new DocumentValidationException("Document sections must not be null");
         }
 
+        validateThemeMetadata(document);
+        validateRenderManifest(document);
         validatePageSize(document);
         validateHierarchy(document.getSections());
+    }
+
+    private void validateThemeMetadata(DocumentModel document) {
+        Map<String, Object> metadata = document.getMetadata();
+        if (metadata == null) return;
+
+        Object themeResolvedRaw = metadata.get("slideThemeResolved");
+        if (themeResolvedRaw == null) return;
+        if (!(themeResolvedRaw instanceof Map<?, ?> themeResolved)) {
+            throw new DocumentValidationException("metadata.slideThemeResolved must be an object when provided");
+        }
+
+        Object themeIdRaw = themeResolved.get("themeId");
+        if (!(themeIdRaw instanceof String themeId) || themeId.isBlank()) {
+            throw new DocumentValidationException("metadata.slideThemeResolved.themeId is required");
+        }
+
+        Object variantsRaw = themeResolved.get("variants");
+        if (!(variantsRaw instanceof Map<?, ?> variants) || variants.isEmpty()) {
+            throw new DocumentValidationException("metadata.slideThemeResolved.variants must be a non-empty object");
+        }
+    }
+
+    private void validateRenderManifest(DocumentModel document) {
+        Map<String, Object> metadata = document.getMetadata();
+        if (metadata == null) return;
+
+        Object renderManifestRaw = metadata.get("renderManifest");
+        if (renderManifestRaw == null) return;
+        if (!(renderManifestRaw instanceof Map<?, ?> renderManifest)) {
+            throw new DocumentValidationException("metadata.renderManifest must be an object when provided");
+        }
+
+        Object versionRaw = renderManifest.get("version");
+        if (!(versionRaw instanceof String version) || version.isBlank()) {
+            throw new DocumentValidationException("metadata.renderManifest.version is required");
+        }
+
+        Object themeCssRaw = renderManifest.get("themeCss");
+        if (themeCssRaw == null) return;
+        if (!(themeCssRaw instanceof String themeCss)) {
+            throw new DocumentValidationException("metadata.renderManifest.themeCss must be a string");
+        }
+        if (themeCss.length() > 50_000) {
+            throw new DocumentValidationException("metadata.renderManifest.themeCss exceeds maximum allowed length");
+        }
+        if (themeCss.toLowerCase(Locale.ROOT).contains("<script")) {
+            throw new DocumentValidationException("metadata.renderManifest.themeCss cannot contain script content");
+        }
     }
 
     private void validatePageSize(DocumentModel document) {
@@ -90,7 +126,6 @@ public class DocumentValidator {
                     }
 
                     validatePageOrientation(page);
-                    validateSlideLayout(page);
                 }
             }
         }
@@ -104,17 +139,6 @@ public class DocumentValidator {
         String normalized = page.getOrientation().trim().toLowerCase(Locale.ROOT);
         if (!ALLOWED_PAGE_ORIENTATIONS.contains(normalized)) {
             throw new DocumentValidationException("Invalid page orientation: " + page.getOrientation());
-        }
-    }
-
-    private void validateSlideLayout(Page page) {
-        if (page.getSlideLayoutType() == null || page.getSlideLayoutType().isBlank()) {
-            return;
-        }
-
-        String normalized = page.getSlideLayoutType().trim().toLowerCase(Locale.ROOT);
-        if (!ALLOWED_SLIDE_LAYOUTS.contains(normalized)) {
-            throw new DocumentValidationException("Invalid slideLayoutType: " + page.getSlideLayoutType());
         }
     }
 

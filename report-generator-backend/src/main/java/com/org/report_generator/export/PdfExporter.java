@@ -1,8 +1,8 @@
 package com.org.report_generator.export;
 
+import com.org.report_generator.config.PdfExportProperties;
 import com.org.report_generator.model.document.DocumentModel;
 import com.org.report_generator.render.html.HtmlDocumentRenderer;
-import com.org.report_generator.config.PdfExportProperties;
 import com.org.report_generator.service.PdfGeneratorService;
 import com.org.report_generator.service.UiPdfGeneratorService;
 import org.slf4j.Logger;
