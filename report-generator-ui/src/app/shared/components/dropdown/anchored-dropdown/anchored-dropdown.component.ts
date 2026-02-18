@@ -231,6 +231,9 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
     const panelRect = panelEl.getBoundingClientRect();
     const panelWidth = panelRect.width || this.minWidthPx;
     const panelHeight = panelRect.height;
+    const viewportWidth = window.innerWidth;
+    const maxFitWidth = Math.max(120, viewportWidth - (padding * 2));
+    const effectivePanelWidth = Math.min(panelWidth, maxFitWidth);
 
     // Always position BELOW the anchor
     let top = anchorRect.bottom + this.offsetPx;
@@ -240,29 +243,26 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
 
     if (this.align === 'end') {
       // Align panel's right edge to anchor's right edge
-      left = anchorRect.right - panelWidth;
+      left = anchorRect.right - effectivePanelWidth;
     } else if (this.align === 'auto') {
       // Check if opening at anchor.left would overflow right edge
-      const wouldOverflowRight = (anchorRect.left + panelWidth) > (window.innerWidth - padding);
+      const wouldOverflowRight = (anchorRect.left + effectivePanelWidth) > (window.innerWidth - padding);
       
       if (wouldOverflowRight) {
         // Try aligning panel's right edge to anchor's right edge
-        left = anchorRect.right - panelWidth;
+        left = anchorRect.right - effectivePanelWidth;
         
         // If that would overflow left, just clamp to right edge of viewport
         if (left < padding) {
-          left = window.innerWidth - padding - panelWidth;
+          left = window.innerWidth - padding - effectivePanelWidth;
         }
       }
     }
 
-    // Final clamp: ensure panel stays within viewport horizontally
-    if (left < padding) {
-      left = padding;
-    }
-    if (left + panelWidth > window.innerWidth - padding) {
-      left = window.innerWidth - padding - panelWidth;
-    }
+    // Final hard clamp: ensure panel always stays within viewport horizontally.
+    const minLeft = padding;
+    const maxLeft = Math.max(padding, viewportWidth - padding - effectivePanelWidth);
+    left = Math.min(Math.max(left, minLeft), maxLeft);
 
     // Clamp top to viewport (if dropdown would go below viewport, push it up)
     if (top + panelHeight > window.innerHeight - padding) {
@@ -273,7 +273,8 @@ export class AnchoredDropdownComponent implements OnInit, OnChanges, OnDestroy, 
       position: 'absolute',
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
-      minWidth: `${this.minWidthPx}px`,
+      width: `${Math.round(effectivePanelWidth)}px`,
+      minWidth: `${Math.round(Math.min(this.minWidthPx, effectivePanelWidth))}px`,
       maxWidth: `${this.maxWidthPx}px`,
       pointerEvents: 'auto',
     };

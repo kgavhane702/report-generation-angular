@@ -48,12 +48,13 @@ export class ConnectorToolbarComponent {
   get borderValue(): BorderValue {
     const p = this.props;
     const stroke = p?.stroke;
+    const color = stroke?.color || p?.fillColor || '#94a3b8';
+    const style = stroke?.style;
 
     return {
-      // For connectors, the rendered color comes from `fillColor`.
-      color: p?.fillColor || '#94a3b8',
-      width: stroke?.width ?? 1,
-      style: (stroke?.style as any) || 'solid',
+      color,
+      width: stroke?.width ?? 2,
+      style: style === 'dashed' || style === 'dotted' || style === 'none' ? style : 'solid',
       borderRadius: 0,
     };
   }
@@ -65,14 +66,21 @@ export class ConnectorToolbarComponent {
     const { widget, pageId } = ctx;
     const currentProps = (widget.props as ConnectorWidgetProps) ?? ({} as ConnectorWidgetProps);
 
+    const nextColor = value.color || '#94a3b8';
+    const nextStyle = value.style === 'dashed' || value.style === 'dotted' || value.style === 'none'
+      ? value.style
+      : 'solid';
+
     this.documentService.updateWidget(pageId, widget.id, {
       props: {
         ...currentProps,
-        fillColor: value.color || '#94a3b8',
+        // Keep legacy fillColor in sync for backward compatibility with old data/export paths.
+        fillColor: nextColor,
         stroke: {
-          ...(currentProps.stroke ?? { color: '#94a3b8', width: 1, style: 'solid' }),
-          width: value.width ?? 1,
-          style: (value.style as any) || 'solid',
+          ...(currentProps.stroke ?? { color: '#94a3b8', width: 2, style: 'solid' }),
+          color: nextColor,
+          width: value.width ?? 2,
+          style: nextStyle,
         },
       } as ConnectorWidgetProps,
     });

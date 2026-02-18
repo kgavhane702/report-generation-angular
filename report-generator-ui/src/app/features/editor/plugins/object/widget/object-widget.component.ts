@@ -131,12 +131,19 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     return this.objectProps?.stroke?.style || 'solid';
   }
 
+  get hasVisibleStroke(): boolean {
+    const stroke = this.objectProps?.stroke;
+    if (!stroke) return false;
+    const style = stroke.style || 'solid';
+    return style !== 'none' && (stroke.width || 0) > 0;
+  }
+
   get borderStyle(): string {
     const stroke = this.objectProps?.stroke;
-    if (!stroke || !stroke.width || stroke.width === 0) {
+    const style = stroke?.style || 'solid';
+    if (!stroke || style === 'none' || !stroke.width || stroke.width === 0) {
       return 'none';
     }
-    const style = stroke.style || 'solid';
     return `${stroke.width}px ${style} ${stroke.color || '#000000'}`;
   }
 
@@ -201,6 +208,9 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   /** Get the effective stroke width for SVG (lines always have stroke) */
   get effectiveStrokeWidth(): number {
+    if (this.strokeStyle === 'none') {
+      return 0;
+    }
     if (this.isLineShape) {
       // Lines need a minimum stroke width to be visible
       return Math.max(this.strokeWidth || 2, 2);
@@ -228,6 +238,7 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
 
   /** Get stroke dasharray for SVG */
   get svgStrokeDasharray(): string {
+    if (this.strokeStyle === 'none') return 'none';
     if (this.strokeStyle === 'dashed') return '8,4';
     if (this.strokeStyle === 'dotted') return '2,2';
     return 'none';
@@ -676,7 +687,7 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     this.propsChange.emit({ opacity });
   }
 
-  updateStroke(stroke: { color: string; width: number; style?: 'solid' | 'dashed' | 'dotted' }): void {
+  updateStroke(stroke: { color: string; width: number; style?: 'solid' | 'dashed' | 'dotted' | 'none' }): void {
     this.propsChange.emit({ stroke });
   }
 

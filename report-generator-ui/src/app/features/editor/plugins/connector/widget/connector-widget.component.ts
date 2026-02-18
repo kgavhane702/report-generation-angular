@@ -278,8 +278,11 @@ export class ConnectorWidgetComponent {
   }
 
   get strokeWidth(): number {
+    if (this.strokeStyle === 'none') {
+      return 0;
+    }
     const w = this.connectorProps?.stroke?.width ?? 2;
-    return Math.max(w, 2);
+    return Math.max(w, 0);
   }
 
   get hitStrokeWidth(): number {
@@ -298,7 +301,7 @@ export class ConnectorWidgetComponent {
   }
 
   get strokeColor(): string {
-    return this.connectorProps?.stroke?.color || this.connectorProps?.fillColor || '#94a3b8';
+    return this.connectorProps?.fillColor || this.connectorProps?.stroke?.color || '#94a3b8';
   }
 
   get strokeLinejoin(): string {

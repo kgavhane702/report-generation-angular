@@ -165,7 +165,7 @@ export interface ObjectWidgetProps {
 export interface ObjectStroke {
   color: string;
   width: number;
-  style?: 'solid' | 'dashed' | 'dotted';
+  style?: 'solid' | 'dashed' | 'dotted' | 'none';
 }
 
 /**

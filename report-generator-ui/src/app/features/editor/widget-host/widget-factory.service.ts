@@ -191,7 +191,7 @@ export class WidgetFactoryService {
         // Use same subtle color as object widget borders for consistency.
         fillColor: props?.fillColor || '#94a3b8',
         opacity: props?.opacity ?? 100,
-        stroke: props?.stroke || { color: '#94a3b8', width: 1, style: 'solid' },
+        stroke: props?.stroke || { color: '#94a3b8', width: 2, style: 'solid' },
         arrowEnd,
       },
     };

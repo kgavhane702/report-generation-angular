@@ -131,10 +131,11 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
 
   get borderValue(): BorderValue {
     const stroke = this.props?.stroke;
+    const style = stroke?.style;
     return {
       color: stroke?.color || '#94a3b8',
       width: stroke?.width ?? 1,
-      style: stroke?.style || 'solid',
+      style: style === 'dashed' || style === 'dotted' || style === 'none' ? style : 'solid',
       borderRadius: this.props?.borderRadius || 0,
     };
   }
@@ -168,11 +169,15 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
   }
 
   onBorderValueChange(value: BorderValue): void {
+    const style = value.style === 'none' || value.style === 'dashed' || value.style === 'dotted'
+      ? value.style
+      : 'solid';
+
     const updates: Partial<ObjectWidgetProps> = {
       stroke: {
         color: value.color || '#94a3b8',
         width: value.width ?? 1,
-        style: (value.style as 'solid' | 'dashed' | 'dotted') || 'solid',
+        style,
       },
     };
     

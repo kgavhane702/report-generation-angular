@@ -23,7 +23,7 @@
     <path
       [attr.d]="svgPath"
       [attr.fill]="svgFill"
-      [attr.stroke]="isLineShape ? effectiveStrokeColor : (strokeWidth > 0 ? strokeColor : 'none')"
+      [attr.stroke]="isLineShape ? (effectiveStrokeWidth > 0 ? effectiveStrokeColor : 'none') : (hasVisibleStroke ? strokeColor : 'none')"
       [attr.stroke-width]="isLineShape ? effectiveStrokeWidth : strokeWidth"
       [attr.stroke-dasharray]="svgStrokeDasharray"
       [attr.stroke-linecap]="isLineShape ? 'round' : 'butt'"
