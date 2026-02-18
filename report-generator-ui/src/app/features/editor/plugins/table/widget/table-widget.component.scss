@@ -41,6 +41,7 @@
 
   &__cell {
     border: 1px solid var(--slide-table-border, rgba(0, 0, 0, 0.16));
+    box-shadow: inset 0 0 0 0.45px var(--slide-table-border, rgba(0, 0, 0, 0.16));
     padding: 0;
     margin: 0;
     background: transparent;
@@ -230,6 +231,7 @@
 
   &__sub-cell {
     border: 1px solid var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
+    box-shadow: inset 0 0 0 0.45px var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
     box-sizing: border-box;
     overflow: hidden;
     background: transparent;

@@ -48,7 +48,7 @@ export class WidgetFactoryService {
       id: uuid(),
       type: 'chart',
       position: { x: 120, y: 260 },
-      size: { width: 360, height: 240 },
+      size: { width: 440, height: 280 },
       zIndex: 1,
       props: {
         provider: 'echarts',

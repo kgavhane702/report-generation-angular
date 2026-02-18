@@ -16,13 +16,6 @@
   transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 
   // CSS shapes (rectangle, circle, ellipse)
-  &--css {
-    // Base styling for CSS shapes
-  }
-
-  &--rectangle {
-    // Default rectangle styling
-  }
 
   &--circle {
     border-radius: 50%;
@@ -94,15 +87,3 @@
   }
 }
 
-// Hover effect when widget is selected
-:host-context(.widget-container--selected) {
-  .object-widget__shape {
-    &--css {
-      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
-    }
-    
-    &--svg path {
-      filter: drop-shadow(0 0 1px rgba(59, 130, 246, 0.3));
-    }
-  }
-}

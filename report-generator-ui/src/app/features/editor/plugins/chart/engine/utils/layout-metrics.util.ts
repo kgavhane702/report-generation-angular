@@ -15,10 +15,10 @@ export interface ChartLayoutMetrics {
 export function computeFontScale(containerWidthPx: number, containerHeightPx: number, typography?: ChartTypographySpec): number {
   const t: ChartTypographySpec = typography ?? {
     responsive: true,
-    scaleFactor: 1.1,
+    scaleFactor: 1.25,
   };
 
-  const factor = clamp(Number.isFinite(t.scaleFactor) ? t.scaleFactor : 1.1, 0.2, 3);
+  const factor = clamp(Number.isFinite(t.scaleFactor) ? t.scaleFactor : 1.25, 0.2, 3);
 
   const w = Math.max(1, containerWidthPx || 1);
   const h = Math.max(1, containerHeightPx || 1);
@@ -28,7 +28,7 @@ export function computeFontScale(containerWidthPx: number, containerHeightPx: nu
   const baseH = 400;
 
   const responsiveScale = t.responsive === false ? 1 : clamp(Math.min(w / baseW, h / baseH), 0.6, 1.0);
-  return clamp(responsiveScale * factor, 0.35, 1.35);
+  return clamp(responsiveScale * factor, 0.5, 1.5);
 }
 
 export function computeFontsPx(scale: number, base?: Partial<ChartFontSizesPx>): ChartFontSizesPx {
@@ -41,10 +41,10 @@ export function computeFontsPx(scale: number, base?: Partial<ChartFontSizesPx>):
 
   const s = Number.isFinite(scale) ? scale : 1;
   return {
-    title: roundPx(b.title * s),
-    axis: roundPx(b.axis * s),
-    legend: roundPx(b.legend * s),
-    valueLabel: roundPx(b.valueLabel * s),
+    title: Math.max(12, roundPx(b.title * s)),
+    axis: Math.max(10, roundPx(b.axis * s)),
+    legend: Math.max(10, roundPx(b.legend * s)),
+    valueLabel: Math.max(10, roundPx(b.valueLabel * s)),
   };
 }
 

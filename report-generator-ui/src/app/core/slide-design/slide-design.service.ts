@@ -327,9 +327,15 @@ export class SlideDesignService {
         ?? resolveVariantForLayout(theme, layout);
     })();
 
-    const tableBorder = withAlpha(variant.accentColor || variant.surfaceForeground, '80', 'rgba(15, 23, 42, 0.28)');
-    const tableSubBorder = withAlpha(variant.accentColor || variant.surfaceForeground, '66', 'rgba(15, 23, 42, 0.2)');
-    const tableHover = withAlpha(variant.accentColor || variant.surfaceForeground, '1A', 'rgba(15, 23, 42, 0.06)');
+    const tableBorder = withAlpha(variant.accentColor || variant.surfaceForeground, 'CC', 'rgba(15, 23, 42, 0.45)');
+    const tableSubBorder = withAlpha(variant.accentColor || variant.surfaceForeground, 'A6', 'rgba(15, 23, 42, 0.34)');
+    const tableHover = withAlpha(variant.accentColor || variant.surfaceForeground, '24', 'rgba(15, 23, 42, 0.08)');
+    const tableCellBackground = withAlpha(variant.surfaceForeground, '08', 'transparent');
+    const tableHeaderBackground = withAlpha(variant.accentColor || variant.surfaceForeground, '26', '#dbeafe');
+    const tableTotalBackground = withAlpha(variant.accentColor || variant.surfaceForeground, '1F', '#eef2f7');
+    const tableSideBackground = withAlpha(variant.accentColor || variant.surfaceForeground, '14', '#f1f5f9');
+    const tableSectionBorder = withAlpha(variant.accentColor || variant.surfaceForeground, 'D9', 'rgba(15, 23, 42, 0.52)');
+    const objectStroke = withAlpha(variant.surfaceForeground, 'D9', '#64748b');
     const placeholderColor = withAlpha(variant.surfaceForeground, 'B3', 'rgba(100, 116, 139, 0.85)');
     const placeholderFill = withAlpha(variant.accentColor || variant.surfaceForeground, '14', 'transparent');
     const reverseColor = reverseReadableColor(variant.surfaceForeground);
@@ -350,6 +356,14 @@ export class SlideDesignService {
       '--slide-table-border': tableBorder,
       '--slide-table-sub-border': tableSubBorder,
       '--slide-table-hover': tableHover,
+      '--slide-table-cell-bg': tableCellBackground,
+      '--slide-table-header-bg': tableHeaderBackground,
+      '--slide-table-total-bg': tableTotalBackground,
+      '--slide-table-side-bg': tableSideBackground,
+      '--slide-table-section-border': tableSectionBorder,
+      '--slide-table-section-text': variant.surfaceForeground,
+      '--slide-chart-text': variant.surfaceForeground,
+      '--slide-object-stroke': objectStroke,
       '--slide-theme-overlay-soft': variant.overlaySoftColor || 'rgba(255, 255, 255, 0.14)',
       '--slide-theme-overlay-strong': variant.overlayStrongColor || 'rgba(255, 255, 255, 0.2)',
       '--slide-theme-tab': variant.tabColor || variant.accentColor || variant.surfaceForeground,

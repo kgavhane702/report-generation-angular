@@ -96,13 +96,13 @@
         [ngClass]="getConditionalCellSurfaceClass(rowIndex, cellIndex, path, cell) || null"
         [attr.title]="getConditionalTooltip(rowIndex, cellIndex, path, cell) || null"
         [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
-        [style.background-color]="cell.style?.backgroundColor || condStyle.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
+        [style.background-color]="cell.style?.backgroundColor || condStyle.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'var(--slide-table-cell-bg, transparent)'"
         [style.font-family]="cell.style?.fontFamily || null"
         [style.font-size.px]="cell.style?.fontSizePx ?? null"
         [style.font-weight]="cell.style?.fontWeight || condStyle.fontWeight || getSectionStyle(rowIndex, cellIndex).fontWeight || null"
         [style.font-style]="cell.style?.fontStyle || condStyle.fontStyle || null"
         [style.text-decoration]="cell.style?.textDecoration || condStyle.textDecoration || null"
-        [style.color]="cell.style?.color || condStyle.color || null"
+        [style.color]="cell.style?.color || condStyle.color || getSectionStyle(rowIndex, cellIndex).color || null"
       >
         <div class="table-widget__cell-content" [attr.data-v-align]="cell.style?.verticalAlign || 'top'">
           <app-editastra-editor
@@ -133,13 +133,13 @@
         [ngClass]="getConditionalCellSurfaceClass(rowIndex, cellIndex, path, cell) || null"
         [attr.title]="getConditionalTooltip(rowIndex, cellIndex, path, cell) || null"
         [style.text-align]="(cell.style?.textAlign || getSectionStyle(rowIndex, cellIndex).textAlign) || 'left'"
-        [style.background-color]="cell.style?.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'transparent'"
+        [style.background-color]="cell.style?.backgroundColor || getSectionStyle(rowIndex, cellIndex).backgroundColor || 'var(--slide-table-cell-bg, transparent)'"
         [style.font-family]="cell.style?.fontFamily || null"
         [style.font-size.px]="cell.style?.fontSizePx ?? null"
         [style.font-weight]="cell.style?.fontWeight || getSectionStyle(rowIndex, cellIndex).fontWeight || null"
         [style.font-style]="cell.style?.fontStyle || null"
         [style.text-decoration]="cell.style?.textDecoration || null"
-        [style.color]="cell.style?.color || null"
+        [style.color]="cell.style?.color || getSectionStyle(rowIndex, cellIndex).color || null"
       >
         <div class="table-widget__cell-content" [attr.data-v-align]="cell.style?.verticalAlign || 'top'">
           <app-editastra-editor

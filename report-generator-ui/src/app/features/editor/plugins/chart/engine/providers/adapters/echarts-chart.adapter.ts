@@ -470,9 +470,10 @@ interface ChartPresentation {
 
 function resolveChartPresentation(container: HTMLElement): ChartPresentation {
   const cs = getComputedStyle(container);
+  const chartText = cs.getPropertyValue('--slide-chart-text').trim();
   const foreground = cs.getPropertyValue('--slide-foreground').trim();
   const reverse = cs.getPropertyValue('--slide-reverse-color').trim();
-  const defaultTextColor = foreground || reverse || '#0f172a';
+  const defaultTextColor = chartText || foreground || reverse || '#0f172a';
   const fontFamily =
     cs.getPropertyValue('--slide-font-family').trim() ||
     cs.fontFamily ||

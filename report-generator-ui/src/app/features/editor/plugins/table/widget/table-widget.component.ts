@@ -498,22 +498,24 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     if (isHeaderRow) {
       patch.fontWeight = 'bold';
-      // Header row should be a light blue (friendlier than neutral gray).
-      patch.backgroundColor = '#dbeafe';
+      patch.backgroundColor = 'var(--slide-table-header-bg, #dbeafe)';
+      patch.color = 'var(--slide-table-section-text, var(--slide-foreground, #0f172a))';
       patch.verticalAlign = 'middle';
     }
 
     if (isTotalRow) {
       patch.fontWeight = 'bold';
-      patch.backgroundColor = patch.backgroundColor ?? '#eef2f7';
-      // Emphasize totals with a slightly stronger top border when borders are enabled.
+      patch.backgroundColor = patch.backgroundColor ?? 'var(--slide-table-total-bg, #eef2f7)';
+      patch.color = patch.color ?? 'var(--slide-table-section-text, var(--slide-foreground, #0f172a))';
       patch.borderStyle = patch.borderStyle ?? 'solid';
       patch.borderWidth = Math.max(patch.borderWidth ?? 1, 2);
+      patch.borderColor = patch.borderColor ?? 'var(--slide-table-section-border, var(--slide-table-border, rgba(0, 0, 0, 0.16)))';
     }
 
     if (isFirstCol || isLastCol) {
       patch.fontWeight = patch.fontWeight ?? 'bold';
-      patch.backgroundColor = patch.backgroundColor ?? '#f1f5f9';
+      patch.backgroundColor = patch.backgroundColor ?? 'var(--slide-table-side-bg, #f1f5f9)';
+      patch.color = patch.color ?? 'var(--slide-table-section-text, var(--slide-foreground, #0f172a))';
     }
 
     return patch;

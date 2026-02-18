@@ -786,6 +786,22 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     };
   }
 
+  get renderFrame(): WidgetFrame {
+    const baseFrame = this.frame;
+    const widget = this.displayWidget();
+
+    if (widget?.type !== 'object') {
+      return baseFrame;
+    }
+
+    return {
+      x: Math.round(baseFrame.x),
+      y: Math.round(baseFrame.y),
+      width: Math.max(1, Math.round(baseFrame.width)),
+      height: Math.max(1, Math.round(baseFrame.height)),
+    };
+  }
+
   get ghostFrame(): WidgetFrame | null {
     return this._ghostFrame();
   }

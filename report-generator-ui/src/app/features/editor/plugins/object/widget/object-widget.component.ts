@@ -140,6 +140,24 @@ export class ObjectWidgetComponent implements OnInit, OnDestroy, OnChanges, Flus
     return `${stroke.width}px ${style} ${stroke.color || '#000000'}`;
   }
 
+  get cssStrokeReinforcementShadow(): string | null {
+    const stroke = this.objectProps?.stroke;
+    if (!this.isCssShape || !stroke || !stroke.width || stroke.width <= 0) {
+      return null;
+    }
+
+    if ((stroke.style || 'solid') !== 'solid') {
+      return null;
+    }
+
+    const reinforcement = Math.min(0.45, stroke.width / 2);
+    if (reinforcement <= 0) {
+      return null;
+    }
+
+    return `inset 0 0 0 ${reinforcement}px ${stroke.color || '#000000'}`;
+  }
+
   get borderRadius(): string {
     if (this.shapeType === 'circle' || this.shapeType === 'ellipse') {
       return '50%';

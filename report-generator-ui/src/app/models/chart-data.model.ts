@@ -247,7 +247,7 @@ export function createDefaultChartData(chartType: ChartType = 'column'): ChartDa
     },
     typography: {
       responsive: true,
-      scaleFactor: 1.1,
+      scaleFactor: 1.25,
     },
   };
 }
@@ -284,7 +284,7 @@ export function createEmptyChartData(chartType: ChartType = 'column'): ChartData
     },
     typography: {
       responsive: true,
-      scaleFactor: 1.1,
+      scaleFactor: 1.25,
     },
   };
 }
