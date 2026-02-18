@@ -1,9 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { DOCUMENT } from '@angular/common';
-import { DomSanitizer } from '@angular/platform-browser';
-import { forkJoin, of } from 'rxjs';
-import { catchError, take } from 'rxjs/operators';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { firstValueFrom, forkJoin, Observable, of } from 'rxjs';
+import { catchError, finalize, map, shareReplay, take } from 'rxjs/operators';
 
 /**
  * List of icons to preload at app startup for instant rendering.
@@ -77,21 +76,65 @@ const PRELOAD_ICONS = [
  * Static cache shared with AppIconComponent.
  * Must match the cache key format used there.
  */
-const svgCache = new Map<string, any>();
+const svgCache = new Map<string, SafeHtml>();
+const inFlightLoads = new Map<string, Observable<SafeHtml | null>>();
 
 @Injectable({ providedIn: 'root' })
 export class IconPreloaderService {
   private readonly http = inject(HttpClient);
   private readonly sanitizer = inject(DomSanitizer);
-  private readonly document = inject(DOCUMENT);
 
   private preloaded = false;
 
   /**
    * Get the shared SVG cache (used by AppIconComponent).
    */
-  static getCache(): Map<string, any> {
+  static getCache(): Map<string, SafeHtml> {
     return svgCache;
+  }
+
+  /**
+   * Load and cache a single icon by name.
+   * Concurrent calls for the same icon share one HTTP request.
+   */
+  getIcon(iconName: string): Observable<SafeHtml | null> {
+    if (!iconName) {
+      return of(null);
+    }
+
+    const cached = svgCache.get(iconName);
+    if (cached) {
+      return of(cached);
+    }
+
+    const existingRequest = inFlightLoads.get(iconName);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const url = `assets/icons/${iconName}.svg`;
+    const request$ = this.http.get(url, { responseType: 'text' }).pipe(
+      map((svgContent) => {
+        const normalized = svgContent
+          .replace(/<\?xml[\s\S]*?\?>/gi, '')
+          .replace(/<!doctype[\s\S]*?>/gi, '')
+          .trim();
+        const trusted = this.sanitizer.bypassSecurityTrustHtml(normalized);
+        svgCache.set(iconName, trusted);
+        return trusted;
+      }),
+      catchError((err) => {
+        console.warn(`[IconPreloader] Failed to load icon: ${iconName}`, err);
+        return of(null);
+      }),
+      finalize(() => {
+        inFlightLoads.delete(iconName);
+      }),
+      shareReplay(1)
+    );
+
+    inFlightLoads.set(iconName, request$);
+    return request$;
   }
 
   /**
@@ -104,44 +147,16 @@ export class IconPreloaderService {
     }
 
     const requests = PRELOAD_ICONS.map((iconName) => {
-      // Skip if already cached
-      if (svgCache.has(iconName)) {
-        return of(null);
-      }
-
-      const url = new URL(`assets/icons/${iconName}.svg`, this.document.baseURI).toString();
-
-      return this.http.get(url, { responseType: 'text' }).pipe(
-        take(1),
-        catchError((err) => {
-          console.warn(`[IconPreloader] Failed to preload: ${iconName}`, err);
-          return of(null);
-        })
-      );
+      return this.getIcon(iconName).pipe(take(1));
     });
 
-    return new Promise((resolve) => {
-      forkJoin(requests).subscribe({
-        next: (results) => {
-          results.forEach((svgContent, index) => {
-            if (svgContent) {
-              const iconName = PRELOAD_ICONS[index];
-              const normalized = svgContent
-                .replace(/<\?xml[\s\S]*?\?>/gi, '')
-                .replace(/<!doctype[\s\S]*?>/gi, '')
-                .trim();
-              const trusted = this.sanitizer.bypassSecurityTrustHtml(normalized);
-              svgCache.set(iconName, trusted);
-            }
-          });
-          this.preloaded = true;
-          resolve();
-        },
-        error: () => {
-          this.preloaded = true;
-          resolve();
-        },
-      });
+    return firstValueFrom(
+      forkJoin(requests).pipe(
+        map(() => void 0),
+        catchError(() => of(void 0))
+      )
+    ).then(() => {
+      this.preloaded = true;
     });
   }
 }

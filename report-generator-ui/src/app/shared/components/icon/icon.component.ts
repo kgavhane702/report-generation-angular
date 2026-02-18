@@ -10,9 +10,8 @@ import {
   SimpleChanges,
   ViewEncapsulation,
 } from '@angular/core';
-import { CommonModule, DOCUMENT } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { CommonModule } from '@angular/common';
+import { SafeHtml } from '@angular/platform-browser';
 import { IconPreloaderService } from './icon-preloader.service';
 
 /**
@@ -62,10 +61,8 @@ import { IconPreloaderService } from './icon-preloader.service';
   encapsulation: ViewEncapsulation.None,
 })
 export class AppIconComponent implements OnInit, OnChanges {
-  private readonly http = inject(HttpClient);
-  private readonly sanitizer = inject(DomSanitizer);
   private readonly cdr = inject(ChangeDetectorRef);
-  private readonly document = inject(DOCUMENT);
+  private readonly iconPreloader = inject(IconPreloaderService);
 
   @Input({ required: true }) name!: string;
   // Default icon size for toolbars is 13px. Individual callsites can still override.
@@ -74,11 +71,6 @@ export class AppIconComponent implements OnInit, OnChanges {
 
   iconSvg = signal<SafeHtml>('');
   iconUrl = signal<string>('');
-
-  /** Use shared cache from preloader service for instant icon display */
-  private static get svgCache(): Map<string, SafeHtml> {
-    return IconPreloaderService.getCache();
-  }
 
   ngOnInit(): void {
     if (!this.name) {
@@ -98,7 +90,8 @@ export class AppIconComponent implements OnInit, OnChanges {
   private loadIcon(iconName: string): void {
     if (!iconName) return;
 
-    const cached = AppIconComponent.svgCache.get(iconName);
+    const cache = IconPreloaderService.getCache();
+    const cached = cache.get(iconName);
     if (cached) {
       this.iconSvg.set(cached);
       this.iconUrl.set('');
@@ -106,34 +99,18 @@ export class AppIconComponent implements OnInit, OnChanges {
       return;
     }
 
-    // IMPORTANT:
-    // Use document.baseURI so this works under routed URLs and non-root deployments.
-    // Example: if you're on /editor/page/1, `assets/...` would otherwise request /editor/page/1/assets/... (404).
-    const resolvedUrl = new URL(`assets/icons/${iconName}.svg`, this.document.baseURI).toString();
-    this.iconUrl.set(resolvedUrl);
-    
-    this.http.get(resolvedUrl, { responseType: 'text' }).subscribe({
-      next: (svgContent) => {
-        // IMPORTANT:
-        // Angular's HTML sanitizer strips <svg> content when bound via [innerHTML],
-        // which makes icons render empty and emits:
-        // "WARNING: sanitizing HTML stripped some content"
-        //
-        // These SVGs are loaded from our own build-time assets folder, so we trust them.
-        // Some SVG sources include XML/DOCTYPE headers that don't belong inside innerHTML.
-        const normalized = svgContent
-          .replace(/<\?xml[\s\S]*?\?>/gi, '')
-          .replace(/<!doctype[\s\S]*?>/gi, '')
-          .trim();
+    this.iconSvg.set('');
+    this.iconUrl.set(`assets/icons/${iconName}.svg`);
 
-        const trusted = this.sanitizer.bypassSecurityTrustHtml(normalized);
-        AppIconComponent.svgCache.set(iconName, trusted);
-        this.iconSvg.set(trusted);
-        this.iconUrl.set('');
+    this.iconPreloader.getIcon(iconName).subscribe({
+      next: (svgContent) => {
+        if (svgContent) {
+          this.iconSvg.set(svgContent);
+          this.iconUrl.set('');
+        }
         this.cdr.markForCheck();
       },
       error: (err) => {
-        // Keep iconUrl() so <img> fallback can still try to render the file.
         console.warn(`[AppIcon] Failed to inline icon: ${iconName}`, err);
         this.iconSvg.set('');
         this.cdr.markForCheck();
