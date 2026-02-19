@@ -882,7 +882,30 @@ export class TableToolbarService {
         cell.style.textAlign = align;
       });
     } else if (this.activeCell) {
-      this.activeCell.style.textAlign = align;
+      // For non-table editors (e.g. Editastra textbox) use execCommand so the alignment
+      // is written into inner block elements and persists as part of innerHTML/contentHtml.
+      const isInTable = !!this.activeCell.closest('.widget-table');
+      if (!isInTable) {
+        this.restoreSelectionIfNeeded();
+        this.activeCell.focus();
+        const cmdMap: Record<string, string> = {
+          left: 'justifyLeft',
+          center: 'justifyCenter',
+          right: 'justifyRight',
+          justify: 'justifyFull',
+        };
+        const cmd = cmdMap[align];
+        if (cmd) {
+          document.execCommand(cmd, false);
+        }
+        try {
+          this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-text-align' } }));
+        } catch {
+          // ignore
+        }
+      } else {
+        this.activeCell.style.textAlign = align;
+      }
     } else {
       return;
     }
@@ -928,7 +951,10 @@ export class TableToolbarService {
   }
 
   /**
-   * Apply font family to selected cells or active cell (cell-level formatting).
+   * Apply font family.
+   * - Multi-cell selection: cell-level styling (for tables).
+   * - Single cell with text selection: inline <span> wrapping so it persists in innerHTML/contentHtml.
+   * - Collapsed cursor: cell-level fallback.
    */
   applyFontFamily(fontFamily: string): void {
     const value = (fontFamily ?? '').trim();
@@ -942,10 +968,21 @@ export class TableToolbarService {
         }
       });
     } else if (this.activeCell) {
-      if (value) {
-        this.activeCell.style.fontFamily = value;
-      } else {
-        this.activeCell.style.removeProperty('font-family');
+      this.restoreSelectionIfNeeded();
+      const appliedInline = this.applyInlineStyleToSelection('fontFamily', value || null);
+      if (!appliedInline) {
+        // Collapsed cursor: set cell-level style
+        if (value) {
+          this.activeCell.style.fontFamily = value;
+        } else {
+          this.activeCell.style.removeProperty('font-family');
+        }
+      }
+      // Dispatch input event so widget autosave detects the content change.
+      try {
+        this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-font-family' } }));
+      } catch {
+        // ignore
       }
     } else {
       return;
@@ -956,11 +993,15 @@ export class TableToolbarService {
   }
 
   /**
-   * Apply font size (px) to selected cells or active cell (cell-level formatting).
+   * Apply font size (px).
+   * - Multi-cell selection: cell-level styling (for tables).
+   * - Single cell with text selection: inline <span> wrapping so it persists in innerHTML/contentHtml.
+   * - Collapsed cursor: cell-level fallback.
    * Pass null to reset to default.
    */
   applyFontSizePx(px: number | null): void {
     const value = px === null ? null : Math.max(6, Math.min(96, Math.trunc(Number(px))));
+    const valueCss = value === null ? null : `${value}px`;
     const cells = this.getSelectedCellElements?.() ?? [];
     if (cells.length > 0) {
       cells.forEach(cell => {
@@ -971,10 +1012,21 @@ export class TableToolbarService {
         }
       });
     } else if (this.activeCell) {
-      if (value === null) {
-        this.activeCell.style.removeProperty('font-size');
-      } else {
-        this.activeCell.style.fontSize = `${value}px`;
+      this.restoreSelectionIfNeeded();
+      const appliedInline = this.applyInlineStyleToSelection('fontSize', valueCss);
+      if (!appliedInline) {
+        // Collapsed cursor: set cell-level style
+        if (value === null) {
+          this.activeCell.style.removeProperty('font-size');
+        } else {
+          this.activeCell.style.fontSize = `${value}px`;
+        }
+      }
+      // Dispatch input event so widget autosave detects the content change.
+      try {
+        this.activeCell.dispatchEvent(new CustomEvent('input', { bubbles: true, detail: { source: 'table-toolbar-font-size' } }));
+      } catch {
+        // ignore
       }
     } else {
       return;
@@ -1126,7 +1178,8 @@ export class TableToolbarService {
     const verticalAlign: 'top' | 'middle' | 'bottom' =
       surfaceAlign === 'middle' || surfaceAlign === 'bottom' ? (surfaceAlign as any) : 'top';
 
-    const fontFamily = (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
+    const fontFamily = this.getInlineStyleFromSelection(cell, 'fontFamily') ||
+      (cell.style.fontFamily || computedStyle.fontFamily || '').trim();
 
     // Best-effort: current inline text/highlight colors from browser command values.
     // NOTE: queryCommandValue can be stale immediately after focus changes; consumers should refresh on selectionchange.
@@ -1169,7 +1222,8 @@ export class TableToolbarService {
       return '';
     })();
 
-    const fontSizeRaw = (cell.style.fontSize || computedStyle.fontSize || '').trim();
+    const fontSizeRaw = this.getInlineStyleFromSelection(cell, 'fontSize') ||
+      (cell.style.fontSize || computedStyle.fontSize || '').trim();
     const fontSizePx = (() => {
       const m = fontSizeRaw.match(/^(\d+(?:\.\d+)?)px$/);
       if (!m) return null;
@@ -1336,6 +1390,93 @@ export class TableToolbarService {
       return `${n}px`;
     }
     return null;
+  }
+
+  /**
+   * Apply an inline CSS style to the current text selection by wrapping it in a <span>.
+   * For collapsed cursors (no selection), returns false so the caller can fall back to cell-level styling.
+   * Returns true if inline styling was successfully applied.
+   */
+  private applyInlineStyleToSelection(styleProp: string, value: string | null): boolean {
+    const cell = this.activeCell;
+    if (!cell) return false;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+
+    const range = selection.getRangeAt(0);
+    if (!cell.contains(range.startContainer)) return false;
+    if (range.collapsed) return false;
+
+    // Convert camelCase to kebab-case for CSS property removal.
+    const cssProperty = styleProp.replace(/([A-Z])/g, '-$1').toLowerCase();
+
+    const span = document.createElement('span');
+    if (value) {
+      (span.style as any)[styleProp] = value;
+    }
+
+    try {
+      range.surroundContents(span);
+    } catch {
+      // surroundContents fails when range partially selects non-text nodes.
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+    }
+
+    // Clean up: remove the same style property from nested elements to prevent stacking.
+    const nestedElements = span.querySelectorAll('span, font');
+    nestedElements.forEach(el => {
+      (el as HTMLElement).style.removeProperty(cssProperty);
+      // Handle deprecated <font> elements that may exist from prior execCommands.
+      if (el.tagName === 'FONT') {
+        if (styleProp === 'fontFamily') el.removeAttribute('face');
+        if (styleProp === 'fontSize') el.removeAttribute('size');
+      }
+    });
+
+    // Restore selection around the newly inserted span.
+    try {
+      selection.removeAllRanges();
+      const newRange = document.createRange();
+      newRange.selectNodeContents(span);
+      selection.addRange(newRange);
+      this.lastSelectionRange = newRange.cloneRange();
+    } catch {
+      // ignore
+    }
+
+    return true;
+  }
+
+  /**
+   * Get an inline CSS style value from the element at the current selection/caret position.
+   * Walks from the caret's node upward to the cell, looking for the specified style property
+   * set via inline style attributes (e.g. font-family on a <span>).
+   */
+  private getInlineStyleFromSelection(cell: HTMLElement, styleProp: string): string {
+    try {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return '';
+      const range = selection.getRangeAt(0);
+      const startNode = range.startContainer;
+      const startEl =
+        (startNode instanceof HTMLElement
+          ? startNode
+          : (startNode.parentElement as HTMLElement | null)) ?? null;
+      if (!startEl || !cell.contains(startEl)) return '';
+
+      let el: HTMLElement | null = startEl;
+      while (el && el !== cell) {
+        const val = ((el.style as any)[styleProp] ?? '').toString().trim();
+        if (val) return val;
+        el = el.parentElement;
+      }
+      return '';
+    } catch {
+      return '';
+    }
   }
 
   /**

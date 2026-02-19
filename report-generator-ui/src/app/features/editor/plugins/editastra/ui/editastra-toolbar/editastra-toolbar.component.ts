@@ -245,12 +245,16 @@ export class EditastraToolbarComponent {
       event.stopPropagation();
     }
     if (!this.hasActiveEditor) return;
+    // Save selection so inline formatting targets the correct range after dropdown interaction.
+    this.saveCurrentSelection();
+    this.savedActiveCell = this.toolbarService.activeCell;
     this.headingDropdownOpen.set(true);
   }
 
   onHeadingPick(tag: string): void {
     this.headingDropdownOpen.set(false);
     if (!this.hasActiveEditor) return;
+    this.restoreSelectionAndFocus();
     this.toolbarService.applyBlockTag(tag);
   }
 
@@ -260,6 +264,9 @@ export class EditastraToolbarComponent {
       event.stopPropagation();
     }
     if (!this.hasActiveEditor) return;
+    // Save selection so inline font-family targets the correct range after dropdown interaction.
+    this.saveCurrentSelection();
+    this.savedActiveCell = this.toolbarService.activeCell;
     this.fontFamilyDropdownOpen.set(true);
   }
 
@@ -268,6 +275,7 @@ export class EditastraToolbarComponent {
   }
 
   onFontFamilyPick(value: string): void {
+    this.restoreSelectionAndFocus();
     this.onFontFamilyChange(value);
     this.fontFamilyDropdownOpen.set(false);
   }
@@ -347,6 +355,8 @@ export class EditastraToolbarComponent {
   }
 
   onFontSizePick(size: number | null): void {
+    // Restore selection before applying so inline font-size targets the correct range.
+    this.restoreSelectionAndFocus();
     this.onFontSizeChange(size);
     this.fontSizeDropdownOpen.set(false);
   }
@@ -373,6 +383,9 @@ export class EditastraToolbarComponent {
       event.stopPropagation();
     }
     if (!this.hasActiveEditor) return;
+    // Save selection so line-height targets the correct range after dropdown interaction.
+    this.saveCurrentSelection();
+    this.savedActiveCell = this.toolbarService.activeCell;
     this.lineHeightDropdownOpen.set(true);
   }
 
@@ -381,6 +394,7 @@ export class EditastraToolbarComponent {
   }
 
   onLineHeightPick(v: string): void {
+    this.restoreSelectionAndFocus();
     this.onLineHeightChange(v);
     this.lineHeightDropdownOpen.set(false);
   }
