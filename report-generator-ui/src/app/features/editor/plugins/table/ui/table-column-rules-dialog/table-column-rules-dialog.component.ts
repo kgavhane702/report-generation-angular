@@ -182,7 +182,9 @@ export class TableColumnRulesDialogComponent {
     this.openChange.emit(next);
     if (next) {
       // Guard: opening can come from either openChange or Input open change.
-      this.initOnOpen();
+      if (!this.initializedForOpen) {
+        this.initOnOpen();
+      }
     } else {
       this.initializedForOpen = false;
     }
@@ -538,7 +540,11 @@ export class TableColumnRulesDialogComponent {
     const rs = existing.find((x) => this.targetsEqual((x as any)?.target, target)) ?? null;
     this.rulesEnabled = rs?.enabled !== false;
     this.rulesDraft = rs?.rules
-      ? rs.rules.map((r: TableConditionRule) => ({ ...r, when: { ...(r.when as any) }, then: { ...(r.then as any) } }))
+      ? rs.rules.map((r: TableConditionRule) => ({
+          ...r,
+          when: this.deepCloneWhen(r.when),
+          then: { ...(r.then as any) },
+        }))
       : [];
   }
 
@@ -554,6 +560,20 @@ export class TableColumnRulesDialogComponent {
       if (ap[i] !== bp[i]) return false;
     }
     return true;
+  }
+
+  /** Deep-clone a `when` value (single condition or condition group) so mutations don't leak. */
+  private deepCloneWhen(when: any): any {
+    if (!when) return when;
+    if (this.isWhenGroup(when)) {
+      return {
+        ...when,
+        conditions: Array.isArray(when.conditions)
+          ? when.conditions.map((c: any) => ({ ...c }))
+          : [],
+      };
+    }
+    return { ...when };
   }
 
   private createRuleId(): string {

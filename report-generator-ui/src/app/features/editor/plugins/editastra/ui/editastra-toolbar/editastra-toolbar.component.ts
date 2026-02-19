@@ -75,7 +75,22 @@ export class EditastraToolbarComponent {
   }
 
   get hasActiveEditor(): boolean {
+    return this.isSupportedWidgetActive() &&
+      (this.toolbarService.activeCell !== null || this.toolbarService.selectedCells.size > 0);
+  }
+
+  /**
+   * True only when a cell is actually focused (caret inside).
+   * Use for inline-only operations (superscript, subscript, indent, lists, heading, insert image)
+   * that require a cursor position and don't make sense for drag-selected cells.
+   */
+  get hasActiveInlineEditor(): boolean {
     return this.isSupportedWidgetActive() && this.toolbarService.activeCell !== null;
+  }
+
+  /** Whether a toggle command is inline-only (requires a focused cell, not just drag-selection). */
+  isInlineOnlyToggle(command: string): boolean {
+    return command === 'superscript' || command === 'subscript';
   }
 
   /**

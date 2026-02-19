@@ -254,7 +254,7 @@ export const EDITASTRA_TOOLBAR_PLUGINS: EditastraToolbarPlugin[] = [
  * - table section styling
  */
 export const EDITASTRA_SHARED_FORMATTING_PLUGINS: EditastraToolbarPlugin[] = EDITASTRA_TOOLBAR_PLUGINS.filter(
-  (p) => p.kind !== 'widget-background'
+  (p) => p.kind !== 'widget-background' && p.kind !== 'widget-border'
 );
 
 

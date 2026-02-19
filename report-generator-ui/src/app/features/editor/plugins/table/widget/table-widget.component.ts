@@ -3425,6 +3425,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       this.logSelectedCells('mouseUp');
     }
 
+    // Update toolbar formatting state to reflect the current cell selection
+    // so bold/italic/underline/etc. buttons show the correct active state.
+    if (this.selectedCells().size > 0 && this.toolbarService.activeTableWidgetId === this.widget.id) {
+      this.toolbarService.updateFormattingState();
+    }
+
     // Reset drag marker after the click event has had a chance to run.
     if (this.didDragSelectSinceMouseDown) {
       window.setTimeout(() => {

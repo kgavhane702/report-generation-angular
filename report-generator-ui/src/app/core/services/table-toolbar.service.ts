@@ -386,10 +386,7 @@ export class TableToolbarService {
    * Apply bold formatting to current selection
    */
   applyBold(): void {
-    if (!this.activeCell) return;
-
-    // If multiple cells are selected, apply cell-level fontWeight to the whole selection.
-    // If selection is mixed, first action makes ALL bold (PPT-like).
+    // Multi-cell selection: apply cell-level fontWeight to the whole selection.
     if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'normal' | 'bold'>((el) => {
         const w = (el.style.fontWeight || window.getComputedStyle(el).fontWeight || '').toString();
@@ -403,6 +400,8 @@ export class TableToolbarService {
       return;
     }
 
+    if (!this.activeCell) return;
+
     // Otherwise keep existing inline behavior.
     this.restoreSelectionIfNeeded();
     document.execCommand('bold', false);
@@ -413,8 +412,7 @@ export class TableToolbarService {
    * Apply italic formatting to current selection
    */
   applyItalic(): void {
-    if (!this.activeCell) return;
-
+    // Multi-cell selection: apply cell-level fontStyle to the whole selection.
     if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'normal' | 'italic'>((el) => {
         const v = (el.style.fontStyle || window.getComputedStyle(el).fontStyle || '').toString();
@@ -426,14 +424,15 @@ export class TableToolbarService {
       return;
     }
 
+    if (!this.activeCell) return;
+
     this.restoreSelectionIfNeeded();
     document.execCommand('italic', false);
     this.updateFormattingState();
   }
 
   applyUnderline(): void {
-    if (!this.activeCell) return;
-
+    // Multi-cell selection: apply cell-level textDecoration to the whole selection.
     if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'none' | 'underline'>((el) => {
         const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
@@ -445,14 +444,15 @@ export class TableToolbarService {
       return;
     }
 
+    if (!this.activeCell) return;
+
     this.restoreSelectionIfNeeded();
     document.execCommand('underline', false);
     this.updateFormattingState();
   }
 
   applyStrikethrough(): void {
-    if (!this.activeCell) return;
-
+    // Multi-cell selection: apply cell-level textDecoration to the whole selection.
     if (this.getSelectedCellsCount() > 1) {
       const { all } = this.getSelectedCellsUniformState<'none' | 'line-through'>((el) => {
         const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
@@ -463,6 +463,8 @@ export class TableToolbarService {
       this.formattingState.update((state) => ({ ...state, isStrikethrough: next === 'line-through' ? 'on' : 'off' }));
       return;
     }
+
+    if (!this.activeCell) return;
 
     this.restoreSelectionIfNeeded();
     document.execCommand('strikeThrough', false);
@@ -747,18 +749,20 @@ export class TableToolbarService {
    * If selection is non-collapsed, we wrap the selected contents in a <span style="line-height: ...">.
    */
   applyLineHeight(lineHeight: string): void {
-    if (!this.activeCell) return;
     const lh = (lineHeight ?? '').toString().trim();
     if (!lh) return;
 
     const normalized = this.normalizeLineHeight(lh);
     if (!normalized) return;
 
+    // Multi-cell selection: apply cell-level line height.
     if (this.getSelectedCellsCount() > 1) {
       this.lineHeightRequestedSubject.next(normalized);
       this.formattingState.update((state) => ({ ...state, fontSizePx: state.fontSizePx }));
       return;
     }
+
+    if (!this.activeCell) return;
 
     this.restoreSelectionIfNeeded();
 
@@ -812,16 +816,16 @@ export class TableToolbarService {
    * Apply text color to the current text selection (inside the active cell).
    */
   applyTextColor(color: string): void {
-    if (!this.activeCell) return;
     const value = (color ?? '').trim();
 
+    // Multi-cell selection: cell-level text color.
     if (this.getSelectedCellsCount() > 1) {
-      // Cell-level text color for multi-cell selection.
       this.textColorRequestedSubject.next(value);
-      // Keep toolbar UI in sync even before widget persists.
       this.formattingState.update((s) => ({ ...s, textColor: this.normalizeColorToHex(value) || s.textColor }));
       return;
     }
+
+    if (!this.activeCell) return;
 
     this.restoreSelectionIfNeeded();
     // Prefer inline CSS rather than <font> tags when supported.
@@ -834,16 +838,16 @@ export class TableToolbarService {
    * Apply highlight (background color) to the current text selection (inside the active cell).
    */
   applyTextHighlight(color: string): void {
-    if (!this.activeCell) return;
     const value = (color ?? '').trim();
 
+    // Multi-cell selection: cell-level highlight.
     if (this.getSelectedCellsCount() > 1) {
-      // Cell-level highlight for multi-cell selection.
       this.textHighlightRequestedSubject.next(value);
-      // Keep toolbar UI in sync even before widget persists.
       this.formattingState.update((s) => ({ ...s, highlightColor: this.normalizeColorToHex(value) }));
       return;
     }
+
+    if (!this.activeCell) return;
 
     this.restoreSelectionIfNeeded();
     document.execCommand('styleWithCSS', false, 'true');
@@ -1063,7 +1067,6 @@ export class TableToolbarService {
    */
   updateFormattingState(): void {
     const cell = this.activeCell;
-    if (!cell) return;
 
     // Multi-cell selection: compute tri-state from cell-level styles.
     if (this.getSelectedCellsCount() > 1) {
@@ -1143,6 +1146,9 @@ export class TableToolbarService {
       });
       return;
     }
+
+    // Single-cell mode: need an active cell to introspect formatting.
+    if (!cell) return;
 
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
@@ -1350,7 +1356,12 @@ export class TableToolbarService {
       el.style.color = raw;
       document.body.appendChild(el);
       const c = window.getComputedStyle(el).color;
-      document.body.removeChild(el);
+      el.remove();
+      // Guard against infinite recursion: if computed color matches input or
+      // doesn't match hex/rgb patterns, bail out.
+      if (!c || c === raw || (!c.startsWith('#') && !c.startsWith('rgb'))) {
+        return '';
+      }
       return this.normalizeColorToHex(c);
     } catch {
       return '';

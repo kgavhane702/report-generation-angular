@@ -10,7 +10,7 @@
             class="table-toolbar__button"
             [class.table-toolbar__button--active]="formatTriState($any(p).stateKey) === 'on'"
             [class.table-toolbar__button--mixed]="formatTriState($any(p).stateKey) === 'mixed'"
-            [disabled]="!hasActiveEditor"
+            [disabled]="isInlineOnlyToggle($any(p).command) ? !hasActiveInlineEditor : !hasActiveEditor"
             (mousedown)="onFormatToggleClick($event, $any(p).command)"
             [attr.title]="$any(p).title"
           >
@@ -53,7 +53,7 @@
             *ngSwitchCase="'indent'"
             type="button"
             class="table-toolbar__button"
-            [disabled]="!hasActiveEditor"
+            [disabled]="!hasActiveInlineEditor"
             (mousedown)="onIndentClick($event, $any(p).command)"
             [attr.title]="$any(p).title"
           >
@@ -73,7 +73,7 @@
               type="button"
               class="table-toolbar__button"
               (mousedown)="onBulletListClick($event)"
-              [disabled]="!hasActiveEditor"
+              [disabled]="!hasActiveInlineEditor"
               [attr.title]="$any(p).title"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -110,7 +110,7 @@
             *ngSwitchCase="'numbered-list'"
             type="button"
             class="table-toolbar__button"
-            [disabled]="!hasActiveEditor"
+            [disabled]="!hasActiveInlineEditor"
             (mousedown)="onNumberedListClick($event)"
             [attr.title]="$any(p).title"
           >
@@ -129,7 +129,7 @@
             *ngSwitchCase="'insert-image'"
             type="button"
             class="table-toolbar__button"
-            [disabled]="!hasActiveEditor"
+            [disabled]="!hasActiveInlineEditor"
             (mousedown)="onInsertImageClick($event)"
             [attr.title]="$any(p).title"
           >
@@ -141,7 +141,7 @@
             *ngSwitchCase="'reset-image-size'"
             type="button"
             class="table-toolbar__button"
-            [disabled]="!hasActiveEditor"
+            [disabled]="!hasActiveInlineEditor"
             (mousedown)="onResetImageSizeClick($event)"
             [attr.title]="$any(p).title"
           >
@@ -173,7 +173,7 @@
               #headingTrigger
               type="button"
               class="editastra-toolbar__combo"
-              [disabled]="!hasActiveEditor"
+              [disabled]="!hasActiveInlineEditor"
               (mousedown)="openHeadingDropdown($event)"
             >
               <span class="editastra-toolbar__combo-value">{{ headingLabel }}</span>
@@ -301,7 +301,7 @@
               #lineHeightTrigger
               type="button"
               class="editastra-toolbar__combo editastra-toolbar__combo--icon"
-              [disabled]="!hasActiveEditor"
+              [disabled]="!hasActiveInlineEditor"
               (mousedown)="openLineHeightDropdown($event)"
             >
               <app-icon name="lineHeight"></app-icon>

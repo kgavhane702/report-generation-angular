@@ -243,7 +243,7 @@ export class TableToolbarComponent {
 
   onFitRowClick(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestFitRowToContent();
   }
 
@@ -276,37 +276,37 @@ export class TableToolbarComponent {
 
   onInsertRowAbove(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestInsert({ axis: 'row', placement: 'before' });
   }
 
   onInsertRowBelow(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestInsert({ axis: 'row', placement: 'after' });
   }
 
   onInsertColLeft(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestInsert({ axis: 'col', placement: 'before' });
   }
 
   onInsertColRight(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestInsert({ axis: 'col', placement: 'after' });
   }
 
   onDeleteRow(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestDelete({ axis: 'row' });
   }
 
   onDeleteCol(event: MouseEvent): void {
     event.preventDefault();
-    if (!this.hasActiveCell) return;
+    if (!this.hasCellsForStyling) return;
     this.toolbarService.requestDelete({ axis: 'col' });
   }
 }

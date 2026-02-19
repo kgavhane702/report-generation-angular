@@ -65,7 +65,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onInsertRowAbove($event)"
       title="Insert row above"
     >
@@ -75,7 +75,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onInsertRowBelow($event)"
       title="Insert row below"
     >
@@ -85,7 +85,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onInsertColLeft($event)"
       title="Insert column left"
     >
@@ -95,7 +95,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onInsertColRight($event)"
       title="Insert column right"
     >
@@ -107,7 +107,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onDeleteRow($event)"
       title="Delete row"
     >
@@ -117,7 +117,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onDeleteCol($event)"
       title="Delete column"
     >
@@ -129,7 +129,7 @@
     <button
       type="button"
       class="table-toolbar__button"
-      [disabled]="!hasActiveCell"
+      [disabled]="!(hasCellsForStyling$ | async)"
       (mousedown)="onFitRowClick($event)"
       title="Fit row height to content"
     >
