@@ -106,6 +106,59 @@ describe('Split-leaf column rules', () => {
     expect(cols.find((c) => c.key === 'leafcol:0:1')?.name).toBe('d > b');
   });
 
+  it('uses first relevant header split layer for leaf path catalog (no extra leaf paths)', () => {
+    const dlg = new TableColumnRulesDialogComponent();
+    dlg.props = {
+      headerRow: true,
+      headerRowCount: 2,
+      rows: [
+        {
+          id: 'h0',
+          cells: [
+            {
+              id: 'h0c0',
+              contentHtml: '',
+              split: {
+                rows: 1,
+                cols: 2,
+                cells: [
+                  { id: 'h0a', contentHtml: '<div>A</div>' },
+                  { id: 'h0b', contentHtml: '<div>B</div>' },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          id: 'h1',
+          cells: [
+            {
+              id: 'h1c0',
+              contentHtml: '',
+              split: {
+                rows: 1,
+                cols: 3,
+                cells: [
+                  { id: 'x', contentHtml: '<div>X</div>' },
+                  { id: 'y', contentHtml: '<div>Y</div>' },
+                  { id: 'z', contentHtml: '<div>Z</div>' },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+      showBorders: true,
+      columnFractions: [1],
+      rowFractions: [0.5, 0.5],
+    } as any;
+
+    const cols = dlg.columns();
+    const leafKeys = cols.filter((c) => c.key.startsWith('leafcol:0:')).map((c) => c.key).sort();
+
+    expect(leafKeys).toEqual(['leafcol:0:0', 'leafcol:0:1']);
+  });
+
   it('applies leaf-column rules by leaf path, and applies to whole cell when body row is unsplit (apply_whole)', () => {
     const svc = new TableConditionalFormattingService();
 

@@ -295,30 +295,36 @@ export class TableGridIndex {
         .filter((n) => Number.isFinite(n) && n >= 0)
         .map((n) => Math.trunc(n));
 
-    const set = new Set<string>();
     const safe = Math.max(0, Math.min(rows.length, Math.trunc(headerRowCount || 0)));
     for (let r = 0; r < safe; r++) {
       const resolved = this.getResolvedCellAt(rows, r, topColIndex);
       if (!resolved) continue;
+      const rowSet = new Set<string>();
       for (const p of this.collectLeafColPaths(resolved, 0)) {
-        if (Array.isArray(p) && p.length > 0) set.add(encode(p));
+        if (Array.isArray(p) && p.length > 0) rowSet.add(encode(p));
+      }
+
+      // Prefer the first relevant header layer that actually defines split leaf columns.
+      // This avoids path noise from unioning multiple header rows with different structures.
+      if (rowSet.size > 0) {
+        const segs = (s: string) => s.split('-').map((x) => Number(x));
+        return Array.from(rowSet)
+          .sort((a, b) => {
+            const A = segs(a);
+            const B = segs(b);
+            const n = Math.max(A.length, B.length);
+            for (let i = 0; i < n; i++) {
+              const av = Number.isFinite(A[i]) ? (A[i] as number) : -1;
+              const bv = Number.isFinite(B[i]) ? (B[i] as number) : -1;
+              if (av !== bv) return av - bv;
+            }
+            return a.localeCompare(b);
+          })
+          .map(decode);
       }
     }
 
-    const segs = (s: string) => s.split('-').map((x) => Number(x));
-    return Array.from(set)
-      .sort((a, b) => {
-      const A = segs(a);
-      const B = segs(b);
-      const n = Math.max(A.length, B.length);
-      for (let i = 0; i < n; i++) {
-        const av = Number.isFinite(A[i]) ? (A[i] as number) : -1;
-        const bv = Number.isFinite(B[i]) ? (B[i] as number) : -1;
-        if (av !== bv) return av - bv;
-      }
-      return a.localeCompare(b);
-      })
-      .map(decode);
+    return [];
   }
 
   private collectLeafColPaths(cell: TableCell | null | undefined, depth: number): number[][] {

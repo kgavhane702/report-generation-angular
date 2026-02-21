@@ -3769,8 +3769,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    * This mirrors the validation logic in tryMergeAcrossSplitParents without actually performing the merge.
    */
   private canMergeAcrossSplitParents(parsed: Array<{ row: number; col: number; path: number[] }>): boolean {
-    // We only support immediate (depth=1) sub-cells here.
-    if (!parsed.every((p) => p.path.length === 1)) return false;
+    // We support immediate split sub-cells (depth=1) and also mixed selections where
+    // some parents are non-split top-level cells (path length 0).
+    if (!parsed.every((p) => p.path.length <= 1)) return false;
 
     const topKeys = new Set(parsed.map((p) => `${p.row}-${p.col}`));
     if (topKeys.size < 2) return false;
@@ -3814,6 +3815,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       col: number;
       rowSpan: number;
       colSpan: number;
+      hasSplit: boolean;
       splitRows: number;
       splitCols: number;
       unitRows: number;
@@ -3825,24 +3827,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const [ar, ac] = k.split('-').map(Number);
       const cell = snapshot?.[ar]?.cells?.[ac];
       if (!cell) return false;
-      if (!cell.split) return false;
 
       const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
       const colSpan = Math.max(1, cell.merge?.colSpan ?? 1);
-      const splitRows = Math.max(1, cell.split.rows);
-      const splitCols = Math.max(1, cell.split.cols);
+      const hasSplit = !!cell.split;
 
-      if (splitRows % rowSpan !== 0) return false;
-      if (splitCols % colSpan !== 0) return false;
+      // Non-split anchors participate as a virtual local grid that matches their top-level span.
+      // This allows split + non-split parents to compose into one combined grid safely.
+      const splitRows = hasSplit ? Math.max(1, cell.split!.rows) : rowSpan;
+      const splitCols = hasSplit ? Math.max(1, cell.split!.cols) : colSpan;
 
-      const unitRows = splitRows / rowSpan;
-      const unitCols = splitCols / colSpan;
+      if (hasSplit && splitRows % rowSpan !== 0) return false;
+      if (hasSplit && splitCols % colSpan !== 0) return false;
+
+      const unitRows = hasSplit ? splitRows / rowSpan : 1;
+      const unitCols = hasSplit ? splitCols / colSpan : 1;
 
       anchors.push({
         row: ar,
         col: ac,
         rowSpan,
         colSpan,
+        hasSplit,
         splitRows,
         splitCols,
         unitRows,
@@ -3886,8 +3892,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     try {
       for (const a of anchors) {
         const cell = snapshot?.[a.row]?.cells?.[a.col];
-        const split = cell?.split;
-        if (!cell || !split) return false;
+        if (!cell) return false;
 
         const scaleRow = globalUnitRows / a.unitRows;
         const scaleCol = globalUnitCols / a.unitCols;
@@ -3895,34 +3900,53 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const globalRowOffset = (a.row - minRow) * globalUnitRows;
         const globalColOffset = (a.col - minCol) * globalUnitCols;
 
-        for (let lr = 0; lr < a.splitRows; lr++) {
-          for (let lc = 0; lc < a.splitCols; lc++) {
-            const localIdx = lr * a.splitCols + lc;
-            const localCell = split.cells[localIdx];
-            if (!localCell) return false;
+        if (a.hasSplit) {
+          const split = cell.split;
+          if (!split) return false;
 
-            if (localCell.coveredBy) continue;
+          for (let lr = 0; lr < a.splitRows; lr++) {
+            for (let lc = 0; lc < a.splitCols; lc++) {
+              const localIdx = lr * a.splitCols + lc;
+              const localCell = split.cells[localIdx];
+              if (!localCell) return false;
 
-            const localRowSpan = Math.max(1, localCell.merge?.rowSpan ?? 1);
-            const localColSpan = Math.max(1, localCell.merge?.colSpan ?? 1);
+              if (localCell.coveredBy) continue;
 
-            const startRow = globalRowOffset + lr * scaleRow;
-            const startCol = globalColOffset + lc * scaleCol;
-            const spanRows = localRowSpan * scaleRow;
-            const spanCols = localColSpan * scaleCol;
+              const localRowSpan = Math.max(1, localCell.merge?.rowSpan ?? 1);
+              const localColSpan = Math.max(1, localCell.merge?.colSpan ?? 1);
 
-            const cloned: TableCell = {
-              id: localCell.id,
-              contentHtml: localCell.contentHtml,
-              style: localCell.style,
-            };
-            if (spanRows > 1 || spanCols > 1) {
-              cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+              const startRow = globalRowOffset + lr * scaleRow;
+              const startCol = globalColOffset + lc * scaleCol;
+              const spanRows = localRowSpan * scaleRow;
+              const spanCols = localColSpan * scaleCol;
+
+              const cloned: TableCell = {
+                id: localCell.id,
+                contentHtml: localCell.contentHtml,
+                style: localCell.style,
+              };
+              if (spanRows > 1 || spanCols > 1) {
+                cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+              }
+
+              placeCell(startRow, startCol, cloned);
+              fillCovered(startRow, startCol, spanRows, spanCols);
             }
-
-            placeCell(startRow, startCol, cloned);
-            fillCovered(startRow, startCol, spanRows, spanCols);
           }
+        } else {
+          const spanRows = a.rowSpan * scaleRow;
+          const spanCols = a.colSpan * scaleCol;
+          const cloned: TableCell = {
+            id: cell.id,
+            contentHtml: cell.contentHtml,
+            style: cell.style,
+          };
+          if (spanRows > 1 || spanCols > 1) {
+            cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+          }
+
+          placeCell(globalRowOffset, globalColOffset, cloned);
+          fillCovered(globalRowOffset, globalColOffset, spanRows, spanCols);
         }
       }
     } catch {
@@ -3943,7 +3967,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const selectedCombined = new Set<number>();
     for (const p of parsed) {
-      const idx = p.path[0];
+      const idx = p.path.length > 0 ? p.path[0] : 0;
       if (!Number.isFinite(idx)) return false;
 
       const base = snapshot?.[p.row]?.cells?.[p.col];
@@ -3953,15 +3977,26 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (!meta) return false;
 
       const anchorCell = snapshot?.[topAnchor.row]?.cells?.[topAnchor.col];
-      const split = anchorCell?.split;
-      if (!anchorCell || !split) return false;
+      if (!anchorCell) return false;
 
-      if (idx < 0 || idx >= meta.splitRows * meta.splitCols) return false;
+      let localAnchor: { row: number; col: number };
+      if (meta.hasSplit) {
+        const split = anchorCell.split;
+        if (!split) return false;
+        if (p.path.length === 0) {
+          // Ambiguous: whole split parent selected while combining leaf selections.
+          return false;
+        }
+        if (idx < 0 || idx >= meta.splitRows * meta.splitCols) return false;
 
-      const lr0 = Math.floor(idx / meta.splitCols);
-      const lc0 = idx % meta.splitCols;
-      const localCell = split.cells[idx];
-      const localAnchor = localCell?.coveredBy ? localCell.coveredBy : { row: lr0, col: lc0 };
+        const lr0 = Math.floor(idx / meta.splitCols);
+        const lc0 = idx % meta.splitCols;
+        const localCell = split.cells[idx];
+        localAnchor = localCell?.coveredBy ? localCell.coveredBy : { row: lr0, col: lc0 };
+      } else {
+        if (p.path.length > 0) return false;
+        localAnchor = { row: 0, col: 0 };
+      }
 
       const scaleRow = globalUnitRows / meta.unitRows;
       const scaleCol = globalUnitCols / meta.unitCols;
@@ -3993,14 +4028,51 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
   private normalizeSelection(selection: Set<string>): Set<string> {
     if (selection.size === 0) return selection;
 
-    const normalized = new Set<string>();
+    const mappedIds: string[] = [];
     selection.forEach((id) => {
       const mapped = this.mapLeafIdThroughMerge(id);
       if (mapped) {
-        normalized.add(mapped);
+        mappedIds.push(mapped);
       }
     });
+
+    const normalized = new Set<string>(mappedIds);
+    if (normalized.size <= 1) return normalized;
+
+    const parsed = Array.from(normalized)
+      .map((id) => ({ id, parsed: this.parseLeafId(id) }))
+      .filter((x): x is { id: string; parsed: { row: number; col: number; path: number[] } } => !!x.parsed);
+
+    // Nested split fix: if both an ancestor sub-cell and one of its descendants are selected,
+    // keep only the deepest leaf selection. This prevents mixed-depth selections from disabling
+    // valid sibling merges inside recursively split cells.
+    const remove = new Set<string>();
+    for (let i = 0; i < parsed.length; i++) {
+      const a = parsed[i];
+      for (let j = 0; j < parsed.length; j++) {
+        if (i === j) continue;
+        const b = parsed[j];
+        if (a.parsed.row !== b.parsed.row || a.parsed.col !== b.parsed.col) continue;
+        if (a.parsed.path.length >= b.parsed.path.length) continue;
+        if (this.isPathPrefix(a.parsed.path, b.parsed.path)) {
+          remove.add(a.id);
+          break;
+        }
+      }
+    }
+
+    if (remove.size === 0) return normalized;
+
+    remove.forEach((id) => normalized.delete(id));
     return normalized;
+  }
+
+  private isPathPrefix(prefix: number[], full: number[]): boolean {
+    if (prefix.length >= full.length) return false;
+    for (let i = 0; i < prefix.length; i++) {
+      if (prefix[i] !== full[i]) return false;
+    }
+    return true;
   }
 
   /**
@@ -5907,8 +5979,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
    * Returns true if handled; false means caller should fall back to normal top-level merge behavior.
    */
   private tryMergeAcrossSplitParents(parsed: Array<{ row: number; col: number; path: number[] }>): boolean {
-    // We only support immediate (depth=1) sub-cells here. Deeper nested splits can still use existing behavior.
-    if (!parsed.every(p => p.path.length === 1)) return false;
+    // We support immediate split sub-cells (depth=1) and also mixed selections where
+    // some parents are non-split top-level cells (path length 0).
+    // Deeper nested splits can still use existing behavior.
+    if (!parsed.every(p => p.path.length <= 1)) return false;
 
     const topKeys = new Set(parsed.map(p => `${p.row}-${p.col}`));
     if (topKeys.size < 2) return false;
@@ -5952,6 +6026,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       col: number;
       rowSpan: number;
       colSpan: number;
+      hasSplit: boolean;
       splitRows: number;
       splitCols: number;
       unitRows: number;
@@ -5963,24 +6038,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       const [ar, ac] = k.split('-').map(Number);
       const cell = snapshot?.[ar]?.cells?.[ac];
       if (!cell) return false;
-      if (!cell.split) return false;
 
       const rowSpan = Math.max(1, cell.merge?.rowSpan ?? 1);
       const colSpan = Math.max(1, cell.merge?.colSpan ?? 1);
-      const splitRows = Math.max(1, cell.split.rows);
-      const splitCols = Math.max(1, cell.split.cols);
+      const hasSplit = !!cell.split;
 
-      if (splitRows % rowSpan !== 0) return false;
-      if (splitCols % colSpan !== 0) return false;
+      // Non-split anchors participate as a virtual local grid that matches their top-level span.
+      // This allows split + non-split parents to compose into one combined grid safely.
+      const splitRows = hasSplit ? Math.max(1, cell.split!.rows) : rowSpan;
+      const splitCols = hasSplit ? Math.max(1, cell.split!.cols) : colSpan;
 
-      const unitRows = splitRows / rowSpan;
-      const unitCols = splitCols / colSpan;
+      if (hasSplit && splitRows % rowSpan !== 0) return false;
+      if (hasSplit && splitCols % colSpan !== 0) return false;
+
+      const unitRows = hasSplit ? splitRows / rowSpan : 1;
+      const unitCols = hasSplit ? splitCols / colSpan : 1;
 
       anchors.push({
         row: ar,
         col: ac,
         rowSpan,
         colSpan,
+        hasSplit,
         splitRows,
         splitCols,
         unitRows,
@@ -6029,8 +6108,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     try {
       for (const a of anchors) {
         const cell = snapshot?.[a.row]?.cells?.[a.col];
-        const split = cell?.split;
-        if (!cell || !split) return false;
+        if (!cell) return false;
 
         const scaleRow = globalUnitRows / a.unitRows;
         const scaleCol = globalUnitCols / a.unitCols;
@@ -6038,34 +6116,54 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const globalRowOffset = (a.row - minRow) * globalUnitRows;
         const globalColOffset = (a.col - minCol) * globalUnitCols;
 
-        for (let lr = 0; lr < a.splitRows; lr++) {
-          for (let lc = 0; lc < a.splitCols; lc++) {
-            const localIdx = lr * a.splitCols + lc;
-            const localCell = split.cells[localIdx];
-            if (!localCell) return false;
+        if (a.hasSplit) {
+          const split = cell.split;
+          if (!split) return false;
 
-            // Covered cells are represented by their anchor merge; skip to avoid double-placement.
-            if (localCell.coveredBy) continue;
+          for (let lr = 0; lr < a.splitRows; lr++) {
+            for (let lc = 0; lc < a.splitCols; lc++) {
+              const localIdx = lr * a.splitCols + lc;
+              const localCell = split.cells[localIdx];
+              if (!localCell) return false;
 
-            const localRowSpan = Math.max(1, localCell.merge?.rowSpan ?? 1);
-            const localColSpan = Math.max(1, localCell.merge?.colSpan ?? 1);
+              // Covered cells are represented by their anchor merge; skip to avoid double-placement.
+              if (localCell.coveredBy) continue;
 
-            const startRow = globalRowOffset + lr * scaleRow;
-            const startCol = globalColOffset + lc * scaleCol;
-            const spanRows = localRowSpan * scaleRow;
-            const spanCols = localColSpan * scaleCol;
+              const localRowSpan = Math.max(1, localCell.merge?.rowSpan ?? 1);
+              const localColSpan = Math.max(1, localCell.merge?.colSpan ?? 1);
 
-            const cloned = this.cloneCellDeep(localCell);
-            cloned.coveredBy = undefined;
-            if (spanRows > 1 || spanCols > 1) {
-              cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
-            } else {
-              cloned.merge = undefined;
+              const startRow = globalRowOffset + lr * scaleRow;
+              const startCol = globalColOffset + lc * scaleCol;
+              const spanRows = localRowSpan * scaleRow;
+              const spanCols = localColSpan * scaleCol;
+
+              const cloned = this.cloneCellDeep(localCell);
+              cloned.coveredBy = undefined;
+              if (spanRows > 1 || spanCols > 1) {
+                cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+              } else {
+                cloned.merge = undefined;
+              }
+
+              placeCell(startRow, startCol, cloned);
+              fillCovered(startRow, startCol, spanRows, spanCols);
             }
-
-            placeCell(startRow, startCol, cloned);
-            fillCovered(startRow, startCol, spanRows, spanCols);
           }
+        } else {
+          const spanRows = a.rowSpan * scaleRow;
+          const spanCols = a.colSpan * scaleCol;
+
+          const cloned = this.cloneCellDeep(cell);
+          cloned.coveredBy = undefined;
+          cloned.split = undefined;
+          if (spanRows > 1 || spanCols > 1) {
+            cloned.merge = { rowSpan: spanRows, colSpan: spanCols };
+          } else {
+            cloned.merge = undefined;
+          }
+
+          placeCell(globalRowOffset, globalColOffset, cloned);
+          fillCovered(globalRowOffset, globalColOffset, spanRows, spanCols);
         }
       }
     } catch {
@@ -6086,7 +6184,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const selectedCombined = new Set<number>();
     for (const p of parsed) {
-      const idx = p.path[0];
+      const idx = p.path.length > 0 ? p.path[0] : 0;
       if (!Number.isFinite(idx)) return false;
 
       const base = snapshot?.[p.row]?.cells?.[p.col];
@@ -6096,16 +6194,28 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (!meta) return false;
 
       const anchorCell = snapshot?.[topAnchor.row]?.cells?.[topAnchor.col];
-      const split = anchorCell?.split;
-      if (!anchorCell || !split) return false;
+      if (!anchorCell) return false;
 
-      if (idx < 0 || idx >= meta.splitRows * meta.splitCols) return false;
+      let localAnchor: { row: number; col: number };
+      if (meta.hasSplit) {
+        const split = anchorCell.split;
+        if (!split) return false;
+        if (p.path.length === 0) {
+          // Ambiguous: whole split parent selected while combining leaf selections.
+          return false;
+        }
 
-      // If the selected index is inside an existing merged sub-cell, map to that sub-cell's anchor.
-      const lr0 = Math.floor(idx / meta.splitCols);
-      const lc0 = idx % meta.splitCols;
-      const localCell = split.cells[idx];
-      const localAnchor = localCell?.coveredBy ? localCell.coveredBy : { row: lr0, col: lc0 };
+        if (idx < 0 || idx >= meta.splitRows * meta.splitCols) return false;
+
+        // If the selected index is inside an existing merged sub-cell, map to that sub-cell's anchor.
+        const lr0 = Math.floor(idx / meta.splitCols);
+        const lc0 = idx % meta.splitCols;
+        const localCell = split.cells[idx];
+        localAnchor = localCell?.coveredBy ? localCell.coveredBy : { row: lr0, col: lc0 };
+      } else {
+        if (p.path.length > 0) return false;
+        localAnchor = { row: 0, col: 0 };
+      }
 
       const scaleRow = globalUnitRows / meta.unitRows;
       const scaleCol = globalUnitCols / meta.unitCols;
@@ -6523,11 +6633,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         }
       }
 
-      // If the merge covers the entire split grid, collapse (unsplit) back to a normal cell.
-      if (rowSpan === nextOwner.split.rows && colSpan === nextOwner.split.cols && prefix.length === 0) {
-        const parent = nextBase;
-        parent.split = undefined;
-        parent.contentHtml = mergedHtml;
+      // If the merge covers the entire split grid, collapse this owner split at ANY depth.
+      // This keeps leaf IDs canonical (e.g. 0-1-0, not 0-1-0-0) after full nested merges.
+      const collapsedOwner = rowSpan === nextOwner.split.rows && colSpan === nextOwner.split.cols;
+      if (collapsedOwner) {
+        nextOwner.split = undefined;
+        nextOwner.contentHtml = mergedHtml;
       } else {
         // Normalize split coverage to avoid any "leftover" sub-cells rendering after chained merges.
         this.rebuildSplitCoveredBy(nextOwner);
@@ -6540,8 +6651,14 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.emitPropsChange(rowsAfter);
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
 
-    if (rowSpan === owner.split.rows && colSpan === owner.split.cols && prefix.length === 0) {
-      this.setSelection(new Set([`${baseRow}-${baseCol}`]));
+    const collapsedOwner = rowSpan === owner.split.rows && colSpan === owner.split.cols;
+    if (collapsedOwner) {
+      if (prefix.length === 0) {
+        this.setSelection(new Set([`${baseRow}-${baseCol}`]));
+      } else {
+        const collapsedPath = prefix.join('-');
+        this.setSelection(new Set([this.composeLeafId(baseRow, baseCol, collapsedPath)]));
+      }
     } else {
       const mergedPath = [...prefix, anchorIdx].join('-');
       this.setSelection(new Set([this.composeLeafId(baseRow, baseCol, mergedPath)]));
