@@ -1,6 +1,6 @@
 .widget-container {
   position: absolute;
-  border: 1px solid transparent;
+  border: 2px solid transparent;
   border-radius: 0.5rem;
   transition: border-color 120ms ease, box-shadow 120ms ease;
   will-change: transform;
@@ -143,6 +143,14 @@
 .widget-container:not(.widget-container--selected):hover {
   border-color: rgba(99, 102, 241, 0.4);
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+// Object widgets already render their own stroke/border from object props.
+// Keep hover/focus container chrome neutral so normal and hover border visuals stay identical.
+.widget-container[data-widget-type='object']:not(.widget-container--selected):focus-within,
+.widget-container[data-widget-type='object']:not(.widget-container--selected):hover {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .widget-container.cdk-drag-dragging {

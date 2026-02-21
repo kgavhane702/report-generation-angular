@@ -209,12 +209,18 @@ export class UpdateWidgetsCommand implements Command {
  */
 export class AddWidgetCommand implements Command {
   readonly kind = 'add-widget' as const;
+  readonly graphTransaction?: GraphCommandTransaction;
 
   constructor(
     private store: Store<AppState>,
     private _pageId: string,
-    private widget: WidgetModel
-  ) {}
+    private widget: WidgetModel,
+    graphTransaction?: GraphCommandTransaction,
+    private previousMetadata?: Record<string, unknown>,
+    private nextMetadata?: Record<string, unknown>
+  ) {
+    this.graphTransaction = graphTransaction;
+  }
 
   /** Page ID for navigation after undo/redo */
   get pageId(): string {
@@ -240,6 +246,10 @@ export class AddWidgetCommand implements Command {
         widget: this.widget,
       })
     );
+
+    if (this.nextMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.nextMetadata }));
+    }
   }
 
   undo(): void {
@@ -249,6 +259,10 @@ export class AddWidgetCommand implements Command {
         widgetId: this.widget.id,
       })
     );
+
+    if (this.previousMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.previousMetadata }));
+    }
   }
 
   description = `Add ${this.widget.type} widget`;

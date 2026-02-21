@@ -1,6 +1,8 @@
 <div
   class="page__surface"
   [class.page__surface--active]="isActive"
+  [class.page__surface--insert-armed]="insertionModeArmed"
+  [class.page__surface--insert-drawing]="insertionModeDrawing"
   [ngStyle]="pageSurfaceStyle"
   [style.width.px]="widthPx"
   [style.height.px]="heightPx"
@@ -91,6 +93,53 @@
     [style.width.px]="rect.width"
     [style.height.px]="rect.height"
   ></div>
+
+  <div
+    *ngIf="insertionModeWidgetType !== 'connector' && insertionRect() as rect"
+    class="page__insertion-shape-preview"
+    [style.left.px]="rect.x"
+    [style.top.px]="rect.y"
+    [style.width.px]="rect.width"
+    [style.height.px]="rect.height"
+  >
+    <div
+      *ngIf="insertionPreviewIsCssShape"
+      class="page__insertion-shape page__insertion-shape--css"
+      [ngClass]="insertionPreviewCssClass"
+    ></div>
+
+    <svg
+      *ngIf="insertionPreviewIsSvgShape"
+      class="page__insertion-shape page__insertion-shape--svg"
+      [attr.viewBox]="insertionPreviewSvgViewBox"
+      preserveAspectRatio="none"
+    >
+      <path
+        [attr.d]="insertionPreviewSvgPath"
+        [attr.fill]="insertionPreviewSvgStrokeOnly ? 'none' : 'transparent'"
+        [attr.stroke]="'rgb(148, 163, 184)'"
+        [attr.stroke-width]="2"
+        [attr.stroke-linecap]="insertionPreviewSvgStrokeOnly ? 'round' : 'butt'"
+        vector-effect="non-scaling-stroke"
+      ></path>
+    </svg>
+  </div>
+
+  <svg
+    *ngIf="insertionPreviewConnectorLine as line"
+    class="page__insertion-connector-preview"
+    [attr.viewBox]="'0 0 ' + widthPx + ' ' + heightPx"
+    [attr.width]="widthPx"
+    [attr.height]="heightPx"
+    aria-hidden="true"
+  >
+    <path
+      class="page__insertion-connector-line"
+      [attr.d]="insertionPreviewConnectorPath || ''"
+    ></path>
+    <circle class="page__insertion-connector-point" [attr.cx]="line.x1" [attr.cy]="line.y1" r="4"></circle>
+    <circle class="page__insertion-connector-point" [attr.cx]="line.x2" [attr.cy]="line.y2" r="4"></circle>
+  </svg>
 
   <!-- Fixed Footer Elements at Bottom -->
   <div class="page__footer" *ngIf="footerLeftText || footerCenterText || footerCenterSubText || footerLeftImage || footerCenterImage || footerRightImage || showPageNumber || (logoUrl && (logoPosition === 'bottom-left' || logoPosition === 'bottom-right'))">

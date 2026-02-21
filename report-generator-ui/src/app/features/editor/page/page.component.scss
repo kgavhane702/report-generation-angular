@@ -18,6 +18,14 @@ $curvy-content-radius: 0 0 55% 55% / 0 0 26% 26%;
   transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.page__surface--insert-armed {
+  cursor: copy;
+}
+
+.page__surface--insert-drawing {
+  cursor: crosshair;
+}
+
 .page__theme-layer {
   position: absolute;
   inset: 0;
@@ -275,6 +283,60 @@ $curvy-content-radius: 0 0 55% 55% / 0 0 26% 26%;
   background: rgba(99, 102, 241, 0.12);
   z-index: 9000;
   pointer-events: none;
+}
+
+.page__insertion-shape-preview {
+  position: absolute;
+  z-index: 9100;
+  pointer-events: none;
+}
+
+.page__insertion-shape {
+  width: 100%;
+  height: 100%;
+}
+
+.page__insertion-shape--css {
+  border: 2px solid rgb(148, 163, 184);
+  background: transparent;
+  opacity: 1;
+}
+
+.page__insertion-shape--rectangle {
+  border-radius: 0;
+}
+
+.page__insertion-shape--rounded {
+  border-radius: 12px;
+}
+
+.page__insertion-shape--circle {
+  border-radius: 50%;
+}
+
+.page__insertion-shape--svg {
+  overflow: visible;
+}
+
+.page__insertion-connector-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 9100;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.page__insertion-connector-line {
+  stroke: rgba(37, 99, 235, 0.95);
+  stroke-width: 2;
+  fill: none;
+}
+
+.page__insertion-connector-point {
+  fill: rgba(37, 99, 235, 1);
+  stroke: #ffffff;
+  stroke-width: 1.5;
 }
 
 .page__drag-overlay {

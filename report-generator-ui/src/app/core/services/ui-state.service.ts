@@ -21,6 +21,52 @@ import { Injectable, signal, computed } from '@angular/core';
 })
 export class UIStateService {
   // ============================================
+  // INSERTION DRAW MODE
+  // ============================================
+
+  private readonly _insertionMode = signal<{
+    widgetType: 'object' | 'connector';
+    shapeType: string;
+    defaultFillColor?: string;
+    borderRadius?: number;
+  } | null>(null);
+  readonly insertionMode = this._insertionMode.asReadonly();
+
+  private readonly _drawingInsertion = signal<boolean>(false);
+  readonly drawingInsertion = this._drawingInsertion.asReadonly();
+
+  readonly insertionArmed = computed(() => this._insertionMode() !== null);
+
+  armInsertionMode(config: {
+    widgetType: 'object' | 'connector';
+    shapeType: string;
+    defaultFillColor?: string;
+    borderRadius?: number;
+  }): void {
+    this._insertionMode.set({
+      widgetType: config.widgetType,
+      shapeType: config.shapeType,
+      defaultFillColor: config.defaultFillColor,
+      borderRadius: config.borderRadius,
+    });
+    this._drawingInsertion.set(false);
+  }
+
+  clearInsertionMode(): void {
+    this._insertionMode.set(null);
+    this._drawingInsertion.set(false);
+  }
+
+  startInsertionDrawing(): void {
+    if (!this._insertionMode()) return;
+    this._drawingInsertion.set(true);
+  }
+
+  stopInsertionDrawing(): void {
+    this._drawingInsertion.set(false);
+  }
+
+  // ============================================
   // SELECTION STATE
   // ============================================
   

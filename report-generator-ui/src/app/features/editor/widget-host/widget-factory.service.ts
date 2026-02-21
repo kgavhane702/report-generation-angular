@@ -124,7 +124,7 @@ export class WidgetFactoryService {
         fillColor: props?.fillColor ?? '',
         opacity: props?.opacity ?? 100,
         // Default to a subtle border so transparent objects are still visible.
-        stroke: props?.stroke || { color: '#94a3b8', width: 1, style: 'solid' },
+        stroke: props?.stroke || { color: '#94a3b8', width: 2, style: 'solid' },
         borderRadius: props?.borderRadius ?? 0,
       },
     };

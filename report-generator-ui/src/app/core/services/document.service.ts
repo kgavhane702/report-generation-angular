@@ -60,6 +60,10 @@ export interface UpdateWidgetOptions {
   graphTransaction?: GraphCommandTransaction;
 }
 
+export interface AddWidgetOptions {
+  graphTransaction?: GraphCommandTransaction;
+}
+
 export interface UpdateWidgetsOptions {
   graphTransaction?: GraphCommandTransaction;
 }
@@ -182,12 +186,22 @@ export class DocumentService {
   // WIDGET OPERATIONS
   // ============================================
 
-  addWidget(pageId: string, widget: WidgetModel): void {
+  addWidget(pageId: string, widget: WidgetModel, options?: AddWidgetOptions): void {
     if (!this.canEdit()) return;
+
+    const graphTransaction = options?.graphTransaction;
+    const metadataBefore = deepClone((this.documentSignal().metadata ?? {}) as Record<string, unknown>);
+    const metadataAfter = graphTransaction
+      ? withGraphTransactionMetadata(metadataBefore, graphTransaction, 'after')
+      : undefined;
+
     const command = new AddWidgetCommand(
       this.store,
       pageId,
-      widget
+      widget,
+      graphTransaction,
+      graphTransaction ? metadataBefore : undefined,
+      metadataAfter
     );
     this.undoRedoService.executeDocumentCommand(command);
   }

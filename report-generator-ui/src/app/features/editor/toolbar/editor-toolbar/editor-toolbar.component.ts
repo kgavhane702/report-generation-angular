@@ -154,21 +154,19 @@ export class EditorToolbarComponent implements AfterViewInit, OnDestroy {
       this.notify.warning('Document is locked. Unlock to edit.', 'Locked');
       return;
     }
-    const pageId = this.editorState.activePageId();
-    if (!pageId) {
+    if (!this.editorState.activePageId()) {
       return;
     }
 
     const isConnector = isConnectorShapeType(shapeConfig.id);
-    const type: WidgetType = isConnector ? 'connector' : 'object';
-    const widget = this.widgetFactory.createWidget(type, {
+    this.uiState.clearSelection();
+    this.uiState.armInsertionMode({
+      widgetType: isConnector ? 'connector' : 'object',
       shapeType: shapeConfig.id,
       // Default all object fills to transparent; connectors keep their explicit defaults.
-      fillColor: isConnector ? shapeConfig.defaultFillColor : '',
+      defaultFillColor: isConnector ? shapeConfig.defaultFillColor : '',
       borderRadius: shapeConfig.defaultBorderRadius,
-    } as any);
-    this.documentService.addWidget(pageId, widget);
-    this.editorState.setActiveWidget(widget.id);
+    });
   }
 
   openImageInsertDialog(): void {
