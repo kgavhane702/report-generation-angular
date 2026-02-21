@@ -52,6 +52,17 @@ import { WidgetFactoryService } from '../../features/editor/widget-host/widget-f
 import { SectionEntity, SubsectionEntity, PageEntity, WidgetEntity } from '../../store/document/document.state';
 import { deepClone } from '../utils/deep-clone.util';
 import { SlideLayoutType } from '../slide-design/slide-design.model';
+import type { GraphCommandTransaction } from '../graph/models/graph-transaction.model';
+import { withGraphTransactionMetadata } from '../graph/adapters/graph-transaction-metadata.adapter';
+
+export interface UpdateWidgetOptions {
+  previousWidgetOverride?: WidgetModel | WidgetEntity;
+  graphTransaction?: GraphCommandTransaction;
+}
+
+export interface UpdateWidgetsOptions {
+  graphTransaction?: GraphCommandTransaction;
+}
 
 /**
  * DocumentService
@@ -185,20 +196,30 @@ export class DocumentService {
     pageId: string,
     widgetId: string,
     mutation: Partial<WidgetModel>,
-    previousWidgetOverride?: WidgetModel | WidgetEntity
+    options?: UpdateWidgetOptions
   ): void {
     if (!this.canEdit()) return;
+    const previousWidgetOverride = options?.previousWidgetOverride;
     const previousWidget = previousWidgetOverride ?? this.widgetEntities()[widgetId];
     if (!previousWidget) {
       return;
     }
+
+    const graphTransaction = options?.graphTransaction;
+    const metadataBefore = deepClone((this.documentSignal().metadata ?? {}) as Record<string, unknown>);
+    const metadataAfter = graphTransaction
+      ? withGraphTransactionMetadata(metadataBefore, graphTransaction, 'after')
+      : undefined;
 
     const command = new UpdateWidgetCommand(
       this.store,
       pageId,
       widgetId,
       mutation,
-      deepClone(previousWidget)
+      deepClone(previousWidget),
+      graphTransaction,
+      graphTransaction ? metadataBefore : undefined,
+      metadataAfter
     );
     this.undoRedoService.executeDocumentCommand(command);
     this.saveIndicator.pulse();
@@ -273,7 +294,8 @@ export class DocumentService {
       widgetId: string;
       changes: Partial<WidgetModel>;
       previousWidget?: WidgetModel | WidgetEntity;
-    }>
+    }>,
+    options?: UpdateWidgetsOptions
   ): void {
     if (!this.canEdit()) return;
     if (updates.length === 0) return;
@@ -294,7 +316,19 @@ export class DocumentService {
 
     if (updateData.length === 0) return;
 
-    const command = new UpdateWidgetsCommand(this.store, updateData);
+    const graphTransaction = options?.graphTransaction;
+    const metadataBefore = deepClone((this.documentSignal().metadata ?? {}) as Record<string, unknown>);
+    const metadataAfter = graphTransaction
+      ? withGraphTransactionMetadata(metadataBefore, graphTransaction, 'after')
+      : undefined;
+
+    const command = new UpdateWidgetsCommand(
+      this.store,
+      updateData,
+      graphTransaction,
+      graphTransaction ? metadataBefore : undefined,
+      metadataAfter
+    );
     this.undoRedoService.executeDocumentCommand(command);
     this.saveIndicator.pulse();
   }

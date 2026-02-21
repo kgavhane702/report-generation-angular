@@ -2,11 +2,12 @@ import { Store } from '@ngrx/store';
 import { SubsectionModel, SectionModel, PageSize } from '../../models/document.model';
 import { WidgetModel } from '../../models/widget.model';
 import { PageModel } from '../../models/page.model';
-import { DocumentActions, WidgetActions } from '../../store/document/document.actions';
+import { DocumentActions, DocumentMetaActions, WidgetActions } from '../../store/document/document.actions';
 import { AppState } from '../../store/app.state';
 import { WidgetEntity } from '../../store/document/document.state';
 import { Command } from './undo-redo.service';
 import { deepClone } from '../utils/deep-clone.util';
+import type { GraphCommandTransaction } from '../graph/models/graph-transaction.model';
 
 /**
  * BatchCommand
@@ -144,6 +145,7 @@ export class DeleteWidgetsCommand implements Command {
  */
 export class UpdateWidgetsCommand implements Command {
   readonly kind = 'update-widgets' as const;
+  readonly graphTransaction?: GraphCommandTransaction;
 
   constructor(
     private store: Store<AppState>,
@@ -152,8 +154,13 @@ export class UpdateWidgetsCommand implements Command {
       widgetId: string;
       changes: Partial<WidgetModel>;
       previousWidget: WidgetModel | WidgetEntity;
-    }>
-  ) {}
+    }>,
+    graphTransaction?: GraphCommandTransaction,
+    private previousMetadata?: Record<string, unknown>,
+    private nextMetadata?: Record<string, unknown>
+  ) {
+    this.graphTransaction = graphTransaction;
+  }
 
   /** Page ID for navigation after undo/redo (uses first update's pageId) */
   get pageId(): string | undefined {
@@ -169,6 +176,10 @@ export class UpdateWidgetsCommand implements Command {
         })
       );
     }
+
+    if (this.nextMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.nextMetadata }));
+    }
   }
 
   undo(): void {
@@ -181,6 +192,10 @@ export class UpdateWidgetsCommand implements Command {
           changes: previousWidget as unknown as Partial<WidgetEntity>,
         })
       );
+    }
+
+    if (this.previousMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.previousMetadata }));
     }
   }
 
@@ -248,14 +263,20 @@ export class AddWidgetCommand implements Command {
 export class UpdateWidgetCommand implements Command {
   private lastMergedAt = Date.now();
   private readonly mergeWindowMs = 800;
+  graphTransaction?: GraphCommandTransaction;
 
   constructor(
     private store: Store<AppState>,
     private _pageId: string,
     private _widgetId: string,
     private changes: Partial<WidgetModel>,
-    private previousWidget: WidgetModel | WidgetEntity
-  ) {}
+    private previousWidget: WidgetModel | WidgetEntity,
+    graphTransaction?: GraphCommandTransaction,
+    private previousMetadata?: Record<string, unknown>,
+    private nextMetadata?: Record<string, unknown>
+  ) {
+    this.graphTransaction = graphTransaction;
+  }
 
   /** Page ID for navigation after undo/redo */
   get pageId(): string {
@@ -273,6 +294,10 @@ export class UpdateWidgetCommand implements Command {
         changes: this.changes as Partial<WidgetEntity>,
       })
     );
+
+    if (this.nextMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.nextMetadata }));
+    }
   }
 
   undo(): void {
@@ -282,6 +307,10 @@ export class UpdateWidgetCommand implements Command {
         changes: this.previousWidget as unknown as Partial<WidgetEntity>,
       })
     );
+
+    if (this.previousMetadata) {
+      this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: this.previousMetadata }));
+    }
   }
 
   description = 'Update widget';
@@ -321,6 +350,10 @@ export class UpdateWidgetCommand implements Command {
     }
 
     this.changes = merged as Partial<WidgetModel>;
+    this.graphTransaction = next.graphTransaction ?? this.graphTransaction;
+    if (next.nextMetadata) {
+      this.nextMetadata = next.nextMetadata;
+    }
     this.lastMergedAt = Date.now();
   }
 

@@ -23,5 +23,13 @@
   >
     <app-icon name="redo"></app-icon>
   </button>
+  <span
+    class="undo-redo-controls__graph-tx"
+    [class.undo-redo-controls__graph-tx--empty]="!latestGraphTransactionSummary()"
+    [title]="latestGraphTransactionSummary() || 'No graph transaction yet'"
+    aria-live="polite"
+  >
+    {{ latestGraphTransactionSummary() || 'Graph: —' }}
+  </span>
 </div>
 

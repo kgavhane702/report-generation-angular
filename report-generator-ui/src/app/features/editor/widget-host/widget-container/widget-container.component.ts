@@ -15,7 +15,7 @@ import { Store } from '@ngrx/store';
 import { Subscription } from 'rxjs';
 import { CdkDragEnd, CdkDragMove, CdkDragStart } from '@angular/cdk/drag-drop';
 
-import { WidgetPosition, WidgetProps, ObjectWidgetProps } from '../../../../models/widget.model';
+import { WidgetPosition, WidgetProps, ObjectWidgetProps, ConnectorWidgetProps } from '../../../../models/widget.model';
 import { PageSize } from '../../../../models/document.model';
 import { DocumentService } from '../../../../core/services/document.service';
 import { DraftStateService } from '../../../../core/services/draft-state.service';
@@ -28,11 +28,13 @@ import { computeElbowPoints, getAttachmentDirection, type AnchorDirection } from
 import { AppState } from '../../../../store/app.state';
 import { DocumentSelectors } from '../../../../store/document/document.selectors';
 import { WidgetEntity } from '../../../../store/document/document.state';
-import { WidgetActions } from '../../../../store/document/document.actions';
+import { DocumentMetaActions, WidgetActions } from '../../../../store/document/document.actions';
 import type { WidgetModel } from '../../../../models/widget.model';
 import { getWidgetInteractionPolicy, isResizeHandleAllowed, type WidgetInteractionPolicy } from '../widget-interaction-policy';
 import type { ContextMenuItem } from '../../../../shared/components/context-menu/context-menu.component';
 import { getShapeAnchors, ShapeAnchorPoint, getDefaultAnchors } from '../../plugins/object/config/shape-anchor.config';
+import { withGraphTransactionMetadata } from '../../../../core/graph/adapters/graph-transaction-metadata.adapter';
+import type { GraphCommandTransaction, GraphConnectorEdgeSnapshot } from '../../../../core/graph/models/graph-transaction.model';
 
 type ResizeHandle = 'right' | 'bottom' | 'corner' | 'corner-top-right' | 'corner-top-left' | 'corner-bottom-left' | 'left' | 'top';
 
@@ -102,6 +104,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
   private readonly widgetEntitiesSignal = toSignal(
     this.store.select(DocumentSelectors.selectWidgetEntities),
     { initialValue: {} as Record<string, WidgetEntity> }
+  );
+  private readonly documentMetadataSignal = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentMetadata),
+    { initialValue: {} as Record<string, unknown> }
   );
 
   // ============================================
@@ -206,6 +212,32 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     
     // Merge with draft if exists (for in-progress resize/drag)
     return this.draftState.getMergedWidget(this.widgetId, persisted);
+  });
+
+  readonly connectorRenderWidget = computed<WidgetEntity | null>(() => {
+    const widget = this.displayWidget();
+    if (!widget || widget.type !== 'connector') {
+      return widget;
+    }
+
+    const props = widget.props as any;
+    const resolved = this.connectorAnchorService.getRepairedConnectorAttachments(
+      widget.id,
+      props?.startAttachment as AnchorAttachment | null | undefined,
+      props?.endAttachment as AnchorAttachment | null | undefined
+    );
+
+    const startAttachment = resolved.startAttachment ?? undefined;
+    const endAttachment = resolved.endAttachment ?? undefined;
+
+    return {
+      ...widget,
+      props: {
+        ...props,
+        ...(startAttachment ? { startAttachment } : { startAttachment: undefined }),
+        ...(endAttachment ? { endAttachment } : { endAttachment: undefined }),
+      },
+    } as WidgetEntity;
   });
   
   // ============================================
@@ -455,8 +487,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       }
 
       // When control is missing (older docs), compute the SAME default handle used by the elbow renderer.
-      const startDir = getAttachmentDirection(props?.startAttachment);
-      const endDir = getAttachmentDirection(props?.endAttachment);
+      const resolvedAttachments = this.connectorAnchorService.getRepairedConnectorAttachments(
+        widget.id,
+        props?.startAttachment as AnchorAttachment | null | undefined,
+        props?.endAttachment as AnchorAttachment | null | undefined
+      );
+      const startDir = getAttachmentDirection(resolvedAttachments.startAttachment ?? undefined);
+      const endDir = getAttachmentDirection(resolvedAttachments.endAttachment ?? undefined);
       return this.computeDefaultElbowHandle(start, end, startDir, endDir);
     }
 
@@ -1245,8 +1282,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const controlPoint = props?.controlPoint;
       if (!startPoint || !endPoint) continue;
 
-      const startAttachment = props?.startAttachment as AnchorAttachment | undefined;
-      const endAttachment = props?.endAttachment as AnchorAttachment | undefined;
+      const resolvedAttachments = this.connectorAnchorService.getRepairedConnectorAttachments(
+        connectorId,
+        props?.startAttachment as AnchorAttachment | undefined,
+        props?.endAttachment as AnchorAttachment | undefined
+      );
+      const startAttachment = resolvedAttachments.startAttachment ?? undefined;
+      const endAttachment = resolvedAttachments.endAttachment ?? undefined;
       const isStartAttachedToThis = startAttachment?.widgetId === widgetId;
       const isEndAttachedToThis = endAttachment?.widgetId === widgetId;
 
@@ -1313,8 +1355,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const shapeType = String(props?.shapeType ?? '');
       const isElbow = shapeType.includes('elbow');
       if (isElbow && !effectiveAbsControl) {
-        const startDir = getAttachmentDirection(props?.startAttachment);
-        const endDir = getAttachmentDirection(props?.endAttachment);
+        const startDir = getAttachmentDirection(normalizedStartAttachment ?? undefined);
+        const endDir = getAttachmentDirection(normalizedEndAttachment ?? undefined);
         const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
         effectiveAbsControl = {
           x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
@@ -1328,7 +1370,19 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const arrowBuffer = hasArrow ? 10 : 0;
       const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 6;
 
-      const curveBounds = this.calculateConnectorBounds(absStart, absEnd, effectiveAbsControl, visualBuffer, String(props?.shapeType ?? ''), props);
+      const elbowRouting = {
+        startAttachment: normalizedStartAttachment,
+        endAttachment: normalizedEndAttachment,
+      };
+
+      const curveBounds = this.calculateConnectorBounds(
+        absStart,
+        absEnd,
+        effectiveAbsControl,
+        visualBuffer,
+        String(props?.shapeType ?? ''),
+        elbowRouting
+      );
       const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
       const newSize = {
         width: Math.max(curveBounds.maxX - curveBounds.minX, 1),
@@ -1369,13 +1423,65 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     if (mode === 'draft' || updates.length === 0) return;
 
+    const graphTransaction = this.buildGraphTransactionForConnectorSync(updates, entities);
+
     // Dispatch after this subscription completes to avoid re-entrancy.
     queueMicrotask(() => {
       this.store.dispatch(WidgetActions.upsertMany({ widgets: updates }));
+      if (graphTransaction) {
+        const metadataAfter = withGraphTransactionMetadata(
+          this.documentMetadataSignal(),
+          graphTransaction,
+          'after'
+        );
+        this.store.dispatch(DocumentMetaActions.updateMetadata({ metadata: metadataAfter }));
+      }
       for (const updated of updates) {
         this.draftState.discardDraft(updated.id);
       }
     });
+  }
+
+  private buildGraphTransactionForConnectorSync(
+    updates: WidgetEntity[],
+    entities: Record<string, WidgetEntity | undefined>
+  ): GraphCommandTransaction | undefined {
+    const beforeEdges: GraphConnectorEdgeSnapshot[] = [];
+    const afterEdges: GraphConnectorEdgeSnapshot[] = [];
+
+    for (const updated of updates) {
+      if (updated.type !== 'connector') continue;
+
+      const persisted = entities[updated.id];
+      if (!persisted || persisted.type !== 'connector') continue;
+
+      beforeEdges.push(this.toConnectorEdgeSnapshot(updated.id, persisted.props as ConnectorWidgetProps | undefined));
+      afterEdges.push(this.toConnectorEdgeSnapshot(updated.id, updated.props as ConnectorWidgetProps | undefined));
+    }
+
+    if (beforeEdges.length === 0 && afterEdges.length === 0) {
+      return undefined;
+    }
+
+    return {
+      kind: 'batch-widget-update',
+      touchedWidgetIds: updates.map((update) => update.id),
+      beforeEdges,
+      afterEdges,
+    };
+  }
+
+  private toConnectorEdgeSnapshot(
+    connectorWidgetId: string,
+    props: ConnectorWidgetProps | undefined
+  ): GraphConnectorEdgeSnapshot {
+    return {
+      connectorWidgetId,
+      fromWidgetId: props?.startAttachment?.widgetId ?? null,
+      toWidgetId: props?.endAttachment?.widgetId ?? null,
+      ...(props?.startAttachment?.anchor ? { fromAnchor: props.startAttachment.anchor } : {}),
+      ...(props?.endAttachment?.anchor ? { toAnchor: props.endAttachment.anchor } : {}),
+    };
   }
   
   private getWidgetHitStackAtPoint(clientX: number, clientY: number): Array<{ id: string; type?: string }> {
@@ -1561,8 +1667,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
       const widget = this.displayWidget();
       if (widget?.type === 'connector') {
         const props = widget.props as any;
-        const startAttachment = props?.startAttachment as AnchorAttachment | null | undefined;
-        const endAttachment = props?.endAttachment as AnchorAttachment | null | undefined;
+        const resolvedAttachments = this.connectorAnchorService.getRepairedConnectorAttachments(
+          this.widgetId,
+          props?.startAttachment as AnchorAttachment | null | undefined,
+          props?.endAttachment as AnchorAttachment | null | undefined
+        );
+        const startAttachment = resolvedAttachments.startAttachment;
+        const endAttachment = resolvedAttachments.endAttachment;
         const startPoint = props?.startPoint;
         const endPoint = props?.endPoint;
 
@@ -2226,7 +2337,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     control: { x: number; y: number } | null,
     strokeBuffer: number = 0,
     shapeType?: string,
-    props?: any
+    elbowRouting?: {
+      startAttachment?: AnchorAttachment | null;
+      endAttachment?: AnchorAttachment | null;
+    }
   ): { minX: number; minY: number; maxX: number; maxY: number } {
     // Start with endpoints
     let minX = Math.min(start.x, end.x);
@@ -2241,8 +2355,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
         start,
         end,
         control,
-        startAttachment: props?.startAttachment,
-        endAttachment: props?.endAttachment,
+        startAttachment: elbowRouting?.startAttachment ?? undefined,
+        endAttachment: elbowRouting?.endAttachment ?? undefined,
         stub: 30,
       }) as Array<{ x: number; y: number }>;
 
@@ -2330,8 +2444,13 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     // control = 2*midpoint - 0.5*(start + end)
     const hasControl = !!props?.controlPoint;
     const isElbow = shapeType.includes('elbow');
-    const startDir = getAttachmentDirection(props?.startAttachment);
-    const endDir = getAttachmentDirection(props?.endAttachment);
+    const resolvedAttachments = this.connectorAnchorService.getRepairedConnectorAttachments(
+      this.widgetId,
+      props?.startAttachment as AnchorAttachment | null | undefined,
+      props?.endAttachment as AnchorAttachment | null | undefined
+    );
+    const startDir = getAttachmentDirection(resolvedAttachments.startAttachment ?? undefined);
+    const endDir = getAttachmentDirection(resolvedAttachments.endAttachment ?? undefined);
     const defaultElbowHandle = this.computeDefaultElbowHandle(startPoint, endPoint, startDir, endDir);
     const seededElbowControl = {
       x: 2 * defaultElbowHandle.x - 0.5 * (startPoint.x + endPoint.x),
@@ -2392,6 +2511,11 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const props = widget.props as any;
     const shapeType = String(props?.shapeType ?? '');
     const isElbow = shapeType.includes('elbow');
+    const resolvedAttachments = this.connectorAnchorService.getRepairedConnectorAttachments(
+      this.widgetId,
+      props?.startAttachment as AnchorAttachment | null | undefined,
+      props?.endAttachment as AnchorAttachment | null | undefined
+    );
     
     // Get stored bezier control point (may not exist for straight lines)
     const storedControl = this.connectorDragState.startEndpoints.control;
@@ -2403,8 +2527,8 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
 
     // For elbows, ensure we always have a control point so the handle/path/bounds stay consistent.
     if (isElbow && !absControl) {
-      const startDir = getAttachmentDirection(props?.startAttachment);
-      const endDir = getAttachmentDirection(props?.endAttachment);
+      const startDir = getAttachmentDirection(resolvedAttachments.startAttachment ?? undefined);
+      const endDir = getAttachmentDirection(resolvedAttachments.endAttachment ?? undefined);
       const defaultHandle = this.computeDefaultElbowHandle(absStart, absEnd, startDir, endDir);
       absControl = {
         x: 2 * defaultHandle.x - 0.5 * (absStart.x + absEnd.x),
@@ -2500,7 +2624,10 @@ export class WidgetContainerComponent implements OnInit, OnDestroy {
     const visualBuffer = Math.max(strokeWidth / 2, 1) + arrowBuffer + 3; // +2px extra ease
 
     // Compute bounding box - for curves, calculate actual curve bounds (not control point)
-    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer, shapeType, props);
+    const curveBounds = this.calculateConnectorBounds(absStart, absEnd, absControl, visualBuffer, shapeType, {
+      startAttachment: resolvedAttachments.startAttachment,
+      endAttachment: resolvedAttachments.endAttachment,
+    });
     
     const newPosition = { x: curveBounds.minX, y: curveBounds.minY };
     const newSize = { 

@@ -10,6 +10,11 @@ import { getShapeAnchors, ShapeAnchorPoint, getDefaultAnchors } from '../../feat
 import { ObjectWidgetProps, type ConnectorAnchorAttachment } from '../../models/widget.model';
 import { DraftStateService } from './draft-state.service';
 import { getAnchorDirectionWithRotation, type AnchorDirection } from '../geometry/connector-elbow-routing';
+import {
+  querySpatialNodeIds,
+} from '../graph/adapters/graph-index.adapter';
+import type { GraphIndexedDocument } from '../graph/models/graph-index.model';
+import { GRAPH_SCHEMA_VERSION_CURRENT, type GraphSchemaVersion } from '../graph/models/graph-schema.model';
 
 /**
  * Anchor point position on a widget.
@@ -29,6 +34,36 @@ export interface AnchorAttachment {
   anchor: ConnectorAnchorAttachment['anchor'];
   dir?: AnchorDirection;
 }
+
+type GraphConnectorEdge = {
+  connectorWidgetId: string;
+  fromWidgetId: string;
+  toWidgetId: string;
+  fromAnchor?: ConnectorAnchorAttachment['anchor'];
+  toAnchor?: ConnectorAnchorAttachment['anchor'];
+};
+
+const CONNECTOR_ANCHOR_ORDER: ConnectorAnchorAttachment['anchor'][] = [
+  'top',
+  'top-right',
+  'right',
+  'bottom-right',
+  'bottom',
+  'bottom-left',
+  'left',
+  'top-left',
+];
+
+const ANCHOR_UNIT_COORDS: Record<ConnectorAnchorAttachment['anchor'], { x: number; y: number }> = {
+  top: { x: 0.5, y: 0 },
+  'top-right': { x: 1, y: 0 },
+  right: { x: 1, y: 0.5 },
+  'bottom-right': { x: 1, y: 1 },
+  bottom: { x: 0.5, y: 1 },
+  'bottom-left': { x: 0, y: 1 },
+  left: { x: 0, y: 0.5 },
+  'top-left': { x: 0, y: 0 },
+};
 
 /**
  * Result of finding the nearest anchor
@@ -99,6 +134,148 @@ export class ConnectorAnchorService {
     this.store.select(DocumentSelectors.selectWidgetIdsByPageId),
     { initialValue: {} as Record<string, string[]> }
   );
+
+  /** Free-form document metadata (graph metadata may be present here). */
+  private readonly documentMetadata = toSignal(
+    this.store.select(DocumentSelectors.selectDocumentMetadata),
+    { initialValue: {} as Record<string, unknown> }
+  );
+
+  /** Graph indexes (phase-5): adjacency + spatial buckets. */
+  private readonly graphIndexes = toSignal(
+    this.store.select(DocumentSelectors.selectGraphIndexes),
+    { initialValue: null as GraphIndexedDocument | null }
+  );
+
+  private getSafeGraphIndexes(): GraphIndexedDocument | null {
+    const index = this.graphIndexes() as GraphIndexedDocument | null | Record<string, unknown>;
+    if (!index || typeof index !== 'object') {
+      return null;
+    }
+    if (!('adjacency' in index) || !('spatial' in index) || !('graph' in index)) {
+      return null;
+    }
+    return index as GraphIndexedDocument;
+  }
+
+  private readGraphEdgeForConnector(connectorWidgetId: string): GraphConnectorEdge | null {
+    const metadata = this.documentMetadata();
+    const graph = metadata?.['graph'] as any;
+    const schemaVersion = String(graph?.schemaVersion ?? '') as GraphSchemaVersion;
+    if (schemaVersion !== GRAPH_SCHEMA_VERSION_CURRENT) {
+      return null;
+    }
+    const edges = graph?.connectorEdges;
+    if (!Array.isArray(edges) || !connectorWidgetId) return null;
+
+    const match = edges.find(
+      (edge: any) => edge && typeof edge === 'object' && edge.connectorWidgetId === connectorWidgetId
+    );
+    if (!match) return null;
+
+    return {
+      connectorWidgetId: String(match.connectorWidgetId ?? ''),
+      fromWidgetId: String(match.fromWidgetId ?? ''),
+      toWidgetId: String(match.toWidgetId ?? ''),
+      fromAnchor: match.fromAnchor,
+      toAnchor: match.toAnchor,
+    };
+  }
+
+  private attachmentFromGraph(edge: GraphConnectorEdge | null, endpoint: 'start' | 'end'): AnchorAttachment | null {
+    if (!edge) return null;
+
+    if (endpoint === 'start') {
+      if (!edge.fromWidgetId || !edge.fromAnchor) return null;
+      return { widgetId: edge.fromWidgetId, anchor: edge.fromAnchor };
+    }
+
+    if (!edge.toWidgetId || !edge.toAnchor) return null;
+    return { widgetId: edge.toWidgetId, anchor: edge.toAnchor };
+  }
+
+  private toConnectorAnchor(position: string): ConnectorAnchorAttachment['anchor'] | null {
+    return (CONNECTOR_ANCHOR_ORDER as string[]).includes(position)
+      ? (position as ConnectorAnchorAttachment['anchor'])
+      : null;
+  }
+
+  private pickClosestAnchor(
+    target: ConnectorAnchorAttachment['anchor'],
+    available: ConnectorAnchorAttachment['anchor'][]
+  ): ConnectorAnchorAttachment['anchor'] {
+    if (available.length === 0) {
+      return target;
+    }
+    let best = available[0];
+    let bestDistance = Number.POSITIVE_INFINITY;
+    const targetPoint = ANCHOR_UNIT_COORDS[target];
+    for (const candidate of available) {
+      const point = ANCHOR_UNIT_COORDS[candidate];
+      const dx = point.x - targetPoint.x;
+      const dy = point.y - targetPoint.y;
+      const dist = dx * dx + dy * dy;
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  private repairAttachment(attachment: AnchorAttachment | null): AnchorAttachment | null {
+    if (!attachment?.widgetId) return null;
+
+    const persisted = this.widgetEntities()[attachment.widgetId];
+    if (!persisted || persisted.type === 'connector') {
+      return null;
+    }
+
+    const widget = this.draftState.getMergedWidget(attachment.widgetId, persisted) ?? persisted;
+    const available = this.getAnchorsForWidget(widget)
+      .map((anchor) => this.toConnectorAnchor(anchor.position))
+      .filter((anchor): anchor is ConnectorAnchorAttachment['anchor'] => !!anchor);
+
+    if (available.length === 0) {
+      return null;
+    }
+
+    const anchor = available.includes(attachment.anchor)
+      ? attachment.anchor
+      : this.pickClosestAnchor(attachment.anchor, available);
+
+    const dir = this.getAnchorDirectionForWidget(widget, anchor);
+    return dir
+      ? { widgetId: attachment.widgetId, anchor, dir }
+      : { widgetId: attachment.widgetId, anchor };
+  }
+
+  getResolvedConnectorAttachments(
+    connectorWidgetId: string,
+    startAttachment: AnchorAttachment | null | undefined,
+    endAttachment: AnchorAttachment | null | undefined
+  ): { startAttachment: AnchorAttachment | null; endAttachment: AnchorAttachment | null } {
+    const edge = this.readGraphEdgeForConnector(connectorWidgetId);
+    const graphStart = this.attachmentFromGraph(edge, 'start');
+    const graphEnd = this.attachmentFromGraph(edge, 'end');
+
+    return {
+      startAttachment: graphStart,
+      endAttachment: graphEnd,
+    };
+  }
+
+  getRepairedConnectorAttachments(
+    connectorWidgetId: string,
+    startAttachment: AnchorAttachment | null | undefined,
+    endAttachment: AnchorAttachment | null | undefined
+  ): { startAttachment: AnchorAttachment | null; endAttachment: AnchorAttachment | null } {
+    const resolved = this.getResolvedConnectorAttachments(connectorWidgetId, startAttachment, endAttachment);
+    return {
+      startAttachment: this.repairAttachment(resolved.startAttachment),
+      endAttachment: this.repairAttachment(resolved.endAttachment),
+    };
+  }
   
   /**
    * Get absolute position of an anchor on a widget.
@@ -174,8 +351,22 @@ export class ConnectorAnchorService {
     position: { x: number; y: number },
     excludeWidgetId: string
   ): NearestAnchorResult | null {
-    const widgetIds = this.widgetIdsByPageId()[pageId] || [];
+    const allWidgetIds = this.widgetIdsByPageId()[pageId] || [];
     const entities = this.widgetEntities();
+
+    const graphIndexes = this.getSafeGraphIndexes();
+    const spatialCandidateIds = graphIndexes
+      ? querySpatialNodeIds(graphIndexes.spatial, {
+          minX: position.x - this.SNAP_THRESHOLD,
+          minY: position.y - this.SNAP_THRESHOLD,
+          maxX: position.x + this.SNAP_THRESHOLD,
+          maxY: position.y + this.SNAP_THRESHOLD,
+        })
+      : [];
+
+    const widgetIds = spatialCandidateIds.length > 0
+      ? spatialCandidateIds
+      : allWidgetIds;
     
     let nearest: NearestAnchorResult | null = null;
     
@@ -185,6 +376,9 @@ export class ConnectorAnchorService {
       
       const persisted = entities[widgetId];
       if (!persisted) continue;
+
+      // In spatial-index mode, enforce page scope explicitly.
+      if (persisted.pageId !== pageId) continue;
       
       // Skip other connectors
       if (persisted.type === 'connector') continue;
@@ -242,30 +436,42 @@ export class ConnectorAnchorService {
     const widgetIds = this.widgetIdsByPageId()[pageId] || [];
     const entities = this.widgetEntities();
     const results: Array<{ connectorId: string; endpoint: 'start' | 'end'; attachment: AnchorAttachment }> = [];
+
+    const graphIndexes = this.getSafeGraphIndexes();
+    const connectorIdsFromAdjacency = graphIndexes?.adjacency.connectorsByWidgetId[targetWidgetId];
+    const connectorCandidateIds = Array.isArray(connectorIdsFromAdjacency)
+      ? connectorIdsFromAdjacency
+      : widgetIds;
     
-    for (const widgetId of widgetIds) {
+    for (const widgetId of connectorCandidateIds) {
       const persisted = entities[widgetId];
       if (!persisted || persisted.type !== 'connector') continue;
+      if (persisted.pageId !== pageId) continue;
 
       // Use draft-aware connector data so attachments set during drag are respected
       const widget = this.draftState.getMergedWidget(widgetId, persisted) ?? persisted;
       const props = widget.props as any;
+      const resolved = this.getRepairedConnectorAttachments(
+        widgetId,
+        props?.startAttachment,
+        props?.endAttachment
+      );
       
       // Check start attachment
-      if (props?.startAttachment?.widgetId === targetWidgetId) {
+      if (resolved.startAttachment?.widgetId === targetWidgetId) {
         results.push({
           connectorId: widgetId,
           endpoint: 'start',
-          attachment: props.startAttachment,
+          attachment: resolved.startAttachment,
         });
       }
       
       // Check end attachment
-      if (props?.endAttachment?.widgetId === targetWidgetId) {
+      if (resolved.endAttachment?.widgetId === targetWidgetId) {
         results.push({
           connectorId: widgetId,
           endpoint: 'end',
-          attachment: props.endAttachment,
+          attachment: resolved.endAttachment,
         });
       }
     }

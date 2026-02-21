@@ -97,7 +97,7 @@
 
         <app-connector-widget
           *ngSwitchCase="'connector'"
-          [widget]="$any(widget)"
+          [widget]="$any(connectorRenderWidget() ?? widget)"
           (propsChange)="onContentChange($event)"
           (strokePointerDown)="onConnectorStrokePointerDown($event)"
         ></app-connector-widget>

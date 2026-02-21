@@ -1,6 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { DocumentModel } from '../../models/document.model';
 import type { WidgetModel } from '../../models/widget.model';
+import type { GraphCommandTransaction } from '../graph/models/graph-transaction.model';
 
 export interface Command {
   execute(): void;
@@ -8,6 +9,8 @@ export interface Command {
   description?: string;
   /** The page ID affected by this command (for navigation after undo/redo) */
   pageId?: string;
+  /** Optional graph transaction metadata associated with this command. */
+  graphTransaction?: GraphCommandTransaction;
 }
 
 export interface MergeableCommand extends Command {
@@ -29,11 +32,25 @@ export class UndoRedoService {
   private readonly canRedoDocument = signal<boolean>(false);
   private readonly canUndoZoom = signal<boolean>(false);
   private readonly canRedoZoom = signal<boolean>(false);
+  private readonly lastGraphTransaction = signal<GraphCommandTransaction | null>(null);
+  private readonly lastGraphTransactionSource = signal<'execute' | 'merge' | 'undo' | 'redo' | null>(null);
 
   readonly documentCanUndo = this.canUndoDocument.asReadonly();
   readonly documentCanRedo = this.canRedoDocument.asReadonly();
   readonly zoomCanUndo = this.canUndoZoom.asReadonly();
   readonly zoomCanRedo = this.canRedoZoom.asReadonly();
+  readonly latestGraphTransaction = this.lastGraphTransaction.asReadonly();
+  readonly latestGraphTransactionSource = this.lastGraphTransactionSource.asReadonly();
+  readonly latestGraphTransactionSummary = computed(() => {
+    const tx = this.lastGraphTransaction();
+    const source = this.lastGraphTransactionSource();
+    if (!tx || !source) {
+      return '';
+    }
+
+    const edgeCount = Math.max(tx.beforeEdges.length, tx.afterEdges.length);
+    return `${source.toUpperCase()} · ${tx.kind} · widgets:${tx.touchedWidgetIds.length} · edges:${edgeCount}`;
+  });
 
   executeDocumentCommand(command: Command): void {
     const last = this.documentUndoStack[this.documentUndoStack.length - 1];
@@ -45,6 +62,7 @@ export class UndoRedoService {
       // Coalesce rapid successive commands into a single undo step (e.g., typing bursts).
       last.merge(command);
       last.execute();
+      this.publishGraphTransaction(last.graphTransaction, 'merge');
       this.documentRedoStack.length = 0;
       this.updateDocumentState();
       return;
@@ -52,6 +70,7 @@ export class UndoRedoService {
 
     command.execute();
     this.documentUndoStack.push(command);
+    this.publishGraphTransaction(command.graphTransaction, 'execute');
     this.documentRedoStack.length = 0;
     this.updateDocumentState();
   }
@@ -64,6 +83,7 @@ export class UndoRedoService {
     const command = this.documentUndoStack.pop();
     if (command) {
       command.undo();
+      this.publishGraphTransaction(command.graphTransaction, 'undo');
       this.documentRedoStack.push(command);
       this.updateDocumentState();
       return command.pageId ?? null;
@@ -79,6 +99,7 @@ export class UndoRedoService {
     const command = this.documentRedoStack.pop();
     if (command) {
       command.execute();
+      this.publishGraphTransaction(command.graphTransaction, 'redo');
       this.documentUndoStack.push(command);
       this.updateDocumentState();
       return command.pageId ?? null;
@@ -122,6 +143,8 @@ export class UndoRedoService {
     this.documentRedoStack.length = 0;
     this.zoomUndoStack.length = 0;
     this.zoomRedoStack.length = 0;
+    this.lastGraphTransaction.set(null);
+    this.lastGraphTransactionSource.set(null);
     this.updateDocumentState();
     this.updateZoomState();
   }
@@ -194,6 +217,17 @@ export class UndoRedoService {
 
     this.canUndoZoom.set(this.zoomUndoStack.length > 0);
     this.canRedoZoom.set(this.zoomRedoStack.length > 0);
+  }
+
+  private publishGraphTransaction(
+    transaction: GraphCommandTransaction | undefined,
+    source: 'execute' | 'merge' | 'undo' | 'redo'
+  ): void {
+    if (!transaction) {
+      return;
+    }
+    this.lastGraphTransaction.set(transaction);
+    this.lastGraphTransactionSource.set(source);
   }
 }
 

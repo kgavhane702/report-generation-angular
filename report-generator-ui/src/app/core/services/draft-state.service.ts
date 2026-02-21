@@ -7,8 +7,16 @@ import { AppState } from '../../store/app.state';
 import { WidgetActions } from '../../store/document/document.actions';
 import { WidgetEntity } from '../../store/document/document.state';
 import { DocumentSelectors } from '../../store/document/document.selectors';
-import { WidgetModel, WidgetPosition, WidgetSize, WidgetProps } from '../../models/widget.model';
+import {
+  WidgetModel,
+  WidgetPosition,
+  WidgetSize,
+  WidgetProps,
+  ConnectorWidgetProps,
+  ConnectorAnchorAttachment,
+} from '../../models/widget.model';
 import { DocumentService } from './document.service';
+import type { GraphCommandTransaction, GraphConnectorEdgeSnapshot } from '../graph/models/graph-transaction.model';
 
 /**
  * Draft changes for a widget
@@ -34,6 +42,8 @@ export interface CommitDraftOptions {
   previousWidgetOverride?: WidgetModel | WidgetEntity;
   /** Optional per-widget previous snapshots for batch commits. */
   previousWidgetOverrides?: Record<string, WidgetModel | WidgetEntity>;
+  /** Optional graph transaction metadata override. */
+  graphTransaction?: GraphCommandTransaction;
 }
 
 /**
@@ -253,7 +263,15 @@ export class DraftStateService {
           this.documentService.updateWidget(persisted.pageId, widgetId, {
             ...changes,
             ...(mergedProps ? { props: mergedProps } : {}),
-          } as unknown as Partial<WidgetModel>, previousWidget);
+          } as unknown as Partial<WidgetModel>, {
+            previousWidgetOverride: previousWidget,
+            graphTransaction:
+              options?.graphTransaction ??
+              this.buildGraphTransactionForSingleUpdate(widgetId, persisted, {
+                ...changes,
+                ...(mergedProps ? { props: mergedProps } : {}),
+              } as unknown as Partial<WidgetModel>),
+          });
         } else {
           // Fallback: if we can't resolve persisted entity/pageId, at least commit to store.
           this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes }));
@@ -378,13 +396,106 @@ export class DraftStateService {
 
     if (recordUndo) {
       // Use batch update for a single undo operation
-      this.documentService.updateWidgets(updates);
+      this.documentService.updateWidgets(updates, {
+        graphTransaction:
+          options?.graphTransaction ??
+          this.buildGraphTransactionForBatchUpdates(updates),
+      });
     } else {
       // Dispatch individual updates without undo
       for (const { widgetId, changes } of updates) {
         this.store.dispatch(WidgetActions.updateOne({ id: widgetId, changes: changes as Partial<WidgetEntity> }));
       }
     }
+  }
+
+  private buildGraphTransactionForSingleUpdate(
+    widgetId: string,
+    persisted: WidgetEntity,
+    changes: Partial<WidgetModel>
+  ): GraphCommandTransaction | undefined {
+    const before = this.extractConnectorEdgeSnapshot(persisted);
+    const after = this.extractConnectorEdgeSnapshotFromChanges(widgetId, persisted, changes);
+    if (!before && !after) {
+      return undefined;
+    }
+
+    return {
+      kind: 'widget-update',
+      touchedWidgetIds: [widgetId],
+      beforeEdges: before ? [before] : [],
+      afterEdges: after ? [after] : [],
+    };
+  }
+
+  private buildGraphTransactionForBatchUpdates(
+    updates: Array<{
+      pageId: string;
+      widgetId: string;
+      changes: Partial<WidgetModel>;
+      previousWidget?: WidgetModel | WidgetEntity;
+    }>
+  ): GraphCommandTransaction | undefined {
+    const beforeEdges: GraphConnectorEdgeSnapshot[] = [];
+    const afterEdges: GraphConnectorEdgeSnapshot[] = [];
+
+    for (const { widgetId, changes } of updates) {
+      const persisted = this.widgetEntities()[widgetId];
+      if (!persisted) continue;
+
+      const before = this.extractConnectorEdgeSnapshot(persisted);
+      const after = this.extractConnectorEdgeSnapshotFromChanges(widgetId, persisted, changes);
+
+      if (before) beforeEdges.push(before);
+      if (after) afterEdges.push(after);
+    }
+
+    if (beforeEdges.length === 0 && afterEdges.length === 0) {
+      return undefined;
+    }
+
+    return {
+      kind: 'batch-widget-update',
+      touchedWidgetIds: updates.map((update) => update.widgetId),
+      beforeEdges,
+      afterEdges,
+    };
+  }
+
+  private extractConnectorEdgeSnapshot(widget: WidgetEntity): GraphConnectorEdgeSnapshot | null {
+    if (widget.type !== 'connector') {
+      return null;
+    }
+
+    const props = widget.props as ConnectorWidgetProps;
+    return this.toEdgeSnapshot(widget.id, props.startAttachment, props.endAttachment);
+  }
+
+  private extractConnectorEdgeSnapshotFromChanges(
+    widgetId: string,
+    persisted: WidgetEntity,
+    changes: Partial<WidgetModel>
+  ): GraphConnectorEdgeSnapshot | null {
+    if (persisted.type !== 'connector') {
+      return null;
+    }
+
+    const nextProps = (changes.props as ConnectorWidgetProps | undefined) ?? (persisted.props as ConnectorWidgetProps);
+    return this.toEdgeSnapshot(widgetId, nextProps?.startAttachment, nextProps?.endAttachment);
+  }
+
+  private toEdgeSnapshot(
+    connectorWidgetId: string,
+    startAttachment?: ConnectorAnchorAttachment,
+    endAttachment?: ConnectorAnchorAttachment
+  ): GraphConnectorEdgeSnapshot {
+    return {
+      connectorWidgetId,
+      fromWidgetId: startAttachment?.widgetId ?? null,
+      toWidgetId: endAttachment?.widgetId ?? null,
+      ...(startAttachment?.anchor ? { fromAnchor: startAttachment.anchor } : {}),
+      ...(endAttachment?.anchor ? { toAnchor: endAttachment.anchor } : {}),
+    };
   }
   
   /**

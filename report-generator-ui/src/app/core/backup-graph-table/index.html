@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Graph Table Designer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Graph-Based Table Designer</h1>
+      <p>Create table nodes, connect them, split/merge, and control dimensions.</p>
+    </header>
+
+    <main class="layout">
+      <aside class="panel controls">
+        <section>
+          <h2>Insert Node</h2>
+          <div class="grid two">
+            <label>
+              Label
+              <input id="nodeLabel" type="text" placeholder="Orders" />
+            </label>
+            <label>
+              Columns
+              <input id="nodeColumns" type="number" min="1" value="4" />
+            </label>
+            <label>
+              Width
+              <input id="nodeWidth" type="number" min="120" value="220" />
+            </label>
+            <label>
+              Height
+              <input id="nodeHeight" type="number" min="90" value="130" />
+            </label>
+          </div>
+          <button id="addNodeBtn">Insert Node</button>
+        </section>
+
+        <section>
+          <h2>Graph Connectivity</h2>
+          <div class="grid two">
+            <label>
+              From Node
+              <select id="fromNode"></select>
+            </label>
+            <label>
+              To Node
+              <select id="toNode"></select>
+            </label>
+            <label>
+              Relation
+              <input id="edgeLabel" type="text" placeholder="1:N" />
+            </label>
+          </div>
+          <div class="btn-row">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" class="ghost">Disconnect</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Split & Merge</h2>
+          <div class="grid two">
+            <label>
+              Split Node
+              <select id="splitNode"></select>
+            </label>
+            <label>
+              Split Ratio %
+              <input id="splitRatio" type="number" min="10" max="90" value="50" />
+            </label>
+          </div>
+          <button id="splitBtn">Split Node</button>
+          <hr />
+          <div class="grid two">
+            <label>
+              Merge A
+              <select id="mergeA"></select>
+            </label>
+            <label>
+              Merge B
+              <select id="mergeB"></select>
+            </label>
+          </div>
+          <button id="mergeBtn">Merge Nodes</button>
+        </section>
+
+        <section>
+          <h2>Node Editor</h2>
+          <label>
+            Selected Node
+            <select id="selectedNode"></select>
+          </label>
+          <div class="grid two">
+            <label>
+              Width
+              <input id="editWidth" type="number" min="120" />
+            </label>
+            <label>
+              Height
+              <input id="editHeight" type="number" min="90" />
+            </label>
+            <label>
+              Rows
+              <input id="editRows" type="number" min="1" />
+            </label>
+            <label>
+              Columns
+              <input id="editCols" type="number" min="1" />
+            </label>
+          </div>
+          <div class="btn-row">
+            <button id="applyEditBtn">Apply</button>
+            <button id="deleteNodeBtn" class="danger">Delete Node</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="panel canvas-wrap">
+        <svg id="graphSvg" viewBox="0 0 1400 800" preserveAspectRatio="xMidYMid meet"></svg>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p id="statusText">Ready.</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

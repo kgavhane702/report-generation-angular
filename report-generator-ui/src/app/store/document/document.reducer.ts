@@ -28,6 +28,7 @@ import {
   pageAdapter,
   widgetAdapter,
 } from './entity-adapters';
+import { hydrateDocumentConnectorAttachmentsFromMetadata } from '../../core/graph/adapters/document-graph-metadata.adapter';
 
 export const documentFeatureKey = 'document';
 
@@ -60,7 +61,8 @@ export const documentReducer = createReducer(
   // ============================================
   
   on(DocumentActions.setDocument, (state, { document }) => {
-    const normalized = normalizeDocument(document);
+    const hydratedDocument = hydrateDocumentConnectorAttachmentsFromMetadata(document);
+    const normalized = normalizeDocument(hydratedDocument);
     return { normalized };
   }),
   
@@ -532,7 +534,8 @@ export const documentReducer = createReducer(
   }),
   
   on(BulkDocumentActions.loadDocument, (state, { document }) => {
-    const normalized = normalizeDocument(document);
+    const hydratedDocument = hydrateDocumentConnectorAttachmentsFromMetadata(document);
+    const normalized = normalizeDocument(hydratedDocument);
     return { normalized };
   }),
   

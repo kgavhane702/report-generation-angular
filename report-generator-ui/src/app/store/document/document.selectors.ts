@@ -16,6 +16,11 @@ import {
 import { DocumentModel, SectionModel, SubsectionModel } from '../../models/document.model';
 import { PageModel } from '../../models/page.model';
 import { WidgetModel } from '../../models/widget.model';
+import { buildGraphDocumentFromNormalized } from '../../core/graph/adapters/widget-graph.adapter';
+import { buildGraphIndexes } from '../../core/graph/adapters/graph-index.adapter';
+import { GraphDocument } from '../../core/graph/models/graph-document.model';
+import { GraphIndexedDocument } from '../../core/graph/models/graph-index.model';
+import { withPersistedGraphMetadata } from '../../core/graph/adapters/document-graph-metadata.adapter';
 
 // ============================================
 // FEATURE SELECTOR
@@ -455,18 +460,37 @@ const selectDenormalizedDocument = createSelector(
       };
     });
 
+    const metadata = withPersistedGraphMetadata(meta.metadata, normalized);
+
     return {
       id: meta.id,
       title: meta.title,
       version: meta.version,
       pageSize: meta.pageSize,
-      metadata: meta.metadata,
+      metadata,
       header: meta.header,
       footer: meta.footer,
       logo: meta.logo,
       sections,
     };
   }
+);
+
+/**
+ * Graph projection derived from normalized state.
+ */
+const selectGraphDocument = createSelector(
+  selectNormalizedState,
+  (normalized): GraphDocument => buildGraphDocumentFromNormalized(normalized)
+);
+
+/**
+ * Graph indexes derived from graph projection.
+ * Includes adjacency and coarse spatial buckets for fast lookups.
+ */
+const selectGraphIndexes = createSelector(
+  selectGraphDocument,
+  (graph): GraphIndexedDocument => buildGraphIndexes(graph)
 );
 
 // ============================================
@@ -536,4 +560,10 @@ export const DocumentSelectors = {
   
   // Denormalization (for export)
   selectDenormalizedDocument,
+
+  // Graph projection (phase-1 scaffold)
+  selectGraphDocument,
+
+  // Graph indexes (phase-5 scaffold)
+  selectGraphIndexes,
 };

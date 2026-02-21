@@ -96,6 +96,7 @@ export class UndoRedoControlsComponent implements OnInit, OnDestroy {
   // Signals automatically trigger change detection when used in templates
   readonly documentCanUndo = this.undoRedoService.documentCanUndo;
   readonly documentCanRedo = this.undoRedoService.documentCanRedo;
+  readonly latestGraphTransactionSummary = this.undoRedoService.latestGraphTransactionSummary;
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
