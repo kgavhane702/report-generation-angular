@@ -27,6 +27,9 @@
   <!-- Group: Border/Stroke -->
   <div class="object-toolbar__group">
     <app-border-picker
+      label="Stroke"
+      title="Stroke"
+      [allowNone]="false"
       [value]="borderValue"
       [colorPalette]="fillColorPalette"
       (valueChange)="onBorderValueChange($event)"

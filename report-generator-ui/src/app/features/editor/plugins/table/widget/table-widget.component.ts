@@ -2851,13 +2851,13 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // If the content isn't overflowing vertically, nothing to do.
     //
     // IMPORTANT for split-cells:
-    // The *clipping* element is often the split grid item (`.table-widget__sub-cell`, overflow: hidden),
+    // The *clipping* element is often the split grid item (`.table-widget__cell--split-leaf`, overflow: hidden),
     // while the contenteditable itself can size to content (so scrollHeight == clientHeight and we would miss overflow).
     // So we measure "visible height" from the clip container, and "needed height" from the content node.
     const isLeaf = !!(leafPath && leafPath.trim() !== '');
     const clipEl =
       (isLeaf
-        ? (contentEl.closest('.table-widget__sub-cell') as HTMLElement | null)
+        ? (contentEl.closest('.table-widget__cell--split-leaf') as HTMLElement | null)
         : (contentEl.closest('.table-widget__cell') as HTMLElement | null)) ?? contentEl;
 
     let visibleH = clipEl.clientHeight;
@@ -3046,7 +3046,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const isLeaf = !!(leafPath && leafPath.trim() !== '');
     const clipEl =
       (isLeaf
-        ? (contentEl.closest('.table-widget__sub-cell') as HTMLElement | null)
+        ? (contentEl.closest('.table-widget__cell--split-leaf') as HTMLElement | null)
         : (contentEl.closest('.table-widget__cell') as HTMLElement | null)) ?? contentEl;
 
     let visibleH = clipEl.clientHeight;
@@ -3575,7 +3575,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!cellEl) return;
 
     // If click is inside a split sub-cell, focus that leaf; otherwise focus the first editor in this cell.
-    const subCellEl = target?.closest('.table-widget__sub-cell') as HTMLElement | null;
+    const subCellEl = target?.closest('.table-widget__cell--split-leaf') as HTMLElement | null;
     const searchRoot = subCellEl ?? cellEl;
     const editor = searchRoot.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
     editor?.focus();
@@ -4108,12 +4108,12 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     // 2) Hit on a leaf container (preferred: full hitbox)
     const leafContainer =
-      (el.closest('.table-widget__sub-cell[data-leaf]') as HTMLElement | null) ||
+      (el.closest('.table-widget__cell--split-leaf[data-leaf]') as HTMLElement | null) ||
       (el.closest('.table-widget__cell[data-leaf]') as HTMLElement | null);
     if (leafContainer) return leafContainer.getAttribute('data-leaf') ?? null;
 
     // 3) Click on empty space inside a split sub-cell (e.g. above/below vertically-aligned content)
-    const subCell = el.closest('.table-widget__sub-cell') as HTMLElement | null;
+    const subCell = el.closest('.table-widget__cell--split-leaf') as HTMLElement | null;
     if (subCell) {
       const leaf = subCell.querySelector('.table-widget__cell-editor[data-leaf]') as HTMLElement | null;
       return leaf?.getAttribute('data-leaf') ?? null;
@@ -4144,7 +4144,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const selection = new Set<string>();
     // Prefer full leaf hitboxes (cell/subcell containers) instead of editor bounds (can be tiny/empty).
     const leaves = container.querySelectorAll(
-      '.table-widget__cell[data-leaf], .table-widget__sub-cell[data-leaf]'
+      '.table-widget__cell[data-leaf]'
     ) as NodeListOf<HTMLElement>;
     leaves.forEach((el) => {
       const rect = el.getBoundingClientRect();
@@ -4172,7 +4172,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     const selection = new Set<string>();
     // Prefer sub-cell containers for reliable intersection (editors can be small when empty).
-    const subLeaves = container.querySelectorAll('.table-widget__sub-cell[data-leaf]') as NodeListOf<HTMLElement>;
+    const subLeaves = container.querySelectorAll('.table-widget__cell--split-leaf[data-leaf]') as NodeListOf<HTMLElement>;
 
     subLeaves.forEach((el) => {
       const rect = el.getBoundingClientRect();
@@ -7259,7 +7259,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (this.normalizeEditorHtmlForModel(leafEl.innerHTML) === '') continue;
 
       const clipEl =
-        (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+        (leafEl.closest('.table-widget__cell--split-leaf') as HTMLElement | null) ??
         (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
         leafEl;
 
@@ -7845,7 +7845,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         ? (leafEl: HTMLElement): boolean => {
             let node: HTMLElement | null = leafEl;
             for (let guard = 0; guard < 12; guard++) {
-              const subCellEl = node?.closest?.('.table-widget__sub-cell') as HTMLElement | null;
+              const subCellEl = node?.closest?.('.table-widget__cell--split-leaf') as HTMLElement | null;
               if (!subCellEl) return true; // no more split levels
 
               const gridEl = subCellEl.closest?.('.table-widget__split-grid') as HTMLElement | null;
@@ -7931,7 +7931,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
           if (!Number.isFinite(neededH) || neededH <= 0) continue;
 
           const clipEl =
-            (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+            (leafEl.closest('.table-widget__cell--split-leaf') as HTMLElement | null) ??
             (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
             anchorEl;
 
@@ -7943,7 +7943,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
           // Special handling for split-cells when resizing the anchor's bottom border:
           // non-bottom split rows remain fixed, so only leaves in the bottom chain actually shrink/grow.
-          if (mode === 'manualRowResize' && isBottomAlignedAnchor && cell.split && !!leafEl.closest('.table-widget__sub-cell')) {
+          if (mode === 'manualRowResize' && isBottomAlignedAnchor && cell.split && !!leafEl.closest('.table-widget__cell--split-leaf')) {
             if (!isLeafInBottomResizeChain!(leafEl)) {
               // This leaf sits in a fixed (non-bottom) split row; it won't shrink during main-row resize.
               // Do not let it restrict shrinking.
@@ -8073,7 +8073,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       if (!Number.isFinite(anchorOldHeightPx) || anchorOldHeightPx <= 0) continue;
 
       const clipEl =
-        (leafEl.closest('.table-widget__sub-cell') as HTMLElement | null) ??
+        (leafEl.closest('.table-widget__cell--split-leaf') as HTMLElement | null) ??
         (leafEl.closest('.table-widget__cell') as HTMLElement | null) ??
         leafEl;
       const visibleLeafH = Math.max(1, clipEl.getBoundingClientRect().height / safeScale);

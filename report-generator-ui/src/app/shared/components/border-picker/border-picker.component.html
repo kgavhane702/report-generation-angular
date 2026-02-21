@@ -105,6 +105,7 @@
         </button>
 
         <button
+          *ngIf="allowNone"
           type="button"
           class="border-picker__style"
           [class.border-picker__style--active]="value.style === 'none'"

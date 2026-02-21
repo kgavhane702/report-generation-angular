@@ -77,6 +77,21 @@
     }
   }
 
+  // Split parent cells should not show a full-cell hover tint.
+  &__cell--split-owner:hover {
+    background: transparent;
+  }
+
+  // Split leaf items reuse the base cell class but keep their own (lighter) split border style.
+  &__cell--split-leaf {
+    border: 1px solid var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
+    box-shadow: inset 0 0 0 0.45px var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
+    min-width: 0;
+    min-height: 0;
+    container-type: size;
+    container-name: table-subcell;
+  }
+
   // When typing, make the *whole* cell look focused (not just the inner contenteditable).
   // This also keeps the "flex/grid hack" wrappers visually invisible.
   &__cell:not(.table-widget__cell--selected):focus-within::before {
@@ -196,8 +211,8 @@
 
   // When preserving the widget frame, many rows may be squeezed into a fixed height.
   // Scale down font + padding (relative to the inherited cell font) to prevent clipped text.
-  // This is applied only to TOP-LEVEL editors (sub-cells have their own container-query scaling).
-  .table-widget__cell-editor:not(.table-widget__cell-editor--subcell) {
+  // Apply only to TOP-LEVEL editors via structure (inside .table-widget__cell).
+  .table-widget__cell .table-widget__cell-editor {
     font-size: clamp(8px, calc(1em * var(--tw-auto-fit-scale, 1)), 1em);
     line-height: clamp(1.0, calc(1.5 * var(--tw-auto-fit-scale, 1)), 1.5);
     padding:
@@ -227,45 +242,6 @@
     inset: 0;
     pointer-events: none;
     z-index: 35; // above sub-cell selection overlays
-  }
-
-  &__sub-cell {
-    border: 1px solid var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
-    box-shadow: inset 0 0 0 0.45px var(--slide-table-sub-border, rgba(0, 0, 0, 0.12));
-    box-sizing: border-box;
-    overflow: hidden;
-    background: transparent;
-    position: relative;
-    // Enable container queries so sub-cell text can shrink when the sub-cell gets very small.
-    container-type: size;
-    container-name: table-subcell;
-  }
-
-  &__sub-cell:not(.table-widget__sub-cell--selected):focus-within::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border: 2px solid rgba(25, 118, 210, 0.85);
-    pointer-events: none;
-    z-index: 9; // below selected overlay (::after)
-    box-sizing: border-box;
-  }
-
-  &__sub-cell--selected {
-    border-color: #1976d2;
-    position: relative;
-    
-    // Create an overlay pseudo-element that appears above cell content background
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border: 2px solid #1976d2;
-      background: rgba(25, 118, 210, 0.12);
-      pointer-events: none;
-      z-index: 10; // Above cell content background
-      box-sizing: border-box;
-    }
   }
 
   // ============================================
@@ -341,7 +317,7 @@
     }
   }
 
-  &__cell-editor--subcell {
+  &__cell--split-leaf .table-widget__cell-editor {
     // Default stays the same. When sub-cells get tiny, we scale down relative to the inherited font size,
     // but never below a minimum (prevents the tiny scrollbars without changing default look).
     --subcell-font-scale: 1;
@@ -360,13 +336,13 @@
   }
 
   // Allow the flex surface to actually shrink inside small sub-cells (otherwise min-height can force overflow).
-  &__sub-cell .table-widget__cell-surface {
+  &__cell--split-leaf .table-widget__cell-surface {
     min-height: 0;
   }
 
   // When a sub-cell is short, shrink font + padding down to a minimum to prevent scrollbars.
   @container table-subcell (max-height: 28px) {
-    .table-widget__cell-editor--subcell {
+    .table-widget__cell--split-leaf .table-widget__cell-editor {
       --subcell-font-scale: 0.9;
       line-height: 1.2;
       padding: 2px 4px;
@@ -374,7 +350,7 @@
   }
 
   @container table-subcell (max-height: 22px) {
-    .table-widget__cell-editor--subcell {
+    .table-widget__cell--split-leaf .table-widget__cell-editor {
       --subcell-font-scale: 0.82;
       padding: 1px 3px;
     }
@@ -382,7 +358,7 @@
 
   // Minimum font size cap (don’t go smaller than this).
   @container table-subcell (max-height: 18px) {
-    .table-widget__cell-editor--subcell {
+    .table-widget__cell--split-leaf .table-widget__cell-editor {
       --subcell-font-scale: 0.74;
       padding: 1px 2px;
     }
@@ -423,7 +399,7 @@
   }
 
   &--editing {
-    .table-widget__cell {
+    .table-widget__cell:not(.table-widget__cell--split-leaf) {
       border-color: rgba(25, 118, 210, 0.3);
     }
   }

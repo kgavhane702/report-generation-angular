@@ -55,7 +55,7 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
    * but hide image insertion + widget background fill (not relevant for object shapes).
    */
   readonly textFormattingPlugins: EditastraToolbarPlugin[] = EDITASTRA_TOOLBAR_PLUGINS.filter(
-    (p) => p.kind !== 'insert-image' && p.kind !== 'reset-image-size' && p.kind !== 'widget-background'
+    (p) => p.kind !== 'insert-image' && p.kind !== 'reset-image-size' && p.kind !== 'widget-background' && p.kind !== 'widget-border'
   );
 
   // Computed signals for active object widget (like ChartToolbar pattern)
@@ -135,7 +135,7 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
     return {
       color: stroke?.color || '#94a3b8',
       width: stroke?.width ?? 1,
-      style: style === 'dashed' || style === 'dotted' || style === 'none' ? style : 'solid',
+      style: style === 'dashed' || style === 'dotted' ? style : 'solid',
       borderRadius: this.props?.borderRadius || 0,
     };
   }
@@ -169,7 +169,7 @@ export class ObjectToolbarComponent implements OnInit, OnDestroy {
   }
 
   onBorderValueChange(value: BorderValue): void {
-    const style = value.style === 'none' || value.style === 'dashed' || value.style === 'dotted'
+    const style = value.style === 'dashed' || value.style === 'dotted'
       ? value.style
       : 'solid';
 

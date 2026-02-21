@@ -43,6 +43,7 @@
       <div
         *ngFor="let rc of getRenderableRowCells(rowIndex); trackBy: trackByRenderableCell"
         class="table-widget__cell"
+        [class.table-widget__cell--split-owner]="!!rc.cell.split"
         [class.table-widget__cell--selected]="isCellSelected(rowIndex, rc.colIndex)"
         [attr.data-cell]="rowIndex + '-' + rc.colIndex"
         [attr.data-leaf]="rc.cell.split ? null : composeLeafId(rowIndex, rc.colIndex, '')"
@@ -112,7 +113,7 @@
             [disabled]="isLoading"
             variant="table"
             [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
-            [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
+            [editorClass]="'table-widget__cell-editor'"
             [editorStyles]="{
               'text-decoration': cell.style?.textDecoration || condStyle.textDecoration || null,
               'color': cell.style?.color || condStyle.color || null,
@@ -149,7 +150,7 @@
             [disabled]="isLoading"
             variant="table"
             [dataLeaf]="composeLeafId(rowIndex, cellIndex, path)"
-            [editorClass]="'table-widget__cell-editor' + (path !== '' ? ' table-widget__cell-editor--subcell' : '')"
+            [editorClass]="'table-widget__cell-editor'"
             [editorStyles]="{
               'text-decoration': cell.style?.textDecoration || null,
               'color': cell.style?.color || null,
@@ -186,7 +187,7 @@
 
       <div
         *ngFor="let item of getRenderableSplitCells(cell); trackBy: trackByRenderableSplitCell"
-        class="table-widget__sub-cell"
+        class="table-widget__cell table-widget__cell--split-leaf"
         [attr.data-leaf]="composeLeafId(rowIndex, cellIndex, appendPath(path, item.index))"
         [style.gridRowStart]="item.row + 1"
         [style.gridColumnStart]="item.col + 1"
@@ -195,7 +196,7 @@
         [style.border-color]="item.cell.style?.borderColor || null"
         [style.border-width.px]="item.cell.style?.borderWidth ?? null"
         [style.border-style]="item.cell.style?.borderStyle || null"
-        [class.table-widget__sub-cell--selected]="isLeafSelected(rowIndex, cellIndex, appendPath(path, item.index))"
+        [class.table-widget__cell--selected]="isLeafSelected(rowIndex, cellIndex, appendPath(path, item.index))"
       >
         <ng-container
           *ngTemplateOutlet="cellRenderer; context: { cell: item.cell, rowIndex: rowIndex, cellIndex: cellIndex, path: appendPath(path, item.index) }"

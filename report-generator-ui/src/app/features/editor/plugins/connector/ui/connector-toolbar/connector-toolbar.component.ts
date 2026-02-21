@@ -54,7 +54,7 @@ export class ConnectorToolbarComponent {
     return {
       color,
       width: stroke?.width ?? 2,
-      style: style === 'dashed' || style === 'dotted' || style === 'none' ? style : 'solid',
+      style: style === 'dashed' || style === 'dotted' ? style : 'solid',
       borderRadius: 0,
     };
   }
@@ -67,7 +67,7 @@ export class ConnectorToolbarComponent {
     const currentProps = (widget.props as ConnectorWidgetProps) ?? ({} as ConnectorWidgetProps);
 
     const nextColor = value.color || '#94a3b8';
-    const nextStyle = value.style === 'dashed' || value.style === 'dotted' || value.style === 'none'
+    const nextStyle = value.style === 'dashed' || value.style === 'dotted'
       ? value.style
       : 'solid';
 
