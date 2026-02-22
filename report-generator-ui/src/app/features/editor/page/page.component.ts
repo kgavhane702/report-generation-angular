@@ -733,7 +733,13 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     if (insertionMode.widgetType === 'connector') {
       this.insertionStartSnap = this.resolveNearestAnchor(point);
       this.insertionEndSnap = this.insertionStartSnap;
-      const frame = this.buildConnectorFrame(this.insertionStartSnap.point, this.insertionEndSnap.point);
+      const frame = this.buildConnectorFrame(
+        this.insertionStartSnap.point,
+        this.insertionEndSnap.point,
+        insertionMode.shapeType,
+        this.insertionStartSnap.attachment,
+        this.insertionEndSnap.attachment
+      );
       this._insertionRect.set(frame);
       this.uiState.startDraggingConnectorEndpoint(PageComponent.INSERTION_CONNECTOR_PREVIEW_ID, 'end');
       this.uiState.updateConnectorEndpointDragPosition(this.insertionEndSnap.point.x, this.insertionEndSnap.point.y);
@@ -772,7 +778,15 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
       const endSnap = this.resolveNearestAnchor(point);
       this.insertionStartSnap = startSnap;
       this.insertionEndSnap = endSnap;
-      this._insertionRect.set(this.buildConnectorFrame(startSnap.point, endSnap.point));
+      this._insertionRect.set(
+        this.buildConnectorFrame(
+          startSnap.point,
+          endSnap.point,
+          insertionMode.shapeType,
+          startSnap.attachment,
+          endSnap.attachment
+        )
+      );
       this.uiState.updateConnectorEndpointDragPosition(endSnap.point.x, endSnap.point.y);
       return;
     }
@@ -809,7 +823,13 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
         return;
       }
 
-      const frame = this.buildConnectorFrame(startSnap.point, endSnap.point);
+      const frame = this.buildConnectorFrame(
+        startSnap.point,
+        endSnap.point,
+        insertionMode.shapeType,
+        startSnap.attachment,
+        endSnap.attachment
+      );
       const widget = this.widgetFactory.createWidget('connector', {
         shapeType: insertionMode.shapeType,
       } as any);
@@ -828,6 +848,44 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
       };
       props.startAttachment = startSnap.attachment ?? undefined;
       props.endAttachment = endSnap.attachment ?? undefined;
+
+      const shapeType = String(insertionMode.shapeType ?? 'line').toLowerCase();
+      const startLocal = props.startPoint;
+      const endLocal = props.endPoint;
+
+      if (shapeType.includes('elbow')) {
+        const startDir = getAttachmentDirection(props.startAttachment);
+        const endDir = getAttachmentDirection(props.endAttachment);
+
+        const startHoriz = startDir === 'left' || startDir === 'right';
+        const endHoriz = endDir === 'left' || endDir === 'right';
+
+        let handle: { x: number; y: number };
+        if (!startDir && !endDir) {
+          handle = { x: startLocal.x, y: endLocal.y };
+        } else if ((startHoriz && endHoriz) || (!startHoriz && !endHoriz)) {
+          handle = {
+            x: (startLocal.x + endLocal.x) / 2,
+            y: (startLocal.y + endLocal.y) / 2,
+          };
+        } else if (startHoriz && !endHoriz) {
+          handle = { x: endLocal.x, y: startLocal.y };
+        } else {
+          handle = { x: startLocal.x, y: endLocal.y };
+        }
+
+        props.controlPoint = {
+          x: 2 * handle.x - 0.5 * (startLocal.x + endLocal.x),
+          y: 2 * handle.y - 0.5 * (startLocal.y + endLocal.y),
+        };
+      } else if (shapeType.includes('curved') || shapeType.startsWith('s-')) {
+        props.controlPoint = {
+          x: (startLocal.x + endLocal.x) / 2,
+          y: (startLocal.y + endLocal.y) / 2 - 50,
+        };
+      } else {
+        props.controlPoint = undefined;
+      }
 
       const graphTransaction: GraphCommandTransaction = {
         kind: 'widget-update',
@@ -905,13 +963,72 @@ export class PageComponent implements OnInit, OnDestroy, OnChanges {
     };
   }
 
-  private buildConnectorFrame(start: { x: number; y: number }, end: { x: number; y: number }): { x: number; y: number; width: number; height: number } {
-    const minSize = 2;
-    const left = Math.min(start.x, end.x);
-    const top = Math.min(start.y, end.y);
-    const width = Math.max(minSize, Math.abs(end.x - start.x));
-    const height = Math.max(minSize, Math.abs(end.y - start.y));
-    return { x: left, y: top, width, height };
+  private buildConnectorFrame(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    shapeTypeRaw: string | null | undefined,
+    startAttachment?: ConnectorAnchorAttachment | null,
+    endAttachment?: ConnectorAnchorAttachment | null
+  ): { x: number; y: number; width: number; height: number } {
+    const shapeType = String(shapeTypeRaw ?? 'line').toLowerCase();
+
+    let minX = Math.min(start.x, end.x);
+    let minY = Math.min(start.y, end.y);
+    let maxX = Math.max(start.x, end.x);
+    let maxY = Math.max(start.y, end.y);
+
+    if (shapeType.includes('elbow')) {
+      const points = computeElbowPoints({
+        start,
+        end,
+        control: null,
+        startAttachment: startAttachment ?? undefined,
+        endAttachment: endAttachment ?? undefined,
+        stub: 30,
+      });
+
+      for (const point of points) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    } else if (shapeType.includes('curved') || shapeType.startsWith('s-')) {
+      const control = {
+        x: (start.x + end.x) / 2,
+        y: (start.y + end.y) / 2 - 50,
+      };
+
+      const denomX = start.x - 2 * control.x + end.x;
+      if (Math.abs(denomX) > 0.0001) {
+        const tX = (start.x - control.x) / denomX;
+        if (tX > 0 && tX < 1) {
+          const x = (1 - tX) * (1 - tX) * start.x + 2 * (1 - tX) * tX * control.x + tX * tX * end.x;
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+        }
+      }
+
+      const denomY = start.y - 2 * control.y + end.y;
+      if (Math.abs(denomY) > 0.0001) {
+        const tY = (start.y - control.y) / denomY;
+        if (tY > 0 && tY < 1) {
+          const y = (1 - tY) * (1 - tY) * start.y + 2 * (1 - tY) * tY * control.y + tY * tY * end.y;
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+
+    const hasArrow = shapeType.includes('arrow');
+    const visualPadding = hasArrow ? 14 : 4;
+
+    return {
+      x: minX - visualPadding,
+      y: minY - visualPadding,
+      width: Math.max(1, maxX - minX + 2 * visualPadding),
+      height: Math.max(1, maxY - minY + 2 * visualPadding),
+    };
   }
 
   private resolveNearestAnchor(point: { x: number; y: number }): { point: { x: number; y: number }; attachment: ConnectorAnchorAttachment | null } {
