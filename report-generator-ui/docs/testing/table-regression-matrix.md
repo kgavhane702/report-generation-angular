@@ -147,7 +147,7 @@ Status legend:
 | TBL-071 | Apply text align to multi-cell selection | Multi selected cells | Set text align | All targeted cells updated | Covered | `table-widget.styling.spec.ts` |
 | TBL-072 | Apply vertical align in split and non-split cells | Mixed selection | Set vertical align | Correct style per leaf/cell | Covered | `table-widget.styling.spec.ts` |
 | TBL-073 | Apply background color to selection | Multi selected | Set cell bg | Style applied; persisted correctly | Covered | `table-widget.styling.spec.ts` |
-| TBL-074 | Apply border style/width/color across selection | Multi selected | Set border | Border props updated consistently | Covered | `table-widget.styling.spec.ts` |
+| TBL-074 | Apply border style/width/color across selection | Multi selected | Set border | Border props updated consistently; edit mode does not recolor internal borders | Covered | `table-widget.styling.spec.ts`, `table-widget.editing-borders.spec.ts` |
 | TBL-075 | Apply font props and mixed-state readback | Mixed content styles | Set/re-read toolbar state | Tri-state/value state accurate | Covered | `table-toolbar.service.spec.ts` |
 
 ---
@@ -171,6 +171,7 @@ Status legend:
 - `Direct resize handler clamps + zoom scaling`: [src/app/features/editor/plugins/table/widget/table-widget.resize-handlers.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.resize-handlers.spec.ts)
 - `Clipboard copy/paste + autosave/blur/destroy commit flows`: [src/app/features/editor/plugins/table/widget/table-widget.clipboard-autosave.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.clipboard-autosave.spec.ts)
 - `Styling operations over table/split selections`: [src/app/features/editor/plugins/table/widget/table-widget.styling.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.styling.spec.ts)
+- `Editing mode border-color stability`: [src/app/features/editor/plugins/table/widget/table-widget.editing-borders.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.editing-borders.spec.ts)
 - `Stability/safety guards (invalid IDs, out-of-range paths, merge/split cycles)`: [src/app/features/editor/plugins/table/widget/table-widget.stability.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.stability.spec.ts)
 - `Editor HTML normalization + import sizing helper + preserveWidgetFrame import behavior`: [src/app/features/editor/plugins/table/widget/table-widget.editor-html.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.editor-html.spec.ts)
 - `Leaf-aware tab navigation`: [src/app/features/editor/plugins/table/widget/table-widget.tab-navigation.spec.ts](src/app/features/editor/plugins/table/widget/table-widget.tab-navigation.spec.ts)

@@ -202,13 +202,35 @@ export class TableToolbarService {
     getState: (el: HTMLElement) => T
   ): { all: T | null; values: T[] } {
     const cells = this.getSelectedCellElements?.() ?? [];
-    const values = cells.map(getState);
-    if (values.length === 0) {
+    if (cells.length === 0) {
       return { all: null, values: [] };
     }
-    const first = values[0];
-    const same = values.every((v) => v === first);
+    const values: T[] = [];
+    let first: T | null = null;
+    let same = true;
+    for (const cell of cells) {
+      const value = getState(cell);
+      values.push(value);
+      if (first === null) {
+        first = value;
+      } else if (same && value !== first) {
+        same = false;
+      }
+    }
     return { all: same ? first : null, values };
+  }
+
+  private updateUniformAccumulator<T extends string>(
+    acc: { first: T | null; mixed: boolean },
+    value: T
+  ): void {
+    if (acc.first === null) {
+      acc.first = value;
+      return;
+    }
+    if (!acc.mixed && acc.first !== value) {
+      acc.mixed = true;
+    }
   }
 
   constructor() {
@@ -1070,76 +1092,89 @@ export class TableToolbarService {
 
     // Multi-cell selection: compute tri-state from cell-level styles.
     if (this.getSelectedCellsCount() > 1) {
-      const boldState = this.getSelectedCellsUniformState<'normal' | 'bold'>((el) => {
-        const w = (el.style.fontWeight || window.getComputedStyle(el).fontWeight || '').toString();
-        return w === 'bold' || Number(w) >= 600 ? 'bold' : 'normal';
-      });
+      const cells = this.getSelectedCellElements?.() ?? [];
 
-      const italicState = this.getSelectedCellsUniformState<'normal' | 'italic'>((el) => {
-        const v = (el.style.fontStyle || window.getComputedStyle(el).fontStyle || '').toString();
-        return v === 'italic' ? 'italic' : 'normal';
-      });
+      const boldAcc: { first: 'normal' | 'bold' | null; mixed: boolean } = { first: null, mixed: false };
+      const italicAcc: { first: 'normal' | 'italic' | null; mixed: boolean } = { first: null, mixed: false };
+      const underlineAcc: { first: 'none' | 'underline' | null; mixed: boolean } = { first: null, mixed: false };
+      const strikeAcc: { first: 'none' | 'line-through' | null; mixed: boolean } = { first: null, mixed: false };
+      const alignAcc: { first: 'left' | 'center' | 'right' | 'justify' | null; mixed: boolean } = { first: null, mixed: false };
+      const verticalAcc: { first: 'top' | 'middle' | 'bottom' | null; mixed: boolean } = { first: null, mixed: false };
+      const ffAcc: { first: string | null; mixed: boolean } = { first: null, mixed: false };
+      const fsAcc: { first: string | null; mixed: boolean } = { first: null, mixed: false };
+      const textColorAcc: { first: string | null; mixed: boolean } = { first: null, mixed: false };
+      const highlightAcc: { first: string | null; mixed: boolean } = { first: null, mixed: false };
 
-      const underlineState = this.getSelectedCellsUniformState<'none' | 'underline'>((el) => {
-        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
-        return td.includes('underline') ? 'underline' : 'none';
-      });
+      for (const el of cells) {
+        const computed = window.getComputedStyle(el);
 
-      const strikeState = this.getSelectedCellsUniformState<'none' | 'line-through'>((el) => {
-        const td = (el.style.textDecorationLine || window.getComputedStyle(el).textDecorationLine || '').toString();
-        return td.includes('line-through') ? 'line-through' : 'none';
-      });
+        const weight = (el.style.fontWeight || computed.fontWeight || '').toString();
+        const boldValue: 'normal' | 'bold' = weight === 'bold' || Number(weight) >= 600 ? 'bold' : 'normal';
+        this.updateUniformAccumulator(boldAcc, boldValue);
 
-      const alignState = this.getSelectedCellsUniformState<'left' | 'center' | 'right' | 'justify'>((el) => {
-        const a = (el.style.textAlign || window.getComputedStyle(el).textAlign || 'left').toString();
-        return (a === 'center' || a === 'right' || a === 'justify') ? (a as any) : 'left';
-      });
+        const italicRaw = (el.style.fontStyle || computed.fontStyle || '').toString();
+        const italicValue: 'normal' | 'italic' = italicRaw === 'italic' ? 'italic' : 'normal';
+        this.updateUniformAccumulator(italicAcc, italicValue);
 
-      const vAlignState = this.getSelectedCellsUniformState<'top' | 'middle' | 'bottom'>((el) => {
+        const td = (el.style.textDecorationLine || computed.textDecorationLine || '').toString();
+        const underlineValue: 'none' | 'underline' = td.includes('underline') ? 'underline' : 'none';
+        this.updateUniformAccumulator(underlineAcc, underlineValue);
+        const strikeValue: 'none' | 'line-through' = td.includes('line-through') ? 'line-through' : 'none';
+        this.updateUniformAccumulator(strikeAcc, strikeValue);
+
+        const alignRaw = (el.style.textAlign || computed.textAlign || 'left').toString();
+        const alignValue: 'left' | 'center' | 'right' | 'justify' =
+          alignRaw === 'center' || alignRaw === 'right' || alignRaw === 'justify' ? (alignRaw as any) : 'left';
+        this.updateUniformAccumulator(alignAcc, alignValue);
+
         const surface = el.closest('.table-widget__cell-surface');
-        const v = (surface?.getAttribute('data-vertical-align') || '').trim();
-        return (v === 'middle' || v === 'bottom') ? (v as any) : 'top';
-      });
+        const verticalRaw = (surface?.getAttribute('data-vertical-align') || '').trim();
+        const verticalValue: 'top' | 'middle' | 'bottom' =
+          verticalRaw === 'middle' || verticalRaw === 'bottom' ? (verticalRaw as any) : 'top';
+        this.updateUniformAccumulator(verticalAcc, verticalValue);
 
-      const ffState = this.getSelectedCellsUniformState<string>((el) =>
-        (el.style.fontFamily || window.getComputedStyle(el).fontFamily || '').trim()
-      );
-      const fsState = this.getSelectedCellsUniformState<string>((el) =>
-        (el.style.fontSize || window.getComputedStyle(el).fontSize || '').trim()
-      );
+        this.updateUniformAccumulator(ffAcc, (el.style.fontFamily || computed.fontFamily || '').trim());
+        this.updateUniformAccumulator(fsAcc, (el.style.fontSize || computed.fontSize || '').trim());
+        this.updateUniformAccumulator(textColorAcc, (el.style.color || computed.color || '').trim());
+        this.updateUniformAccumulator(highlightAcc, (el.style.backgroundColor || computed.backgroundColor || '').trim());
+      }
 
-      const textColorState = this.getSelectedCellsUniformState<string>((el) =>
-        (el.style.color || window.getComputedStyle(el).color || '').trim()
-      );
-      const highlightState = this.getSelectedCellsUniformState<string>((el) =>
-        (el.style.backgroundColor || window.getComputedStyle(el).backgroundColor || '').trim()
-      );
+      const boldAll = boldAcc.mixed ? null : boldAcc.first;
+      const italicAll = italicAcc.mixed ? null : italicAcc.first;
+      const underlineAll = underlineAcc.mixed ? null : underlineAcc.first;
+      const strikeAll = strikeAcc.mixed ? null : strikeAcc.first;
+      const alignAll = alignAcc.mixed ? null : alignAcc.first;
+      const verticalAll = verticalAcc.mixed ? null : verticalAcc.first;
+      const ffAll = ffAcc.mixed ? null : ffAcc.first;
+      const fsAll = fsAcc.mixed ? null : fsAcc.first;
+      const textColorAll = textColorAcc.mixed ? null : textColorAcc.first;
+      const highlightAll = highlightAcc.mixed ? null : highlightAcc.first;
 
       const fontSizePx = (() => {
-        if (fsState.all === null) return null;
-        const m = (fsState.all ?? '').match(/^(\d+(?:\.\d+)?)px$/);
+        if (fsAll === null) return null;
+        const m = (fsAll ?? '').match(/^(\d+(?:\.\d+)?)px$/);
         if (!m) return null;
         const v = Math.round(Number(m[1]));
         return Number.isFinite(v) ? v : null;
       })();
 
       this.formattingState.set({
-        isBold: boldState.all === null ? 'mixed' : boldState.all === 'bold' ? 'on' : 'off',
-        isItalic: italicState.all === null ? 'mixed' : italicState.all === 'italic' ? 'on' : 'off',
-        isUnderline: underlineState.all === null ? 'mixed' : underlineState.all === 'underline' ? 'on' : 'off',
-        isStrikethrough: strikeState.all === null ? 'mixed' : strikeState.all === 'line-through' ? 'on' : 'off',
+        isBold: boldAll === null ? 'mixed' : boldAll === 'bold' ? 'on' : 'off',
+        isItalic: italicAll === null ? 'mixed' : italicAll === 'italic' ? 'on' : 'off',
+        isUnderline: underlineAll === null ? 'mixed' : underlineAll === 'underline' ? 'on' : 'off',
+        isStrikethrough: strikeAll === null ? 'mixed' : strikeAll === 'line-through' ? 'on' : 'off',
         // Inline-only behaviors: treat as off when multi-cell.
         isSuperscript: 'off',
         isSubscript: 'off',
-        textAlign: alignState.all === null ? 'mixed' : alignState.all,
-        verticalAlign: vAlignState.all === null ? 'mixed' : vAlignState.all,
-        fontFamily: ffState.all === null ? '' : ffState.all,
+        textAlign: alignAll === null ? 'mixed' : alignAll,
+        verticalAlign: verticalAll === null ? 'mixed' : verticalAll,
+        fontFamily: ffAll === null ? '' : ffAll,
         fontSizePx,
         blockTag: 'p', // Multi-cell: default to paragraph
-        textColor: textColorState.all === null ? '' : (this.normalizeColorToHex(textColorState.all) || ''),
+        textColor: textColorAll === null ? '' : (this.normalizeColorToHex(textColorAll) || ''),
         highlightColor: (() => {
-          if (highlightState.all === null) return '';
-          const hx = this.normalizeColorToHex(highlightState.all) || '';
+          if (highlightAll === null) return '';
+          const hx = this.normalizeColorToHex(highlightAll) || '';
           // Treat fully transparent/none as empty.
           return hx;
         })(),

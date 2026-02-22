@@ -2656,13 +2656,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     if (!this.isActivelyEditing()) {
       return false;
     }
-    const current = {
-      rows: this.localRows(),
-    };
-    const baseline = {
-      rows: this.rowsAtEditStart,
-    };
-    return JSON.stringify(current) !== JSON.stringify(baseline);
+    return !this.areRowsEqual(this.localRows(), this.rowsAtEditStart);
   }
 
   flush(): void {
@@ -4365,10 +4359,10 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       return;
     }
 
-    const beforeRows = this.cloneRows(this.localRows());
+    let changed = false;
 
     this.localRows.update((rows) => {
-      const newRows = this.cloneRows(rows);
+      let newRows: TableRow[] | null = null;
 
       for (const leafId of targetLeafIds) {
         const parsed = this.parseLeafId(leafId);
@@ -4378,59 +4372,80 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         let c = parsed.col;
         const path = parsed.path;
 
-        let baseCell = newRows?.[r]?.cells?.[c];
+        const sourceRows = newRows ?? rows;
+        let baseCell = sourceRows?.[r]?.cells?.[c];
         if (!baseCell) continue;
 
-        // Safety: if a covered cell id somehow sneaks in, redirect to its anchor.
         if (baseCell.coveredBy) {
-          const a = baseCell.coveredBy;
-          r = a.row;
-          c = a.col;
-          baseCell = newRows?.[r]?.cells?.[c];
+          const anchor = baseCell.coveredBy;
+          r = anchor.row;
+          c = anchor.col;
+          baseCell = sourceRows?.[r]?.cells?.[c];
           if (!baseCell) continue;
         }
 
-        const target = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
-        if (!target) continue;
+        const sourceTarget = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
+        if (!sourceTarget) continue;
 
-        // If we are applying cell-level styles, strip conflicting inline formatting
-        // so that previously formatted segments don't remain styled.
+        let nextContentHtml = sourceTarget.contentHtml;
+
         if (stylePatch.fontWeight === 'normal') {
-          target.contentHtml = this.stripInlineTag(target.contentHtml, ['b', 'strong']);
+          nextContentHtml = this.stripInlineTag(nextContentHtml, ['b', 'strong']);
         }
         if (stylePatch.fontStyle === 'normal') {
-          target.contentHtml = this.stripInlineTag(target.contentHtml, ['i', 'em']);
+          nextContentHtml = this.stripInlineTag(nextContentHtml, ['i', 'em']);
         }
         if (stylePatch.textDecoration === 'none') {
-          target.contentHtml = this.stripInlineTag(target.contentHtml, ['u', 's', 'strike', 'del']);
-          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['text-decoration', 'text-decoration-line']);
+          nextContentHtml = this.stripInlineTag(nextContentHtml, ['u', 's', 'strike', 'del']);
+          nextContentHtml = this.stripInlineStyleProps(nextContentHtml, ['text-decoration', 'text-decoration-line']);
         }
         if (Object.prototype.hasOwnProperty.call(stylePatch, 'color')) {
-          // When applying cell-level color, remove inline color overrides inside the cell.
-          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['color']);
+          nextContentHtml = this.stripInlineStyleProps(nextContentHtml, ['color']);
         }
         if (Object.prototype.hasOwnProperty.call(stylePatch, 'textHighlightColor')) {
-          // When applying cell-level highlight, remove inline background-color used as text mark.
-          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['background-color']);
+          nextContentHtml = this.stripInlineStyleProps(nextContentHtml, ['background-color']);
         }
         if (Object.prototype.hasOwnProperty.call(stylePatch, 'lineHeight')) {
-          target.contentHtml = this.stripInlineStyleProps(target.contentHtml, ['line-height']);
+          nextContentHtml = this.stripInlineStyleProps(nextContentHtml, ['line-height']);
         }
 
-        target.style = {
-          ...(target.style ?? {}),
+        const nextStyle: TableCellStyle = {
+          ...(sourceTarget.style ?? {}),
           ...stylePatch,
         };
+
+        const styleUnchanged = this.areStylesEqual(sourceTarget.style, nextStyle);
+        const contentUnchanged = sourceTarget.contentHtml === nextContentHtml;
+        if (styleUnchanged && contentUnchanged) {
+          continue;
+        }
+
+        if (!newRows) {
+          newRows = this.cloneRows(rows);
+        }
+
+        let mutableBaseCell = newRows?.[r]?.cells?.[c];
+        if (!mutableBaseCell) continue;
+        if (mutableBaseCell.coveredBy) {
+          const anchor = mutableBaseCell.coveredBy;
+          mutableBaseCell = newRows?.[anchor.row]?.cells?.[anchor.col];
+          if (!mutableBaseCell) continue;
+        }
+
+        const mutableTarget = path.length === 0 ? mutableBaseCell : this.getCellAtPath(mutableBaseCell, path);
+        if (!mutableTarget) continue;
+
+        mutableTarget.contentHtml = nextContentHtml;
+        mutableTarget.style = nextStyle;
+        changed = true;
       }
 
-      return newRows;
+      return newRows ?? rows;
     });
 
-    // Persist immediately (discrete formatting action).
-    const afterRows = this.localRows();
-    if (JSON.stringify(afterRows) !== JSON.stringify(beforeRows)) {
+    if (changed) {
+      const afterRows = this.localRows();
       this.emitPropsChange(afterRows);
-      // Reset baseline to avoid duplicate emits on blur
       this.rowsAtEditStart = this.cloneRows(afterRows);
     }
 
@@ -4478,7 +4493,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Fast path: if no style attribute present, skip parsing.
     if (!/\bstyle\s*=\s*['"]/i.test(input)) return input;
 
-    const propsLower = cssProps.map((p) => p.toLowerCase());
+    const propsLower = new Set(cssProps.map((p) => p.toLowerCase()));
 
     try {
       const doc = document.implementation.createHTMLDocument('');
@@ -4503,7 +4518,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
             continue;
           }
           const prop = decl.slice(0, idx).trim().toLowerCase();
-          if (propsLower.includes(prop)) {
+          if (propsLower.has(prop)) {
             continue;
           }
           kept.push(decl);
@@ -4557,9 +4572,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     const currentRows = this.localRows();
     const originalRows = this.rowsAtEditStart;
 
-    const currentJson = JSON.stringify(currentRows);
-    const originalJson = JSON.stringify(originalRows);
-    if (currentJson !== originalJson) {
+    if (!this.areRowsEqual(currentRows, originalRows)) {
       // Always clear legacy mergedRegions when we emit, since merges are now inline on cells.
       this.emitPropsChange(currentRows);
       // Advance baseline so subsequent autosaves/blur don't emit the same change again.
@@ -4588,6 +4601,134 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
       ...row,
       cells: row.cells.map(cloneCell),
     }));
+  }
+
+  private areRowsEqual(leftRows: TableRow[], rightRows: TableRow[]): boolean {
+    if (leftRows === rightRows) {
+      return true;
+    }
+    if (leftRows.length !== rightRows.length) {
+      return false;
+    }
+
+    for (let i = 0; i < leftRows.length; i++) {
+      const left = leftRows[i];
+      const right = rightRows[i];
+      if (left.cells.length !== right.cells.length) {
+        return false;
+      }
+      for (let c = 0; c < left.cells.length; c++) {
+        if (!this.areCellsEqual(left.cells[c], right.cells[c])) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  private areCellsEqual(left: TableCell, right: TableCell): boolean {
+    if (left.id !== right.id || left.contentHtml !== right.contentHtml) {
+      return false;
+    }
+
+    const leftMerge = left.merge;
+    const rightMerge = right.merge;
+    if (!!leftMerge !== !!rightMerge) {
+      return false;
+    }
+    if (leftMerge && rightMerge) {
+      if (leftMerge.rowSpan !== rightMerge.rowSpan || leftMerge.colSpan !== rightMerge.colSpan) {
+        return false;
+      }
+    }
+
+    const leftCoveredBy = left.coveredBy;
+    const rightCoveredBy = right.coveredBy;
+    if (!!leftCoveredBy !== !!rightCoveredBy) {
+      return false;
+    }
+    if (leftCoveredBy && rightCoveredBy) {
+      if (leftCoveredBy.row !== rightCoveredBy.row || leftCoveredBy.col !== rightCoveredBy.col) {
+        return false;
+      }
+    }
+
+    if (!this.areStylesEqual(left.style, right.style)) {
+      return false;
+    }
+
+    const leftSplit = left.split;
+    const rightSplit = right.split;
+    if (!!leftSplit !== !!rightSplit) {
+      return false;
+    }
+    if (!leftSplit || !rightSplit) {
+      return true;
+    }
+
+    if (leftSplit.rows !== rightSplit.rows || leftSplit.cols !== rightSplit.cols) {
+      return false;
+    }
+
+    if (!this.areNumberArraysEqual(leftSplit.rowFractions, rightSplit.rowFractions)) {
+      return false;
+    }
+    if (!this.areNumberArraysEqual(leftSplit.columnFractions, rightSplit.columnFractions)) {
+      return false;
+    }
+
+    if (leftSplit.cells.length !== rightSplit.cells.length) {
+      return false;
+    }
+    for (let i = 0; i < leftSplit.cells.length; i++) {
+      if (!this.areCellsEqual(leftSplit.cells[i], rightSplit.cells[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private areStylesEqual(left?: TableCellStyle, right?: TableCellStyle): boolean {
+    if (left === right) {
+      return true;
+    }
+    if (!left || !right) {
+      return !left && !right;
+    }
+
+    const leftEntries = Object.entries(left as Record<string, unknown>);
+    const rightEntries = Object.entries(right as Record<string, unknown>);
+    if (leftEntries.length !== rightEntries.length) {
+      return false;
+    }
+
+    for (const [key, value] of leftEntries) {
+      if ((right as Record<string, unknown>)[key] !== value) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private areNumberArraysEqual(left?: number[], right?: number[]): boolean {
+    if (left === right) {
+      return true;
+    }
+    if (!left || !right) {
+      return !left && !right;
+    }
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let i = 0; i < left.length; i++) {
+      if (left[i] !== right[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private logSelectedCells(reason: string): void {
@@ -5941,7 +6082,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     // Persist immediately (split is a discrete action; no blur needed)
     const afterRows = this.localRows();
 
-    if (JSON.stringify(afterRows) !== JSON.stringify(beforeRows)) {
+    if (!this.areRowsEqual(afterRows, beforeRows)) {
       this.emitPropsChange(afterRows);
       // Reset baseline to avoid duplicate emits on blur
       this.rowsAtEditStart = this.cloneRows(afterRows);

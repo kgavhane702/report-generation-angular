@@ -398,11 +398,6 @@
     white-space: pre-wrap;
   }
 
-  &--editing {
-    .table-widget__cell:not(.table-widget__cell--split-leaf) {
-      border-color: rgba(25, 118, 210, 0.3);
-    }
-  }
 }
 
 .table-widget__loading-overlay {
