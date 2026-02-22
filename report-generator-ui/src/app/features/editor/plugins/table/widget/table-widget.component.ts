@@ -5860,6 +5860,7 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
     this.localRows.update((rows) => {
       const newRows = this.cloneRows(rows);
+      let repairedTopLevelCoverage = false;
       for (const leafId of targetLeafIds) {
         const parsed = this.parseLeafId(leafId);
         if (!parsed) continue;
@@ -5879,6 +5880,31 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
 
         const targetCell = path.length === 0 ? baseCell : this.getCellAtPath(baseCell, path);
         if (!targetCell) continue;
+
+        // If this is a top-level merged anchor and the requested split dimensions match
+        // the merge span, interpret split as "restore original cells" (unmerge)
+        // instead of creating a nested split grid inside the merged anchor.
+        if (path.length === 0 && targetCell.merge && !targetCell.split) {
+          const mergeRowSpan = Math.max(1, Math.trunc(targetCell.merge.rowSpan ?? 1));
+          const mergeColSpan = Math.max(1, Math.trunc(targetCell.merge.colSpan ?? 1));
+          if (mergeRowSpan === rowsCount && mergeColSpan === colsCount) {
+            targetCell.merge = undefined;
+
+            for (let rr = r; rr < r + mergeRowSpan; rr++) {
+              for (let cc = c; cc < c + mergeColSpan; cc++) {
+                if (rr === r && cc === c) continue;
+                const covered = newRows?.[rr]?.cells?.[cc];
+                if (!covered?.coveredBy) continue;
+                if (covered.coveredBy.row !== r || covered.coveredBy.col !== c) continue;
+                covered.coveredBy = undefined;
+              }
+            }
+
+            repairedTopLevelCoverage = true;
+            continue;
+          }
+        }
+
         if (targetCell.split) continue;
 
         const idPrefix = path.length > 0
@@ -5905,6 +5931,9 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
           rowFractions: Array.from({ length: rowsCount }, () => 1 / rowsCount),
         };
         targetCell.contentHtml = '';
+      }
+      if (repairedTopLevelCoverage) {
+        this.rebuildTopLevelCoveredBy(newRows);
       }
       return newRows;
     });
@@ -6651,6 +6680,35 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
     this.emitPropsChange(rowsAfter);
     this.rowsAtEditStart = this.cloneRows(rowsAfter);
 
+    const canonicalTopLevelSelectionId = (() => {
+      // Canonicalization case:
+      // When merging within a ROOT split of a top-level merged anchor, if the merged rectangle
+      // exactly matches one logical tile of the original top-level merge, select that top-level id
+      // (e.g. 2-2) instead of a nested split id (e.g. 2-1-1).
+      if (prefix.length !== 0) return null;
+      if (!baseCell?.merge || !owner?.split) return null;
+
+      const topRowSpan = Math.max(1, Math.trunc(baseCell.merge.rowSpan ?? 1));
+      const topColSpan = Math.max(1, Math.trunc(baseCell.merge.colSpan ?? 1));
+      const splitRows = Math.max(1, Math.trunc(owner.split.rows ?? 1));
+      const splitCols = Math.max(1, Math.trunc(owner.split.cols ?? 1));
+
+      if (splitRows % topRowSpan !== 0 || splitCols % topColSpan !== 0) return null;
+
+      const tileRows = splitRows / topRowSpan;
+      const tileCols = splitCols / topColSpan;
+      if (tileRows <= 0 || tileCols <= 0) return null;
+
+      if (rowSpan !== tileRows || colSpan !== tileCols) return null;
+      if (minRow % tileRows !== 0 || minCol % tileCols !== 0) return null;
+
+      const tileRow = Math.trunc(minRow / tileRows);
+      const tileCol = Math.trunc(minCol / tileCols);
+      if (tileRow < 0 || tileRow >= topRowSpan || tileCol < 0 || tileCol >= topColSpan) return null;
+
+      return `${baseRow + tileRow}-${baseCol + tileCol}`;
+    })();
+
     const collapsedOwner = rowSpan === owner.split.rows && colSpan === owner.split.cols;
     if (collapsedOwner) {
       if (prefix.length === 0) {
@@ -6659,6 +6717,8 @@ export class TableWidgetComponent implements OnInit, AfterViewInit, OnChanges, O
         const collapsedPath = prefix.join('-');
         this.setSelection(new Set([this.composeLeafId(baseRow, baseCol, collapsedPath)]));
       }
+    } else if (canonicalTopLevelSelectionId) {
+      this.setSelection(new Set([canonicalTopLevelSelectionId]));
     } else {
       const mergedPath = [...prefix, anchorIdx].join('-');
       this.setSelection(new Set([this.composeLeafId(baseRow, baseCol, mergedPath)]));

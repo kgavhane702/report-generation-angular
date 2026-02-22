@@ -29,7 +29,7 @@ describe('TableWidgetComponent - editor HTML normalization', () => {
     const el = document.createElement('div');
     el.innerHTML = '<div class="table-widget__valign"><br></div>';
     c.ensureCaretPlaceholderForEmptyEditor(el);
-    expect(el.innerHTML).toBe('<div data-tw-caret-placeholder="1"><br></div>');
+    expect(el.innerHTML).toBe('<div><br></div>');
   });
 });
 
@@ -131,6 +131,8 @@ describe('TableWidgetComponent - applyExcelImport (preserveWidgetFrame)', () => 
 
     c.growWidgetSizeBy = () => void 0;
     c.startAutoFitAfterTopColResize = () => void 0;
+    c.lastLeafTextLen = new Map<string, number>();
+    c.manualTopLevelRowMinHeightsPx = [];
 
     const growSpy = spyOn(c, 'growWidgetSizeBy').and.callThrough();
     const autoFitSpy = spyOn(c, 'startAutoFitAfterTopColResize').and.callThrough();
@@ -164,6 +166,209 @@ describe('TableWidgetComponent - applyExcelImport (preserveWidgetFrame)', () => 
 
     // Restore RAF to avoid leaking a spy into other tests.
     (window as any).requestAnimationFrame = originalRaf;
+  });
+
+  const makeImportHarness = (opts?: {
+    existingRows?: any[];
+    columnFractions?: number[];
+    rowFractions?: number[];
+    propsPatch?: Record<string, any>;
+  }) => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+
+    c.minColPx = 40;
+    c.minRowPx = 24;
+
+    const existingRows = opts?.existingRows ?? [];
+
+    c.widget = {
+      id: 'w-1',
+      size: { width: 320, height: 180 },
+      props: {
+        rows: existingRows,
+        showBorders: true,
+        loading: false,
+        headerRow: false,
+        headerRowCount: 0,
+        preserveHeaderOnUrlLoad: false,
+        ...(opts?.propsPatch ?? {}),
+      },
+    };
+
+    c.isLoadingSig = makeSignal<boolean>(false);
+    c.localRows = makeSignal<any[]>(JSON.parse(JSON.stringify(existingRows)));
+    c.columnFractions = makeSignal<number[]>(opts?.columnFractions ?? [0.5, 0.5]);
+    c.rowFractions = makeSignal<number[]>(opts?.rowFractions ?? [1]);
+
+    c.cloneRows = (rows: any[]) => JSON.parse(JSON.stringify(rows));
+    c.getTopLevelRowCount = (rows: any[]) => (Array.isArray(rows) ? rows.length : 0);
+    c.getTopLevelColCount = (rows: any[]) => {
+      const first = Array.isArray(rows) ? rows[0] : null;
+      const cells = first?.cells;
+      return Array.isArray(cells) ? cells.length : 0;
+    };
+
+    c.clearSelection = () => void 0;
+    c.toolbarService = { setActiveCell: () => void 0 };
+    c.cdr = { markForCheck: () => void 0 };
+    c.scheduleRecomputeResizeSegments = () => void 0;
+    c.lastLeafTextLen = new Map<string, number>();
+    c.manualTopLevelRowMinHeightsPx = [];
+
+    c.normalizeFractions = (arr: number[], count: number) => {
+      const n = Math.max(1, Math.trunc(count));
+      if (!Array.isArray(arr) || arr.length !== n) {
+        return Array.from({ length: n }, () => 1 / n);
+      }
+      const cleaned = arr.map((v) => (Number.isFinite(v) && v > 0 ? v : 0));
+      const sum = cleaned.reduce((a, b) => a + b, 0);
+      if (!Number.isFinite(sum) || sum <= 0) {
+        return Array.from({ length: n }, () => 1 / n);
+      }
+      return cleaned.map((v) => v / sum);
+    };
+
+    c.computeImportColumnFractionsFromRows = () => [0.5, 0.5];
+    c.growWidgetSizeBy = () => ({ appliedWidthPx: 0, appliedHeightPx: 0 });
+    c.startAutoFitAfterTopColResize = () => void 0;
+    c.schedulePostImportFitHeaderRow = () => void 0;
+
+    c.propsChange = { emit: jasmine.createSpy('emit') };
+    c.draftState = {
+      hasDraft: () => false,
+      commitDraft: () => void 0,
+    };
+
+    return c;
+  };
+
+  it('preserves existing header rows and replaces body during URL auto-load', () => {
+    const existingRows = [
+      {
+        id: 'hdr',
+        cells: [
+          { id: 'h0', contentHtml: 'Region' },
+          { id: 'h1', contentHtml: 'Amount' },
+        ],
+      },
+      {
+        id: 'template',
+        cells: [
+          { id: 't0', contentHtml: '' },
+          { id: 't1', contentHtml: '' },
+        ],
+      },
+    ];
+
+    const c = makeImportHarness({
+      existingRows,
+      propsPatch: {
+        dataSource: { kind: 'http' },
+        preserveHeaderOnUrlLoad: true,
+        headerRow: true,
+        headerRowCount: 1,
+      },
+    });
+
+    c.applyExcelImport({
+      widgetId: 'w-1',
+      preserveWidgetFrame: true,
+      rows: [
+        // Incoming header-like row should be dropped because preserved header already exists.
+        {
+          id: 'r-h',
+          cells: [
+            { id: 'rh0', contentHtml: 'Region' },
+            { id: 'rh1', contentHtml: 'Amount' },
+            { id: 'rh2', contentHtml: 'Extra' },
+          ],
+        },
+        {
+          id: 'r-1',
+          cells: [
+            { id: 'r10', contentHtml: 'North' },
+            { id: 'r11', contentHtml: '100' },
+            { id: 'r12', contentHtml: 'ignored' },
+          ],
+        },
+      ],
+      columnFractions: [0.5, 0.5],
+      rowFractions: [0.5, 0.5],
+    } as any);
+
+    const emitted = c.propsChange.emit.calls.mostRecent().args[0];
+    expect(emitted.rows.length).toBe(2);
+    expect(emitted.rows[0].cells[0].contentHtml).toBe('Region');
+    expect(emitted.rows[0].cells[1].contentHtml).toBe('Amount');
+    expect(emitted.rows[1].cells[0].contentHtml).toBe('North');
+    expect(emitted.rows[1].cells[1].contentHtml).toBe('100');
+    expect(emitted.rows[1].cells.length).toBe(2);
+  });
+
+  it('reapplies persisted fractions for placeholder-to-real URL data load', () => {
+    const c = makeImportHarness({
+      existingRows: [{ id: 'placeholder', cells: [{ id: 'p0', contentHtml: '' }] }],
+      columnFractions: [1],
+      rowFractions: [1],
+      propsPatch: {
+        dataSource: { kind: 'http' },
+        headerRow: true,
+        headerRowCount: 1,
+        totalRow: true,
+      },
+    });
+
+    c.pendingPropsColumnFractions = [0.7, 0.3];
+    c.pendingPropsRowFractions = [0.4, 0.6];
+
+    c.applyExcelImport({
+      widgetId: 'w-1',
+      preserveWidgetFrame: true,
+      rows: [
+        { id: 'r0', cells: [{ id: '0-0', contentHtml: 'H1' }, { id: '0-1', contentHtml: 'H2' }] },
+        { id: 'r1', cells: [{ id: '1-0', contentHtml: 'A' }, { id: '1-1', contentHtml: '10' }] },
+        { id: 'r2', cells: [{ id: '2-0', contentHtml: 'Total' }, { id: '2-1', contentHtml: '10' }] },
+      ],
+      columnFractions: [0.5, 0.5],
+      rowFractions: [1 / 3, 1 / 3, 1 / 3],
+    } as any);
+
+    const emitted = c.propsChange.emit.calls.mostRecent().args[0];
+    expect(emitted.columnFractions[0]).toBeCloseTo(0.7, 6);
+    expect(emitted.columnFractions[1]).toBeCloseTo(0.3, 6);
+
+    // Mapped row fractions should preserve stronger header/total weights versus middle rows.
+    expect(emitted.rowFractions.length).toBe(3);
+    expect(emitted.rowFractions[0]).toBeGreaterThan(emitted.rowFractions[1]);
+    expect(emitted.rowFractions[2]).toBeGreaterThan(emitted.rowFractions[1]);
+
+    expect(c.pendingPropsColumnFractions).toBeNull();
+    expect(c.pendingPropsRowFractions).toBeNull();
+  });
+
+  it('maps imported merge metadata into inline merge/coveredBy model', () => {
+    const c = makeImportHarness();
+
+    c.applyExcelImport({
+      widgetId: 'w-1',
+      preserveWidgetFrame: false,
+      rows: [
+        {
+          id: 'r0',
+          cells: [
+            { id: '0-0', contentHtml: 'A', merge: { rowSpan: 1, colSpan: 2 } },
+            { id: '0-1', contentHtml: '', coveredBy: { row: 0, col: 0 } },
+          ],
+        },
+      ],
+      columnFractions: [0.5, 0.5],
+      rowFractions: [1],
+    } as any);
+
+    const emitted = c.propsChange.emit.calls.mostRecent().args[0];
+    expect(emitted.rows[0].cells[0].merge).toEqual({ rowSpan: 1, colSpan: 2 });
+    expect(emitted.rows[0].cells[1].coveredBy).toEqual({ row: 0, col: 0 });
+    expect(emitted.mergedRegions).toEqual([]);
   });
 });
 

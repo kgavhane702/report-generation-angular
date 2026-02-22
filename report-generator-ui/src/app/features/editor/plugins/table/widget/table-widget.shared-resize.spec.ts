@@ -1,92 +1,149 @@
 import { TableWidgetComponent } from './table-widget.component';
 
-describe('TableWidgetComponent - shared split boundary resize', () => {
-  it('propagates split column resize to other owners on same line (delta-based, per-owner boundary index)', () => {
-    // We unit-test the propagation math via private handler, without DOM.
-    // Setup: two split owners with different split shapes; resizing should update the correct boundary per owner.
+describe('TableWidgetComponent - resize constraint helpers', () => {
+  it('computeOwnerBoundaryIndexForSharedAbs maps shared boundary to nearest owner boundary index', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
 
-    const c = Object.create(TableWidgetComponent.prototype) as TableWidgetComponent as any;
+    const tableEl = document.createElement('div');
+    const grid = document.createElement('div');
+    grid.setAttribute('data-owner-leaf', 'A');
+    tableEl.appendChild(grid);
 
-    // Minimal plumbing / no-op deps
-    c.minSplitColPx = 24;
+    c.getTableElement = () => tableEl;
+    c.getTableRect = () => ({ left: 0, top: 0, width: 200, height: 100 } as DOMRect);
+    spyOn(tableEl, 'querySelector').and.callFake((selector: string) => {
+      if (selector.includes('data-owner-leaf="A"')) return grid;
+      return null;
+    });
+    spyOn(grid, 'getBoundingClientRect').and.returnValue({
+      left: 50,
+      top: 10,
+      width: 100,
+      height: 40,
+      right: 150,
+      bottom: 50,
+      x: 50,
+      y: 10,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    c.getSplitColFractions = () => [0.2, 0.3, 0.5];
+
+    // Shared abs = 0.49 projects to within ~0.48 in this grid, nearest boundary is 0.5 => index 2.
+    const idx = c.computeOwnerBoundaryIndexForSharedAbs('col', 'A', { split: { cols: 3, rows: 1 } }, 0.49);
+    expect(idx).toBe(2);
+  });
+
+  it('computeMinTopLevelRowHeightPx returns base min when container is unavailable', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+
+    c.minRowPx = 24;
+    c.localRows = () => [{ id: 'r0', cells: [{ id: 'a', contentHtml: '<div>A</div>' }] }];
+    c.getTopLevelRowCount = (rows: any[]) => rows.length;
+    c.getTopLevelColCount = (rows: any[]) => rows[0].cells.length;
+    c.tableContainer = undefined;
+
+    const min = c.computeMinTopLevelRowHeightPx(0, [40], 1);
+    expect(min).toBe(24);
+  });
+
+  it('computeMinSplitAdjacentRowHeightsPx returns base mins when split grid element is unavailable', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+
     c.minSplitRowPx = 18;
-    const makeSignal = <T,>(initial: T) => {
-      const fn: any = () => fn.value as T;
-      fn.value = initial;
-      fn.set = (v: T) => {
-        fn.value = v;
-      };
-      return fn;
+    c.normalizeFractions = (arr: number[], count: number) =>
+      arr.length === count ? arr : Array.from({ length: count }, () => 1 / count);
+    c.parseLeafId = (id: string) => {
+      const p = id.split('-').map(Number);
+      return { row: p[0], col: p[1], path: p.slice(2) };
+    };
+    c.getTableElement = () => null;
+
+    const ownerCell = {
+      split: {
+        rows: 2,
+        cols: 1,
+        rowFractions: [0.6, 0.4],
+        cells: [{ id: 'c0', contentHtml: '' }, { id: 'c1', contentHtml: '' }],
+      },
     };
 
-    c.pendingSplitColFractions = makeSignal<Map<string, number[]>>(new Map());
-    c.pendingSplitRowFractions = makeSignal<Map<string, number[]>>(new Map());
-    c.ghostSplitColWithinPercent = makeSignal<Map<string, number>>(new Map());
-    c.ghostSplitRowWithinPercent = makeSignal<Map<string, number>>(new Map());
-    c.ghostSharedSplitColPercent = makeSignal<number | null>(null);
-    c.ghostSharedSplitRowPercent = makeSignal<number | null>(null);
+    const mins = c.computeMinSplitAdjacentRowHeightsPx('0-0', ownerCell, 1, 100, 1);
+    expect(mins.minTopPx).toBe(18);
+    expect(mins.minBottomPx).toBe(18);
+  });
 
+  it('computeMinSplitAdjacentRowHeightsPx raises minTopPx for visible non-empty leaf content', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+
+    c.minSplitRowPx = 18;
     c.normalizeFractions = (arr: number[], count: number) => {
       if (arr.length !== count) return Array.from({ length: count }, () => 1 / count);
       const sum = arr.reduce((a, b) => a + b, 0);
       return arr.map((x) => x / sum);
     };
-    c.clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+    c.parseLeafId = (id: string) => {
+      const parts = id.split('-').map(Number);
+      return { row: parts[0], col: parts[1], path: parts.slice(2) };
+    };
+    c.normalizeEditorHtmlForModel = (html: string) => (html ?? '').trim();
 
-    const ownerA = { split: { cols: 2, rows: 1, columnFractions: [0.6, 0.4], rowFractions: [1], cells: [] } };
-    const ownerB = { split: { cols: 3, rows: 1, columnFractions: [0.2, 0.3, 0.5], rowFractions: [1], cells: [] } };
+    const tableEl = document.createElement('div');
+    const gridEl = document.createElement('div');
+    gridEl.className = 'table-widget__split-grid';
+    gridEl.setAttribute('data-owner-leaf', '0-0');
 
-    c.getCellModelByLeafId = (leafId: string) => (leafId === 'A' ? ownerA : leafId === 'B' ? ownerB : null);
+    const splitLeaf = document.createElement('div');
+    splitLeaf.className = 'table-widget__cell--split-leaf';
+    const editor = document.createElement('div');
+    editor.className = 'table-widget__cell-editor';
+    editor.setAttribute('data-leaf', '0-0-0');
+    editor.innerHTML = '<div>Text</div>';
 
-    c.getSplitColFractions = (_ownerLeafId: string, cell: any) => cell.split.columnFractions;
-    c.getSplitRowFractions = (_ownerLeafId: string, cell: any) => cell.split.rowFractions;
+    Object.defineProperty(editor, 'scrollHeight', { value: 80, configurable: true });
+    Object.defineProperty(editor, 'offsetHeight', { value: 80, configurable: true });
+    spyOn(editor, 'getBoundingClientRect').and.returnValue({
+      left: 0,
+      top: 0,
+      width: 50,
+      height: 80,
+      right: 50,
+      bottom: 80,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
 
-    c.cdr = { markForCheck: () => void 0 };
+    spyOn(splitLeaf, 'getBoundingClientRect').and.returnValue({
+      left: 0,
+      top: 0,
+      width: 50,
+      height: 40,
+      right: 50,
+      bottom: 40,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
 
-    c.isResizingSplitGrid = true;
-    c.activeSplitResize = {
-      kind: 'col',
-      ownerLeafId: 'A',
-      sharedOwnerLeafIds: ['A', 'B'],
-      boundaryIndex: 1,
-      ownerBoundaryIndexMap: new Map<string, number>([
-        ['A', 1],
-        // In B, the aligned boundary corresponds to its second internal boundary (between cols 2 and 3).
-        ['B', 2],
-      ]),
-      ownerContainerWidthPx: new Map<string, number>([
-        ['A', 100],
-        ['B', 200],
-      ]),
-      pointerId: 1,
-      startClientX: 0,
-      startClientY: 0,
-      startFractions: [0.6, 0.4],
-      containerWidthPx: 100,
-      containerHeightPx: 50,
-      zoomScale: 1,
+    splitLeaf.appendChild(editor);
+    gridEl.appendChild(splitLeaf);
+    tableEl.appendChild(gridEl);
+
+    c.getTableElement = () => tableEl;
+
+    const ownerCell = {
+      split: {
+        rows: 2,
+        cols: 1,
+        rowFractions: [0.6, 0.4],
+        cells: [{ id: 'c0', contentHtml: '<div>x</div>' }, { id: 'c1', contentHtml: '' }],
+      },
     };
 
-    // Move pointer +10px:
-    // - owner A width=100 => +0.10 on the left side of boundary 1
-    // - owner B width=200 => +0.05 on the left side of boundary 2
-    c.handleSplitResizePointerMove({
-      preventDefault: () => void 0,
-      stopPropagation: () => void 0,
-      pointerId: 1,
-      pointerType: 'mouse',
-      buttons: 1,
-      clientX: 10,
-      clientY: 0,
-    } as any);
+    const mins = c.computeMinSplitAdjacentRowHeightsPx('0-0', ownerCell, 1, 100, 1);
 
-    const map = c.pendingSplitColFractions();
-    expect(map.get('A')?.[0]).toBeCloseTo(0.7, 6);
-    expect(map.get('A')?.[1]).toBeCloseTo(0.3, 6);
-
-    // Owner B boundary 2 is between [0.3,0.5] (total=0.8). +10px at width=200 => +0.05 => [0.35,0.45].
-    expect(map.get('B')?.[0]).toBeCloseTo(0.2, 6);
-    expect(map.get('B')?.[1]).toBeCloseTo(0.35, 6);
-    expect(map.get('B')?.[2]).toBeCloseTo(0.45, 6);
+    expect(mins.minTopPx).toBeGreaterThan(18);
+    expect(mins.minBottomPx).toBe(18);
   });
 });

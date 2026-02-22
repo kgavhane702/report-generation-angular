@@ -36,6 +36,36 @@ describe('TableWidgetComponent - Tab navigation (leaf-aware)', () => {
     // Shift+Tab backwards within split
     expect(c.getNextLeafIdForTab('0-0-2', -1)).toBe('0-0-1');
   });
+
+  it('returns null when tabbing forward from the last addressable leaf in table', () => {
+    const c = Object.create(TableWidgetComponent.prototype) as any;
+
+    const rows: any[] = [
+      {
+        id: 'r0',
+        cells: [
+          { id: 'a', contentHtml: '<div>a</div>' },
+          {
+            id: 'b',
+            contentHtml: '',
+            split: {
+              rows: 1,
+              cols: 2,
+              cells: [
+                { id: 'b0', contentHtml: '<div>x</div>' },
+                { id: 'b1', contentHtml: '<div>y</div>' },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+
+    c.localRows = () => rows;
+
+    // Last leaf in row-major order is 0-1-1; tabbing forward should stop.
+    expect(c.getNextLeafIdForTab('0-1-1', 1)).toBeNull();
+  });
 });
 
 
