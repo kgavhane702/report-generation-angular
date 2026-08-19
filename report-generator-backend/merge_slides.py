@@ -1,10 +1,17 @@
 """
-Platform-Independent PowerPoint (.pptx) Merger
-================================================
-Works seamlessly across Windows, macOS, and Linux without MS Office or external dependencies.
-Merges individual single-slide PPTX files into a single master presentation
-with 100% design fidelity: preserving layouts, slide masters, themes, colors,
-fonts, vector shapes, embedded charts, Excel workbooks, OLE objects, drawings, and media.
+Autonomous PowerPoint (.pptx) Slide Merger
+==========================================
+Merges individual single-slide PPTX presentations into a single master presentation
+100% autonomously with NO external template or reference file required.
+
+Pure Python implementation:
+- Platform-independent (Windows, macOS, Linux)
+- Zero dependency on Microsoft Office or PowerPoint COM
+- Fully preserves themes, vector shapes, DrawingML charts, embedded Excel workbooks,
+  OLE objects, custom XML parts, layout masters, and presenter notes.
+
+Usage:
+    python merge_autonomous.py
 """
 
 import os
@@ -16,18 +23,27 @@ import posixpath
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-# Standard OpenXML Namespaces
-NS_P = "http://schemas.openxmlformats.org/presentationml/2006/main"
-NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
-NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-NS_RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
-NS_CT = "http://schemas.openxmlformats.org/package/2006/content-types"
-NS_P14 = "http://schemas.microsoft.com/office/powerpoint/2010/main"
-NS_P15 = "http://schemas.microsoft.com/office/powerpoint/2012/main"
-NS_P16 = "http://schemas.microsoft.com/office/powerpoint/2015/main"
-NS_A14 = "http://schemas.microsoft.com/office/drawing/2010/main"
-NS_A16 = "http://schemas.microsoft.com/office/drawing/2014/main"
-NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
+
+# Complete OpenXML Standard Namespace Registry
+STANDARD_NAMESPACES = {
+    'p': 'http://schemas.openxmlformats.org/presentationml/2006/main',
+    'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+    'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+    'c': 'http://schemas.openxmlformats.org/drawingml/2006/chart',
+    'mc': 'http://schemas.openxmlformats.org/markup-compatibility/2006',
+    'p14': 'http://schemas.microsoft.com/office/powerpoint/2010/main',
+    'p15': 'http://schemas.microsoft.com/office/powerpoint/2012/main',
+    'p16': 'http://schemas.microsoft.com/office/powerpoint/2015/main',
+    'a14': 'http://schemas.microsoft.com/office/drawing/2010/main',
+    'a16': 'http://schemas.microsoft.com/office/drawing/2014/main',
+    'c14': 'http://schemas.microsoft.com/office/drawing/2007/8/2/chart',
+    'c16': 'http://schemas.microsoft.com/office/drawing/2014/chart',
+    'c16r2': 'http://schemas.microsoft.com/office/drawing/2015/06/chart',
+    'v': 'urn:schemas-microsoft-com:vml',
+}
+
+for prefix, uri in STANDARD_NAMESPACES.items():
+    ET.register_namespace(prefix, uri)
 
 CONTENT_TYPE_DEFAULTS = {
     'xml': 'application/xml',
@@ -49,39 +65,36 @@ CONTENT_TYPE_DEFAULTS = {
 
 
 def natural_sort_key(s):
-    """Sort strings containing numbers in natural human order."""
-    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s))]
+    """Natural sorting key for human-ordered filenames (e.g. slide_1, slide_2, slide_10)."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', str(s))]
 
 
 def save_presentation_xml(tree, file_path):
-    """Saves presentation.xml ensuring standard OpenXML namespace prefixes."""
-    ET.register_namespace('p', NS_P)
-    ET.register_namespace('a', NS_A)
-    ET.register_namespace('r', NS_R)
-    ET.register_namespace('p14', NS_P14)
-    ET.register_namespace('p15', NS_P15)
-    ET.register_namespace('p16', NS_P16)
-    ET.register_namespace('a14', NS_A14)
-    ET.register_namespace('a16', NS_A16)
-    ET.register_namespace('c', NS_C)
+    """Saves presentation.xml with standard OpenXML namespaces."""
+    for prefix, uri in STANDARD_NAMESPACES.items():
+        ET.register_namespace(prefix, uri)
     tree.write(file_path, xml_declaration=True, encoding="utf-8")
 
 
 def save_rels_xml(tree, file_path):
     """Saves any .rels file with standard default relationships namespace."""
-    ET.register_namespace('', NS_RELS)
+    ET.register_namespace('', 'http://schemas.openxmlformats.org/package/2006/relationships')
     tree.write(file_path, xml_declaration=True, encoding="utf-8")
 
 
 def save_content_types_xml(tree, file_path):
     """Saves [Content_Types].xml with standard default content-types namespace."""
-    ET.register_namespace('', NS_CT)
+    ET.register_namespace('', 'http://schemas.openxmlformats.org/package/2006/content-types')
     tree.write(file_path, xml_declaration=True, encoding="utf-8")
 
 
-def merge_pptx_files(input_pptx_files, output_pptx_path, template_source_dir=None):
+def autonomous_merge_pptx(input_pptx_files, output_pptx_path):
     """
-    Merges single-slide PPTX presentations into a single master presentation.
+    Merges a sequence of single-slide PPTX files into one presentation autonomously.
+    No template or reference file is required.
+    
+    :param input_pptx_files: List of paths to input single-slide .pptx files.
+    :param output_pptx_path: Path where the merged presentation will be written.
     """
     if not input_pptx_files:
         raise ValueError("No input PPTX files provided.")
@@ -94,27 +107,17 @@ def merge_pptx_files(input_pptx_files, output_pptx_path, template_source_dir=Non
         merged_root = temp_dir / "merged"
         merged_root.mkdir()
 
-        # Step 1: Initialize base structure from template_source_dir or first split file
-        if template_source_dir and Path(template_source_dir).exists():
-            shutil.copytree(template_source_dir, merged_root, dirs_exist_ok=True)
-            
-            # Clear old per-slide files in template
-            ppt_dir = merged_root / "ppt"
-            for clean_folder in ["slides", "notesSlides", "drawings"]:
-                f_path = ppt_dir / clean_folder
-                if f_path.exists():
-                    shutil.rmtree(f_path)
-                f_path.mkdir(parents=True, exist_ok=True)
-                (f_path / "_rels").mkdir(parents=True, exist_ok=True)
-        else:
-            base_pptx = Path(input_pptx_files[0])
-            with zipfile.ZipFile(base_pptx, 'r') as zf:
-                zf.extractall(merged_root)
+        # Step 1: Base package from the first slide file
+        with zipfile.ZipFile(input_pptx_files[0], 'r') as zf:
+            zf.extractall(merged_root)
 
         ppt_dir = merged_root / "ppt"
         slides_dir = ppt_dir / "slides"
         slides_rels_dir = slides_dir / "_rels"
         layouts_dir = ppt_dir / "slideLayouts"
+        layouts_rels_dir = layouts_dir / "_rels"
+        masters_dir = ppt_dir / "slideMasters"
+        masters_rels_dir = masters_dir / "_rels"
         charts_dir = ppt_dir / "charts"
         charts_rels_dir = charts_dir / "_rels"
         drawings_dir = ppt_dir / "drawings"
@@ -125,7 +128,8 @@ def merge_pptx_files(input_pptx_files, output_pptx_path, template_source_dir=Non
         notes_rels_dir = notes_dir / "_rels"
         theme_dir = ppt_dir / "theme"
 
-        for d in [slides_dir, slides_rels_dir, charts_dir, charts_rels_dir,
+        for d in [slides_dir, slides_rels_dir, layouts_dir, layouts_rels_dir,
+                  masters_dir, masters_rels_dir, charts_dir, charts_rels_dir,
                   drawings_dir, media_dir, embeddings_dir, tags_dir, notes_dir, notes_rels_dir, theme_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
@@ -135,322 +139,376 @@ def merge_pptx_files(input_pptx_files, output_pptx_path, template_source_dir=Non
 
         pres_tree = ET.parse(pres_xml_path)
         pres_root = pres_tree.getroot()
-
         pres_rels_tree = ET.parse(pres_rels_path)
         pres_rels_root = pres_rels_tree.getroot()
-
         ct_tree = ET.parse(content_types_path)
         ct_root = ct_tree.getroot()
 
-        # Build layout dictionary by layout name
-        layout_name_to_filename = {}
-        for l_path in layouts_dir.glob("slideLayout*.xml"):
-            l_tree = ET.parse(l_path)
-            cSld = l_tree.getroot().find(f"{{{NS_P}}}cSld")
-            if cSld is not None:
-                name = cSld.get("name", "")
-                if name and name not in layout_name_to_filename:
-                    layout_name_to_filename[name] = l_path.name
+        # Clear existing slide instances
+        for clean_folder in ["slides", "notesSlides", "drawings"]:
+            f_path = ppt_dir / clean_folder
+            if f_path.exists():
+                shutil.rmtree(f_path)
+            f_path.mkdir(parents=True, exist_ok=True)
+            (f_path / "_rels").mkdir(parents=True, exist_ok=True)
 
-        # Reset slide list in presentation.xml
-        sldIdLst = pres_root.find(f"{{{NS_P}}}sldIdLst")
-        if sldIdLst is None:
-            sldIdLst = ET.SubElement(pres_root, f"{{{NS_P}}}sldIdLst")
-        else:
+        sldIdLst = pres_root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst")
+        if sldIdLst is not None:
             sldIdLst.clear()
+        else:
+            sldIdLst = ET.SubElement(pres_root, "{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst")
 
-        # Remove ONLY slide relationships from presentation.xml.rels
-        rels_to_remove = [r for r in pres_rels_root.findall(f"{{{NS_RELS}}}Relationship")
-                          if r.get("Type", "").endswith("/slide")]
-        for rel in rels_to_remove:
-            pres_rels_root.remove(rel)
+        for r in [r for r in pres_rels_root.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship") if r.get("Type", "").endswith("/slide")]:
+            pres_rels_root.remove(r)
 
-        # Remove old slide & notes overrides from [Content_Types].xml
-        ct_to_remove = [o for o in ct_root.findall(f"{{{NS_CT}}}Override")
-                        if (o.get("PartName", "").startswith("/ppt/slides/slide") or 
-                            o.get("PartName", "").startswith("/ppt/notesSlides/notesSlide") or
-                            o.get("PartName", "").startswith("/ppt/drawings/drawing"))]
-        for o in ct_to_remove:
+        for o in [o for o in ct_root.findall("{http://schemas.openxmlformats.org/package/2006/content-types}Override")
+                  if (o.get("PartName", "").startswith("/ppt/slides/slide") or 
+                      o.get("PartName", "").startswith("/ppt/notesSlides/notesSlide") or
+                      o.get("PartName", "").startswith("/ppt/drawings/drawing"))]:
             ct_root.remove(o)
-
-        existing_rids = set()
-        for rel in pres_rels_root.findall(f"{{{NS_RELS}}}Relationship"):
-            rid_val = rel.get("Id", "")
-            if rid_val.startswith("rId"):
-                try:
-                    existing_rids.add(int(rid_val[3:]))
-                except ValueError:
-                    pass
-        next_rid_num = max(existing_rids, default=0) + 1
-        next_slide_id = 256
-
-        def get_next_pres_rid():
-            nonlocal next_rid_num
-            rid = f"rId{next_rid_num}"
-            next_rid_num += 1
-            return rid
 
         def ensure_content_type_default(ext, content_type):
             ext = ext.lower().lstrip('.')
-            for d in ct_root.findall(f"{{{NS_CT}}}Default"):
+            for d in ct_root.findall("{http://schemas.openxmlformats.org/package/2006/content-types}Default"):
                 if d.get("Extension", "").lower() == ext:
                     return
-            d_elem = ET.SubElement(ct_root, f"{{{NS_CT}}}Default")
+            d_elem = ET.SubElement(ct_root, "{http://schemas.openxmlformats.org/package/2006/content-types}Default")
             d_elem.set("Extension", ext)
             d_elem.set("ContentType", content_type)
 
         def ensure_content_type_override(part_name, content_type):
             if not part_name.startswith("/"):
                 part_name = "/" + part_name
-            for o in ct_root.findall(f"{{{NS_CT}}}Override"):
+            for o in ct_root.findall("{http://schemas.openxmlformats.org/package/2006/content-types}Override"):
                 if o.get("PartName") == part_name:
                     return
-            o_elem = ET.SubElement(ct_root, f"{{{NS_CT}}}Override")
+            o_elem = ET.SubElement(ct_root, "{http://schemas.openxmlformats.org/package/2006/content-types}Override")
             o_elem.set("PartName", part_name)
             o_elem.set("ContentType", content_type)
 
         for ext, ct in CONTENT_TYPE_DEFAULTS.items():
             ensure_content_type_default(ext, ct)
 
+        # Existing layout map: layout name -> filename
+        existing_layouts = {}
+        for l_path in layouts_dir.glob("slideLayout*.xml"):
+            l_tree = ET.parse(l_path)
+            cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
+            if cSld is not None:
+                name = cSld.get("name", "")
+                if name and name not in existing_layouts:
+                    existing_layouts[name] = l_path.name
+
+        # Master management: load master XML texts and rels
+        master_texts = {}
+        master_max_ids = {}
+        master_rels_trees = {}
+        for m_path in masters_dir.glob("slideMaster*.xml"):
+            m_text = m_path.read_text(encoding='utf-8')
+            master_texts[m_path.name] = m_text
+            all_ids = [int(x) for x in re.findall(r'<p:sldLayoutId[^>]*id=["\'](\d+)["\']', m_text)]
+            master_max_ids[m_path.name] = max(all_ids, default=2147483648)
+            mr_path = masters_rels_dir / f"{m_path.name}.rels"
+            if mr_path.exists():
+                master_rels_trees[m_path.name] = ET.parse(mr_path)
+
+        def add_layout_to_master(layout_fname, master_fname):
+            if master_fname not in master_texts or master_fname not in master_rels_trees:
+                master_fname = list(master_texts.keys())[0]
+
+            mr_tree = master_rels_trees[master_fname]
+            mr_root = mr_tree.getroot()
+
+            rids = set()
+            for r in mr_root.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                rv = r.get("Id", "")
+                if rv.startswith("rId"):
+                    try:
+                        rids.add(int(rv[3:]))
+                    except ValueError:
+                        pass
+            next_m_rid = f"rId{max(rids, default=0) + 1}"
+
+            rel = ET.SubElement(mr_root, "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")
+            rel.set("Id", next_m_rid)
+            rel.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout")
+            rel.set("Target", f"../slideLayouts/{layout_fname}")
+
+            new_id = master_max_ids[master_fname] + 1
+            master_max_ids[master_fname] = new_id
+
+            tag_to_insert = f'<p:sldLayoutId id="{new_id}" r:id="{next_m_rid}"/>'
+            m_text = master_texts[master_fname]
+            if '</p:sldLayoutIdLst>' in m_text:
+                m_text = m_text.replace('</p:sldLayoutIdLst>', f'{tag_to_insert}</p:sldLayoutIdLst>')
+                master_texts[master_fname] = m_text
+
+        # PHASE 1: Pre-harvest all unique layouts across all split presentations
+        layout_counter = len(list(layouts_dir.glob("slideLayout*.xml")))
+        for pptx_file in input_pptx_files:
+            with zipfile.ZipFile(pptx_file, 'r') as zf:
+                s_rels_xml = zf.read("ppt/slides/_rels/slide1.xml.rels")
+                s_rels_tree = ET.fromstring(s_rels_xml)
+                for r in s_rels_tree:
+                    if r.get("Type", "").endswith("/slideLayout"):
+                        t = r.get("Target", "")
+                        l_entry = "ppt/" + t.replace("../", "")
+                        if l_entry in zf.namelist():
+                            l_xml = zf.read(l_entry)
+                            l_elem = ET.fromstring(l_xml)
+                            cSld = l_elem.find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
+                            lname = cSld.get("name", "") if cSld is not None else ""
+                            
+                            if lname and lname not in existing_layouts:
+                                layout_counter += 1
+                                new_layout_filename = f"slideLayout{layout_counter}.xml"
+                                (layouts_dir / new_layout_filename).write_bytes(l_xml)
+                                ensure_content_type_override(f"/ppt/slideLayouts/{new_layout_filename}", "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml")
+
+                                l_rels_entry = l_entry.replace("slideLayouts/", "slideLayouts/_rels/") + ".rels"
+                                master_fname = "slideMaster2.xml"
+                                if l_rels_entry in zf.namelist():
+                                    lr_tree = ET.fromstring(zf.read(l_rels_entry))
+                                    for lr in lr_tree:
+                                        lr_t = lr.get("Target", "")
+                                        if lr.get("Type", "").endswith("/slideMaster"):
+                                            master_fname = posixpath.basename(lr_t)
+                                            if master_fname not in master_texts:
+                                                master_fname = list(master_texts.keys())[0]
+                                            lr.set("Target", f"../slideMasters/{master_fname}")
+                                        else:
+                                            asset_entry = "ppt/" + lr_t.replace("../", "")
+                                            if asset_entry in zf.namelist():
+                                                dest_asset_path = ppt_dir / lr_t.replace("../", "")
+                                                dest_asset_path.parent.mkdir(parents=True, exist_ok=True)
+                                                if not dest_asset_path.exists():
+                                                    dest_asset_path.write_bytes(zf.read(asset_entry))
+                                                ext = dest_asset_path.suffix.lower()
+                                                if ext in CONTENT_TYPE_DEFAULTS:
+                                                    ensure_content_type_default(ext, CONTENT_TYPE_DEFAULTS[ext])
+                                    
+                                    save_rels_xml(ET.ElementTree(lr_tree), layouts_rels_dir / f"{new_layout_filename}.rels")
+
+                                add_layout_to_master(new_layout_filename, master_fname)
+                                existing_layouts[lname] = new_layout_filename
+
+        # Write updated slide masters and master rels
+        for m_name, m_text in master_texts.items():
+            (masters_dir / m_name).write_text(m_text, encoding='utf-8')
+        for m_name, mr_tree in master_rels_trees.items():
+            save_rels_xml(mr_tree, masters_rels_dir / f"{m_name}.rels")
+
+        # PHASE 2: Slide Assembly & Conflict Resolution
+        pres_rids = set()
+        for r in pres_rels_root.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+            rv = r.get("Id", "")
+            if rv.startswith("rId"):
+                try:
+                    pres_rids.add(int(rv[3:]))
+                except ValueError:
+                    pass
+        next_pres_rid_num = max(pres_rids, default=0) + 1
+        next_slide_id = 256
+
         chart_counter = 0
         drawing_counter = 0
         embed_counter = 0
-        media_counter = 0
+        media_counter = len(list(media_dir.glob("*")))
         tag_counter = len(list(tags_dir.glob("tag*.xml")))
         theme_override_counter = len(list(theme_dir.glob("themeOverride*.xml")))
 
-        # Step 2: Iterate through each slide presentation in order
-        for slide_idx, pptx_file in enumerate(input_pptx_files, start=1):
-            pptx_path = Path(pptx_file)
-            curr_temp = temp_dir / f"extracted_{slide_idx}"
+        for s_idx, pptx_file in enumerate(input_pptx_files, start=1):
+            curr_temp = temp_dir / f"s_{s_idx}"
             curr_temp.mkdir()
-
-            with zipfile.ZipFile(pptx_path, 'r') as zf:
+            with zipfile.ZipFile(pptx_file, 'r') as zf:
                 zf.extractall(curr_temp)
 
-            curr_ppt = curr_temp / "ppt"
-            curr_slides = curr_ppt / "slides"
-            if not curr_slides.exists():
+            c_slides = curr_temp / "ppt" / "slides"
+            if not c_slides.exists():
                 continue
 
-            src_slide_xml = curr_slides / "slide1.xml"
-            if not src_slide_xml.exists():
+            src_slide = c_slides / "slide1.xml"
+            if not src_slide.exists():
                 continue
 
-            new_slide_filename = f"slide{slide_idx}.xml"
-            dest_slide_xml = slides_dir / new_slide_filename
-            shutil.copy2(src_slide_xml, dest_slide_xml)
-            ensure_content_type_override(f"/ppt/slides/{new_slide_filename}", "application/vnd.openxmlformats-officedocument.presentationml.slide+xml")
+            new_slide_name = f"slide{s_idx}.xml"
+            shutil.copy2(src_slide, slides_dir / new_slide_name)
+            ensure_content_type_override(f"/ppt/slides/{new_slide_name}", "application/vnd.openxmlformats-officedocument.presentationml.slide+xml")
 
-            # Process slide relationships
-            src_slide_rels = curr_slides / "_rels" / "slide1.xml.rels"
-            dest_slide_rels = slides_rels_dir / f"{new_slide_filename}.rels"
+            src_rels_file = c_slides / "_rels" / "slide1.xml.rels"
+            if src_rels_file.exists():
+                s_rels_tree = ET.parse(src_rels_file)
+                for rel in s_rels_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                    r_type = rel.get("Type", "")
+                    r_target = rel.get("Target", "")
+                    type_short = r_type.split('/')[-1]
 
-            if src_slide_rels.exists():
-                slide_rels_tree = ET.parse(src_slide_rels)
-                slide_rels_root = slide_rels_tree.getroot()
-
-                for rel in slide_rels_root.findall(f"{{{NS_RELS}}}Relationship"):
-                    rel_type = rel.get("Type", "")
-                    target = rel.get("Target", "")
-                    type_short = rel_type.split('/')[-1]
-
-                    # 1. Slide Layout Resolution
+                    # Slide Layout
                     if "slideLayout" in type_short:
-                        src_layout_file = (curr_slides / target).resolve()
-                        if src_layout_file.exists():
-                            l_tree = ET.parse(src_layout_file)
-                            cSld = l_tree.getroot().find(f"{{{NS_P}}}cSld")
+                        src_layout = (c_slides / r_target).resolve()
+                        if src_layout.exists():
+                            l_tree = ET.parse(src_layout)
+                            cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
                             layout_name = cSld.get("name", "") if cSld is not None else ""
-                            
-                            # Match by layout name in template
-                            if layout_name and layout_name in layout_name_to_filename:
-                                matched_layout = layout_name_to_filename[layout_name]
-                                rel.set("Target", f"../slideLayouts/{matched_layout}")
-                            else:
-                                rel.set("Target", target)
+                            if layout_name in existing_layouts:
+                                rel.set("Target", f"../slideLayouts/{existing_layouts[layout_name]}")
 
-                    # 2. Chart Resolution (with themeOverrides, workbooks, styles, colors, drawings)
+                    # Charts
                     elif "chart" in type_short and "chartUserShapes" not in type_short:
-                        src_chart_file = (curr_slides / target).resolve()
-                        if src_chart_file.exists():
+                        src_chart = (c_slides / r_target).resolve()
+                        if src_chart.exists():
                             chart_counter += 1
-                            new_chart_name = f"chart{chart_counter}.xml"
-                            dest_chart_file = charts_dir / new_chart_name
-                            shutil.copy2(src_chart_file, dest_chart_file)
-                            ensure_content_type_override(f"/ppt/charts/{new_chart_name}", "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
+                            new_c_name = f"chart{chart_counter}.xml"
+                            shutil.copy2(src_chart, charts_dir / new_c_name)
+                            ensure_content_type_override(f"/ppt/charts/{new_c_name}", "application/vnd.openxmlformats-officedocument.drawingml.chart+xml")
 
-                            # Copy and update chart relationships
-                            src_chart_rels = src_chart_file.parent / "_rels" / f"{src_chart_file.name}.rels"
-                            if src_chart_rels.exists():
-                                chart_tree = ET.parse(src_chart_rels)
-                                chart_root = chart_tree.getroot()
-                                for c_rel in chart_root.findall(f"{{{NS_RELS}}}Relationship"):
-                                    c_target = c_rel.get("Target", "")
-                                    c_type = c_rel.get("Type", "")
+                            src_c_rels = src_chart.parent / "_rels" / f"{src_chart.name}.rels"
+                            if src_c_rels.exists():
+                                cr_tree = ET.parse(src_c_rels)
+                                for cr in cr_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                                    c_t = cr.get("Target", "")
+                                    c_ty = cr.get("Type", "")
 
-                                    # Theme Override
-                                    if "themeOverride" in c_type or "themeOverride" in c_target:
-                                        src_to = (src_chart_file.parent / c_target).resolve()
+                                    if "themeOverride" in c_ty or "themeOverride" in c_t:
+                                        src_to = (src_chart.parent / c_t).resolve()
                                         if src_to.exists():
                                             theme_override_counter += 1
-                                            new_to_name = f"themeOverride{theme_override_counter}.xml"
-                                            dest_to = theme_dir / new_to_name
-                                            shutil.copy2(src_to, dest_to)
-                                            ensure_content_type_override(f"/ppt/theme/{new_to_name}", "application/vnd.openxmlformats-officedocument.themeOverride+xml")
-                                            c_rel.set("Target", f"../theme/{new_to_name}")
+                                            new_to = f"themeOverride{theme_override_counter}.xml"
+                                            shutil.copy2(src_to, theme_dir / new_to)
+                                            ensure_content_type_override(f"/ppt/theme/{new_to}", "application/vnd.openxmlformats-officedocument.themeOverride+xml")
+                                            cr.set("Target", f"../theme/{new_to}")
 
-                                    # Embedded Workbook
-                                    elif "package" in c_type or "oleObject" in c_type:
-                                        if c_rel.get("TargetMode") != "External":
-                                            src_embed = (src_chart_file.parent / c_target).resolve()
-                                            if src_embed.exists() and "embeddings" in str(src_embed):
+                                    elif "package" in c_ty or "oleObject" in c_ty:
+                                        if cr.get("TargetMode") != "External":
+                                            src_emb = (src_chart.parent / c_t).resolve()
+                                            if src_emb.exists() and "embeddings" in str(src_emb):
                                                 embed_counter += 1
-                                                new_embed_name = f"embed_{chart_counter}_{embed_counter}_{src_embed.name}"
-                                                dest_embed = embeddings_dir / new_embed_name
-                                                shutil.copy2(src_embed, dest_embed)
-                                                c_rel.set("Target", f"../embeddings/{new_embed_name}")
-                                                ext = dest_embed.suffix.lower()
+                                                new_emb = f"embed_{chart_counter}_{embed_counter}_{src_emb.name}"
+                                                shutil.copy2(src_emb, embeddings_dir / new_emb)
+                                                cr.set("Target", f"../embeddings/{new_emb}")
+                                                ext = src_emb.suffix.lower()
                                                 if ext in CONTENT_TYPE_DEFAULTS:
                                                     ensure_content_type_default(ext, CONTENT_TYPE_DEFAULTS[ext])
 
-                                    # Chart User Shapes / Drawings
-                                    elif "chartUserShapes" in c_type or "drawings" in c_target:
-                                        src_draw = (src_chart_file.parent / c_target).resolve()
-                                        if src_draw.exists():
+                                    elif "chartUserShapes" in c_ty or "drawings" in c_t:
+                                        src_drw = (src_chart.parent / c_t).resolve()
+                                        if src_drw.exists():
                                             drawing_counter += 1
-                                            new_draw_name = f"drawing{drawing_counter}.xml"
-                                            dest_draw = drawings_dir / new_draw_name
-                                            shutil.copy2(src_draw, dest_draw)
-                                            ensure_content_type_override(f"/ppt/drawings/{new_draw_name}", "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml")
-                                            c_rel.set("Target", f"../drawings/{new_draw_name}")
+                                            new_drw = f"drawing{drawing_counter}.xml"
+                                            shutil.copy2(src_drw, drawings_dir / new_drw)
+                                            ensure_content_type_override(f"/ppt/drawings/{new_drw}", "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml")
+                                            cr.set("Target", f"../drawings/{new_drw}")
 
-                                    # Chart Style / Color Style (unique names to prevent collisions)
-                                    elif "chartStyle" in c_type or "style" in c_target:
-                                        src_style = (src_chart_file.parent / c_target).resolve()
-                                        if src_style.exists():
-                                            new_style_name = f"style_{chart_counter}_{src_style.name}"
-                                            dest_style = charts_dir / new_style_name
-                                            shutil.copy2(src_style, dest_style)
-                                            ensure_content_type_override(f"/ppt/charts/{new_style_name}", "application/vnd.ms-office.drawingml.chartstyle+xml")
-                                            c_rel.set("Target", new_style_name)
+                                    elif "chartStyle" in c_ty or "style" in c_t:
+                                        src_sty = (src_chart.parent / c_t).resolve()
+                                        if src_sty.exists():
+                                            new_sty = f"style_{chart_counter}_{src_sty.name}"
+                                            shutil.copy2(src_sty, charts_dir / new_sty)
+                                            ensure_content_type_override(f"/ppt/charts/{new_sty}", "application/vnd.ms-office.drawingml.chartstyle+xml")
+                                            cr.set("Target", new_sty)
 
-                                    elif "chartColorStyle" in c_type or "colors" in c_target:
-                                        src_color = (src_chart_file.parent / c_target).resolve()
-                                        if src_color.exists():
-                                            new_color_name = f"colors_{chart_counter}_{src_color.name}"
-                                            dest_color = charts_dir / new_color_name
-                                            shutil.copy2(src_color, dest_color)
-                                            ensure_content_type_override(f"/ppt/charts/{new_color_name}", "application/vnd.ms-office.drawingml.chartcolorstyle+xml")
-                                            c_rel.set("Target", new_color_name)
+                                    elif "chartColorStyle" in c_ty or "colors" in c_t:
+                                        src_col = (src_chart.parent / c_t).resolve()
+                                        if src_col.exists():
+                                            new_col = f"colors_{chart_counter}_{src_col.name}"
+                                            shutil.copy2(src_col, charts_dir / new_col)
+                                            ensure_content_type_override(f"/ppt/charts/{new_col}", "application/vnd.ms-office.drawingml.chartcolorstyle+xml")
+                                            cr.set("Target", new_col)
 
-                                dest_chart_rels = charts_rels_dir / f"{new_chart_name}.rels"
-                                save_rels_xml(chart_tree, dest_chart_rels)
+                                save_rels_xml(cr_tree, charts_rels_dir / f"{new_c_name}.rels")
+                            rel.set("Target", f"../charts/{new_c_name}")
 
-                            rel.set("Target", f"../charts/{new_chart_name}")
-
-                    # 3. Media (Images / Vectors)
+                    # Images / Media
                     elif "image" in type_short or "media" in type_short:
-                        src_media_file = (curr_slides / target).resolve()
-                        if src_media_file.exists():
+                        src_med = (c_slides / r_target).resolve()
+                        if src_med.exists():
                             media_counter += 1
-                            new_media_name = f"image_{slide_idx}_{media_counter}_{src_media_file.name}"
-                            dest_media_file = media_dir / new_media_name
-                            shutil.copy2(src_media_file, dest_media_file)
-                            ext = dest_media_file.suffix.lower()
+                            new_med = f"image_{s_idx}_{media_counter}_{src_med.name}"
+                            shutil.copy2(src_med, media_dir / new_med)
+                            ext = src_med.suffix.lower()
                             if ext in CONTENT_TYPE_DEFAULTS:
                                 ensure_content_type_default(ext, CONTENT_TYPE_DEFAULTS[ext])
-                            rel.set("Target", f"../media/{new_media_name}")
+                            rel.set("Target", f"../media/{new_med}")
 
-                    # 4. Embedded OLE Objects
+                    # Embedded OLE objects (Excel sheets, binary packages)
                     elif "oleObject" in type_short or "package" in type_short:
                         if rel.get("TargetMode") != "External":
-                            src_ole_file = (curr_slides / target).resolve()
-                            if src_ole_file.exists():
+                            src_ole = (c_slides / r_target).resolve()
+                            if src_ole.exists():
                                 embed_counter += 1
-                                new_ole_name = f"ole_{slide_idx}_{embed_counter}_{src_ole_file.name}"
-                                dest_ole_file = embeddings_dir / new_ole_name
-                                shutil.copy2(src_ole_file, dest_ole_file)
-                                ext = dest_ole_file.suffix.lower()
+                                new_ole = f"ole_{s_idx}_{embed_counter}_{src_ole.name}"
+                                shutil.copy2(src_ole, embeddings_dir / new_ole)
+                                ext = src_ole.suffix.lower()
                                 if ext in CONTENT_TYPE_DEFAULTS:
                                     ensure_content_type_default(ext, CONTENT_TYPE_DEFAULTS[ext])
-                                rel.set("Target", f"../embeddings/{new_ole_name}")
+                                rel.set("Target", f"../embeddings/{new_ole}")
 
-                    # 5. Metadata Tags
+                    # Metadata Tags
                     elif "tags" in type_short:
-                        src_tag_file = (curr_slides / target).resolve()
-                        if src_tag_file.exists():
+                        src_tag = (c_slides / r_target).resolve()
+                        if src_tag.exists():
                             tag_counter += 1
-                            new_tag_name = f"tag_{slide_idx}_{tag_counter}.xml"
-                            dest_tag_file = tags_dir / new_tag_name
-                            shutil.copy2(src_tag_file, dest_tag_file)
-                            ensure_content_type_override(f"/ppt/tags/{new_tag_name}", "application/vnd.openxmlformats-officedocument.presentationml.tags+xml")
-                            rel.set("Target", f"../tags/{new_tag_name}")
+                            new_tag = f"tag_{s_idx}_{tag_counter}.xml"
+                            shutil.copy2(src_tag, tags_dir / new_tag)
+                            ensure_content_type_override(f"/ppt/tags/{new_tag}", "application/vnd.openxmlformats-officedocument.presentationml.tags+xml")
+                            rel.set("Target", f"../tags/{new_tag}")
 
-                    # 6. Notes Slides
+                    # Presenter Notes
                     elif "notesSlide" in type_short:
-                        src_notes_file = (curr_slides / target).resolve()
-                        if src_notes_file.exists():
-                            new_notes_name = f"notesSlide{slide_idx}.xml"
-                            dest_notes_file = notes_dir / new_notes_name
-                            shutil.copy2(src_notes_file, dest_notes_file)
-                            ensure_content_type_override(f"/ppt/notesSlides/{new_notes_name}", "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml")
+                        src_notes = (c_slides / r_target).resolve()
+                        if src_notes.exists():
+                            new_notes = f"notesSlide{s_idx}.xml"
+                            shutil.copy2(src_notes, notes_dir / new_notes)
+                            ensure_content_type_override(f"/ppt/notesSlides/{new_notes}", "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml")
 
-                            # Copy notes rels and update slide target to current slide
-                            src_notes_rels = src_notes_file.parent / "_rels" / f"{src_notes_file.name}.rels"
-                            if src_notes_rels.exists():
-                                notes_tree = ET.parse(src_notes_rels)
-                                notes_root = notes_tree.getroot()
-                                for n_rel in notes_root.findall(f"{{{NS_RELS}}}Relationship"):
-                                    if n_rel.get("Type", "").endswith("/slide"):
-                                        n_rel.set("Target", f"../slides/{new_slide_filename}")
-                                dest_notes_rels = notes_rels_dir / f"{new_notes_name}.rels"
-                                save_rels_xml(notes_tree, dest_notes_rels)
+                            src_nr = src_notes.parent / "_rels" / f"{src_notes.name}.rels"
+                            if src_nr.exists():
+                                nr_tree = ET.parse(src_nr)
+                                for nr in nr_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                                    if nr.get("Type", "").endswith("/slide"):
+                                        nr.set("Target", f"../slides/{new_slide_name}")
+                                save_rels_xml(nr_tree, notes_rels_dir / f"{new_notes}.rels")
+                            rel.set("Target", f"../notesSlides/{new_notes}")
 
-                            rel.set("Target", f"../notesSlides/{new_notes_name}")
+                save_rels_xml(s_rels_tree, slides_rels_dir / f"{new_slide_name}.rels")
 
-                save_rels_xml(slide_rels_tree, dest_slide_rels)
+            # Register slide into presentation.xml and presentation.xml.rels
+            s_rid = f"rId{next_pres_rid_num}"
+            next_pres_rid_num += 1
 
-            # Add slide relationship in presentation.xml.rels
-            new_rid = get_next_pres_rid()
-            rel_elem = ET.SubElement(pres_rels_root, f"{{{NS_RELS}}}Relationship")
-            rel_elem.set("Id", new_rid)
-            rel_elem.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide")
-            rel_elem.set("Target", f"slides/{new_slide_filename}")
+            prel = ET.SubElement(pres_rels_root, "{http://schemas.openxmlformats.org/package/2006/relationships}Relationship")
+            prel.set("Id", s_rid)
+            prel.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide")
+            prel.set("Target", f"slides/{new_slide_name}")
 
-            # Add sldId entry in presentation.xml
-            new_sld_id = ET.SubElement(sldIdLst, f"{{{NS_P}}}sldId")
-            new_sld_id.set("id", str(next_slide_id))
-            new_sld_id.set(f"{{{NS_R}}}id", new_rid)
+            sldId = ET.SubElement(sldIdLst, "{http://schemas.openxmlformats.org/presentationml/2006/main}sldId")
+            sldId.set("id", str(next_slide_id))
+            sldId.set("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id", s_rid)
             next_slide_id += 1
 
-        # Step 3: Write back updated presentation structure
+        # Save package manifests
         save_presentation_xml(pres_tree, pres_xml_path)
         save_rels_xml(pres_rels_tree, pres_rels_path)
         save_content_types_xml(ct_tree, content_types_path)
 
-        # Step 4: Zip all components into final merged .pptx
+        # Build output ZIP package
         with zipfile.ZipFile(output_pptx_path, 'w', compression=zipfile.ZIP_DEFLATED) as out_zip:
             for root, _, files in os.walk(merged_root):
                 for file in files:
-                    full_path = Path(root) / file
-                    rel_path = full_path.relative_to(merged_root)
-                    out_zip.write(full_path, arcname=str(rel_path))
+                    fp = Path(root) / file
+                    out_zip.write(fp, arcname=str(fp.relative_to(merged_root)))
 
-    print(f"[SUCCESS] Merged presentation created: {output_pptx_path}")
-    print(f"[SUCCESS] Total slides merged: {len(input_pptx_files)}")
+    print(f"[SUCCESS] Autonomous Merged Presentation: {output_pptx_path}")
+    print(f"[SUCCESS] Total Slides Merged: {len(input_pptx_files)}")
 
 
 if __name__ == "__main__":
     base_dir = Path(__file__).resolve().parent
     splitted_dir = base_dir / "splitted_ppt"
-    sample_ppt_dir = base_dir / "sample_ppt"
-    output_merged_path = base_dir / "merged_output.pptx"
+    output_merged_path = base_dir / "merged_autonomous_output.pptx"
 
-    # Collect all split slides in natural numerical order
     slide_files = sorted(splitted_dir.glob("slide_*.pptx"), key=natural_sort_key)
-    print(f"Found {len(slide_files)} slide files to merge.")
+    print(f"Scanning '{splitted_dir}'...")
+    print(f"Found {len(slide_files)} slide files to merge autonomously.")
 
-    # Merge slides with template layout & design resolution
-    template_dir = sample_ppt_dir if sample_ppt_dir.exists() else None
-    merge_pptx_files(slide_files, output_merged_path, template_source_dir=template_dir)
+    autonomous_merge_pptx(slide_files, output_merged_path)
