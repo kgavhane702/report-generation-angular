@@ -205,25 +205,6 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                             dest.parent.mkdir(parents=True, exist_ok=True)
                             dest.write_bytes(zf.read(name))
 
-        # Clean off-canvas designer guide shapes (color palette swatches, typography guides) from slide masters
-        for m_file in masters_dir.glob("slideMaster*.xml"):
-            try:
-                m_tree = ET.parse(m_file)
-                spTree = m_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld/{http://schemas.openxmlformats.org/presentationml/2006/main}spTree")
-                if spTree is not None:
-                    to_remove = []
-                    for elem in spTree:
-                        off = elem.find('.//{http://schemas.openxmlformats.org/drawingml/2006/main}off')
-                        if off is not None:
-                            x_val = int(off.get('x', '0'))
-                            if x_val < 0 or x_val >= 9144000:
-                                to_remove.append(elem)
-                    for r in to_remove:
-                        spTree.remove(r)
-                m_tree.write(m_file, xml_declaration=True, encoding="utf-8")
-            except Exception:
-                pass
-
         # Clear instance-specific folders
         for clean_folder in ["slides", "notesSlides", "drawings", "charts"]:
             f_path = ppt_dir / clean_folder
