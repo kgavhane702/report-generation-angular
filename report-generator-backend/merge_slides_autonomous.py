@@ -224,6 +224,20 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         ct_tree = ET.parse(content_types_path)
         ct_root = ct_tree.getroot()
 
+        # Synchronize Slide Dimensions (<p:sldSz>) from primary presentation (input_pptx_files[0])
+        # to ensure pack1 slides never overflow or get pushed out of the slide canvas window
+        try:
+            with zipfile.ZipFile(input_pptx_files[0], 'r') as primary_zf:
+                primary_pres = ET.fromstring(primary_zf.read("ppt/presentation.xml"))
+                primary_sldSz = primary_pres.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldSz")
+                if primary_sldSz is not None:
+                    target_sldSz = pres_root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldSz")
+                    if target_sldSz is not None:
+                        for k, v in primary_sldSz.attrib.items():
+                            target_sldSz.set(k, v)
+        except Exception as e:
+            print(f"[WARNING] Could not sync primary sldSz: {e}")
+
         sldIdLst = pres_root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst")
         if sldIdLst is not None:
             sldIdLst.clear()
