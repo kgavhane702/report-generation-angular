@@ -205,6 +205,20 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                             dest.parent.mkdir(parents=True, exist_ok=True)
                             dest.write_bytes(zf.read(name))
 
+        # Clean off-canvas designer guide shapes (color palette swatches, typography rules) from harvested slide masters
+        for m_file in masters_dir.glob("slideMaster*.xml"):
+            try:
+                m_content = m_file.read_text(encoding="utf-8")
+                # Remove Group 35 (color palette swatch table on the right)
+                m_content = re.sub(r'<p:grpSp>.*?name="Group 35".*?</p:grpSp>', '', m_content, flags=re.DOTALL)
+                # Remove TwoC_TitleL (Standard text formats on the left)
+                m_content = re.sub(r'<p:sp>.*?name="TwoC_TitleL".*?</p:sp>', '', m_content, flags=re.DOTALL)
+                # Remove Content Placeholder 5 (First level 14 pt on the left)
+                m_content = re.sub(r'<p:sp>.*?name="Content Placeholder 5".*?</p:sp>', '', m_content, flags=re.DOTALL)
+                m_file.write_text(m_content, encoding="utf-8")
+            except Exception:
+                pass
+
         # Clear instance-specific folders
         for clean_folder in ["slides", "notesSlides", "drawings", "charts"]:
             f_path = ppt_dir / clean_folder
