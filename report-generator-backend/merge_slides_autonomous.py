@@ -154,15 +154,10 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         merged_root = temp_dir / "merged"
         merged_root.mkdir()
 
-        # Step 1: Base package selection - pick slide package with the richest structure
+        # Step 1: Base package selection - use primary presentation as base skeleton
+        # so presentation properties (widescreen canvas, primary theme, primary master)
+        # originate cleanly from the first input deck.
         best_base = input_pptx_files[0]
-        max_entries = 0
-        for f in input_pptx_files:
-            with zipfile.ZipFile(f, 'r') as z:
-                nl = z.namelist()
-                if len(nl) > max_entries:
-                    max_entries = len(nl)
-                    best_base = f
 
         with zipfile.ZipFile(best_base, 'r') as zf:
             zf.extractall(merged_root)
