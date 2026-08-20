@@ -154,12 +154,12 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         merged_root = temp_dir / "merged"
         merged_root.mkdir()
 
-        # Step 1: Base package selection - pick slide package with richest structure
+        # Step 1: Base package selection - pick slide package with the richest structure
         best_base = input_pptx_files[0]
         max_entries = 0
         for f in input_pptx_files:
-            with zipfile.ZipFile(f, 'r') as zf:
-                nl = zf.namelist()
+            with zipfile.ZipFile(f, 'r') as z:
+                nl = z.namelist()
                 if len(nl) > max_entries:
                     max_entries = len(nl)
                     best_base = f
@@ -205,20 +205,6 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                             dest.parent.mkdir(parents=True, exist_ok=True)
                             dest.write_bytes(zf.read(name))
 
-        # Clean off-canvas designer guide shapes (color palette swatches, typography rules) from harvested slide masters
-        for m_file in masters_dir.glob("slideMaster*.xml"):
-            try:
-                m_content = m_file.read_text(encoding="utf-8")
-                # Remove Group 35 (color palette swatch table on the right)
-                m_content = re.sub(r'<p:grpSp>.*?name="Group 35".*?</p:grpSp>', '', m_content, flags=re.DOTALL)
-                # Remove TwoC_TitleL (Standard text formats on the left)
-                m_content = re.sub(r'<p:sp>.*?name="TwoC_TitleL".*?</p:sp>', '', m_content, flags=re.DOTALL)
-                # Remove Content Placeholder 5 (First level 14 pt on the left)
-                m_content = re.sub(r'<p:sp>.*?name="Content Placeholder 5".*?</p:sp>', '', m_content, flags=re.DOTALL)
-                m_file.write_text(m_content, encoding="utf-8")
-            except Exception:
-                pass
-
         # Clear instance-specific folders
         for clean_folder in ["slides", "notesSlides", "drawings", "charts"]:
             f_path = ppt_dir / clean_folder
@@ -237,20 +223,6 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         pres_rels_root = pres_rels_tree.getroot()
         ct_tree = ET.parse(content_types_path)
         ct_root = ct_tree.getroot()
-
-        # Synchronize Slide Dimensions (<p:sldSz>) from the first input presentation
-        # so the first pack retains its exact original canvas geometry and aspect ratio
-        try:
-            with zipfile.ZipFile(input_pptx_files[0], 'r') as primary_zf:
-                primary_pres = ET.fromstring(primary_zf.read("ppt/presentation.xml"))
-                primary_sldSz = primary_pres.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldSz")
-                if primary_sldSz is not None:
-                    target_sldSz = pres_root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldSz")
-                    if target_sldSz is not None:
-                        for k, v in primary_sldSz.attrib.items():
-                            target_sldSz.set(k, v)
-        except Exception as e:
-            print(f"[WARNING] Could not sync primary sldSz: {e}")
 
         sldIdLst = pres_root.find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst")
         if sldIdLst is not None:
@@ -307,28 +279,15 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
             else:
                 ensure_content_type_override(f"/ppt/theme/{t_path.name}", "application/vnd.openxmlformats-officedocument.theme+xml")
 
-        # Map existing layouts by (parent_master, layout_name) and by layout_name
-        existing_layouts_by_master = {}
+        # Map existing layout names -> filenames
+        existing_layouts = {}
         for l_path in layouts_dir.glob("slideLayout*.xml"):
-            try:
-                l_rels_path = layouts_rels_dir / f"{l_path.name}.rels"
-                parent_master = "slideMaster1.xml"
-                if l_rels_path.exists():
-                    lr_tree = ET.parse(l_rels_path)
-                    m_rels = [r.get("Target", "") for r in lr_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship") if "slideMaster" in r.get("Type", "")]
-                    if m_rels:
-                        parent_master = posixpath.basename(m_rels[0])
-                
-                l_tree = ET.parse(l_path)
-                cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
-                layout_name = cSld.get("name", "") if cSld is not None else ""
-                
-                if layout_name:
-                    existing_layouts_by_master[(parent_master, layout_name)] = l_path.name
-                    if layout_name not in existing_layouts_by_master:
-                        existing_layouts_by_master[layout_name] = l_path.name
-            except Exception:
-                pass
+            l_tree = ET.parse(l_path)
+            cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
+            if cSld is not None:
+                name = cSld.get("name", "")
+                if name and name not in existing_layouts:
+                    existing_layouts[name] = l_path.name
 
         pres_rids = set()
         for r in pres_rels_root.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
@@ -388,30 +347,18 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                         r_target = rel.get("Target", "")
                         type_short = r_type.split('/')[-1]
 
-                        # Slide Layout Mapping (Scoped to exact parent slide master)
+                        # Slide Layout Mapping
                         if "slideLayout" in type_short:
                             src_layout = (c_slides / r_target).resolve()
                             if src_layout.exists():
-                                src_layout_rels = src_layout.parent / "_rels" / f"{src_layout.name}.rels"
-                                src_parent_master = "slideMaster1.xml"
-                                if src_layout_rels.exists():
-                                    slr_tree = ET.parse(src_layout_rels)
-                                    sm_rels = [r.get("Target", "") for r in slr_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship") if "slideMaster" in r.get("Type", "")]
-                                    if sm_rels:
-                                        src_parent_master = posixpath.basename(sm_rels[0])
-                                
-                                sl_tree = ET.parse(src_layout)
-                                scSld = sl_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
-                                src_layout_name = scSld.get("name", "") if scSld is not None else ""
-                                
-                                matched_layout = existing_layouts_by_master.get((src_parent_master, src_layout_name))
-                                if not matched_layout:
-                                    matched_layout = existing_layouts_by_master.get(src_layout_name)
-                                
-                                if matched_layout:
-                                    rel.set("Target", f"../slideLayouts/{matched_layout}")
-                                elif (layouts_dir / src_layout.name).exists():
+                                if (layouts_dir / src_layout.name).exists():
                                     rel.set("Target", f"../slideLayouts/{src_layout.name}")
+                                else:
+                                    l_tree = ET.parse(src_layout)
+                                    cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
+                                    layout_name = cSld.get("name", "") if cSld is not None else ""
+                                    if layout_name in existing_layouts:
+                                        rel.set("Target", f"../slideLayouts/{existing_layouts[layout_name]}")
 
                         # Embedded Charts & Associated Assets
                         elif "chart" in type_short and "chartUserShapes" not in type_short:
