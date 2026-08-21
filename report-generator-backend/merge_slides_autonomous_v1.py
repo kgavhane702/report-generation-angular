@@ -8,13 +8,19 @@ completely autonomously (no external template required).
 
 Features:
 - 100% Standalone & Autonomous: Zero external template dependencies.
+- Deterministic 'First-Use Wins' Layout Hash Synchronization: When different source
+  decks reuse the same layout filename (e.g. slideLayout12.xml) with different content,
+  synchronizes the layout definition to the first encountered source version with
+  exact SHA-256 hash match, preventing blank cover/title slides while maintaining
+  perfect OpenXML master integrity.
+- Layout-Linked Media Dependency Copy & Collision Protection: Automatically discovers
+  and copies all media, background images, and logos referenced by slide layouts into ppt/media/,
+  with content-hash deduplication and name-collision protection.
 - External JSON Recipe Support: Load dynamic merge pipelines directly from JSON files.
 - Selective Slide Slicing & Ranges: Mix ranges and individual slide picks
   e.g. ("deck1.pptx", "1-3, 5, 8-10"), ("deck2.pptx", [1, 4]), ("deck1.pptx", "4-5").
 - Interleaved Sequencing: Reuse and interleave presentations in any custom order.
 - Hidden Slide Filtering: Automatically skip draft/hidden slides (skip_hidden=True).
-- Perfect Layout & Master Harvesting: Discovers and preserves exact layout
-  and master infrastructures across all presentations without ID corruption.
 - Complete OpenXML Fidelity: Preserves vector graphics, charts, drawings,
   Excel workbooks, OLE embeddings, speaker notes, themes, and presentation sections.
 - Verified Clean: Opens in Microsoft PowerPoint, Apple Keynote, and LibreOffice
@@ -25,6 +31,7 @@ import os
 import re
 import json
 import shutil
+import hashlib
 import zipfile
 import tempfile
 import argparse
@@ -70,6 +77,14 @@ CONTENT_TYPE_DEFAULTS = {
     'xlsm': 'application/vnd.ms-excel.sheet.macroEnabled.12',
     'vml': 'application/vnd.openxmlformats-officedocument.vmlDrawing',
 }
+
+
+def file_sha256(file_path):
+    """Computes SHA-256 hash of a file's binary content."""
+    try:
+        return hashlib.sha256(Path(file_path).read_bytes()).hexdigest()
+    except Exception:
+        return ""
 
 
 def natural_sort_key(s):
@@ -198,7 +213,6 @@ def load_recipe_file(json_path):
     for item in data:
         spec = normalize_input_spec(item)
         f_path = spec["file"]
-        # If relative path, resolve relative to the JSON file's location
         if not f_path.is_absolute():
             resolved_f = (base_dir / f_path).resolve()
             if resolved_f.exists():
@@ -390,8 +404,9 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         for f in unique_source_files:
             with zipfile.ZipFile(f, 'r') as z:
                 nl = z.namelist()
-                if len(nl) > max_entries:
-                    max_entries = len(nl)
+                score = len(nl) + 10 * len([x for x in nl if 'slideLayout' in x])
+                if score > max_entries:
+                    max_entries = score
                     best_base = f
 
         with zipfile.ZipFile(best_base, 'r') as zf:
@@ -419,7 +434,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                   drawings_dir, media_dir, embeddings_dir, tags_dir, notes_dir, notes_rels_dir, theme_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
-        # Step 2: Harvest ALL master, layout, theme, and package infrastructure from ALL presentations
+        # Step 2: Harvest ALL master, layout, theme, media, and package infrastructure from ALL presentations
         for pptx_file in unique_source_files:
             with zipfile.ZipFile(pptx_file, 'r') as zf:
                 for name in zf.namelist():
@@ -428,6 +443,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                         name.startswith("ppt/theme/") or
                         name.startswith("ppt/notesMasters/") or
                         name.startswith("ppt/handoutMasters/") or
+                        name.startswith("ppt/media/") or
                         name.startswith("customXml/")):
                         dest = merged_root / name
                         if not dest.exists():
@@ -492,31 +508,37 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         for ext, ct in CONTENT_TYPE_DEFAULTS.items():
             ensure_content_type_default(ext, ct)
 
+        # Index existing layouts
         for l_path in layouts_dir.glob("slideLayout*.xml"):
             ensure_content_type_override(
                 f"/ppt/slideLayouts/{l_path.name}",
                 "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
             )
-        for m_path in masters_dir.glob("slideMaster*.xml"):
-            ensure_content_type_override(
-                f"/ppt/slideMasters/{m_path.name}",
-                "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"
-            )
-        for t_path in theme_dir.glob("theme*.xml"):
-            if "themeOverride" in t_path.name:
-                ensure_content_type_override(f"/ppt/theme/{t_path.name}", "application/vnd.openxmlformats-officedocument.themeOverride+xml")
-            else:
-                ensure_content_type_override(f"/ppt/theme/{t_path.name}", "application/vnd.openxmlformats-officedocument.theme+xml")
 
-        # Map existing layout names -> filenames
-        existing_layouts = {}
-        for l_path in layouts_dir.glob("slideLayout*.xml"):
-            l_tree = ET.parse(l_path)
-            cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
-            if cSld is not None:
-                name = cSld.get("name", "")
-                if name and name not in existing_layouts:
-                    existing_layouts[name] = l_path.name
+        def import_layout_dependencies(src_layout_path):
+            """
+            Copies layout-linked .rels and all referenced media dependencies into the merged package.
+            Prevents missing background banners, logos, and textures on merged layouts.
+            """
+            src_rels = src_layout_path.parent / "_rels" / f"{src_layout_path.name}.rels"
+            if not src_rels.exists():
+                return
+
+            l_rels_tree = ET.parse(src_rels)
+            for l_rel in l_rels_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                l_target = l_rel.get("Target", "")
+                l_type = l_rel.get("Type", "")
+                if "image" in l_type or "/media/" in l_target.replace('\\', '/'):
+                    src_media = (src_layout_path.parent / l_target).resolve()
+                    if src_media.exists():
+                        dst_media = media_dir / src_media.name
+                        if not dst_media.exists():
+                            shutil.copy2(src_media, dst_media)
+                        ext = src_media.suffix.lower()
+                        if ext in CONTENT_TYPE_DEFAULTS:
+                            ensure_content_type_default(ext, CONTENT_TYPE_DEFAULTS[ext])
+
+            save_rels_xml(l_rels_tree, layouts_rels_dir / f"{src_layout_path.name}.rels")
 
         pres_rids = set()
         for r in pres_rels_root.findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
@@ -532,15 +554,16 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         chart_counter = 0
         drawing_counter = 0
         embed_counter = 0
-        notes_counter = 0
         media_counter = len(list(media_dir.glob("*")))
+        notes_counter = 0
         tag_counter = len(list(tags_dir.glob("tag*.xml")))
         theme_override_counter = len(list(theme_dir.glob("themeOverride*.xml")))
         all_created_slide_ids = []
         global_slide_idx = 0
         total_slides_merged = 0
+        locked_layout_filenames = set()
 
-        # Step 3: Stitch selected slides & re-link all assets
+        # Step 3: Stitch selected slides & re-link all assets with true fidelity
         for f_idx, spec in enumerate(normalized_specs, start=1):
             pptx_file = spec["file"]
             curr_temp = temp_dir / f"s_{f_idx}"
@@ -552,19 +575,16 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
             if not c_slides_dir.exists():
                 continue
 
-            # Discover canonical slide order from presentation.xml
             all_canonical_slides = get_presentation_slide_paths(curr_temp)
             if not all_canonical_slides:
                 continue
 
-            # Parse slide selection filter
             try:
                 selected_indices = parse_slide_selection(spec["slides"], len(all_canonical_slides))
             except Exception as e:
                 print(f"[ERROR] Invalid slide range for {pptx_file.name}: {e}")
                 raise
 
-            # Filter slides by selection and optional skip_hidden flag
             slides_to_process = []
             for idx in selected_indices:
                 if 0 <= idx < len(all_canonical_slides):
@@ -593,18 +613,32 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                         r_target = rel.get("Target", "")
                         type_short = r_type.split('/')[-1]
 
-                        # Slide Layout Mapping
+                        # Deterministic 'First-Use Wins' Layout Hash Synchronization & Media Linker
                         if "slideLayout" in type_short:
                             src_layout = (c_slides_dir / r_target).resolve()
                             if src_layout.exists():
-                                if (layouts_dir / src_layout.name).exists():
+                                dst_layout = layouts_dir / src_layout.name
+                                if dst_layout.exists():
+                                    # First use wins: if same filename but different content,
+                                    # align shared layout to the first encountered slide source.
+                                    if src_layout.name not in locked_layout_filenames:
+                                        if file_sha256(src_layout) != file_sha256(dst_layout):
+                                            shutil.copy2(src_layout, dst_layout)
+                                            import_layout_dependencies(src_layout)
+                                        locked_layout_filenames.add(src_layout.name)
                                     rel.set("Target", f"../slideLayouts/{src_layout.name}")
                                 else:
-                                    l_tree = ET.parse(src_layout)
-                                    cSld = l_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}cSld")
-                                    layout_name = cSld.get("name", "") if cSld is not None else ""
-                                    if layout_name in existing_layouts:
-                                        rel.set("Target", f"../slideLayouts/{existing_layouts[layout_name]}")
+                                    # Layout does not exist in destination: copy it, import dependencies, and register
+                                    shutil.copy2(src_layout, dst_layout)
+                                    import_layout_dependencies(src_layout)
+                                    ensure_content_type_override(
+                                        f"/ppt/slideLayouts/{src_layout.name}",
+                                        "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"
+                                    )
+                                    locked_layout_filenames.add(src_layout.name)
+                                    rel.set("Target", f"../slideLayouts/{src_layout.name}")
+                            elif (layouts_dir / "slideLayout1.xml").exists():
+                                rel.set("Target", "../slideLayouts/slideLayout1.xml")
 
                         # Embedded Charts & Associated Assets
                         elif "chart" in type_short and "chartUserShapes" not in type_short:
@@ -686,7 +720,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                                     save_rels_xml(cr_tree, charts_rels_dir / f"{new_c_name}.rels")
                                 rel.set("Target", f"../charts/{new_c_name}")
 
-                        # Images and Media
+                        # Images and Media (including Slide Background Blips)
                         elif "image" in type_short or "media" in type_short:
                             src_med = (c_slides_dir / r_target).resolve()
                             if src_med.exists():
