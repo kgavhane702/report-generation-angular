@@ -2,13 +2,19 @@
 Autonomous Platform-Independent PowerPoint (.pptx) Merger
 ==========================================================
 Works seamlessly across Windows, macOS, and Linux without MS Office.
-Merges individual single-slide PPTX files into a single master presentation
+Merges individual single-slide PPTX files, multi-slide presentations,
+selective slide ranges, or external JSON recipes into a single master presentation
 completely autonomously (no external template required).
 
 Features:
 - 100% Standalone & Autonomous: Zero external template dependencies.
+- External JSON Recipe Support: Load dynamic merge pipelines directly from JSON files.
+- Selective Slide Slicing & Ranges: Mix ranges and individual slide picks
+  e.g. ("deck1.pptx", "1-3, 5, 8-10"), ("deck2.pptx", [1, 4]), ("deck1.pptx", "4-5").
+- Interleaved Sequencing: Reuse and interleave presentations in any custom order.
+- Hidden Slide Filtering: Automatically skip draft/hidden slides (skip_hidden=True).
 - Perfect Layout & Master Harvesting: Discovers and preserves exact layout
-  and master infrastructures across all split presentations without ID corruption.
+  and master infrastructures across all presentations without ID corruption.
 - Complete OpenXML Fidelity: Preserves vector graphics, charts, drawings,
   Excel workbooks, OLE embeddings, speaker notes, themes, and presentation sections.
 - Verified Clean: Opens in Microsoft PowerPoint, Apple Keynote, and LibreOffice
@@ -17,9 +23,11 @@ Features:
 
 import os
 import re
+import json
 import shutil
 import zipfile
 import tempfile
+import argparse
 import posixpath
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -67,6 +75,196 @@ CONTENT_TYPE_DEFAULTS = {
 def natural_sort_key(s):
     """Natural sorting key for human-ordered filenames (e.g. slide_01, slide_2, slide_10)."""
     return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', str(s))]
+
+
+def parse_slide_selection(selection, total_slides):
+    """
+    Parses various slide selection formats into a list of 0-based slide indices.
+    
+    Supported formats:
+    - None / 'all' / '*': All slides [0, 1, ..., total_slides - 1]
+    - Single integer (1-based): 1 -> [0], -1 -> [total_slides - 1]
+    - Python slice: slice(0, 3) -> [0, 1, 2]
+    - Range / selective string: "1-3, 5, 8-10", "5-", "-3", "5, 2, 1"
+    - Python list/tuple: [1, "3-5", 8]
+    """
+    if selection is None or selection == "all" or selection == "*":
+        return list(range(total_slides))
+
+    if isinstance(selection, slice):
+        return list(range(total_slides))[selection]
+
+    if isinstance(selection, int):
+        idx = selection - 1 if selection > 0 else total_slides + selection
+        if 0 <= idx < total_slides:
+            return [idx]
+        raise IndexError(f"Slide index {selection} out of range for presentation with {total_slides} slides.")
+
+    if isinstance(selection, (list, tuple)):
+        indices = []
+        for item in selection:
+            indices.extend(parse_slide_selection(item, total_slides))
+        return indices
+
+    if isinstance(selection, str):
+        indices = []
+        tokens = [t.strip() for t in selection.split(',') if t.strip()]
+        for token in tokens:
+            if '-' in token:
+                parts = token.split('-', 1)
+                start_str, end_str = parts[0].strip(), parts[1].strip()
+
+                # "5-" -> from slide 5 to end
+                if start_str and not end_str:
+                    start = int(start_str) - 1
+                    end = total_slides
+                # "-3" -> from slide 1 to slide 3
+                elif not start_str and end_str:
+                    start = 0
+                    end = int(end_str)
+                # "2-5" -> from slide 2 to slide 5 inclusive
+                else:
+                    start = int(start_str) - 1
+                    end = int(end_str)
+
+                start = max(0, min(start, total_slides))
+                end = max(0, min(end, total_slides))
+                indices.extend(list(range(start, end)))
+            else:
+                s_num = int(token)
+                idx = s_num - 1 if s_num > 0 else total_slides + s_num
+                if 0 <= idx < total_slides:
+                    indices.append(idx)
+                else:
+                    raise IndexError(f"Slide number {token} out of range for presentation with {total_slides} slides.")
+        return indices
+
+    raise TypeError(f"Unsupported slide selection type: {type(selection)}")
+
+
+def normalize_input_spec(item):
+    """
+    Normalizes different input formats (Path, str, tuple, dict) into a standard dictionary:
+    {"file": Path, "slides": selection_expr, "skip_hidden": bool}
+    """
+    if isinstance(item, (str, Path)):
+        # Support CLI format "path/to/deck.pptx:1-3,5"
+        str_val = str(item)
+        if ":" in str_val and not (len(str_val) >= 2 and str_val[1] == ":" and str_val.count(":") == 1):
+            last_colon = str_val.rfind(":")
+            if last_colon > 1:
+                potential_file = Path(str_val[:last_colon])
+                if potential_file.exists():
+                    return {"file": potential_file, "slides": str_val[last_colon + 1:], "skip_hidden": False}
+        return {"file": Path(item), "slides": None, "skip_hidden": False}
+
+    if isinstance(item, (tuple, list)):
+        f = Path(item[0])
+        slides = item[1] if len(item) > 1 else None
+        skip_hidden = item[2] if len(item) > 2 else False
+        return {"file": f, "slides": slides, "skip_hidden": skip_hidden}
+
+    if isinstance(item, dict):
+        f = Path(item.get("file") or item.get("path"))
+        slides = item.get("slides") or item.get("range")
+        skip_hidden = bool(item.get("skip_hidden", False))
+        return {"file": f, "slides": slides, "skip_hidden": skip_hidden}
+
+    raise TypeError(f"Invalid input presentation specification: {item}")
+
+
+def load_recipe_file(json_path):
+    """
+    Loads an external JSON recipe/manifest file and returns a list of normalized slide specs.
+    Automatically resolves relative file paths relative to the JSON file's directory.
+
+    :param json_path: Path to the JSON recipe file.
+    :return: List of normalized specification dictionaries.
+    """
+    json_path = Path(json_path).resolve()
+    if not json_path.exists():
+        raise FileNotFoundError(f"JSON recipe file not found: {json_path}")
+
+    with open(json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+
+    if not isinstance(data, list):
+        raise ValueError(
+            f"JSON recipe must contain a top-level list of slide specifications, got {type(data).__name__}"
+        )
+
+    resolved_specs = []
+    base_dir = json_path.parent
+    for item in data:
+        spec = normalize_input_spec(item)
+        f_path = spec["file"]
+        # If relative path, resolve relative to the JSON file's location
+        if not f_path.is_absolute():
+            resolved_f = (base_dir / f_path).resolve()
+            if resolved_f.exists():
+                spec["file"] = resolved_f
+            else:
+                spec["file"] = f_path.resolve()
+        else:
+            spec["file"] = f_path.resolve()
+        resolved_specs.append(spec)
+
+    return resolved_specs
+
+
+def get_presentation_slide_paths(extracted_pptx_dir):
+    """
+    Discovers slide XML paths in exact visual presentation order as defined in presentation.xml.
+    Falls back to natural-sorted filenames in ppt/slides if presentation.xml is missing.
+    """
+    ppt_dir = Path(extracted_pptx_dir) / "ppt"
+    pres_xml = ppt_dir / "presentation.xml"
+    pres_rels = ppt_dir / "_rels" / "presentation.xml.rels"
+
+    if pres_xml.exists() and pres_rels.exists():
+        try:
+            rels_tree = ET.parse(pres_rels)
+            rid_to_target = {}
+            for rel in rels_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
+                r_type = rel.get("Type", "")
+                if r_type.endswith("/slide"):
+                    rid_to_target[rel.get("Id")] = rel.get("Target")
+
+            pres_tree = ET.parse(pres_xml)
+            sldIdLst = pres_tree.getroot().find("{http://schemas.openxmlformats.org/presentationml/2006/main}sldIdLst")
+            if sldIdLst is not None:
+                slides = []
+                for sldId in sldIdLst.findall("{http://schemas.openxmlformats.org/presentationml/2006/main}sldId"):
+                    r_id = sldId.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id")
+                    if r_id and r_id in rid_to_target:
+                        target = rid_to_target[r_id]
+                        slide_path = (ppt_dir / target).resolve()
+                        if slide_path.exists():
+                            slides.append(slide_path)
+                if slides:
+                    return slides
+        except Exception as e:
+            print(f"[WARNING] Error reading canonical presentation order: {e}")
+
+    # Fallback to scanning ppt/slides
+    slides_dir = ppt_dir / "slides"
+    if slides_dir.exists():
+        return sorted(
+            [p for p in slides_dir.glob("slide*.xml") if "_rels" not in p.parts],
+            key=lambda p: natural_sort_key(p.name)
+        )
+    return []
+
+
+def is_slide_hidden(slide_xml_path):
+    """Checks if a slide is marked as hidden in OpenXML (<p:sld show="0">)."""
+    try:
+        tree = ET.parse(slide_xml_path)
+        root = tree.getroot()
+        show_val = root.get("show", "1").lower()
+        return show_val in ("0", "false")
+    except Exception:
+        return False
 
 
 def save_presentation_xml(tree, file_path):
@@ -136,18 +334,50 @@ def sync_presentation_sections(pres_root, slide_ids):
 
 def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
     """
-    Autonomously merges a list of single-slide PPTX presentations into a single master presentation.
+    Autonomously merges a list of PPTX presentations, selective slide ranges,
+    or an external JSON recipe file into a single master presentation.
     No template or master presentation is required.
 
-    :param input_pptx_files: List of file paths to split .pptx files to merge.
+    :param input_pptx_files: List of file paths, tuples ("file.pptx", "1-3, 5"),
+                             dicts ({"file": "file.pptx", "slides": [1, 4], "skip_hidden": True}),
+                             or path to an external JSON recipe file ("manifest.json").
     :param output_pptx_path: Destination path for the merged .pptx presentation.
+    :return: Path to the generated output .pptx presentation.
     """
     if not input_pptx_files:
         raise ValueError("No input PPTX files provided.")
 
-    input_pptx_files = [Path(p) for p in input_pptx_files]
+    # If a single JSON recipe file path is passed directly:
+    if isinstance(input_pptx_files, (str, Path)) and str(input_pptx_files).lower().endswith(".json"):
+        normalized_specs = load_recipe_file(input_pptx_files)
+    elif (isinstance(input_pptx_files, (list, tuple)) and 
+          len(input_pptx_files) == 1 and 
+          isinstance(input_pptx_files[0], (str, Path)) and 
+          str(input_pptx_files[0]).lower().endswith(".json")):
+        normalized_specs = load_recipe_file(input_pptx_files[0])
+    else:
+        if isinstance(input_pptx_files, (str, Path)):
+            input_pptx_files = [input_pptx_files]
+        normalized_specs = []
+        for item in input_pptx_files:
+            if isinstance(item, (str, Path)) and str(item).lower().endswith(".json"):
+                normalized_specs.extend(load_recipe_file(item))
+            else:
+                normalized_specs.append(normalize_input_spec(item))
+
     output_pptx_path = Path(output_pptx_path)
     output_pptx_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Collect unique physical files for base package discovery and master harvesting
+    unique_source_files = []
+    seen_files = set()
+    for spec in normalized_specs:
+        src_path = spec["file"].resolve()
+        if not src_path.exists():
+            raise FileNotFoundError(f"Input presentation not found: {src_path}")
+        if src_path not in seen_files:
+            seen_files.add(src_path)
+            unique_source_files.append(src_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir = Path(temp_dir)
@@ -155,9 +385,9 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         merged_root.mkdir()
 
         # Step 1: Base package selection - pick slide package with the richest structure
-        best_base = input_pptx_files[0]
+        best_base = unique_source_files[0]
         max_entries = 0
-        for f in input_pptx_files:
+        for f in unique_source_files:
             with zipfile.ZipFile(f, 'r') as z:
                 nl = z.namelist()
                 if len(nl) > max_entries:
@@ -189,9 +419,8 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                   drawings_dir, media_dir, embeddings_dir, tags_dir, notes_dir, notes_rels_dir, theme_dir]:
             d.mkdir(parents=True, exist_ok=True)
 
-        # Step 2: Harvest ALL master, layout, theme, and package infrastructure from ALL split presentations
-        # preserving exact original part names and relationships without ID corruption
-        for pptx_file in input_pptx_files:
+        # Step 2: Harvest ALL master, layout, theme, and package infrastructure from ALL presentations
+        for pptx_file in unique_source_files:
             with zipfile.ZipFile(pptx_file, 'r') as zf:
                 for name in zf.namelist():
                     if (name.startswith("ppt/slideLayouts/") or 
@@ -311,23 +540,40 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
         global_slide_idx = 0
         total_slides_merged = 0
 
-        # Step 3: Stitch slides & re-link all assets
-        for f_idx, pptx_file in enumerate(input_pptx_files, start=1):
+        # Step 3: Stitch selected slides & re-link all assets
+        for f_idx, spec in enumerate(normalized_specs, start=1):
+            pptx_file = spec["file"]
             curr_temp = temp_dir / f"s_{f_idx}"
             curr_temp.mkdir()
             with zipfile.ZipFile(pptx_file, 'r') as zf:
                 zf.extractall(curr_temp)
 
-            c_slides = curr_temp / "ppt" / "slides"
-            if not c_slides.exists():
+            c_slides_dir = curr_temp / "ppt" / "slides"
+            if not c_slides_dir.exists():
                 continue
 
-            src_slides = sorted(
-                [p for p in c_slides.glob("slide*.xml") if "_rels" not in p.parts],
-                key=lambda p: natural_sort_key(p.name)
-            )
+            # Discover canonical slide order from presentation.xml
+            all_canonical_slides = get_presentation_slide_paths(curr_temp)
+            if not all_canonical_slides:
+                continue
 
-            for src_slide in src_slides:
+            # Parse slide selection filter
+            try:
+                selected_indices = parse_slide_selection(spec["slides"], len(all_canonical_slides))
+            except Exception as e:
+                print(f"[ERROR] Invalid slide range for {pptx_file.name}: {e}")
+                raise
+
+            # Filter slides by selection and optional skip_hidden flag
+            slides_to_process = []
+            for idx in selected_indices:
+                if 0 <= idx < len(all_canonical_slides):
+                    src_s_path = all_canonical_slides[idx]
+                    if spec["skip_hidden"] and is_slide_hidden(src_s_path):
+                        continue
+                    slides_to_process.append(src_s_path)
+
+            for src_slide in slides_to_process:
                 global_slide_idx += 1
                 total_slides_merged += 1
                 s_idx = global_slide_idx
@@ -339,7 +585,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                     "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"
                 )
 
-                src_rels_file = c_slides / "_rels" / f"{src_slide.name}.rels"
+                src_rels_file = c_slides_dir / "_rels" / f"{src_slide.name}.rels"
                 if src_rels_file.exists():
                     s_rels_tree = ET.parse(src_rels_file)
                     for rel in s_rels_tree.getroot().findall("{http://schemas.openxmlformats.org/package/2006/relationships}Relationship"):
@@ -349,7 +595,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
 
                         # Slide Layout Mapping
                         if "slideLayout" in type_short:
-                            src_layout = (c_slides / r_target).resolve()
+                            src_layout = (c_slides_dir / r_target).resolve()
                             if src_layout.exists():
                                 if (layouts_dir / src_layout.name).exists():
                                     rel.set("Target", f"../slideLayouts/{src_layout.name}")
@@ -362,7 +608,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
 
                         # Embedded Charts & Associated Assets
                         elif "chart" in type_short and "chartUserShapes" not in type_short:
-                            src_chart = (c_slides / r_target).resolve()
+                            src_chart = (c_slides_dir / r_target).resolve()
                             if src_chart.exists():
                                 chart_counter += 1
                                 new_c_name = f"chart{chart_counter}.xml"
@@ -442,7 +688,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
 
                         # Images and Media
                         elif "image" in type_short or "media" in type_short:
-                            src_med = (c_slides / r_target).resolve()
+                            src_med = (c_slides_dir / r_target).resolve()
                             if src_med.exists():
                                 media_counter += 1
                                 new_med = f"image_{s_idx}_{media_counter}_{src_med.name}"
@@ -455,7 +701,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
                         # Embedded OLE Objects / Packages
                         elif "oleObject" in type_short or "package" in type_short:
                             if rel.get("TargetMode") != "External":
-                                src_ole = (c_slides / r_target).resolve()
+                                src_ole = (c_slides_dir / r_target).resolve()
                                 if src_ole.exists():
                                     embed_counter += 1
                                     new_ole = f"ole_{s_idx}_{embed_counter}_{src_ole.name}"
@@ -467,7 +713,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
 
                         # Slide Metadata Tags
                         elif "tags" in type_short:
-                            src_tag = (c_slides / r_target).resolve()
+                            src_tag = (c_slides_dir / r_target).resolve()
                             if src_tag.exists():
                                 tag_counter += 1
                                 new_tag = f"tag_{s_idx}_{tag_counter}.xml"
@@ -480,7 +726,7 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
 
                         # Speaker Notes Slides
                         elif "notesSlide" in type_short:
-                            src_notes = (c_slides / r_target).resolve()
+                            src_notes = (c_slides_dir / r_target).resolve()
                             if src_notes.exists():
                                 notes_counter += 1
                                 new_notes = f"notesSlide{s_idx}.xml"
@@ -539,18 +785,76 @@ def merge_pptx_files_autonomous(input_pptx_files, output_pptx_path):
     return output_pptx_path
 
 
+def merge_from_json(json_recipe_path, output_pptx_path):
+    """
+    Convenience function: Autonomously merges presentations defined in an external JSON recipe file.
+    
+    :param json_recipe_path: Path to the JSON recipe/manifest file.
+    :param output_pptx_path: Destination path for the merged .pptx presentation.
+    :return: Path to the generated output .pptx presentation.
+    """
+    return merge_pptx_files_autonomous(json_recipe_path, output_pptx_path)
+
+
+def parse_cli_args():
+    """Command Line Interface argument parser."""
+    parser = argparse.ArgumentParser(
+        description="Autonomous Platform-Independent PowerPoint (.pptx) Slide Merger"
+    )
+    parser.add_argument(
+        "positional_inputs",
+        nargs="*",
+        help="Optional positional inputs (e.g. 'recipe.json', 'deck1.pptx:1-3', or list of pptx files)"
+    )
+    parser.add_argument(
+        "-i", "--inputs",
+        nargs="+",
+        help="Input files, slide specs (e.g. 'deck1.pptx:1-3,5' 'deck2.pptx:2,4'), or JSON recipe file"
+    )
+    parser.add_argument(
+        "-d", "--dir",
+        help="Input directory containing .pptx presentations to merge in natural sort order"
+    )
+    parser.add_argument(
+        "-r", "-c", "--recipe", "--config",
+        help="JSON recipe/manifest file describing the presentations and slide ranges to merge"
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default="merged_output_autonomous.pptx",
+        help="Destination path for the merged .pptx presentation (default: merged_output_autonomous.pptx)"
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    # Resolve absolute paths
+    args = parse_cli_args()
     base_dir = Path(__file__).resolve().parent
-    input_dir = (base_dir / "ppts").resolve()
-    output_merged_path = (base_dir / "merged_output_autonomous.pptx").resolve()
 
-    # Discover and sort all .pptx files in input_dir
-    slide_files = sorted(input_dir.glob("*.pptx"), key=natural_sort_key)
-    print(f"[Autonomous Merger] Input directory : {input_dir}")
-    print(f"[Autonomous Merger] Output file     : {output_merged_path}")
-    print(f"[Autonomous Merger] Found {len(slide_files)} .pptx files to merge.")
+    inputs_to_process = []
 
-    # Execute merge
-    merge_pptx_files_autonomous(slide_files, output_merged_path)
+    if args.recipe:
+        inputs_to_process = args.recipe
+    elif args.inputs:
+        inputs_to_process = args.inputs
+    elif args.positional_inputs:
+        if len(args.positional_inputs) == 1 and args.positional_inputs[0].lower().endswith(".json"):
+            inputs_to_process = args.positional_inputs[0]
+        else:
+            inputs_to_process = args.positional_inputs
+    elif args.dir:
+        input_dir = Path(args.dir).resolve()
+        inputs_to_process = sorted(input_dir.glob("*.pptx"), key=natural_sort_key)
+    else:
+        # Default behavior: look in ./ppts directory
+        default_dir = (base_dir / "ppts").resolve()
+        if default_dir.exists():
+            inputs_to_process = sorted(default_dir.glob("*.pptx"), key=natural_sort_key)
+            print(f"[Autonomous Merger] Using default input directory: {default_dir}")
+        else:
+            inputs_to_process = sorted(base_dir.glob("*.pptx"), key=natural_sort_key)
 
+    output_path = Path(args.output).resolve()
+    print(f"[Autonomous Merger] Output file: {output_path}")
+
+    merge_pptx_files_autonomous(inputs_to_process, output_path)
